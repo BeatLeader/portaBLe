@@ -7,3 +7,4 @@ Properties/PublishProfiles/*
 /azstorage
 .csproj.user
 wwwroot/Database.*
+maps

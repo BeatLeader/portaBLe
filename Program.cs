@@ -67,6 +67,55 @@ namespace portaBLe
             }
         }
 
+        public static async Task DownloadMaps()
+        {
+            string filename = "maps.zip";
+            try
+            {
+                var request = new GetObjectRequest
+                {
+                    BucketName = "portabledbs",
+                    Key = filename
+                };
+
+                using (var response = await GetS3Client().GetObjectAsync(request))
+                using (var responseStream = response.ResponseStream)
+                using (var fileStream = new FileStream(filename, FileMode.Create, FileAccess.Write))
+                {
+                    await responseStream.CopyToAsync(fileStream);
+                }
+
+                ZipFile.ExtractToDirectory(filename, "./", true);
+                File.Delete(filename);
+            }
+            catch (AmazonS3Exception e)
+            {
+                if (e.ErrorCode == "NoSuchKey")
+                {
+                    Console.WriteLine("File not found in S3.");
+                }
+                throw; // Re-throw the exception if it's not handled here.
+            }
+        }
+
+        public static async Task RefreshRatings(IHost host) {
+            using (var scope = host.Services.CreateScope())
+            {
+                var services = scope.ServiceProvider;
+                var dbContextFactory = services.GetRequiredService<IDbContextFactory<AppContext>>();
+                var env = services.GetRequiredService<IWebHostEnvironment>();
+
+                if (!Directory.Exists("maps")) {
+                    await DownloadMaps();
+                }
+
+                using var dbContext = dbContextFactory.CreateDbContext();
+                await RatingRefresh.RefreshMaps(dbContext);
+                await ScoresRefresh.Refresh(dbContext);
+                await PlayersRefresh.Refresh(dbContext);
+            }
+        }
+
         private static string ReconstructKey(string shuffledKey, int[] indices)
         {
             char[] originalKey = new char[indices.Length];
@@ -180,6 +229,9 @@ namespace portaBLe
                 // Remove downloading remote DB if you want to recreate it fresh
                 await DownloadDatabaseIfNeeded(builder.Environment.WebRootPath);
 
+                // Store your version of DB in S3 for deploy
+                //await UploadDatabaseAsync($"{builder.Environment.WebRootPath}/Database.db");
+
                 var connectionString = $"Data Source={builder.Environment.WebRootPath}/Database.db;";
                 builder.Services.AddDbContextFactory<AppContext>(options => options.UseSqlite(connectionString));
                 builder.Services.AddRazorPages();
@@ -208,8 +260,8 @@ namespace portaBLe
                 // JSON zip to Database. Takes 5-20 minutes and 8-15GB of RAM
                 //await ImportDump(app);
 
-                // Store your version of DB in S3 for deploy
-                //await UploadDatabaseAsync($"{builder.Environment.WebRootPath}/Database.db");
+                // Refresh map ratings from the BL algo
+                //await RefreshRatings(app);
 
                 await app.RunAsync();
             } catch (Exception e) {

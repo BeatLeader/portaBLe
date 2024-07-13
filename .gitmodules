@@ -1,0 +1,6 @@
+[submodule "beatleader-analyzer"]
+	path = beatleader-analyzer
+	url = https://github.com/BeatLeader/beatleader-analyzer.git
+[submodule "beatleader-parser"]
+	path = beatleader-parser
+	url = https://github.com/BeatLeader/beatleader-parser.git
