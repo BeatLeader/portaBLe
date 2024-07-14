@@ -1,0 +1,169 @@
+﻿@page "/leaderboard/{id}"
+@model LeaderboardModel
+
+@{
+    ViewData["Title"] = "Leaderboard Details";
+    var gypL = 57.74;
+    var defaultMaxRating = 15;
+    double maxRatingValue = Math.Max(
+        Model.Leaderboard.TechRating,
+        Math.Max(Model.Leaderboard.PassRating, Model.Leaderboard.AccRating)
+    );
+    double maxRating = maxRatingValue > defaultMaxRating ? Math.Ceiling(maxRatingValue) : defaultMaxRating;
+    var corner1 = new
+    {
+        x = (gypL - (Model.Leaderboard.TechRating / maxRating) * gypL) * 0.866,
+        y = 86.6 - (gypL - (Model.Leaderboard.TechRating / maxRating) * gypL) / 2
+    };
+    var corner2 = new
+    {
+        x = 100 - (gypL - (Model.Leaderboard.AccRating / maxRating) * gypL) * 0.866,
+        y = 86.6 - (gypL - (Model.Leaderboard.AccRating / maxRating) * gypL) / 2
+    };
+    var corner3 = new
+    {
+        x = 50,
+        y = (86.6 - gypL / 2) * (1 - Model.Leaderboard.PassRating / maxRating)
+    };
+}
+
+<h2>@Model.Leaderboard.Name - @Model.Leaderboard.DifficultyName - @Model.Leaderboard.ModeName</h2>
+
+
+<div class="triangle-container">
+	<div class="tech-and-acc">
+        <span>Tech: @(Math.Round(Model.Leaderboard.TechRating, 2)) ★</span>
+        <span>Acc: @(Math.Round(Model.Leaderboard.AccRating, 2)) ★</span>
+	</div>
+	<div class="stars">
+        <span>@(Math.Round(Model.Leaderboard.Stars, 1)) ★</span>
+	</div>
+
+    <svg style="width: 6em; height: 6em;"
+		 xmlns="http://www.w3.org/2000/svg"
+		 version="1.200000"
+		 width="100%"
+		 height="100%"
+		 viewBox="0 0 100.000000 86.600000"
+		 xmlns:xlink="http://www.w3.org/1999/xlink">
+		<g transform="matrix(1 0 0 -1 0 86.600000)">
+			<defs>
+				<linearGradient id="fadeA-1"
+								gradientUnits="userSpaceOnUse"
+								x1=@corner1.x
+								y1=@corner1.y
+								x2=@((corner2.x + corner3.x) / 2)
+								y2=@((corner2.y + corner3.y) / 2)>
+                    <stop offset="0%" stop-color="rgb(255 0 0 / @((Model.Leaderboard.TechRating / maxRating) * 100)%)" />
+                    <stop offset="100%" stop-color="rgb(255 0 0 / @((Model.Leaderboard.TechRating / maxRating) * 25)%)" />
+				</linearGradient>
+				<linearGradient id="fadeB-1"
+								gradientUnits="userSpaceOnUse"
+								x1=@(corner3.x)
+								y1=@(corner3.y)
+								x2=@((corner1.x + corner2.x) / 2)
+								y2=@((corner1.y + corner2.y) / 2)>
+                    <stop offset="0%" stop-color="rgb(0 255 0 / @((Model.Leaderboard.PassRating / maxRating) * 100)%)" />
+                    <stop offset="100%" stop-color="rgb(0 255 0 / @((Model.Leaderboard.PassRating / maxRating) * 25)%)" />
+				</linearGradient>
+				<linearGradient id="fadeC-1"
+								gradientUnits="userSpaceOnUse"
+								x1=@(corner2.x)
+								y1=@(corner2.y)
+								x2=@((corner3.x + corner1.x) / 2)
+								y2=@((corner1.y + corner3.y) / 2)>
+                    <stop offset="0%" stop-color="rgb(128 0 128 / @((Model.Leaderboard.AccRating / maxRating) * 100)%)" />
+                    <stop offset="100%" stop-color="rgb(128 0 128 / @((Model.Leaderboard.AccRating / maxRating) * 25)%)" />
+				</linearGradient>
+			</defs>
+			<g stroke="#FFF" stroke-width="0.5">
+				<path d="M @corner3.x,@corner3.y L @corner1.x,@corner1.y @corner2.x,@corner2.y Z" fill="url(#fadeA-1)" />
+				<path d="M @corner3.x,@corner3.y L @corner1.x,@corner1.y @corner2.x,@corner2.y Z" fill="url(#fadeB-1)" />
+				<path d="M @corner3.x,@corner3.y L @corner1.x,@corner1.y @corner2.x,@corner2.y Z" fill="url(#fadeC-1)" />
+			</g>
+			<g stroke="#FFF" fill="none" stroke-width="2" stroke-dasharray="4">
+				<path d="M 50.000000,0.00000 L 0.000000,86.600000 100.000000,86.600000 Z" />
+			</g>
+		</g>
+	</svg>
+	<div class="pass">
+        <span>Pass: @(Math.Round(Model.Leaderboard.PassRating, 2)) ★</span>
+	</div>
+</div>
+
+<table class="table">
+    <thead>
+        <tr>
+            <th>Player</th>
+            <th>PP</th>
+            <th>Accuracy</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var score in Model.Scores)
+        {
+            <tr>
+                <td><a asp-page="/Player" asp-route-id="@score.Player.Id">@score.Player.Name</a></td>
+                <td>@score.Pp</td>
+                <td>@score.Accuracy</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<nav aria-label="Score navigation">
+    <ul class="pagination">
+        @{
+            int firstPageToShow = Model.CurrentPage - 5;
+            int lastPageToShow = Model.CurrentPage + 4;
+            if (firstPageToShow < 1)
+            {
+                firstPageToShow = 1;
+                lastPageToShow = 10;
+            }
+            if (lastPageToShow > Model.TotalPages)
+            {
+                lastPageToShow = Model.TotalPages;
+                firstPageToShow = Model.TotalPages - 9 > 1 ? Model.TotalPages - 9 : 1;
+            }
+
+            for (int i = firstPageToShow; i <= lastPageToShow; i++)
+            {
+                <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
+                    <a class="page-link" asp-page="./Leaderboard" asp-route-id="@Model.Leaderboard.Id" asp-route-currentPage="@i">@i</a>
+                </li>
+            }
+        }
+    </ul>
+</nav>
+
+<style>
+    .triangle-container {
+        position: relative;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        width: 15em;
+        background-color: #323232;
+        padding: 1em;
+    }
+
+    .tech-and-acc {
+        color: white;
+        display: flex;
+        grid-gap: 4em;
+        font-size: 0.8em;
+    }
+
+    .pass {
+        color: white;
+        font-size: 0.8em;
+    }
+
+    .stars {
+        position: absolute;
+        top: 33%;
+        color: yellow;
+        font-size: small;
+    }
+</style>

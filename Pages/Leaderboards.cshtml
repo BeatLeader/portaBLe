@@ -1,32 +1,34 @@
-﻿@page "/player/{id}"
-@model PlayerModel
+﻿@page
+@model LeaderboardsModel
 
-<h2>@Model.Player.Name</h2>
-<p>Performance Points: @Model.Player.Pp</p>
+<h2>Leaderboards</h2>
+
+<form method="get">
+    <input type="text" name="SearchString" value="@Model.SearchString" placeholder="Search leaderboards" />
+    <input type="submit" value="Search" />
+</form>
 
 <table class="table">
     <thead>
         <tr>
-            <th>Map</th>
-            <th>Accuracy</th>
-            <th>PP</th>
-            
+            <th>
+                <a asp-page="./Leaderboards" asp-route-sortDescending="@(Model.SortDescending ? "false" : "true")">Stars</a>
+            </th>
+            <th>Name</th>
         </tr>
     </thead>
     <tbody>
-        @foreach (var score in Model.Scores)
+        @foreach (var leaderboard in Model.Leaderboards)
         {
             <tr>
-                <td><a asp-page="/Leaderboard" asp-route-id="@score.Leaderboard.Id">@score.Leaderboard.Name - @score.Leaderboard.DifficultyName</a></td>
-                <td>@score.Accuracy</td>
-                <td>@score.Pp</td>
-                
+                <td>@leaderboard.Stars</td>
+                <td><a asp-page="/Leaderboard" asp-route-id="@leaderboard.Id">@leaderboard.Name</a></td>
             </tr>
         }
     </tbody>
 </table>
 
-<nav aria-label="Player scores navigation">
+<nav aria-label="Page navigation">
     <ul class="pagination">
         @{
             int firstPageToShow = Model.CurrentPage - 5;
@@ -45,7 +47,7 @@
             for (int i = firstPageToShow; i <= lastPageToShow; i++)
             {
                 <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
-                    <a class="page-link" asp-page="./Player" asp-route-id="@Model.Player.Id" asp-route-currentPage="@i">@i</a>
+                    <a class="page-link" asp-page="./Leaderboards" asp-route-currentPage="@i" asp-route-sortDescending="@Model.SortDescending" asp-route-searchString="@Model.SearchString">@i</a>
                 </li>
             }
         }
