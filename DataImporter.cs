@@ -37,7 +37,8 @@ namespace portaBLe
                 AccRating = map.AccRating,
                 TechRating = map.TechRating,
                 PredictedAcc = map.PredictedAcc,
-                ModifiersRating = map.ModifiersRating
+                ModifiersRating = map.ModifiersRating,
+                Stars = ReplayUtils.ToStars(map.AccRating, map.PassRating, map.TechRating)
             });
 
             dbContext.Leaderboards.BulkInsertOptimized(leaderboards, options => options.IncludeGraph = true);
