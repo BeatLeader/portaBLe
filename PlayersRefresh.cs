@@ -89,25 +89,8 @@ namespace portaBLe
                     countries[p.Country] = ++value;
                 }
             }
-            await dbContext.BulkUpdateAsync(scoreUpdates, options => options.IgnoreOnUpdateExpression = c => new
-            {
-                c.Pp,
-                c.AccPP,
-                c.TechPP,
-                c.PassPP,
-                c.BonusPp,
-                c.PlayerId,
-                c.Rank,
-                c.LeaderboardId,
-                c.Accuracy,
-                c.Modifiers
-            });
-            await dbContext.BulkUpdateAsync(playerUpdates, options => options.IgnoreOnUpdateExpression = c => new
-            {
-                c.Name,
-                c.Country,
-                c.Avatar
-            });
+            await dbContext.BulkUpdateAsync(scoreUpdates, options => options.ColumnInputExpression = c => new { c.Weight });
+            await dbContext.BulkUpdateAsync(playerUpdates, options => options.ColumnInputExpression = c => new { c.Rank, c.Pp, c.CountryRank });
         }
     }
 

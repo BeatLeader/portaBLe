@@ -90,6 +90,7 @@ namespace portaBLe.Migrations
                 {
                     Id = table.Column<int>(type: "INTEGER", nullable: false)
                         .Annotation("Sqlite:Autoincrement", true),
+                    Timepost = table.Column<int>(type: "INTEGER", nullable: false),
                     Pp = table.Column<float>(type: "REAL", nullable: false),
                     AccPP = table.Column<float>(type: "REAL", nullable: false),
                     TechPP = table.Column<float>(type: "REAL", nullable: false),

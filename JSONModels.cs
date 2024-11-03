@@ -11,6 +11,7 @@
     public class JsonScore
     {
         public int Id { get; set; }
+        public int Timepost { get; set; }
         public string PlayerId { get; set; }
         public string LeaderboardId { get; set; }
         public float Accuracy { get; set; }

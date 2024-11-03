@@ -15,7 +15,7 @@ namespace portaBLe.Migrations
         protected override void BuildModel(ModelBuilder modelBuilder)
         {
 #pragma warning disable 612, 618
-            modelBuilder.HasAnnotation("ProductVersion", "8.0.7");
+            modelBuilder.HasAnnotation("ProductVersion", "7.0.20");
 
             modelBuilder.Entity("portaBLe.Leaderboard", b =>
                 {
@@ -212,6 +212,9 @@ namespace portaBLe.Migrations
 
                     b.Property<float>("TechPP")
                         .HasColumnType("REAL");
+
+                    b.Property<int>("Timepost")
+                        .HasColumnType("INTEGER");
 
                     b.Property<float>("Weight")
                         .HasColumnType("REAL");

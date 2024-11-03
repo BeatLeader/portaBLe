@@ -24,6 +24,7 @@ namespace portaBLe
     {
         public int Id { get; set; }
 
+        public int Timepost { get; set; }
         public float Pp { get; set; }
         public float AccPP { get; set; }
         public float TechPP { get; set; }

@@ -55,14 +55,7 @@ namespace portaBLe
                 newScores.Clear();
             };
 
-            await dbContext.BulkUpdateAsync(newTotalScores, options => options.IgnoreOnUpdateExpression = c => new
-            {
-                c.PlayerId,
-                c.LeaderboardId,
-                c.Accuracy,
-                c.Modifiers,
-                c.Weight,
-            });
+            await dbContext.BulkUpdateAsync(newTotalScores, options => options.ColumnInputExpression = c => new { c.Rank, c.Pp, c.BonusPp, c.PassPP, c.AccPP, c.TechPP });
             dbContext.ChangeTracker.AutoDetectChangesEnabled = true;
         }
     }

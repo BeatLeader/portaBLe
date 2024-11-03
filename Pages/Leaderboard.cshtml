@@ -1,5 +1,6 @@
 ﻿@page "/leaderboard/{id}"
 @model LeaderboardModel
+@using System.Text.Json
 
 @{
     ViewData["Title"] = "Leaderboard Details";
@@ -28,7 +29,6 @@
 }
 
 <h2>@Model.Leaderboard.Name - @Model.Leaderboard.DifficultyName - @Model.Leaderboard.ModeName</h2>
-
 
 <div class="triangle-container">
 	<div class="tech-and-acc">
@@ -89,6 +89,39 @@
 	<div class="pass">
         <span>Pass: @(Math.Round(Model.Leaderboard.PassRating, 2)) ★</span>
 	</div>
+</div>
+
+<div class="chart-container">
+    <div class="x-selector">
+        <select id="xAxisSelect" onchange="updateAxes()">
+            <option value="playerRank">Player Rank</option>
+            <option value="date">Date</option>
+            <option value="pp">PP</option>
+            <option value="acc">Accuracy</option>
+            <option value="pauses">Pause Count</option>
+            <option value="rank">Leaderboard Rank</option>
+            <option value="maxStreak">Streak Length</option>
+            <option value="mistakes">Mistake Count</option>
+            <option value="weight">PP Weight</option>
+            <option value="weightedPp">Weighted PP</option>
+        </select>
+    </div>
+    <div class="y-selector">
+        <select id="yAxisSelect" onchange="updateAxes()">
+        <option value="weight">PP Weight</option>
+            <option value="playerRank">Player Rank</option>
+            <option value="date">Date</option>
+            <option value="pp">PP</option>
+            <option value="acc">Accuracy</option>
+            <option value="pauses">Pause Count</option>
+            <option value="rank">Leaderboard Rank</option>
+            <option value="maxStreak">Streak Length</option>
+            <option value="mistakes">Mistake Count</option>
+            <option value="weightedPp">Weighted PP</option>
+        </select>
+    </div>
+    <canvas id="scoreChart"></canvas>
+    <div id="loading" style="display: none;">Loading...</div>
 </div>
 
 <table class="table">
@@ -166,4 +199,315 @@
         color: yellow;
         font-size: small;
     }
+
+    .chart-container {
+        position: relative;
+        height: 300px;
+        width: 100%;
+        margin: 20px 0;
+    }
+
+    .x-selector {
+        position: absolute;
+        bottom: 0;
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 1;
+    }
+
+    .y-selector {
+        position: absolute;
+        left: -20px;
+        top: 60%;
+        transform: translateY(-50%) rotate(-90deg);
+        transform-origin: left center;
+        z-index: 1;
+    }
+
+    #loading {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+    }
 </style>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
+    <script>
+        let chart = null;
+        const leaderboardId = '@Model.Leaderboard.Id';
+        let currentPlayerId = null;
+        const leaderboardScores = @Html.Raw(JsonSerializer.Serialize(Model.ScoreGraphEntries));
+
+        function formatNumber(num, decimals) {
+            return Number(num).toFixed(decimals);
+        }
+
+        function roundToPrecision(num, precision) {
+            return Math.round(num / precision) * precision;
+        }
+
+        function formatDate(date) {
+            return new Date(date).toLocaleDateString();
+        }
+
+        function formatDateRelative(date) {
+            const diff = (new Date() - date) / 1000;
+            if (diff < 60) return 'just now';
+            if (diff < 3600) return Math.floor(diff / 60) + ' minutes ago';
+            if (diff < 86400) return Math.floor(diff / 3600) + ' hours ago';
+            return Math.floor(diff / 86400) + ' days ago';
+        }
+
+        function getTimeStringColor(date) {
+            const now = new Date();
+            const diff = (now - date) / 1000;
+            if (diff < 3600) return '#00ff00';
+            if (diff < 86400) return '#ffff00';
+            return '#ff0000';
+        }
+
+        function sortByToAxisName(sortBy) {
+            switch (sortBy) {
+                case 'date': return 'Date';
+                case 'pp': return 'Pp';
+                case 'acc': return 'Accuracy';
+                case 'pauses': return 'Pause Count';
+                case 'rank': return 'Leaderboard Rank';
+                case 'maxStreak': return 'Streak length';
+                case 'mistakes': return 'Mistake Count';
+                case 'weight': return 'PP Weight';
+                case 'weightedPp': return 'Weighted PP';
+                case 'playerRank': return 'Player Rank';
+            }
+            return null;
+        }
+
+        function valueFromSortBy(score, sortBy) {
+            if (!score) return null;
+            switch (sortBy) {
+                case 'date': return score.timepost ? new Date(score.timepost * 1000) : null;
+                case 'pp': return score.pp;
+                case 'acc': return 100 - score.accuracy;
+                case 'pauses': return score.pauses;
+                case 'rank': return score.rank;
+                case 'maxStreak': return score.maxStreak;
+                case 'mistakes': return score.mistakes;
+                case 'weight': return score.weight * 100;
+                case 'weightedPp': return score.weight * score.pp;
+                case 'playerRank': return score.playerRank;
+            }
+            return null;
+        }
+
+        function sortByToNullable(sortBy) {
+            switch (sortBy) {
+                case 'date':
+                case 'pp':
+                case 'acc': 
+                case 'rank':
+                case 'weight':
+                case 'weightedPp':
+                    return false;
+            }
+            return true;
+        }
+
+        function sortByToTicks(sortBy) {
+            switch (sortBy) {
+                case 'date':
+                    return {
+                        autoSkip: true,
+                        major: {
+                            enabled: true,
+                        },
+                        callback: val => formatDate(val),
+                    };
+                case 'pp':
+                    return {
+                        callback: val => formatNumber(val, 2) + 'pp',
+                    };
+                case 'acc':
+                    return {
+                        max: 100,
+                        callback: val => formatNumber(100 - val, 2) + '%',
+                    };
+                case 'rank':
+                    return {
+                        callback: val => '#' + formatNumber(val, 0),
+                    };
+                case 'pauses':
+                case 'maxStreak':
+                case 'mistakes':
+                    return {
+                        callback: val => formatNumber(val, 0),
+                    };
+                case 'weight':
+                    return {
+                        max: 100,
+                        callback: val => formatNumber(val, 0) + '%',
+                    };
+                case 'weightedPp':
+                    return {
+                        max: 100,
+                        callback: val => formatNumber(val, 2) + 'pp',
+                    };
+                case 'playerRank':
+                    return {
+                        min: 0,
+                        stepSize: 1000,
+                        callback: val => '#' + formatNumber(val, 0),
+                    };
+            }
+            return null;
+        }
+
+        function setupChart(scores, xAxis = 'playerRank', yAxis = 'weight') {
+            if (!scores?.length) return;
+
+            const ctx = document.getElementById('scoreChart').getContext('2d');
+            const isXNullable = sortByToNullable(xAxis);
+            const isYNullable = sortByToNullable(yAxis);
+
+            const chartData = scores
+                .filter(s => !!s?.playerRank)
+                .map(s => {
+                    const xValue = valueFromSortBy(s, xAxis);
+                    if (!xValue && !isXNullable) return null;
+
+                    const yValue = valueFromSortBy(s, yAxis);
+                    if (!yValue && !isYNullable) return null;
+
+                    return {
+                        x: xValue,
+                        y: yValue,
+                        mods: s?.modifiers?.length ? s.modifiers.split(',') : null,
+                        ...s,
+                    };
+                })
+                .filter(s => s !== null);
+
+            const options = {
+                responsive: true,
+                maintainAspectRatio: false,
+                layout: {
+                    padding: {
+                        right: 0,
+                    },
+                },
+                interaction: {
+                    mode: 'nearest',
+                    intersect: true,
+                },
+                plugins: {
+                    legend: {
+                        display: false,
+                    },
+                    tooltip: {
+                        displayColors: false,
+                        position: 'nearest',
+                        callbacks: {
+                            label: function(context) {
+                                if (!context || !context?.raw) return '';
+                                const score = context.raw;
+                                return [
+                                    formatDate(score.timepost * 1000),
+                                    `${score.playerName} - #${formatNumber(score.playerRank, 0)}`
+                                ];
+                            },
+                            title: function(context) {
+                                if (!context?.[0]?.raw) return '';
+                                const score = context[0].raw;
+                                const mods = score?.mods ?? null;
+                                const acc = formatNumber(score?.accuracy ?? 0, 2);
+                                const xValue = score?.x ?? 0;
+                                const yValue = score?.y ?? 0;
+                                return `${sortByToAxisName(xAxis)}: ${(sortByToTicks(xAxis).callback)(xValue)} | ${sortByToAxisName(yAxis)}: ${(sortByToTicks(yAxis).callback)(yValue)} | Acc: ${acc}% ${mods?.length ? ' (' + mods.join(', ') + ')' : ''}`;
+                            }
+                        }
+                    },
+                    zoom: {
+                        pan: {
+                            enabled: true,
+                            mode: 'xy'
+                        },
+                        zoom: {
+                            wheel: { enabled: true },
+                            pinch: { enabled: true },
+                            mode: 'xy'
+                        }
+                    }
+                },
+                scales: {
+                    x: {
+                        type: xAxis === 'date' ? 'time' : 'logarithmic',
+                        title: {
+                            display: true,
+                            text: sortByToAxisName(xAxis)
+                        },
+                        ticks: sortByToTicks(xAxis)
+                    },
+                    y: {
+                        type: yAxis === 'date' ? 'time' : yAxis === 'acc' ? 'logarithmic' : 'linear',
+                        reverse: yAxis === 'acc',
+                        ticks: sortByToTicks(yAxis),
+                        grid: {
+                            color: 'rgba(0,0,0,0.1)',
+                            display: true,
+                            drawBorder: true,
+                            drawOnChartArea: true
+                        }
+                    }
+                },
+                onHover: function(event, elements) {
+                    const element = elements?.[0]?.element?.$context?.raw;
+                    if (!element?.playerId) {
+                        event.native.target.style.cursor = 'default';
+                    } else {
+                        event.native.target.style.cursor = 'pointer';
+                    }
+                },
+                onClick: function(event, elements) {
+                    const element = elements?.[0]?.element?.$context?.raw;
+                    if (!element?.playerId) return;
+                    window.open(`/player/${element.playerId}`, '_blank');
+                }
+            };
+
+            if (chart) {
+                chart.destroy();
+            }
+
+            chart = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: '',
+                        data: chartData,
+                        borderColor: '#003e54',
+                        backgroundColor: function(context) {
+                            const item = context.raw;
+                            return currentPlayerId && item.playerId === currentPlayerId 
+                                ? 'yellow' 
+                                : getTimeStringColor(new Date(item.timepost * 1000));
+                        },
+                        pointRadius: 3,
+                        pointHoverRadius: 4
+                    }]
+                },
+                options: options
+            });
+        }
+
+        function updateAxes() {
+            const xValue = document.getElementById('xAxisSelect').value;
+            const yValue = document.getElementById('yAxisSelect').value;
+            setupChart(leaderboardScores, xValue, yValue);
+        }
+
+        // Initial load
+        setupChart(leaderboardScores);
+    </script>
+}

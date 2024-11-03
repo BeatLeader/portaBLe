@@ -57,6 +57,7 @@ namespace portaBLe
             {
                 Id = score.Id,
                 PlayerId = score.PlayerId,
+                Timepost = score.Timepost,
                 LeaderboardId = score.LeaderboardId,
                 Accuracy = score.Accuracy,
                 Modifiers = score.Modifiers
