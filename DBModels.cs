@@ -40,6 +40,8 @@ namespace portaBLe
         public Leaderboard Leaderboard { get; set; }
         public float Accuracy { get; set; }
         public string Modifiers { get; set; }
+        public bool FC { get; set; }
+        public float FCAcc { get; set; }
     }
 
     public class ModifiersRating 
@@ -77,6 +79,8 @@ namespace portaBLe
         public string ModeName { get; set; }
         [StringLength(25, MinimumLength = 0)]
         public string DifficultyName { get; set; }
+        [StringLength(150, MinimumLength = 0)]
+        public string Cover { get; set; }
 
         public float Stars { get; set; }
         public float PassRating { get; set; }

@@ -1,4 +1,4 @@
-﻿@page "/leaderboard/{id}"
+﻿@page "/leaderboard/{id}/{compareId?}"
 @model LeaderboardModel
 @using System.Text.Json
 
@@ -10,7 +10,15 @@
         Model.Leaderboard.TechRating,
         Math.Max(Model.Leaderboard.PassRating, Model.Leaderboard.AccRating)
     );
+    if (Model.CompareLeaderboard != null) {
+        maxRatingValue = Math.Max(maxRatingValue,
+            Math.Max(Model.CompareLeaderboard.TechRating,
+            Math.Max(Model.CompareLeaderboard.PassRating, Model.CompareLeaderboard.AccRating))
+        );
+    }
     double maxRating = maxRatingValue > defaultMaxRating ? Math.Ceiling(maxRatingValue) : defaultMaxRating;
+    
+    // First leaderboard corners
     var corner1 = new
     {
         x = (gypL - (Model.Leaderboard.TechRating / maxRating) * gypL) * 0.866,
@@ -26,69 +34,164 @@
         x = 50,
         y = (86.6 - gypL / 2) * (1 - Model.Leaderboard.PassRating / maxRating)
     };
+
+    // Second leaderboard corners
+    var corner1Compare = new { x = 0.0, y = 0.0 };
+    var corner2Compare = new { x = 0.0, y = 0.0 };
+    var corner3Compare = new { x = 0.0, y = 0.0 };
+    
+    if (Model.CompareLeaderboard != null) {
+        corner1Compare = new
+        {
+            x = (gypL - (Model.CompareLeaderboard.TechRating / maxRating) * gypL) * 0.866,
+            y = 86.6 - (gypL - (Model.CompareLeaderboard.TechRating / maxRating) * gypL) / 2
+        };
+        corner2Compare = new
+        {
+            x = 100 - (gypL - (Model.CompareLeaderboard.AccRating / maxRating) * gypL) * 0.866,
+            y = 86.6 - (gypL - (Model.CompareLeaderboard.AccRating / maxRating) * gypL) / 2
+        };
+        corner3Compare = new
+        {
+            x = 50.0,
+            y = (86.6 - gypL / 2) * (1 - Model.CompareLeaderboard.PassRating / maxRating)
+        };
+    }
 }
 
-<h2>@Model.Leaderboard.Name - @Model.Leaderboard.DifficultyName - @Model.Leaderboard.ModeName</h2>
+<div class="leaderboard-comparison">
+    <div class="leaderboard-container">
+        <h2>@Model.Leaderboard.Name - @Model.Leaderboard.DifficultyName - @Model.Leaderboard.ModeName</h2>
 
-<div class="triangle-container">
-	<div class="tech-and-acc">
-        <span>Tech: @(Math.Round(Model.Leaderboard.TechRating, 2)) ★</span>
-        <span>Acc: @(Math.Round(Model.Leaderboard.AccRating, 2)) ★</span>
-	</div>
-	<div class="stars">
-        <span>@(Math.Round(Model.Leaderboard.Stars, 1)) ★</span>
-	</div>
+        <div class="triangle-container">
+            <div class="tech-and-acc">
+                <span>Tech: @(Math.Round(Model.Leaderboard.TechRating, 2)) ★</span>
+                <span>Acc: @(Math.Round(Model.Leaderboard.AccRating, 2)) ★</span>
+            </div>
+            <div class="stars">
+                <span>@(Math.Round(Model.Leaderboard.Stars, 1)) ★</span>
+            </div>
 
-    <svg style="width: 6em; height: 6em;"
-		 xmlns="http://www.w3.org/2000/svg"
-		 version="1.200000"
-		 width="100%"
-		 height="100%"
-		 viewBox="0 0 100.000000 86.600000"
-		 xmlns:xlink="http://www.w3.org/1999/xlink">
-		<g transform="matrix(1 0 0 -1 0 86.600000)">
-			<defs>
-				<linearGradient id="fadeA-1"
-								gradientUnits="userSpaceOnUse"
-								x1=@corner1.x
-								y1=@corner1.y
-								x2=@((corner2.x + corner3.x) / 2)
-								y2=@((corner2.y + corner3.y) / 2)>
-                    <stop offset="0%" stop-color="rgb(255 0 0 / @((Model.Leaderboard.TechRating / maxRating) * 100)%)" />
-                    <stop offset="100%" stop-color="rgb(255 0 0 / @((Model.Leaderboard.TechRating / maxRating) * 25)%)" />
-				</linearGradient>
-				<linearGradient id="fadeB-1"
-								gradientUnits="userSpaceOnUse"
-								x1=@(corner3.x)
-								y1=@(corner3.y)
-								x2=@((corner1.x + corner2.x) / 2)
-								y2=@((corner1.y + corner2.y) / 2)>
-                    <stop offset="0%" stop-color="rgb(0 255 0 / @((Model.Leaderboard.PassRating / maxRating) * 100)%)" />
-                    <stop offset="100%" stop-color="rgb(0 255 0 / @((Model.Leaderboard.PassRating / maxRating) * 25)%)" />
-				</linearGradient>
-				<linearGradient id="fadeC-1"
-								gradientUnits="userSpaceOnUse"
-								x1=@(corner2.x)
-								y1=@(corner2.y)
-								x2=@((corner3.x + corner1.x) / 2)
-								y2=@((corner1.y + corner3.y) / 2)>
-                    <stop offset="0%" stop-color="rgb(128 0 128 / @((Model.Leaderboard.AccRating / maxRating) * 100)%)" />
-                    <stop offset="100%" stop-color="rgb(128 0 128 / @((Model.Leaderboard.AccRating / maxRating) * 25)%)" />
-				</linearGradient>
-			</defs>
-			<g stroke="#FFF" stroke-width="0.5">
-				<path d="M @corner3.x,@corner3.y L @corner1.x,@corner1.y @corner2.x,@corner2.y Z" fill="url(#fadeA-1)" />
-				<path d="M @corner3.x,@corner3.y L @corner1.x,@corner1.y @corner2.x,@corner2.y Z" fill="url(#fadeB-1)" />
-				<path d="M @corner3.x,@corner3.y L @corner1.x,@corner1.y @corner2.x,@corner2.y Z" fill="url(#fadeC-1)" />
-			</g>
-			<g stroke="#FFF" fill="none" stroke-width="2" stroke-dasharray="4">
-				<path d="M 50.000000,0.00000 L 0.000000,86.600000 100.000000,86.600000 Z" />
-			</g>
-		</g>
-	</svg>
-	<div class="pass">
-        <span>Pass: @(Math.Round(Model.Leaderboard.PassRating, 2)) ★</span>
-	</div>
+            <svg style="width: 6em; height: 6em;"
+                xmlns="http://www.w3.org/2000/svg"
+                version="1.200000"
+                width="100%"
+                height="100%"
+                viewBox="0 0 100.000000 86.600000"
+                xmlns:xlink="http://www.w3.org/1999/xlink">
+                <g transform="matrix(1 0 0 -1 0 86.600000)">
+                    <defs>
+                        <linearGradient id="fadeA-1"
+                                    gradientUnits="userSpaceOnUse"
+                                    x1=@corner1.x
+                                    y1=@corner1.y
+                                    x2=@((corner2.x + corner3.x) / 2)
+                                    y2=@((corner2.y + corner3.y) / 2)>
+                            <stop offset="0%" stop-color="rgb(255 0 0 / @((Model.Leaderboard.TechRating / maxRating) * 100)%)" />
+                            <stop offset="100%" stop-color="rgb(255 0 0 / @((Model.Leaderboard.TechRating / maxRating) * 25)%)" />
+                        </linearGradient>
+                        <linearGradient id="fadeB-1"
+                                    gradientUnits="userSpaceOnUse"
+                                    x1=@(corner3.x)
+                                    y1=@(corner3.y)
+                                    x2=@((corner1.x + corner2.x) / 2)
+                                    y2=@((corner1.y + corner2.y) / 2)>
+                            <stop offset="0%" stop-color="rgb(0 255 0 / @((Model.Leaderboard.PassRating / maxRating) * 100)%)" />
+                            <stop offset="100%" stop-color="rgb(0 255 0 / @((Model.Leaderboard.PassRating / maxRating) * 25)%)" />
+                        </linearGradient>
+                        <linearGradient id="fadeC-1"
+                                    gradientUnits="userSpaceOnUse"
+                                    x1=@(corner2.x)
+                                    y1=@(corner2.y)
+                                    x2=@((corner3.x + corner1.x) / 2)
+                                    y2=@((corner1.y + corner3.y) / 2)>
+                            <stop offset="0%" stop-color="rgb(128 0 128 / @((Model.Leaderboard.AccRating / maxRating) * 100)%)" />
+                            <stop offset="100%" stop-color="rgb(128 0 128 / @((Model.Leaderboard.AccRating / maxRating) * 25)%)" />
+                        </linearGradient>
+                    </defs>
+                    <g stroke="#FFF" stroke-width="0.5">
+                        <path d="M @corner3.x,@corner3.y L @corner1.x,@corner1.y @corner2.x,@corner2.y Z" fill="url(#fadeA-1)" />
+                        <path d="M @corner3.x,@corner3.y L @corner1.x,@corner1.y @corner2.x,@corner2.y Z" fill="url(#fadeB-1)" />
+                        <path d="M @corner3.x,@corner3.y L @corner1.x,@corner1.y @corner2.x,@corner2.y Z" fill="url(#fadeC-1)" />
+                    </g>
+                    <g stroke="#FFF" fill="none" stroke-width="2" stroke-dasharray="4">
+                        <path d="M 50.000000,0.00000 L 0.000000,86.600000 100.000000,86.600000 Z" />
+                    </g>
+                </g>
+            </svg>
+            <div class="pass">
+                <span>Pass: @(Math.Round(Model.Leaderboard.PassRating, 2)) ★</span>
+            </div>
+        </div>
+    </div>
+
+    @if (Model.CompareLeaderboard != null)
+    {
+        <div class="leaderboard-container">
+            <h2>@Model.CompareLeaderboard.Name - @Model.CompareLeaderboard.DifficultyName - @Model.CompareLeaderboard.ModeName</h2>
+
+            <div class="triangle-container">
+                <div class="tech-and-acc">
+                    <span>Tech: @(Math.Round(Model.CompareLeaderboard.TechRating, 2)) ★</span>
+                    <span>Acc: @(Math.Round(Model.CompareLeaderboard.AccRating, 2)) ★</span>
+                </div>
+                <div class="stars">
+                    <span>@(Math.Round(Model.CompareLeaderboard.Stars, 1)) ★</span>
+                </div>
+
+                <svg style="width: 6em; height: 6em;"
+                    xmlns="http://www.w3.org/2000/svg"
+                    version="1.200000"
+                    width="100%"
+                    height="100%"
+                    viewBox="0 0 100.000000 86.600000"
+                    xmlns:xlink="http://www.w3.org/1999/xlink">
+                    <g transform="matrix(1 0 0 -1 0 86.600000)">
+                        <defs>
+                            <linearGradient id="fadeA-2"
+                                        gradientUnits="userSpaceOnUse"
+                                        x1=@corner1Compare.x
+                                        y1=@corner1Compare.y
+                                        x2=@((corner2Compare.x + corner3Compare.x) / 2)
+                                        y2=@((corner2Compare.y + corner3Compare.y) / 2)>
+                                <stop offset="0%" stop-color="rgb(0 0 255 / @((Model.CompareLeaderboard.TechRating / maxRating) * 100)%)" />
+                                <stop offset="100%" stop-color="rgb(0 0 255 / @((Model.CompareLeaderboard.TechRating / maxRating) * 25)%)" />
+                            </linearGradient>
+                            <linearGradient id="fadeB-2"
+                                        gradientUnits="userSpaceOnUse"
+                                        x1=@(corner3Compare.x)
+                                        y1=@(corner3Compare.y)
+                                        x2=@((corner1Compare.x + corner2Compare.x) / 2)
+                                        y2=@((corner1Compare.y + corner2Compare.y) / 2)>
+                                <stop offset="0%" stop-color="rgb(0 255 255 / @((Model.CompareLeaderboard.PassRating / maxRating) * 100)%)" />
+                                <stop offset="100%" stop-color="rgb(0 255 255 / @((Model.CompareLeaderboard.PassRating / maxRating) * 25)%)" />
+                            </linearGradient>
+                            <linearGradient id="fadeC-2"
+                                        gradientUnits="userSpaceOnUse"
+                                        x1=@(corner2Compare.x)
+                                        y1=@(corner2Compare.y)
+                                        x2=@((corner3Compare.x + corner1Compare.x) / 2)
+                                        y2=@((corner1Compare.y + corner3Compare.y) / 2)>
+                                <stop offset="0%" stop-color="rgb(128 128 255 / @((Model.CompareLeaderboard.AccRating / maxRating) * 100)%)" />
+                                <stop offset="100%" stop-color="rgb(128 128 255 / @((Model.CompareLeaderboard.AccRating / maxRating) * 25)%)" />
+                            </linearGradient>
+                        </defs>
+                        <g stroke="#FFF" stroke-width="0.5">
+                            <path d="M @corner3Compare.x,@corner3Compare.y L @corner1Compare.x,@corner1Compare.y @corner2Compare.x,@corner2Compare.y Z" fill="url(#fadeA-2)" />
+                            <path d="M @corner3Compare.x,@corner3Compare.y L @corner1Compare.x,@corner1Compare.y @corner2Compare.x,@corner2Compare.y Z" fill="url(#fadeB-2)" />
+                            <path d="M @corner3Compare.x,@corner3Compare.y L @corner1Compare.x,@corner1Compare.y @corner2Compare.x,@corner2Compare.y Z" fill="url(#fadeC-2)" />
+                        </g>
+                        <g stroke="#FFF" fill="none" stroke-width="2" stroke-dasharray="4">
+                            <path d="M 50.000000,0.00000 L 0.000000,86.600000 100.000000,86.600000 Z" />
+                        </g>
+                    </g>
+                </svg>
+                <div class="pass">
+                    <span>Pass: @(Math.Round(Model.CompareLeaderboard.PassRating, 2)) ★</span>
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
 <div class="chart-container">
@@ -98,6 +201,7 @@
             <option value="date">Date</option>
             <option value="pp">PP</option>
             <option value="acc">Accuracy</option>
+            <option value="fcAcc">FC Accuracy</option>
             <option value="pauses">Pause Count</option>
             <option value="rank">Leaderboard Rank</option>
             <option value="maxStreak">Streak Length</option>
@@ -113,6 +217,7 @@
             <option value="date">Date</option>
             <option value="pp">PP</option>
             <option value="acc">Accuracy</option>
+            <option value="fcAcc">FC Accuracy</option>
             <option value="pauses">Pause Count</option>
             <option value="rank">Leaderboard Rank</option>
             <option value="maxStreak">Streak Length</option>
@@ -124,53 +229,112 @@
     <div id="loading" style="display: none;">Loading...</div>
 </div>
 
-<table class="table">
-    <thead>
-        <tr>
-            <th>Player</th>
-            <th>PP</th>
-            <th>Accuracy</th>
-        </tr>
-    </thead>
-    <tbody>
-        @foreach (var score in Model.Scores)
-        {
-            <tr>
-                <td><a asp-page="/Player" asp-route-id="@score.Player.Id">@score.Player.Name</a></td>
-                <td>@score.Pp</td>
-                <td>@score.Accuracy</td>
-            </tr>
-        }
-    </tbody>
-</table>
+<div class="tables-container">
+    <div class="table-wrapper">
+        <table class="table">
+            <thead>
+                <tr>
+                    <th>Player</th>
+                    <th>PP</th>
+                    <th>Accuracy</th>
+                    <th>Mods</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var score in Model.Scores)
+                {
+                    <tr>
+                        <td><a asp-page="/Player" asp-route-id="@score.Player.Id">@score.Player.Name</a></td>
+                        <td>@score.Pp</td>
+                        <td>@score.Accuracy</td>
+                        <td>@score.Modifiers</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
 
-<nav aria-label="Score navigation">
-    <ul class="pagination">
-        @{
-            int firstPageToShow = Model.CurrentPage - 5;
-            int lastPageToShow = Model.CurrentPage + 4;
-            if (firstPageToShow < 1)
-            {
-                firstPageToShow = 1;
-                lastPageToShow = 10;
-            }
-            if (lastPageToShow > Model.TotalPages)
-            {
-                lastPageToShow = Model.TotalPages;
-                firstPageToShow = Model.TotalPages - 9 > 1 ? Model.TotalPages - 9 : 1;
-            }
+        <nav aria-label="Score navigation">
+            <ul class="pagination">
+                @{
+                    int firstPageToShow = Model.CurrentPage - 5;
+                    int lastPageToShow = Model.CurrentPage + 4;
+                    if (firstPageToShow < 1)
+                    {
+                        firstPageToShow = 1;
+                        lastPageToShow = 10;
+                    }
+                    if (lastPageToShow > Model.TotalPages)
+                    {
+                        lastPageToShow = Model.TotalPages;
+                        firstPageToShow = Model.TotalPages - 9 > 1 ? Model.TotalPages - 9 : 1;
+                    }
 
-            for (int i = firstPageToShow; i <= lastPageToShow; i++)
-            {
-                <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
-                    <a class="page-link" asp-page="./Leaderboard" asp-route-id="@Model.Leaderboard.Id" asp-route-currentPage="@i">@i</a>
-                </li>
-            }
-        }
-    </ul>
-</nav>
+                    for (int i = firstPageToShow; i <= lastPageToShow; i++)
+                    {
+                        <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
+                            <a class="page-link" asp-page="./Leaderboard" asp-route-id="@Model.Leaderboard.Id" asp-route-compareId="@Model.CompareLeaderboard?.Id" asp-route-currentPage="@i">@i</a>
+                        </li>
+                    }
+                }
+            </ul>
+        </nav>
+    </div>
+
+    @if (Model.CompareLeaderboard != null)
+    {
+        <div class="table-wrapper">
+            <table class="table">
+                <thead>
+                    <tr>
+                        <th>Player</th>
+                        <th>PP</th>
+                        <th>Accuracy</th>
+                        <th>Mods</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var score in Model.CompareScores)
+                    {
+                        <tr>
+                            <td><a asp-page="/Player" asp-route-id="@score.Player.Id">@score.Player.Name</a></td>
+                            <td>@score.Pp</td>
+                            <td>@score.Accuracy</td>
+                            <td>@score.Modifiers</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+</div>
 
 <style>
+    .leaderboard-comparison {
+        display: flex;
+        gap: 2em;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .leaderboard-container {
+        flex: 1;
+        min-width: 300px;
+        max-width: 500px;
+    }
+
+    .tables-container {
+        display: flex;
+        gap: 2em;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
+
+    .table-wrapper {
+        flex: 1;
+        min-width: 300px;
+        max-width: 500px;
+    }
+
     .triangle-container {
         position: relative;
         display: flex;
@@ -179,6 +343,7 @@
         width: 15em;
         background-color: #323232;
         padding: 1em;
+        margin: 0 auto;
     }
 
     .tech-and-acc {
@@ -238,8 +403,13 @@
     <script>
         let chart = null;
         const leaderboardId = '@Model.Leaderboard.Id';
+        const compareLeaderboardId = '@Model.CompareLeaderboard?.Id';
+
+        const totalScores = '@Model.TotalScores';
+        const compareTotalScores = '@Model.CompareTotalScores';
         let currentPlayerId = null;
         const leaderboardScores = @Html.Raw(JsonSerializer.Serialize(Model.ScoreGraphEntries));
+        const compareLeaderboardScores = @Html.Raw(JsonSerializer.Serialize(Model.CompareScoreGraphEntries ?? new LeaderboardModel.ScoreGraphEntry[] { }));
 
         function formatNumber(num, decimals) {
             return Number(num).toFixed(decimals);
@@ -261,12 +431,21 @@
             return Math.floor(diff / 86400) + ' days ago';
         }
 
-        function getTimeStringColor(date) {
-            const now = new Date();
-            const diff = (now - date) / 1000;
-            if (diff < 3600) return '#00ff00';
-            if (diff < 86400) return '#ffff00';
-            return '#ff0000';
+        const freshScoreAgeMillis = 0;
+        const oldScoreAgeMillis = 1000 * 60 * 60 * 24 * 30 * 8; //~8 months
+        const freshScoreBrightness = 255;
+        const oldScoreBrightness = 128;
+
+        function getTimeStringColor(timeSet) {
+            if (!timeSet) return '#ffffff';
+            const scoreAgeMillis = new Date().getTime() - timeSet.getTime();
+            let ratio = (scoreAgeMillis - freshScoreAgeMillis) / (oldScoreAgeMillis - freshScoreAgeMillis);
+            if (ratio < 0) ratio = 0;
+            if (ratio > 1) ratio = 1;
+            ratio = Math.pow(1 - ratio, 3);
+            const brightnessInt = (oldScoreBrightness + (freshScoreBrightness - oldScoreBrightness) * ratio) | 0;
+            const brightnessHex = brightnessInt.toString(16);
+            return '#' + brightnessHex + brightnessHex + brightnessHex;
         }
 
         function sortByToAxisName(sortBy) {
@@ -274,6 +453,7 @@
                 case 'date': return 'Date';
                 case 'pp': return 'Pp';
                 case 'acc': return 'Accuracy';
+                case 'fcAcc': return 'FC Accuracy';
                 case 'pauses': return 'Pause Count';
                 case 'rank': return 'Leaderboard Rank';
                 case 'maxStreak': return 'Streak length';
@@ -285,14 +465,15 @@
             return null;
         }
 
-        function valueFromSortBy(score, sortBy) {
+        function valueFromSortBy(score, sortBy, isCompare) {
             if (!score) return null;
             switch (sortBy) {
                 case 'date': return score.timepost ? new Date(score.timepost * 1000) : null;
                 case 'pp': return score.pp;
                 case 'acc': return 100 - score.accuracy;
+                case 'fcAcc': return 100 - score.fcAcc;
                 case 'pauses': return score.pauses;
-                case 'rank': return score.rank;
+                case 'rank': return (score.rank / (isCompare ? compareTotalScores : totalScores)) * 100;
                 case 'maxStreak': return score.maxStreak;
                 case 'mistakes': return score.mistakes;
                 case 'weight': return score.weight * 100;
@@ -330,13 +511,14 @@
                         callback: val => formatNumber(val, 2) + 'pp',
                     };
                 case 'acc':
+                case 'fcAcc':
                     return {
                         max: 100,
                         callback: val => formatNumber(100 - val, 2) + '%',
                     };
                 case 'rank':
                     return {
-                        callback: val => '#' + formatNumber(val, 0),
+                        callback: val => formatNumber(val, 0),
                     };
                 case 'pauses':
                 case 'maxStreak':
@@ -364,30 +546,36 @@
             return null;
         }
 
-        function setupChart(scores, xAxis = 'playerRank', yAxis = 'weight') {
+        function setupChart(scores, compareScores, xAxis = 'playerRank', yAxis = 'weight') {
             if (!scores?.length) return;
 
             const ctx = document.getElementById('scoreChart').getContext('2d');
             const isXNullable = sortByToNullable(xAxis);
             const isYNullable = sortByToNullable(yAxis);
 
-            const chartData = scores
-                .filter(s => !!s?.playerRank)
-                .map(s => {
-                    const xValue = valueFromSortBy(s, xAxis);
-                    if (!xValue && !isXNullable) return null;
+            function processScores(scores, isCompare = false) {
+                return scores
+                    .filter(s => !!s?.playerRank)
+                    .map(s => {
+                        const xValue = valueFromSortBy(s, xAxis, isCompare);
+                        if (!xValue && !isXNullable) return null;
 
-                    const yValue = valueFromSortBy(s, yAxis);
-                    if (!yValue && !isYNullable) return null;
+                        const yValue = valueFromSortBy(s, yAxis, isCompare);
+                        if (!yValue && !isYNullable) return null;
 
-                    return {
-                        x: xValue,
-                        y: yValue,
-                        mods: s?.modifiers?.length ? s.modifiers.split(',') : null,
-                        ...s,
-                    };
-                })
-                .filter(s => s !== null);
+                        return {
+                            x: xValue,
+                            y: yValue,
+                            mods: s?.modifiers?.length ? s.modifiers.split(',') : null,
+                            isCompare,
+                            ...s,
+                        };
+                    })
+                    .filter(s => s !== null);
+            }
+
+            const chartData = processScores(scores);
+            const compareChartData = compareScores?.length ? processScores(compareScores, true) : [];
 
             const options = {
                 responsive: true,
@@ -403,7 +591,7 @@
                 },
                 plugins: {
                     legend: {
-                        display: false,
+                        display: true,
                     },
                     tooltip: {
                         displayColors: false,
@@ -442,7 +630,7 @@
                 },
                 scales: {
                     x: {
-                        type: xAxis === 'date' ? 'time' : 'logarithmic',
+                        type: xAxis === 'date' ? 'time' : (xAxis === 'acc' || xAxis === 'rank' || xAxis === 'fcAcc') ? 'linear' : 'logarithmic',
                         title: {
                             display: true,
                             text: sortByToAxisName(xAxis)
@@ -450,8 +638,8 @@
                         ticks: sortByToTicks(xAxis)
                     },
                     y: {
-                        type: yAxis === 'date' ? 'time' : yAxis === 'acc' ? 'logarithmic' : 'linear',
-                        reverse: yAxis === 'acc',
+                        type: yAxis === 'date' ? 'time' : (yAxis === 'acc' || yAxis === 'fcAcc') ? 'logarithmic' : 'linear',
+                        reverse: yAxis === 'acc' || yAxis === 'fcAcc',
                         ticks: sortByToTicks(yAxis),
                         grid: {
                             color: 'rgba(0,0,0,0.1)',
@@ -480,22 +668,51 @@
                 chart.destroy();
             }
 
+            const datasets = [{
+                label: 'Leaderboard 1',
+                data: chartData,
+                borderColor: function (context) {
+                    const item = context.raw;
+                    return item.fc
+                        ? 'yellow'
+                        : getTimeStringColor(new Date(item.timepost * 1000));
+                },
+                backgroundColor: '#f54278',
+                pointRadius: 4,
+                borderWidth: function (context) {
+                    const item = context.raw;
+                    return item.fc
+                        ? 2
+                        : 1;
+                },
+                pointHoverRadius: 5
+            }];
+
+            if (compareChartData.length > 0) {
+                datasets.push({
+                    label: 'Leaderboard 2',
+                    data: compareChartData,
+                    borderColor: function(context) {
+                        const item = context.raw;
+                        return item.fc
+                        ? 'yellow'
+                        : getTimeStringColor(new Date(item.timepost * 1000));
+                    },
+                    backgroundColor: '#0000ff',
+                    pointRadius: 4,
+                    borderWidth: function (context) {
+                        const item = context.raw;
+                        return item.fc
+                            ? 2
+                            : 1;
+                    },
+                    pointHoverRadius: 5
+                });
+            }
             chart = new Chart(ctx, {
                 type: 'scatter',
                 data: {
-                    datasets: [{
-                        label: '',
-                        data: chartData,
-                        borderColor: '#003e54',
-                        backgroundColor: function(context) {
-                            const item = context.raw;
-                            return currentPlayerId && item.playerId === currentPlayerId 
-                                ? 'yellow' 
-                                : getTimeStringColor(new Date(item.timepost * 1000));
-                        },
-                        pointRadius: 3,
-                        pointHoverRadius: 4
-                    }]
+                    datasets
                 },
                 options: options
             });
@@ -504,10 +721,10 @@
         function updateAxes() {
             const xValue = document.getElementById('xAxisSelect').value;
             const yValue = document.getElementById('yAxisSelect').value;
-            setupChart(leaderboardScores, xValue, yValue);
+            setupChart(leaderboardScores, compareLeaderboardScores, xValue, yValue);
         }
 
         // Initial load
-        setupChart(leaderboardScores);
+        setupChart(leaderboardScores, compareLeaderboardScores);
     </script>
 }

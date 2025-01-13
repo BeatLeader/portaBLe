@@ -16,6 +16,8 @@
         public string LeaderboardId { get; set; }
         public float Accuracy { get; set; }
         public string Modifiers { get; set; }
+        public bool FC { get; set; }
+        public float FCAcc { get; set; }
     }
 
     public class JsonLeaderboard
@@ -26,6 +28,7 @@
         public string SongId { get; set; }
         public string ModeName { get; set; }
         public string DifficultyName { get; set; }
+        public string CoverImage { get; set; }
 
         public float PassRating { get; set; }
         public float AccRating { get; set; }

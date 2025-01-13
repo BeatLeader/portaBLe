@@ -67,6 +67,7 @@ namespace portaBLe.Migrations
                     SongId = table.Column<string>(type: "TEXT", maxLength: 25, nullable: false),
                     ModeName = table.Column<string>(type: "TEXT", maxLength: 25, nullable: false),
                     DifficultyName = table.Column<string>(type: "TEXT", maxLength: 25, nullable: false),
+                    Cover = table.Column<string>(type: "TEXT", maxLength: 150, nullable: false),
                     Stars = table.Column<float>(type: "REAL", nullable: false),
                     PassRating = table.Column<float>(type: "REAL", nullable: false),
                     AccRating = table.Column<float>(type: "REAL", nullable: false),
@@ -101,7 +102,9 @@ namespace portaBLe.Migrations
                     Rank = table.Column<int>(type: "INTEGER", nullable: false),
                     LeaderboardId = table.Column<string>(type: "TEXT", maxLength: 25, nullable: false),
                     Accuracy = table.Column<float>(type: "REAL", nullable: false),
-                    Modifiers = table.Column<string>(type: "TEXT", nullable: false)
+                    Modifiers = table.Column<string>(type: "TEXT", nullable: false),
+                    FC = table.Column<bool>(type: "INTEGER", nullable: false),
+                    FCAcc = table.Column<float>(type: "REAL", nullable: false)
                 },
                 constraints: table =>
                 {

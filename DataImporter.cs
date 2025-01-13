@@ -38,6 +38,7 @@ namespace portaBLe
                 TechRating = map.TechRating,
                 PredictedAcc = map.PredictedAcc,
                 ModifiersRating = map.ModifiersRating,
+                Cover = map.CoverImage,
                 Stars = ReplayUtils.ToStars(map.AccRating, map.PassRating, map.TechRating)
             });
 
@@ -60,7 +61,9 @@ namespace portaBLe
                 Timepost = score.Timepost,
                 LeaderboardId = score.LeaderboardId,
                 Accuracy = score.Accuracy,
-                Modifiers = score.Modifiers
+                Modifiers = score.Modifiers,
+                FC = score.FC,
+                FCAcc = score.FCAcc
             });
             
             dbContext.Scores.BulkInsertOptimized(scores);

@@ -17,7 +17,6 @@ namespace portaBLe
                     Player player = new() { Id = group.Key };
                     playerUpdates.Add(player);
 
-
                     float resultPP = 0f;
                     float accPP = 0f;
                     float techPP = 0f;

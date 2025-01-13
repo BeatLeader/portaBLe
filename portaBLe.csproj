@@ -9,12 +9,20 @@
   <ItemGroup>
     <Compile Remove="beatleader-analyzer\**" />
     <Compile Remove="beatleader-parser\**" />
+    <Compile Remove="ppCurve\**" />
     <Content Remove="beatleader-analyzer\**" />
     <Content Remove="beatleader-parser\**" />
+    <Content Remove="ppCurve\**" />
     <EmbeddedResource Remove="beatleader-analyzer\**" />
     <EmbeddedResource Remove="beatleader-parser\**" />
+    <EmbeddedResource Remove="ppCurve\**" />
     <None Remove="beatleader-analyzer\**" />
     <None Remove="beatleader-parser\**" />
+    <None Remove="ppCurve\**" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Content Remove="wwwroot\Database.db" />
   </ItemGroup>
 
   <ItemGroup>
@@ -27,7 +35,7 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="7.0.20" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite.Design" Version="1.1.6" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.18.1" />
-    <PackageReference Include="Z.EntityFramework.Extensions.EFCore" Version="7.103.6" />
+    <PackageReference Include="Z.EntityFramework.Extensions.EFCore" Version="7.103.6.4" />
   </ItemGroup>
 
   <ItemGroup>

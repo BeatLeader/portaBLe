@@ -26,6 +26,11 @@ namespace portaBLe.Migrations
                     b.Property<float>("AccRating")
                         .HasColumnType("REAL");
 
+                    b.Property<string>("Cover")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("TEXT");
+
                     b.Property<string>("DifficultyName")
                         .IsRequired()
                         .HasMaxLength(25)
@@ -185,6 +190,12 @@ namespace portaBLe.Migrations
                         .HasColumnType("REAL");
 
                     b.Property<float>("BonusPp")
+                        .HasColumnType("REAL");
+
+                    b.Property<bool>("FC")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<float>("FCAcc")
                         .HasColumnType("REAL");
 
                     b.Property<string>("LeaderboardId")

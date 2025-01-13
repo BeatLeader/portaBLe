@@ -11,7 +11,7 @@ using portaBLe;
 namespace portaBLe.Migrations
 {
     [DbContext(typeof(AppContext))]
-    [Migration("20241102065202_Init")]
+    [Migration("20241103233051_Init")]
     partial class Init
     {
         /// <inheritdoc />
@@ -28,6 +28,11 @@ namespace portaBLe.Migrations
 
                     b.Property<float>("AccRating")
                         .HasColumnType("REAL");
+
+                    b.Property<string>("Cover")
+                        .IsRequired()
+                        .HasMaxLength(150)
+                        .HasColumnType("TEXT");
 
                     b.Property<string>("DifficultyName")
                         .IsRequired()
@@ -188,6 +193,12 @@ namespace portaBLe.Migrations
                         .HasColumnType("REAL");
 
                     b.Property<float>("BonusPp")
+                        .HasColumnType("REAL");
+
+                    b.Property<bool>("FC")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<float>("FCAcc")
                         .HasColumnType("REAL");
 
                     b.Property<string>("LeaderboardId")

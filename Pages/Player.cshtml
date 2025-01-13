@@ -2,14 +2,15 @@
 @model PlayerModel
 
 <h2>@Model.Player.Name</h2>
-<p>Performance Points: @Model.Player.Pp</p>
+<p>#@Model.Player.Rank - @Model.Player.Pp pp</p>
 
 <table class="table">
     <thead>
         <tr>
             <th>Map</th>
-            <th>Accuracy</th>
             <th>PP</th>
+            <th>Accuracy</th>
+            <th>Mods</th>
             
         </tr>
     </thead>
@@ -18,8 +19,9 @@
         {
             <tr>
                 <td><a asp-page="/Leaderboard" asp-route-id="@score.Leaderboard.Id">@score.Leaderboard.Name - @score.Leaderboard.DifficultyName</a></td>
-                <td>@score.Accuracy</td>
                 <td>@score.Pp</td>
+                <td>@score.Accuracy</td>
+                <td>@score.Modifiers</td>
                 
             </tr>
         }
