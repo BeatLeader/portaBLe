@@ -1,4 +1,5 @@
 ﻿using System.ComponentModel.DataAnnotations;
+using System.ComponentModel.DataAnnotations.Schema;
 
 namespace portaBLe
 {
@@ -18,6 +19,9 @@ namespace portaBLe
         public int CountryRank { get; set; }
         [StringLength(100, MinimumLength = 0)]
         public string Avatar { get; set; }
+
+        public float TopPp { get; set; }
+        public int RankedPlayCount { get; set; }
     }
 
     public class Score
@@ -81,6 +85,8 @@ namespace portaBLe
         public string DifficultyName { get; set; }
         [StringLength(150, MinimumLength = 0)]
         public string Cover { get; set; }
+        [StringLength(200, MinimumLength = 0)]
+        public string Mapper { get; set; }
 
         public float Stars { get; set; }
         public float PassRating { get; set; }
@@ -90,5 +96,26 @@ namespace portaBLe
         public float PredictedAcc { get; set; }
         public ModifiersRating? ModifiersRating { get; set; }
         public ICollection<Score> Scores { get; set; }
+
+        public int Count { get; set; }
+        public int Count80 { get; set; }
+        public int Count95 { get; set; }
+        public float Average { get; set; }
+        public float Top250 { get; set; }
+        public float TotalPP { get; set; }
+        public float PPRatioFiltered { get; set; }
+        public float PPRatioUnfiltered { get; set; }
+        public float Percentile { get; set; }
+        public float Megametric { get; set; }
+        public float Megametric125 { get; set; }
+        public float Megametric75 { get; set; }
+        public float Megametric40 { get; set; }
+
+        [NotMapped]
+        public float Count80Ratio => Count > 0 ? Count80 / (float)Count : 0;
+        [NotMapped]
+        public float Count95Ratio => Count > 0 ? Count95 / (float)Count : 0;
+        [NotMapped]
+        public float Count95to80Ratio => Count80 > 0 ? Count95 / (float)Count80 : 0;
     }
 }

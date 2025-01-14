@@ -22,6 +22,8 @@ namespace portaBLe
                     float techPP = 0f;
                     float passPP = 0f;
 
+                    float topPp = 0f;
+
                     foreach ((int i, var s) in group.OrderByDescending(s => s.Pp).Select((value, i) => (i, value)))
                     {
                         float weight = weights[i];
@@ -33,8 +35,14 @@ namespace portaBLe
                         accPP += s.AccPP * weight;
                         techPP += s.TechPP * weight;
                         passPP += s.PassPP * weight;
+
+                        if (i == 0) {
+                            topPp = s.Pp;
+                        }
                     }
                     player.Pp = resultPP;
+                    player.TopPp = topPp;
+                    player.RankedPlayCount = group.Count();
 
                     player.AccPp = accPP;
                     player.TechPp = techPP;
@@ -89,7 +97,7 @@ namespace portaBLe
                 }
             }
             await dbContext.BulkUpdateAsync(scoreUpdates, options => options.ColumnInputExpression = c => new { c.Weight });
-            await dbContext.BulkUpdateAsync(playerUpdates, options => options.ColumnInputExpression = c => new { c.Rank, c.Pp, c.CountryRank });
+            await dbContext.BulkUpdateAsync(playerUpdates, options => options.ColumnInputExpression = c => new { c.Rank, c.Pp, c.TopPp, c.RankedPlayCount, c.CountryRank });
         }
     }
 

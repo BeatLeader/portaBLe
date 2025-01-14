@@ -1,6 +1,7 @@
 ﻿@page "/player/{id}"
 @model PlayerModel
 
+<img class="player-avatar" src="@Model.Player.Avatar" />
 <h2>@Model.Player.Name</h2>
 <p>#@Model.Player.Rank - @Model.Player.Pp pp</p>
 
@@ -54,3 +55,9 @@
     </ul>
 </nav>
 
+<style>
+    .player-avatar {
+        width: 5em;
+        height: 5em;
+    }
+</style>

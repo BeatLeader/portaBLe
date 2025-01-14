@@ -30,7 +30,7 @@ namespace portaBLe
             using Stream entryStream = entry.Open();
             var options = new JsonSerializerOptions
             {
-                PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+                PropertyNameCaseInsensitive = true
             };
             return JsonSerializer.Deserialize<RootObject>(entryStream, options);
         }
@@ -64,6 +64,7 @@ namespace portaBLe
                 DataImporter.ImportJsonData(dump, dbContext);
                 await ScoresRefresh.Refresh(dbContext);
                 await PlayersRefresh.Refresh(dbContext);
+                await LeaderboardsRefresh.Refresh(dbContext);
             }
         }
 
@@ -113,6 +114,7 @@ namespace portaBLe
                 await RatingRefresh.RefreshMaps(dbContext);
                 await ScoresRefresh.Refresh(dbContext);
                 await PlayersRefresh.Refresh(dbContext);
+                await LeaderboardsRefresh.Refresh(dbContext);
             }
         }
 
