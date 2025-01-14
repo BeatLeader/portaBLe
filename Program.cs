@@ -18,6 +18,7 @@ namespace portaBLe
         public DbSet<Player> Players { get; set; }
         public DbSet<Score> Scores { get; set; }
         public DbSet<Leaderboard> Leaderboards { get; set; }
+        public DbSet<ModifiersRating> ModifiersRating { get; set; }
     }
 
     public class Program
@@ -82,6 +83,8 @@ namespace portaBLe
 
                 await ScoresRefresh.Refresh(dbContext);
                 await PlayersRefresh.Refresh(dbContext);
+
+                await LeaderboardRefresh.RefreshStars(dbContext);
             }
         }
 
