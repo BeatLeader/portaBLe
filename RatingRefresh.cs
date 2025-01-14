@@ -94,7 +94,7 @@ namespace portaBLe
                 LowNoteNerf = (float)ratings.Nerf
             };
             var accRating = ReplayUtils.AccRating((float)predictedAcc, (float)ratings.Pass, (float)ratings.Tech);
-            lack = ModifyRatings(lack, njs * timescale, timescale);
+            //lack = ModifyRatings(lack, njs * timescale, timescale);
             var pointList = ReplayUtils.GetCurve(predictedAcc, accRating, lack);
             var star = ReplayUtils.ToStars(accRating, (float)ratings.Pass, (float)ratings.Tech * 10);
             RatingResult result = new()
