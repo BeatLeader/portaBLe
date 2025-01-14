@@ -11,18 +11,24 @@
 <table class="table">
     <thead>
         <tr>
+            <th>---</th>
             <th>
                 <a asp-page="./Leaderboards" asp-route-sortDescending="@(Model.SortDescending ? "false" : "true")">Stars</a>
             </th>
             <th>Name</th>
+            <th>Diff</th>
+            <th>Mapper</th>
         </tr>
     </thead>
     <tbody>
         @foreach (var leaderboard in Model.Leaderboards)
         {
             <tr>
+                <td><img class="lb-cover" src="@leaderboard.Cover" /></td>
                 <td>@leaderboard.Stars</td>
                 <td><a asp-page="/Leaderboard" asp-route-id="@leaderboard.Id">@leaderboard.Name</a></td>
+                <td>@leaderboard.DifficultyName</td>
+                <td>@leaderboard.Mapper</td>
             </tr>
         }
     </tbody>
@@ -53,4 +59,11 @@
         }
     </ul>
 </nav>
+
+<style>
+    .lb-cover {
+        width: 3em;
+        height: 3em;
+    }
+</style>
 

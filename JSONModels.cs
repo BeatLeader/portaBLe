@@ -29,6 +29,7 @@
         public string ModeName { get; set; }
         public string DifficultyName { get; set; }
         public string CoverImage { get; set; }
+        public string Mapper { get; set; }
 
         public float PassRating { get; set; }
         public float AccRating { get; set; }

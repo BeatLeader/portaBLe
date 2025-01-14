@@ -26,6 +26,18 @@ namespace portaBLe.Migrations
                     b.Property<float>("AccRating")
                         .HasColumnType("REAL");
 
+                    b.Property<float>("Average")
+                        .HasColumnType("REAL");
+
+                    b.Property<int>("Count")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Count80")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("Count95")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Cover")
                         .IsRequired()
                         .HasMaxLength(150)
@@ -40,6 +52,23 @@ namespace portaBLe.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Mapper")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("TEXT");
+
+                    b.Property<float>("Megametric")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Megametric125")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Megametric40")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Megametric75")
+                        .HasColumnType("REAL");
+
                     b.Property<string>("ModeName")
                         .IsRequired()
                         .HasMaxLength(25)
@@ -53,7 +82,16 @@ namespace portaBLe.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("TEXT");
 
+                    b.Property<float>("PPRatioFiltered")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("PPRatioUnfiltered")
+                        .HasColumnType("REAL");
+
                     b.Property<float>("PassRating")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Percentile")
                         .HasColumnType("REAL");
 
                     b.Property<float>("PredictedAcc")
@@ -68,6 +106,12 @@ namespace portaBLe.Migrations
                         .HasColumnType("REAL");
 
                     b.Property<float>("TechRating")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top250")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("TotalPP")
                         .HasColumnType("REAL");
 
                     b.HasKey("Id");
@@ -169,7 +213,13 @@ namespace portaBLe.Migrations
                     b.Property<int>("Rank")
                         .HasColumnType("INTEGER");
 
+                    b.Property<int>("RankedPlayCount")
+                        .HasColumnType("INTEGER");
+
                     b.Property<float>("TechPp")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("TopPp")
                         .HasColumnType("REAL");
 
                     b.HasKey("Id");
