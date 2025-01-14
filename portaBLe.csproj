@@ -9,20 +9,25 @@
   <ItemGroup>
     <Compile Remove="beatleader-analyzer\**" />
     <Compile Remove="beatleader-parser\**" />
+    <Compile Remove="maps\**" />
     <Compile Remove="ppCurve\**" />
     <Content Remove="beatleader-analyzer\**" />
     <Content Remove="beatleader-parser\**" />
+    <Content Remove="maps\**" />
     <Content Remove="ppCurve\**" />
     <EmbeddedResource Remove="beatleader-analyzer\**" />
     <EmbeddedResource Remove="beatleader-parser\**" />
+    <EmbeddedResource Remove="maps\**" />
     <EmbeddedResource Remove="ppCurve\**" />
     <None Remove="beatleader-analyzer\**" />
     <None Remove="beatleader-parser\**" />
+    <None Remove="maps\**" />
     <None Remove="ppCurve\**" />
   </ItemGroup>
 
   <ItemGroup>
     <Content Remove="wwwroot\Database.db" />
+    <Content Remove="wwwroot\export.json" />
   </ItemGroup>
 
   <ItemGroup>

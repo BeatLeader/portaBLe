@@ -39,6 +39,7 @@ namespace portaBLe
                 PredictedAcc = map.PredictedAcc,
                 ModifiersRating = map.ModifiersRating,
                 Cover = map.CoverImage,
+                Mapper = map.Mapper,
                 Stars = ReplayUtils.ToStars(map.AccRating, map.PassRating, map.TechRating)
             });
 

@@ -32,7 +32,7 @@ namespace portaBLe.Pages
 
             if (!string.IsNullOrEmpty(SearchString))
             {
-                leaderboardQuery = leaderboardQuery.Where(l => EF.Functions.Like(l.Name, $"%{SearchString}%"));
+                leaderboardQuery = leaderboardQuery.Where(l => EF.Functions.Like(l.Name.ToLower(), $"%{SearchString.ToLower()}%"));
             }
 
             if (SortDescending)
