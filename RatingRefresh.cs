@@ -91,9 +91,7 @@ namespace portaBLe
             {
                 PassRating = (float)ratings.Pass,
                 TechRating = (float)ratings.Tech * 10,
-                LowNoteNerf = (float)ratings.Nerf,
-                LinearRating = (float)ratings.Linear,
-                MultiRating = (float)ratings.Multi
+                LowNoteNerf = (float)ratings.Nerf
             };
             var accRating = ReplayUtils.AccRating((float)predictedAcc, (float)ratings.Pass, (float)ratings.Tech);
             lack = ModifyRatings(lack, njs * timescale, timescale);
