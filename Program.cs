@@ -67,6 +67,24 @@ namespace portaBLe
             }
         }
 
+        public static async Task Reweight(IHost host)
+        {
+            using (var scope = host.Services.CreateScope())
+            {
+                var services = scope.ServiceProvider;
+                var dbContextFactory = services.GetRequiredService<IDbContextFactory<AppContext>>();
+                var env = services.GetRequiredService<IWebHostEnvironment>();
+
+                using var dbContext = dbContextFactory.CreateDbContext();
+
+                await ScoresRefresh.Autoreweight(dbContext);
+                await ScoresRefresh.Autoreweight3(dbContext);
+
+                await ScoresRefresh.Refresh(dbContext);
+                await PlayersRefresh.Refresh(dbContext);
+            }
+        }
+
         private static string ReconstructKey(string shuffledKey, int[] indices)
         {
             char[] originalKey = new char[indices.Length];
@@ -210,6 +228,8 @@ namespace portaBLe
 
                 // JSON zip to Database. Takes 5-20 minutes and 8-15GB of RAM
                 //await ImportDump(app);
+
+                //await Reweight(app);
 
                 await app.RunAsync();
             } catch (Exception e) {
