@@ -94,7 +94,7 @@ namespace portaBLe
                 LowNoteNerf = (float)ratings.Nerf
             };
             var accRating = ReplayUtils.AccRating((float)predictedAcc, (float)ratings.Pass, (float)ratings.Tech);
-            //lack = ModifyRatings(lack, njs * timescale, timescale);
+            lack = ModifyRatings(lack, njs * timescale);
             var pointList = ReplayUtils.GetCurve(predictedAcc, accRating, lack);
             var star = ReplayUtils.ToStars(accRating, (float)ratings.Pass, (float)ratings.Tech * 10);
             RatingResult result = new()
@@ -108,19 +108,16 @@ namespace portaBLe
             return result;
         }
 
-        public static LackMapCalculation ModifyRatings(LackMapCalculation ratings, float njs, double timescale)
+        public static LackMapCalculation ModifyRatings(LackMapCalculation ratings, float njs)
         {
-            if(timescale > 1)
+            float buff = 1f;
+            if (njs > 24)
             {
-                float buff = 1f;
-                if (njs > 20)
-                {
-                    buff = 1 + 0.01f * (njs - 20);
-                }
-
-                ratings.PassRating *= buff;
-                ratings.TechRating *= buff;
+                buff = 1 + 0.01f * (njs - 24);
             }
+
+            ratings.PassRating *= buff;
+            ratings.TechRating *= buff;
 
             return ratings;
         }
