@@ -6,12 +6,12 @@ namespace portaBLe
     static class ReplayUtils
     {
         static List<(double, double)> pointList = new List<(double, double)> { 
-                (1.0, 7.424),
-                (0.999, 6.241),
-                (0.9975, 5.158),
-                (0.995, 4.010),
-                (0.9925, 3.241),
-                (0.99, 2.700),
+                (1.0, 7),
+                (0.999, 6),
+                (0.9975, 5),
+                (0.995, 4),
+                (0.9925, 3),
+                (0.99, 2.5),
                 (0.9875, 2.303),
                 (0.985, 2.007),
                 (0.9825, 1.786),
@@ -162,7 +162,11 @@ namespace portaBLe
         public static float AccRating(float? predictedAcc, float? passRating, float? techRating) {
             float difficulty_to_acc;
             if (predictedAcc > 0) {
-                difficulty_to_acc = 15f / Curve((predictedAcc ?? 0) + 0.0022f);
+                if (predictedAcc > 0.99) {
+                    difficulty_to_acc = 15f / Curve(0.99f + ((predictedAcc ?? 0) - 0.99f) * 0.8f);
+                } else {
+                    difficulty_to_acc = 15f / Curve(0.99f + ((predictedAcc ?? 0) - 0.99f) * 1.4f);
+                }
             } else {
                 float tiny_tech = 0.0208f * (techRating ?? 0) + 1.1284f;
                 difficulty_to_acc = (-MathF.Pow(tiny_tech, -(passRating ?? 0)) + 1) * 8 + 2 + 0.01f * (techRating ?? 0) * (passRating ?? 0);
