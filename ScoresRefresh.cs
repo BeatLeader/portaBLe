@@ -96,12 +96,12 @@ namespace portaBLe
                 var m4 = lb.Megametric.Where(s => topPlayers.ContainsKey(s.PlayerId)).OrderByDescending(s => s.Weight).Take((int)(((double)lb.Megametric.Count()) * 0.33));
                 var mm4 = m4.Count() > 10 ? m4.Average(s => (s.Pp / topScores[s.PlayerId].Pp) * s.Weight) : 0;
 
-                if (mm4 > 0.6f)
+                if (mm4 > 0.65f)
                 {
 
                     //var topAverage = lb.Percentile.OrderByDescending(s => s).Take((int)(((double)lb.Percentile.Count()) * 0.33)).Average(s => s);
                     //var adjustedTop = lb.TopPP - 0.5f;
-                    var value = 1.0f - (mm4 - 0.6f) * 0.1f;
+                    var value = 1.0f - (mm4 - 0.65f) * 0.26f;
 
                     lb.leaderboard.AccRating *= value;
                     //lb.Difficulty.PassRating *= 1.0f - value * 0.4f;
