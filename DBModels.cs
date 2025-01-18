@@ -48,7 +48,7 @@ namespace portaBLe
         public float FCAcc { get; set; }
     }
 
-    public class ModifiersRating 
+    public class ModifiersRating
     {
         public int Id { get; set; }
         public float FSPredictedAcc { get; set; }

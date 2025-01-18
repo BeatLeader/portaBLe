@@ -4,9 +4,10 @@ namespace portaBLe
 {
     public class LeaderboardsRefresh
     {
-        public static async Task Refresh(AppContext dbContext) {
+        public static async Task Refresh(AppContext dbContext)
+        {
             dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
-            
+
             var weights = new Dictionary<int, float>();
             for (int i = 0; i < 10000; i++)
             {
@@ -25,19 +26,19 @@ namespace portaBLe
             }).ToList()
             .GroupBy(s => s.LeaderboardId)
             .Select(g => new
-                {
-                    Average = g.Average(s => s.Weight),
-                    Megametric = g.Where(s => s.TopPp != 0).Select(s => new { s.Weight, s.RankedPlayCount, s.Pp, s.TopPp }),
-                    Count8 = g.Where(s => s.Weight > 0.8).Count(),
-                    Count95 = g.Where(s => s.Weight > 0.95).Count(),
-                    PPsum = g.Sum(s => s.Pp * s.Weight),
+            {
+                Average = g.Average(s => s.Weight),
+                Megametric = g.Where(s => s.TopPp != 0).Select(s => new { s.Weight, s.RankedPlayCount, s.Pp, s.TopPp }),
+                Count8 = g.Where(s => s.Weight > 0.8).Count(),
+                Count95 = g.Where(s => s.Weight > 0.95).Count(),
+                PPsum = g.Sum(s => s.Pp * s.Weight),
 
-                    PPAverage = g.Where(s => s.RankedPlayCount >= 50 && s.TopPp != 0).Average(s => s.Pp / s.TopPp),
-                    PPAverage2 = g.Where(s => s.TopPp != 0).Average(s => s.Pp / s.TopPp),
-                    Count = g.Count(),
-                    Top250 = g.Where(s => s.Rank < 250 && s.Weight > weightTreshold).Count(),
-                    Id = g.Key,
-                })
+                PPAverage = g.Where(s => s.RankedPlayCount >= 50 && s.TopPp != 0).Average(s => s.Pp / s.TopPp),
+                PPAverage2 = g.Where(s => s.TopPp != 0).Average(s => s.Pp / s.TopPp),
+                Count = g.Count(),
+                Top250 = g.Where(s => s.Rank < 250 && s.Weight > weightTreshold).Count(),
+                Id = g.Key,
+            })
             .ToList();
 
             var updates = new List<Leaderboard>();
@@ -59,7 +60,8 @@ namespace portaBLe
                 var m4 = item.Megametric.Where(s => s.RankedPlayCount > 40).OrderByDescending(s => s.Weight).Take((int)(((double)item.Megametric.Count()) * 0.33));
                 var mm4 = m4.Count() > 10 ? m4.Average(s => (s.Pp / s.TopPp) * s.Weight) : 0;
 
-                updates.Add(new Leaderboard {
+                updates.Add(new Leaderboard
+                {
                     Id = item.Id,
                     Count = item.Count,
                     Count80 = item.Count8,
@@ -76,11 +78,11 @@ namespace portaBLe
                     PPRatioUnfiltered = item.PPAverage
                 });
             }
-            await dbContext.BulkUpdateAsync(updates, options => options.ColumnInputExpression = c => 
-                new { 
-                    c.Count, 
-                    c.Count80, 
-                    c.Count95, 
+            await dbContext.BulkUpdateAsync(updates, options => options.ColumnInputExpression = c =>
+                new {
+                    c.Count,
+                    c.Count80,
+                    c.Count95,
                     c.Average,
                     c.Top250,
                     c.TotalPP,

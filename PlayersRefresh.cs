@@ -13,7 +13,8 @@ namespace portaBLe
             var playerUpdates = new List<Player>();
             await foreach (var group in groups)
             {
-                try {
+                try
+                {
                     Player player = new() { Id = group.Key };
                     playerUpdates.Add(player);
 
@@ -36,7 +37,8 @@ namespace portaBLe
                         techPP += s.TechPP * weight;
                         passPP += s.PassPP * weight;
 
-                        if (i == 0) {
+                        if (i == 0)
+                        {
                             topPp = s.Pp;
                         }
                     }
@@ -47,16 +49,19 @@ namespace portaBLe
                     player.AccPp = accPP;
                     player.TechPp = techPP;
                     player.PassPp = passPP;
-                } catch (Exception) {
+                }
+                catch (Exception)
+                {
                 }
             }
 
             return (scoreUpdates, playerUpdates);
         }
 
-        public static async Task Refresh(AppContext dbContext) {
+        public static async Task Refresh(AppContext dbContext)
+        {
             dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
-            
+
             var weights = new Dictionary<int, float>();
             for (int i = 0; i < 10000; i++)
             {
@@ -65,17 +70,18 @@ namespace portaBLe
 
             var scores = dbContext
                 .Scores
-                .Select(s => new ScoreSelection { 
-                    Id = s.Id, 
-                    Accuracy = s.Accuracy, 
-                    Rank = s.Rank, 
-                    Pp = s.Pp, 
-                    AccPP = s.AccPP, 
-                    TechPP = s.TechPP, 
-                    PassPP = s.PassPP, 
-                    Weight = s.Weight, 
-                    PlayerId = s.PlayerId, 
-                    Country = s.Player.Country 
+                .Select(s => new ScoreSelection
+                {
+                    Id = s.Id,
+                    Accuracy = s.Accuracy,
+                    Rank = s.Rank,
+                    Pp = s.Pp,
+                    AccPP = s.AccPP,
+                    TechPP = s.TechPP,
+                    PassPP = s.PassPP,
+                    Weight = s.Weight,
+                    PlayerId = s.PlayerId,
+                    Country = s.Player.Country
                 })
                 .GroupBy(s => s.PlayerId)
                 .ToAsyncEnumerable();
@@ -86,7 +92,8 @@ namespace portaBLe
             foreach ((int i, Player p) in playerUpdates.OrderByDescending(p => p.Pp).Select((value, i) => (i, value)))
             {
                 p.Rank = i + 1;
-                if (p.Country != null) {
+                if (p.Country != null)
+                {
                     if (!countries.TryGetValue(p.Country, out int value))
                     {
                         countries[p.Country] = value = 1;
@@ -101,16 +108,17 @@ namespace portaBLe
         }
     }
 
-    public class ScoreSelection {
-        public int Id { get; set; } 
-        public float Accuracy { get; set; } 
-        public int Rank { get; set; } 
-        public float Pp { get; set; } 
-        public float AccPP { get; set; }  
-        public float TechPP { get; set; } 
-        public float PassPP { get; set; } 
-        public float Weight { get; set; } 
-        public string PlayerId { get; set; } 
-        public string Country { get; set; } 
+    public class ScoreSelection
+    {
+        public int Id { get; set; }
+        public float Accuracy { get; set; }
+        public int Rank { get; set; }
+        public float Pp { get; set; }
+        public float AccPP { get; set; }
+        public float TechPP { get; set; }
+        public float PassPP { get; set; }
+        public float Weight { get; set; }
+        public string PlayerId { get; set; }
+        public string Country { get; set; }
     }
 }

@@ -13,14 +13,15 @@ namespace portaBLe
         public static void ImportJsonData(RootObject rootObject, AppContext dbContext)
         {
             dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
-            
+
             // Disable WAL
             dbContext.Database.ExecuteSql($"PRAGMA journal_mode=OFF;");
             dbContext.Database.ExecuteSql($"PRAGMA synchronous=OFF;");
 
             foreach (var item in rootObject.Maps)
             {
-                if (item.ModifiersRating != null) {
+                if (item.ModifiersRating != null)
+                {
                     item.ModifiersRating.Id = 0;
                 }
             }
@@ -52,7 +53,7 @@ namespace portaBLe
                 Country = player.Country,
                 Avatar = player.Avatar,
             });
-            
+
             dbContext.Players.BulkInsertOptimized(players);
 
             var scores = rootObject.Scores.Select(score => new Score
@@ -66,7 +67,7 @@ namespace portaBLe
                 FC = score.FC,
                 FCAcc = score.FCAcc
             });
-            
+
             dbContext.Scores.BulkInsertOptimized(scores);
         }
     }

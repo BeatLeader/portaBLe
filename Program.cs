@@ -18,6 +18,7 @@ namespace portaBLe
         public DbSet<Player> Players { get; set; }
         public DbSet<Score> Scores { get; set; }
         public DbSet<Leaderboard> Leaderboards { get; set; }
+        public DbSet<ModifiersRating> ModifiersRating { get; set; }
     }
 
     public class Program
@@ -99,21 +100,23 @@ namespace portaBLe
             }
         }
 
-        public static async Task RefreshRatings(IHost host) {
+        public static async Task Reweight(IHost host)
+        {
             using (var scope = host.Services.CreateScope())
             {
                 var services = scope.ServiceProvider;
                 var dbContextFactory = services.GetRequiredService<IDbContextFactory<AppContext>>();
                 var env = services.GetRequiredService<IWebHostEnvironment>();
 
-                if (!Directory.Exists("maps")) {
-                    await DownloadMaps();
-                }
-
                 using var dbContext = dbContextFactory.CreateDbContext();
-                await RatingRefresh.RefreshMaps(dbContext);
+
+                await ScoresRefresh.Autoreweight(dbContext);
+                await ScoresRefresh.Autoreweight3(dbContext);
+
                 await ScoresRefresh.Refresh(dbContext);
                 await PlayersRefresh.Refresh(dbContext);
+
+                await LeaderboardRefresh.RefreshStars(dbContext);
                 await LeaderboardsRefresh.Refresh(dbContext);
             }
         }
@@ -263,7 +266,7 @@ namespace portaBLe
                 //await ImportDump(app);
 
                 // Refresh map ratings from the BL algo
-                //await RefreshRatings(app);
+                // await Reweight(app);
 
                 await app.RunAsync();
             } catch (Exception e) {

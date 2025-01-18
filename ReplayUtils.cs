@@ -5,7 +5,7 @@ namespace portaBLe
 {
     static class ReplayUtils
     {
-        static List<(double, double)> pointList = new List<(double, double)> { 
+        static List<(double, double)> pointList = new List<(double, double)> {
                 (1.0, 7.424),
                 (0.999, 6.241),
                 (0.9975, 5.158),
@@ -39,7 +39,7 @@ namespace portaBLe
                 (0.6, 0.217),
                 (0.0, 0.000) };
 
-        static List<(double, double)> pointList2 = new List<(double, double)> { 
+        static List<(double, double)> pointList2 = new List<(double, double)> {
                 (1.0, 7.424),
                 (0.999, 6.241),
                 (0.9975, 5.158),
@@ -78,17 +78,19 @@ namespace portaBLe
             int i = 0;
             for (; i < pointList.Count; i++)
             {
-                if (pointList[i].Item1 <= acc) {
+                if (pointList[i].Item1 <= acc)
+                {
                     break;
                 }
             }
-    
-            if (i == 0) {
+
+            if (i == 0)
+            {
                 i = 1;
             }
-    
-            double middle_dis = (acc - pointList[i-1].Item1) / (pointList[i].Item1 - pointList[i-1].Item1);
-            return (float)(pointList[i-1].Item2 + middle_dis * (pointList[i].Item2 - pointList[i-1].Item2));
+
+            double middle_dis = (acc - pointList[i - 1].Item1) / (pointList[i].Item1 - pointList[i - 1].Item1);
+            return (float)(pointList[i - 1].Item2 + middle_dis * (pointList[i].Item2 - pointList[i - 1].Item2));
         }
 
         public static float Curve2(float acc)
@@ -96,38 +98,47 @@ namespace portaBLe
             int i = 0;
             for (; i < pointList2.Count; i++)
             {
-                if (pointList2[i].Item1 <= acc) {
+                if (pointList2[i].Item1 <= acc)
+                {
                     break;
                 }
             }
-    
-            if (i == 0) {
+
+            if (i == 0)
+            {
                 i = 1;
             }
-    
-            double middle_dis = (acc - pointList2[i-1].Item1) / (pointList2[i].Item1 - pointList2[i-1].Item1);
-            return (float)(pointList2[i-1].Item2 + middle_dis * (pointList2[i].Item2 - pointList2[i-1].Item2));
+
+            double middle_dis = (acc - pointList2[i - 1].Item1) / (pointList2[i].Item1 - pointList2[i - 1].Item1);
+            return (float)(pointList2[i - 1].Item2 + middle_dis * (pointList2[i].Item2 - pointList2[i - 1].Item2));
         }
 
-        public static float AccRating(float? predictedAcc, float? passRating, float? techRating) {
+        public static float AccRating(float? predictedAcc, float? passRating, float? techRating)
+        {
             float difficulty_to_acc;
-            if (predictedAcc > 0) {
+            if (predictedAcc > 0)
+            {
                 difficulty_to_acc = 15f / Curve((predictedAcc ?? 0) + 0.0022f);
-            } else {
+            }
+            else
+            {
                 float tiny_tech = 0.0208f * (techRating ?? 0) + 1.1284f;
                 difficulty_to_acc = (-MathF.Pow(tiny_tech, -(passRating ?? 0)) + 1) * 8 + 2 + 0.01f * (techRating ?? 0) * (passRating ?? 0);
             }
-            if (float.IsInfinity(difficulty_to_acc) || float.IsNaN(difficulty_to_acc) || float.IsNegativeInfinity(difficulty_to_acc)) {
+            if (float.IsInfinity(difficulty_to_acc) || float.IsNaN(difficulty_to_acc) || float.IsNegativeInfinity(difficulty_to_acc))
+            {
                 difficulty_to_acc = 0;
             }
             return difficulty_to_acc;
         }
 
-        private static float Inflate(float peepee) {
+        private static float Inflate(float peepee)
+        {
             return (650f * MathF.Pow(peepee, 1.3f)) / MathF.Pow(650f, 1.3f);
         }
 
-        private static (float, float, float) GetPp(float accuracy, float accRating, float passRating, float techRating) {
+        private static (float, float, float) GetPp(float accuracy, float accRating, float passRating, float techRating)
+        {
 
             float passPP = 15.2f * MathF.Exp(MathF.Pow(passRating, 1 / 2.62f)) - 30f;
             if (float.IsInfinity(passPP) || float.IsNaN(passPP) || float.IsNegativeInfinity(passPP) || passPP < 0)
@@ -136,46 +147,50 @@ namespace portaBLe
             }
             float accPP = Curve2(accuracy) * accRating * 34f;
             float techPP = MathF.Exp(1.9f * accuracy) * 1.08f * techRating;
-            
+
             return (passPP, accPP, techPP);
         }
 
-        public static float ToStars(float accRating, float passRating, float techRating) {
+        public static float ToStars(float accRating, float passRating, float techRating)
+        {
             (float passPP, float accPP, float techPP) = GetPp(0.96f, accRating, passRating, techRating);
 
             return Inflate(passPP + accPP + techPP) / 52f;
         }
 
         public static (float, float, float, float, float) PpFromScore(
-            float accuracy, 
-            string modifiers, 
+            float accuracy,
+            string modifiers,
             ModifiersRating? modifiersRating,
-            float accRating, 
-            float passRating, 
+            float accRating,
+            float passRating,
             float techRating)
         {
             if (accuracy <= 0 || accuracy > 1) return (0, 0, 0, 0, 0);
 
             float mp = ModifiersMap.RankedMap().GetTotalMultiplier(modifiers, modifiersRating == null);
 
-            if (accuracy < 0) {
+            if (accuracy < 0)
+            {
                 accuracy = 0;
             }
 
-            float rawPP = 0; float fullPP = 0; float passPP = 0; float accPP = 0; float techPP = 0; float increase = 0; 
+            float rawPP = 0; float fullPP = 0; float passPP = 0; float accPP = 0; float techPP = 0; float increase = 0;
             if (!modifiers.Contains("NF"))
             {
                 (passPP, accPP, techPP) = GetPp(accuracy, accRating, passRating, techRating);
-                        
+
                 rawPP = Inflate(passPP + accPP + techPP);
-                if (modifiersRating != null) {
+                if (modifiersRating != null)
+                {
                     var modifiersMap = modifiersRating.ToDictionary<float>();
                     foreach (var modifier in modifiers.ToUpper().Split(","))
                     {
-                        if (modifiersMap.ContainsKey(modifier + "AccRating")) { 
-                            accRating = modifiersMap[modifier + "AccRating"]; 
-                            passRating = modifiersMap[modifier + "PassRating"]; 
-                            techRating = modifiersMap[modifier + "TechRating"]; 
+                        if (modifiersMap.ContainsKey(modifier + "AccRating"))
+                        {
+                            accRating = modifiersMap[modifier + "AccRating"];
+                            passRating = modifiersMap[modifier + "PassRating"];
+                            techRating = modifiersMap[modifier + "TechRating"];
 
                             break;
                         }
@@ -183,40 +198,44 @@ namespace portaBLe
                 }
                 (passPP, accPP, techPP) = GetPp(accuracy, accRating * mp, passRating * mp, techRating * mp);
                 fullPP = Inflate(passPP + accPP + techPP);
-                if ((passPP + accPP + techPP) > 0) {
+                if ((passPP + accPP + techPP) > 0)
+                {
                     increase = fullPP / (passPP + accPP + techPP);
                 }
             }
 
-            if (float.IsInfinity(rawPP) || float.IsNaN(rawPP) || float.IsNegativeInfinity(rawPP)) {
+            if (float.IsInfinity(rawPP) || float.IsNaN(rawPP) || float.IsNegativeInfinity(rawPP))
+            {
                 rawPP = 0;
             }
 
-            if (float.IsInfinity(fullPP) || float.IsNaN(fullPP) || float.IsNegativeInfinity(fullPP)) {
+            if (float.IsInfinity(fullPP) || float.IsNaN(fullPP) || float.IsNegativeInfinity(fullPP))
+            {
                 fullPP = 0;
             }
 
             return (fullPP, fullPP - rawPP, passPP * increase, accPP * increase, techPP * increase);
         }
 
-        public static int MaxScoreForNote(int count) {
-          int note_score = 115;
+        public static int MaxScoreForNote(int count)
+        {
+            int note_score = 115;
 
-          if (count <= 1) // x1 (+1 note)
-              return note_score * (0 + (count - 0) * 1);
-          if (count <= 5) // x2 (+4 notes)
-              return note_score * (1 + (count - 1) * 2);
-          if (count <= 13) // x4 (+8 notes)
-              return note_score * (9 + (count - 5) * 4);
-          // x8
-          return note_score * (41 + (count - 13) * 8);
+            if (count <= 1) // x1 (+1 note)
+                return note_score * (0 + (count - 0) * 1);
+            if (count <= 5) // x2 (+4 notes)
+                return note_score * (1 + (count - 1) * 2);
+            if (count <= 13) // x4 (+8 notes)
+                return note_score * (9 + (count - 5) * 4);
+            // x8
+            return note_score * (41 + (count - 13) * 8);
         }
 
         private static readonly PropertyInfo[] aModifiers = typeof(ModifiersMap).GetProperties().Where(p => p.PropertyType == typeof(float) && p.Name.Length == 2).ToArray();
 
         public static float GetTotalMultiplier(this ModifiersMap modifiersObject, string modifiers, bool speedModifiers)
-		{
-			float multiplier = 1;
+        {
+            float multiplier = 1;
 
             foreach (PropertyInfo modifierProp in aModifiers)
             {
@@ -228,10 +247,10 @@ namespace portaBLe
                     multiplier += (float)modifierProp.GetValue(modifiersObject)!;
                 }
             }
-            
 
-			return multiplier;
-		}
+
+            return multiplier;
+        }
 
         public static float GetPositiveMultiplier(this ModifiersMap modifiersObject, string modifiers)
         {
@@ -268,9 +287,11 @@ namespace portaBLe
             var modifiersMap = modifiersObject.ToDictionary<float>();
             foreach (var modifier in modifiersMap.Keys)
             {
-                if (modifiers.Contains(modifier)) {
-                    if (modifiersMap[modifier] < 0) {
-                        multiplier += modifiersMap[modifier]; 
+                if (modifiers.Contains(modifier))
+                {
+                    if (modifiersMap[modifier] < 0)
+                    {
+                        multiplier += modifiersMap[modifier];
                         modifierArray.Add(modifier);
                     }
                 }
@@ -279,8 +300,10 @@ namespace portaBLe
             return (String.Join(",", modifierArray), multiplier);
         }
 
-        public static int ScoreForRank(int rank) {
-            switch (rank) {
+        public static int ScoreForRank(int rank)
+        {
+            switch (rank)
+            {
                 case 1:
                     return 5;
                 case 2:
@@ -292,14 +315,16 @@ namespace portaBLe
             }
         }
 
-        public static int UpdateRankScore(int oldScore, int? oldRank, int newRank) {
+        public static int UpdateRankScore(int oldScore, int? oldRank, int newRank)
+        {
             int result = oldScore;
-            if (oldRank != null) {
+            if (oldRank != null)
+            {
                 result -= ScoreForRank(oldRank ?? 4);
             }
             result += ScoreForRank(newRank);
 
-            return result; 
+            return result;
         }
 
         public static string SafeSubstring(this string text, int start, int length)
@@ -328,8 +353,10 @@ namespace portaBLe
         public float SA { get; set; } = 0.0f;
         public float OP { get; set; } = -0.5f;
 
-        public static ModifiersMap RankedMap() {
-            return new ModifiersMap {
+        public static ModifiersMap RankedMap()
+        {
+            return new ModifiersMap
+            {
                 DA = 0.0f,
                 FS = 0.20f * 2,
                 SF = 0.36f * 2,
@@ -346,7 +373,8 @@ namespace portaBLe
             };
         }
 
-        public bool EqualTo(ModifiersMap? other) {
+        public bool EqualTo(ModifiersMap? other)
+        {
             return other != null && DA == other.DA && FS == other.FS && SS == other.SS && SF == other.SF && GN == other.GN && NA == other.NA && NB == other.NB && NF == other.NF && NO == other.NO && PM == other.PM && SC == other.SC && SA == other.SA && OP == other.OP;
         }
     }
