@@ -1,6 +1,3 @@
-[submodule "beatleader-analyzer"]
-	path = beatleader-analyzer
-	url = https://github.com/BeatLeader/beatleader-analyzer.git
-[submodule "beatleader-parser"]
-	path = beatleader-parser
-	url = https://github.com/BeatLeader/beatleader-parser.git
+[submodule "RatingAPI"]
+	path = RatingAPI
+	url = https://github.com/edgii/RatingAPI.git

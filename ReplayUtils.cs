@@ -109,56 +109,6 @@ namespace portaBLe
             return (float)(pointList2[i-1].Item2 + middle_dis * (pointList2[i].Item2 - pointList2[i-1].Item2));
         }
 
-        public static List<Point> GetCurve(double predictedAcc, double accRating, LackMapCalculation lackRatings)
-        {
-            List<(double x, double y)> points = pointList2.ToList();
-
-            /*
-            double buff = 1;
-            if(lackRatings.LinearRating <= 0.20)
-            {
-                buff = 1 + 0.5 * (0.2 - lackRatings.LinearRating);
-            }
-
-            foreach (var p in baseCurve)
-            {
-                double newY = p.y;
-                
-                if (p.x >= predictedAcc - 0.01)
-                {
-                    if (accRating <= 8) newY *= 1 + 0.025 * (8 - accRating);
-                    newY *= buff;
-                    newY *= 1 + 0.1 * lackRatings.MultiRating;
-                }
-                else
-                {
-                    if (lackRatings.MultiRating > 0.1)
-                    {
-                        newY *= 1 - Math.Log(lackRatings.MultiRating * 10, 1.666) / 100;
-                    }
-                    else
-                    {
-                        newY *= 1 - 0.01 * lackRatings.MultiRating;
-                    }
-                }
-                newY *= 1 - lackRatings.LinearRating / 100 * lackRatings.PassRating;
-                
-                points.Add(new(p.x, newY));
-            }
-            
-            for (int i = 0; i < points.Count; i++)
-            {
-                points[i] = (points[i].x, Math.Round(points[i].y, 3));
-            }
-            */
-
-            Point point = new();
-            List<Point> curve = point.ToPoints(points).ToList();
-            curve = curve.OrderBy(x => x.x).Reverse().ToList();
-
-            return curve;
-        }
-
         public static float AccRating(float? predictedAcc, float? passRating, float? techRating) {
             float difficulty_to_acc;
             if (predictedAcc > 0) {
