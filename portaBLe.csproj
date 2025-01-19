@@ -1,4 +1,4 @@
-<Project Sdk="Microsoft.NET.Sdk.Web">
+﻿<Project Sdk="Microsoft.NET.Sdk.Web">
 
   <PropertyGroup>
     <TargetFramework>net7.0</TargetFramework>
@@ -120,7 +120,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <None Update="RatingAPI\model_sleep_bl.onnx">
+    <None Update="model_sleep_bl.onnx">
       <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
     </None>
   </ItemGroup>

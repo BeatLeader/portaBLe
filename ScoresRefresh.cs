@@ -101,7 +101,7 @@ namespace portaBLe
 
                     //var topAverage = lb.Percentile.OrderByDescending(s => s).Take((int)(((double)lb.Percentile.Count()) * 0.33)).Average(s => s);
                     //var adjustedTop = lb.TopPP - 0.5f;
-                    var value = 1.0f - (mm125 - 0.65f) * 0.4f;
+                    var value = 1.0f - (mm125 - 0.65f) * 0.35f;
 
                     lb.leaderboard.AccRating *= value;
                     //lb.Difficulty.PassRating *= 1.0f - value * 0.4f;
