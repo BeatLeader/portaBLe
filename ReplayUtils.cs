@@ -118,7 +118,7 @@ namespace portaBLe
             float difficulty_to_acc;
             if (predictedAcc > 0)
             {
-                difficulty_to_acc = 15f / Curve((predictedAcc ?? 0) + 0.0022f);
+                difficulty_to_acc = 15.375f / Curve((predictedAcc ?? 0) + 0.0022f);
             }
             else
             {
