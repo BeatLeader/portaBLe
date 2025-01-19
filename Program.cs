@@ -121,6 +121,28 @@ namespace portaBLe
             }
         }
 
+        public static async Task RefreshRatings(IHost host)
+        {
+            using (var scope = host.Services.CreateScope())
+            {
+                var services = scope.ServiceProvider;
+                var dbContextFactory = services.GetRequiredService<IDbContextFactory<AppContext>>();
+                var env = services.GetRequiredService<IWebHostEnvironment>();
+
+                if (!Directory.Exists("maps"))
+                {
+                    await DownloadMaps();
+                }
+
+                using var dbContext = dbContextFactory.CreateDbContext();
+                await RatingRefresh.RefreshMaps(dbContext);
+                await ScoresRefresh.Refresh(dbContext);
+                await PlayersRefresh.Refresh(dbContext);
+                await LeaderboardRefresh.RefreshStars(dbContext);
+                await LeaderboardsRefresh.Refresh(dbContext);
+            }
+        }
+
         private static string ReconstructKey(string shuffledKey, int[] indices)
         {
             char[] originalKey = new char[indices.Length];
@@ -236,7 +258,7 @@ namespace portaBLe
 
                 // Store your version of DB in S3 for deploy
                 //await UploadDatabaseAsync($"{builder.Environment.WebRootPath}/Database.db");
-
+               
                 var connectionString = $"Data Source={builder.Environment.WebRootPath}/Database.db;";
                 builder.Services.AddDbContextFactory<AppContext>(options => options.UseSqlite(connectionString));
                 builder.Services.AddRazorPages();
@@ -266,7 +288,8 @@ namespace portaBLe
                 //await ImportDump(app);
 
                 // Refresh map ratings from the BL algo
-                // await Reweight(app);
+                //await RefreshRatings(app);
+                //await Reweight(app);
 
                 await app.RunAsync();
             } catch (Exception e) {
