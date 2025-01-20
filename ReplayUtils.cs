@@ -343,7 +343,7 @@ namespace portaBLe
         public float FS { get; set; } = 0.20f;
         public float SF { get; set; } = 0.36f;
         public float SS { get; set; } = -0.3f;
-        public float GN { get; set; } = 0.04f;
+        public float GN { get; set; } = 0.0f;
         public float NA { get; set; } = -0.3f;
         public float NB { get; set; } = -0.2f;
         public float NF { get; set; } = -0.5f;
@@ -361,7 +361,7 @@ namespace portaBLe
                 FS = 0.20f * 2,
                 SF = 0.36f * 2,
                 SS = -0.3f,
-                GN = 0.04f * 2,
+                GN = 0.0f,
                 NA = -0.3f,
                 NB = -0.2f,
                 NF = -1.0f,
