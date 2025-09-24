@@ -67,7 +67,7 @@
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite" Version="7.0.20" />
     <PackageReference Include="Microsoft.EntityFrameworkCore.Sqlite.Design" Version="1.1.6" />
     <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.18.1" />
-    <PackageReference Include="Z.EntityFramework.Extensions.EFCore" Version="7.103.6.4" />
+    <PackageReference Include="Z.EntityFramework.Extensions.EFCore" Version="7.104.0" />
   </ItemGroup>
 
   <ItemGroup>
