@@ -54,6 +54,7 @@
     <None Remove="RatingAPI\model_sleep_4LSTM_acc.onnx" />
     <None Remove="RatingAPI\model_sleep_4LSTM_speed.onnx" />
     <None Remove="RatingAPI\tagging_model.onnx" />
+	<None Remove="RatingAPI\model_sleep_bl.onnx" />
   </ItemGroup>
 
   <ItemGroup>
@@ -117,5 +118,9 @@
       <Link>tagging_model.onnx</Link>
       <CopyToOutputDirectory>Always</CopyToOutputDirectory>
     </Content>
+	<Content Include="RatingAPI\model_sleep_bl.onnx">
+	  <Link>model_sleep_bl.onnx</Link>
+	  <CopyToOutputDirectory>Always</CopyToOutputDirectory>
+	</Content>
   </ItemGroup>
 </Project>

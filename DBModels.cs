@@ -11,6 +11,7 @@ namespace portaBLe
         public float AccPp { get; set; }
         public float TechPp { get; set; }
         public float PassPp { get; set; }
+        public float StaminaPp { get; set; }
         public int Rank { get; set; }
         [StringLength(50, MinimumLength = 0)]
         public string Name { get; set; }
@@ -33,6 +34,7 @@ namespace portaBLe
         public float AccPP { get; set; }
         public float TechPP { get; set; }
         public float PassPP { get; set; }
+        public float StaminaPP { get; set; }
         public float BonusPp { get; set; }
         public float Weight { get; set; }
         [StringLength(25, MinimumLength = 0)]
@@ -55,18 +57,21 @@ namespace portaBLe
         public float FSPassRating { get; set; }
         public float FSAccRating { get; set; }
         public float FSTechRating { get; set; }
+        public float FSStaminaRating { get; set; }
         public float FSStars { get; set; }
 
         public float SSPredictedAcc { get; set; }
         public float SSPassRating { get; set; }
         public float SSAccRating { get; set; }
         public float SSTechRating { get; set; }
+        public float SSStaminaRating { get; set; }
         public float SSStars { get; set; }
 
         public float SFPredictedAcc { get; set; }
         public float SFPassRating { get; set; }
         public float SFAccRating { get; set; }
         public float SFTechRating { get; set; }
+        public float SFStaminaRating { get; set; }
         public float SFStars { get; set; }
     }
 
@@ -92,6 +97,7 @@ namespace portaBLe
         public float PassRating { get; set; }
         public float AccRating { get; set; }
         public float TechRating { get; set; }
+        public float StaminaRating { get; set; }
 
         public float PredictedAcc { get; set; }
         public ModifiersRating? ModifiersRating { get; set; }

@@ -58,6 +58,7 @@ namespace portaBLe.Pages
                 "AccRating" => SortDescending ? query.OrderByDescending(x => x.AccRating) : query.OrderBy(x => x.AccRating),
                 "PassRating" => SortDescending ? query.OrderByDescending(x => x.PassRating) : query.OrderBy(x => x.PassRating),
                 "TechRating" => SortDescending ? query.OrderByDescending(x => x.TechRating) : query.OrderBy(x => x.TechRating),
+                "StaminaRating" => SortDescending ? query.OrderByDescending(x => x.StaminaRating) : query.OrderBy(x => x.StaminaRating),
                 _ => SortDescending ? query.OrderByDescending(x => x.TotalPP) : query.OrderBy(x => x.TotalPP),
             };
 

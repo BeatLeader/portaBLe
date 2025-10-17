@@ -166,6 +166,13 @@
                    asp-route-sortDescending="@(Model.SortBy == "TechRating" && Model.SortDescending ? "false" : "true")" 
                    asp-route-searchString="@Model.SearchString">Tech Rating</a>
             </th>
+            <th>
+                <a class="sort-header @(Model.SortBy == "StaminaRating" ? "active" : "") @(Model.SortBy == "StaminaRating" && Model.SortDescending ? "desc" : "asc")"
+                   asp-page="./LeaderboardStats" 
+                   asp-route-sortBy="StaminaRating" 
+                   asp-route-sortDescending="@(Model.SortBy == "StaminaRating" && Model.SortDescending ? "false" : "true")" 
+                   asp-route-searchString="@Model.SearchString">Stamina Rating</a>
+            </th>
         </tr>
     </thead>
     <tbody>
@@ -192,6 +199,7 @@
                 <td>@stat.AccRating.ToString("F2")</td>
                 <td>@stat.PassRating.ToString("F2")</td>
                 <td>@stat.TechRating.ToString("F2")</td>
+                <td>@stat.StaminaRating.ToString("F2")</td>
             </tr>
         }
     </tbody>

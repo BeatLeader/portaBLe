@@ -47,31 +47,35 @@ namespace portaBLe
 
                     lb.PassRating = (float)response["none"].LackMapCalculation.PassRating;
                     lb.TechRating = (float)response["none"].LackMapCalculation.TechRating;
+                    lb.StaminaRating = (float)response["none"].LackMapCalculation.StaminaRating;
                     lb.PredictedAcc = (float)response["none"].PredictedAcc;
                     lb.AccRating = (float)response["none"].AccRating;
-                    lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating);
+                    lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.StaminaRating);
 
                     var modrating = lb.ModifiersRating = new ModifiersRating
                     {
                         SSPassRating = (float)response["SS"].LackMapCalculation.PassRating,
                         SSTechRating = (float)response["SS"].LackMapCalculation.TechRating,
+                        SSStaminaRating = (float)response["SS"].LackMapCalculation.StaminaRating,
                         SSPredictedAcc = (float)response["SS"].PredictedAcc,
                         SSAccRating = (float)response["SS"].AccRating,
 
                         FSPassRating = (float)response["FS"].LackMapCalculation.PassRating,
                         FSTechRating = (float)response["FS"].LackMapCalculation.TechRating,
+                        FSStaminaRating = (float)response["FS"].LackMapCalculation.StaminaRating,
                         FSPredictedAcc = (float)response["FS"].PredictedAcc,
                         FSAccRating = (float)response["FS"].AccRating,
 
                         SFPassRating = (float)response["SFS"].LackMapCalculation.PassRating,
                         SFTechRating = (float)response["SFS"].LackMapCalculation.TechRating,
+                        SFStaminaRating = (float)response["SFS"].LackMapCalculation.StaminaRating,
                         SFPredictedAcc = (float)response["SFS"].PredictedAcc,
                         SFAccRating = (float)response["SFS"].AccRating,
                     };
 
-                    modrating.SFStars = ReplayUtils.ToStars(modrating.SFAccRating, modrating.SFPassRating, modrating.SFTechRating);
-                    modrating.FSStars = ReplayUtils.ToStars(modrating.FSAccRating, modrating.FSPassRating, modrating.FSTechRating);
-                    modrating.SSStars = ReplayUtils.ToStars(modrating.SSAccRating, modrating.SSPassRating, modrating.SSTechRating);
+                    modrating.SFStars = ReplayUtils.ToStars(modrating.SFAccRating, modrating.SFPassRating, modrating.SFTechRating, modrating.SFStaminaRating);
+                    modrating.FSStars = ReplayUtils.ToStars(modrating.FSAccRating, modrating.FSPassRating, modrating.FSTechRating, modrating.FSStaminaRating);
+                    modrating.SSStars = ReplayUtils.ToStars(modrating.SSAccRating, modrating.SSPassRating, modrating.SSTechRating, modrating.SSStaminaRating);
                 } catch (Exception e)
                 {
                     Console.WriteLine($"{e.Message}");
