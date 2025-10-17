@@ -127,7 +127,7 @@ namespace portaBLe
             return (650f * MathF.Pow(peepee, 1.3f)) / MathF.Pow(650f, 1.3f);
         }
 
-        private static (float, float, float) GetPp(float accuracy, float accRating, float passRating, float techRating) {
+        private static (float, float, float, float) GetPp(float accuracy, float accRating, float passRating, float techRating, float staminaRating) {
 
             float passPP = 15.2f * MathF.Exp(MathF.Pow(passRating, 1 / 2.62f)) - 30f;
             if (float.IsInfinity(passPP) || float.IsNaN(passPP) || float.IsNegativeInfinity(passPP) || passPP < 0)
@@ -136,25 +136,27 @@ namespace portaBLe
             }
             float accPP = Curve2(accuracy) * accRating * 34f;
             float techPP = MathF.Exp(1.9f * accuracy) * 1.08f * techRating;
+            float staminaPP = (float)Math.Pow(accuracy / 0.95, 8) * staminaRating * 3.25f;
             
-            return (passPP, accPP, techPP);
+            return (passPP, accPP, techPP, staminaPP);
         }
 
-        public static float ToStars(float accRating, float passRating, float techRating) {
-            (float passPP, float accPP, float techPP) = GetPp(0.96f, accRating, passRating, techRating);
+        public static float ToStars(float accRating, float passRating, float techRating, float staminaRating) {
+            (float passPP, float accPP, float techPP, float staminaPP) = GetPp(0.96f, accRating, passRating, techRating, staminaRating);
 
-            return Inflate(passPP + accPP + techPP) / 52f;
+            return Inflate(passPP + accPP + techPP + staminaPP) / 52f;
         }
 
-        public static (float, float, float, float, float) PpFromScore(
+        public static (float, float, float, float, float, float) PpFromScore(
             float accuracy, 
             string modifiers, 
             ModifiersRating? modifiersRating,
             float accRating, 
             float passRating, 
-            float techRating)
+            float techRating, 
+            float staminaRating)
         {
-            if (accuracy <= 0 || accuracy > 1) return (0, 0, 0, 0, 0);
+            if (accuracy <= 0 || accuracy > 1) return (0, 0, 0, 0, 0, 0);
 
             float mp = ModifiersMap.RankedMap().GetTotalMultiplier(modifiers, modifiersRating == null);
 
@@ -162,12 +164,12 @@ namespace portaBLe
                 accuracy = 0;
             }
 
-            float rawPP = 0; float fullPP = 0; float passPP = 0; float accPP = 0; float techPP = 0; float increase = 0; 
+            float rawPP = 0; float fullPP = 0; float passPP = 0; float accPP = 0; float techPP = 0; float staminaPP = 0; float increase = 0; 
             if (!modifiers.Contains("NF"))
             {
-                (passPP, accPP, techPP) = GetPp(accuracy, accRating, passRating, techRating);
+                (passPP, accPP, techPP, staminaPP) = GetPp(accuracy, accRating, passRating, techRating, staminaRating);
                         
-                rawPP = Inflate(passPP + accPP + techPP);
+                rawPP = Inflate(passPP + accPP + techPP + staminaPP);
                 if (modifiersRating != null) {
                     var modifiersMap = modifiersRating.ToDictionary<float>();
                     foreach (var modifier in modifiers.ToUpper().Split(","))
@@ -176,15 +178,16 @@ namespace portaBLe
                             accRating = modifiersMap[modifier + "AccRating"]; 
                             passRating = modifiersMap[modifier + "PassRating"]; 
                             techRating = modifiersMap[modifier + "TechRating"]; 
+                            staminaRating = modifiersMap[modifier + "StaminaRating"];
 
                             break;
                         }
                     }
                 }
-                (passPP, accPP, techPP) = GetPp(accuracy, accRating * mp, passRating * mp, techRating * mp);
-                fullPP = Inflate(passPP + accPP + techPP);
-                if ((passPP + accPP + techPP) > 0) {
-                    increase = fullPP / (passPP + accPP + techPP);
+                (passPP, accPP, techPP, staminaPP) = GetPp(accuracy, accRating * mp, passRating * mp, techRating * mp, staminaRating * mp);
+                fullPP = Inflate(passPP + accPP + techPP + staminaPP);
+                if ((passPP + accPP + techPP + staminaPP) > 0) {
+                    increase = fullPP / (passPP + accPP + techPP + staminaPP);
                 }
             }
 
@@ -196,7 +199,7 @@ namespace portaBLe
                 fullPP = 0;
             }
 
-            return (fullPP, fullPP - rawPP, passPP * increase, accPP * increase, techPP * increase);
+            return (fullPP, fullPP - rawPP, passPP * increase, accPP * increase, techPP * increase, staminaPP * increase);
         }
 
         public static int MaxScoreForNote(int count) {

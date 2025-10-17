@@ -21,6 +21,7 @@ namespace portaBLe
                     float accPP = 0f;
                     float techPP = 0f;
                     float passPP = 0f;
+                    float staminaPP = 0f;
 
                     float topPp = 0f;
 
@@ -35,6 +36,7 @@ namespace portaBLe
                         accPP += s.AccPP * weight;
                         techPP += s.TechPP * weight;
                         passPP += s.PassPP * weight;
+                        staminaPP += s.StaminaPP * weight;
 
                         if (i == 0) {
                             topPp = s.Pp;
@@ -47,6 +49,7 @@ namespace portaBLe
                     player.AccPp = accPP;
                     player.TechPp = techPP;
                     player.PassPp = passPP;
+                    player.StaminaPp = staminaPP;
                 } catch (Exception) {
                 }
             }
@@ -73,6 +76,7 @@ namespace portaBLe
                     AccPP = s.AccPP, 
                     TechPP = s.TechPP, 
                     PassPP = s.PassPP, 
+                    StaminaPP = s.StaminaPP, 
                     Weight = s.Weight, 
                     PlayerId = s.PlayerId, 
                     Country = s.Player.Country 
@@ -108,7 +112,8 @@ namespace portaBLe
         public float Pp { get; set; } 
         public float AccPP { get; set; }  
         public float TechPP { get; set; } 
-        public float PassPP { get; set; } 
+        public float PassPP { get; set; }
+        public float StaminaPP { get; set; }
         public float Weight { get; set; } 
         public string PlayerId { get; set; } 
         public string Country { get; set; } 
