@@ -1,8 +1,9 @@
 ﻿using Dasync.Collections;
 using Microsoft.EntityFrameworkCore;
+using portaBLe.DB;
 using System.Diagnostics;
 
-namespace portaBLe
+namespace portaBLe.Refresh
 {
     public class PlayersRefresh
     {

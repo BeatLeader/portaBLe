@@ -1,7 +1,8 @@
-﻿using System.ComponentModel;
+﻿using portaBLe.DB;
+using System.ComponentModel;
 using System.Reflection;
 
-namespace portaBLe
+namespace portaBLe.Refresh
 {
     static class ReplayUtils
     {
@@ -124,7 +125,7 @@ namespace portaBLe
         }
 
         private static float Inflate(float peepee) {
-            return (650f * MathF.Pow(peepee, 1.3f)) / MathF.Pow(650f, 1.3f);
+            return 650f * MathF.Pow(peepee, 1.3f) / MathF.Pow(650f, 1.3f);
         }
 
         private static (float, float, float) GetPp(float accuracy, float accRating, float passRating, float techRating) {
@@ -183,7 +184,7 @@ namespace portaBLe
                 }
                 (passPP, accPP, techPP) = GetPp(accuracy, accRating * mp, passRating * mp, techRating * mp);
                 fullPP = Inflate(passPP + accPP + techPP);
-                if ((passPP + accPP + techPP) > 0) {
+                if (passPP + accPP + techPP > 0) {
                     increase = fullPP / (passPP + accPP + techPP);
                 }
             }
@@ -276,7 +277,7 @@ namespace portaBLe
                 }
             }
 
-            return (String.Join(",", modifierArray), multiplier);
+            return (string.Join(",", modifierArray), multiplier);
         }
 
         public static int ScoreForRank(int rank) {
@@ -365,7 +366,7 @@ namespace portaBLe
 
             var dictionary = new Dictionary<string, T>();
             foreach (PropertyDescriptor property in TypeDescriptor.GetProperties(source))
-                AddPropertyToDictionary<T>(property, source, dictionary);
+                AddPropertyToDictionary(property, source, dictionary);
             return dictionary;
         }
 

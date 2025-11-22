@@ -1,4 +1,4 @@
-﻿namespace portaBLe
+﻿namespace portaBLe.DB
 {
     public class JsonPlayer
     {
