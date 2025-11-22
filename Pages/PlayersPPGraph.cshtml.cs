@@ -5,7 +5,7 @@ using System.Text.Json;
 
 namespace portaBLe.Pages
 {
-    public class PlayersTriangleGraphModel : PageModel
+    public class PlayersPPGraphModel : PageModel
     {
         private readonly AppContext _context;
 
@@ -20,7 +20,7 @@ namespace portaBLe.Pages
         [BindProperty(SupportsGet = true)]
         public string PlayerId { get; set; } = string.Empty;
 
-        public PlayersTriangleGraphModel(AppContext context)
+        public PlayersPPGraphModel(AppContext context)
         {
             _context = context;
         }

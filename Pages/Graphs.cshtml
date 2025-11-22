@@ -6,13 +6,51 @@
 
 <h2>@ViewData["Title"]</h2>
 
-<ul>
-    @foreach (var link in Model.Links)
-    {
-        <li style="margin:20px 0;">
-            <a asp-page="@link.Url" style="padding:10px 20px; background-color:#007bff; color:white; text-decoration:none; border-radius:5px;">
-                @link.Title
-            </a>
-        </li>
+<div class="container-fluid">
+    <div class="row">
+        @foreach (var link in Model.Links)
+        {
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title">@link.Title</h5>
+                        <p class="card-text text-muted mb-3">
+                            @switch (link.Title)
+                            {
+                                case "Weighted Scores Graph":
+                                    @:Analyze weighted score distribution
+                                    break;
+                                case "Players PP 3D Graph":
+                                    @:3D visualization of player stats (AccPP, TechPP, PassPP)
+                                    break;
+                                case "Unweighted Scores Graph":
+                                    @:Analyze unweighted score distribution
+                                    break;
+                                case "Players Balancing Graphs":
+                                    @:Players PP balancing analysis
+                                    break;
+                                default:
+                                    @:View detailed analytics
+                                    break;
+                            }
+                        </p>
+                        <div class="mt-auto">
+                            <a asp-page="@link.Url" class="btn btn-primary btn-block">Open</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    .card {
+        transition: transform 0.2s, box-shadow 0.2s;
     }
-</ul>
+    
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+</style>

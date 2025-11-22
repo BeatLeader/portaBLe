@@ -4,63 +4,113 @@
     ViewData["Title"] = "Unweighted Scores Graph";
 }
 
-<h2>Unweighted Scores Graph</h2>
+<h2>@ViewData["Title"]</h2>
 
-<div class="graph-controls">
-    <div class="control">
-        <label>From Date (Y / M / D)</label>
-        <div style="display:flex;gap:6px;">
-            <input id="minYear" type="number" placeholder="Year" value="@Model.MinYear" style="width:100px;" />
-            <input id="minMonth" type="number" placeholder="Month" value="@Model.MinMonth" style="width:70px;" />
-            <input id="minDay" type="number" placeholder="Day" value="@Model.MinDay" style="width:70px;" />
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Filters</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label>From Date (Y / M / D)</label>
+                                <div class="d-flex gap-2">
+                                    <input id="minYear" type="number" class="form-control" placeholder="Year" value="@Model.MinYear" style="width:100px;" />
+                                    <input id="minMonth" type="number" class="form-control" placeholder="Month" value="@Model.MinMonth" style="width:70px;" />
+                                    <input id="minDay" type="number" class="form-control" placeholder="Day" value="@Model.MinDay" style="width:70px;" />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="maxPlayerRank">Max Player Rank</label>
+                                <input id="maxPlayerRank" type="number" class="form-control" value="@Model.MaxPlayerRank" placeholder="0 = unfiltered" />
+                                <small class="form-text text-muted">0 = unfiltered</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="minRankedPlayCount">Min Ranked Play Count</label>
+                                <input id="minRankedPlayCount" type="number" class="form-control" value="@Model.MinRankedPlayCount" />
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="playerId">Player ID (optional)</label>
+                                <input id="playerId" type="text" class="form-control" value="@Model.PlayerId" placeholder="Enter player ID" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="ySelect">Y-axis</label>
+                                <select id="ySelect" class="form-control">
+                                    <option value="pp">Unweighted PP</option>
+                                    <option value="acc">Score Accuracy</option>
+                                    <option value="accPP">Unweighted Acc PP</option>
+                                    <option value="passPP">Unweighted Pass PP</option>
+                                    <option value="techPP">Unweighted Tech PP</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label for="rollingWindow">Rolling window smoothing (points)</label>
+                                <input id="rollingWindow" type="number" class="form-control" min="1" step="1" value="50" />
+                            </div>
+                        </div>
+                        <div class="col-md-4">
+                            <div class="form-group">
+                                <label>&nbsp;</label>
+                                <div>
+                                    <button id="applyFilters" class="btn btn-primary">Apply Filters</button>
+                                    <div id="spinner" class="spinner-border spinner-border-sm ml-2" role="status" style="display:none;">
+                                        <span class="sr-only">Loading...</span>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
     </div>
 
-    <div class="control">
-        <label for="maxPlayerRank">Max Player Rank (0 = unfiltered)</label>
-        <input id="maxPlayerRank" type="number" value="@Model.MaxPlayerRank" />
-    </div>
-
-    <div class="control">
-        <label for="minRankedPlayCount">Min Ranked Play Count</label>
-        <input id="minRankedPlayCount" type="number" value="@Model.MinRankedPlayCount" />
-    </div>
-
-    <div class="control">
-        <label for="playerId">Player ID (optional)</label>
-        <input id="playerId" type="text" value="@Model.PlayerId" />
-    </div>
-
-    <div class="control">
-        <label for="ySelect">Select Y-axis</label>
-        <select id="ySelect">
-            <option value="pp">Unweighted PP</option>
-            <option value="acc">Score Accuracy</option>
-            <option value="accPP">Unweighted Acc PP</option>
-            <option value="passPP">Unweighted Pass PP</option>
-            <option value="techPP">Unweighted Tech PP</option>
-        </select>
-    </div>
-
-    <div class="control">
-        <label for="rollingWindow">Rolling window smoothing (points)</label>
-        <input id="rollingWindow" type="number" min="1" step="1" value="50" />
-    </div>
-
-    <div class="controls-bottom">
-        <button id="applyFilters" class="apply-button">Apply</button>
-        <div id="spinner" class="spinner-container" style="display:none;">
-            <div class="spinner" aria-hidden="true"></div>
-            <span style="margin-left:8px;">Loading...</span>
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Balance Metric</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <span id="magicLabel" class="mr-2">Rolling average value (0 = perfectly linear):</span>
+                        <strong id="magicValue" class="text-primary" style="font-size: 1.2em;">-</strong>
+                    </div>
+                </div>
+            </div>
         </div>
-        <div class="magic-box">
-            <span id="magicLabel">Rolling average value (0 = perfectly linear):</span>
-            <strong id="magicValue" style="margin-left:8px;">-</strong>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Unweighted Scores Scatter Plot</h5>
+                    <small class="text-muted">Score distribution with rolling average overlay</small>
+                </div>
+                <div class="card-body">
+                    <div id="myPlot" style="width:100%;height:500px;"></div>
+                </div>
+            </div>
         </div>
     </div>
 </div>
-
-<div id="myPlot" style="width:100%;height:500px;margin-top:10px;"></div>
 
 @section Scripts {
     <script src="https://cdn.plot.ly/plotly-2.29.1.min.js"></script>
@@ -173,11 +223,10 @@
             };
 
             const layout = {
-                title: 'Unweighted Scores Scatter Plot',
                 xaxis: { title: 'Stars' },
                 yaxis: { title: getYLabel(yField) },
                 hovermode: 'closest',
-                margin: { t: 50, b: 50, l: 50, r: 50 }
+                margin: { t: 10, b: 50, l: 50, r: 10 }
             };
             Plotly.react('myPlot', [tracePoints, traceAvg], layout);
 
@@ -205,7 +254,7 @@
         });
 
         function showSpinner(show) {
-            document.getElementById('spinner').style.display = show ? 'flex' : 'none';
+            document.getElementById('spinner').style.display = show ? 'inline-block' : 'none';
         }
 
         async function fetchFiltered() {
@@ -242,4 +291,4 @@
         });
     </script>
     }
-}
+}}

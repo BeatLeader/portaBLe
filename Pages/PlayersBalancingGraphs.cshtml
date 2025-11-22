@@ -1,0 +1,837 @@
+﻿@page
+@model portaBLe.Pages.PlayersBalancingGraphsModel
+@{
+    ViewData["Title"] = "Players Balancing Graphs";
+}
+
+<h2>@ViewData["Title"]</h2>
+
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <form method="get" class="form-inline">
+                <div class="form-group mr-2">
+                    <label for="playerId" class="mr-2">Player ID:</label>
+                    <input type="text" class="form-control" id="playerId" name="playerId" value="@Model.PlayerId" placeholder="Enter player ID" />
+                </div>
+                <button type="submit" class="btn btn-primary">Load Player</button>
+                <a href="/BatchPlayersBalancing" class="btn btn-secondary ml-2">Batch Analysis</a>
+            </form>
+        </div>
+    </div>
+
+    @if (Model.Player != null)
+    {
+        @Html.AntiForgeryToken()
+        
+        <div class="row mb-3">
+            <div class="col-md-12">
+                <div class="card">
+                    <div class="card-body">
+                        <div class="d-flex align-items-center">
+                            <img src="@Model.Player.Avatar" alt="@Model.Player.Name" class="rounded-circle mr-3" style="width: 64px; height: 64px;" />
+                            <div>
+                                <h4>@Model.Player.Name</h4>
+                                <p class="mb-1">
+                                    <strong>Total PP:</strong> @Model.Player.Pp.ToString("F2") 
+                                    | <strong>Acc PP:</strong> @Model.Player.AccPp.ToString("F2")
+                                    | <strong>Tech PP:</strong> @Model.Player.TechPp.ToString("F2")
+                                    | <strong>Pass PP:</strong> @Model.Player.PassPp.ToString("F2")
+                                </p>
+                                <p class="mb-0">
+                                    <strong>Rank:</strong> #@Model.Player.Rank 
+                                    | <strong>Country Rank:</strong> #@Model.Player.CountryRank (@Model.Player.Country)
+                                    | <strong>Ranked Plays:</strong> @Model.Player.RankedPlayCount
+                                </p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <div class="row">
+            <div class="col-md-3">
+                <div style="position: sticky; top: 20px; max-height: calc(100vh - 40px); overflow-y: auto;">
+                    <div class="card">
+                        <div class="card-header">
+                            <h5>PP Parameters</h5>
+                        </div>
+                        <div class="card-body">
+                            <div class="form-group">
+                                <label class="font-weight-bold">Pass PP</label>
+                                <div class="mb-2">
+                                    <label for="passMultiplier">Multiplier:</label>
+                                    <input type="number" class="form-control" id="passMultiplier" value="15.2" step="0.1" />
+                                </div>
+                                <div class="mb-2">
+                                    <label for="passExponent">Exponent:</label>
+                                    <input type="number" class="form-control" id="passExponent" value="2.62" step="0.01" />
+                                </div>
+                                <div class="mb-2">
+                                    <label for="passOffset">Offset:</label>
+                                    <input type="number" class="form-control" id="passOffset" value="30" step="1" />
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="font-weight-bold">Acc PP</label>
+                                <div class="mb-2">
+                                    <label for="accMultiplier">Multiplier:</label>
+                                    <input type="number" class="form-control" id="accMultiplier" value="34" step="0.5" />
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="font-weight-bold">Tech PP</label>
+                                <div class="mb-2">
+                                    <label for="techAccExponent">Acc Exponent:</label>
+                                    <input type="number" class="form-control" id="techAccExponent" value="1.9" step="0.1" />
+                                </div>
+                                <div class="mb-2">
+                                    <label for="techAccMultiplier">Acc Multiplier:</label>
+                                    <input type="number" class="form-control" id="techAccMultiplier" value="1.08" step="0.01" />
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="font-weight-bold">Inflate</label>
+                                <div class="mb-2">
+                                    <label for="inflateMultiplier">Multiplier:</label>
+                                    <input type="number" class="form-control" id="inflateMultiplier" value="650" step="10" />
+                                </div>
+                                <div class="mb-2">
+                                    <label for="inflateExponent">Exponent:</label>
+                                    <input type="number" class="form-control" id="inflateExponent" value="1.3" step="0.01" />
+                                </div>
+                            </div>
+
+                            <button class="btn btn-primary btn-block" onclick="recalculatePP()">Recalculate</button>
+                            <button class="btn btn-secondary btn-block" onclick="resetParameters()">Reset</button>
+                        </div>
+                    </div>
+
+                    <div class="card mt-3">
+                        <div class="card-header">
+                            <h5>Results</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="comparisonResults">
+                                <p class="text-muted">Adjust parameters and click Recalculate</p>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="card mt-3">
+                        <div class="card-header">
+                            <h5>Balance Metrics</h5>
+                        </div>
+                        <div class="card-body">
+                            <div id="balanceMetrics">
+                                <p class="text-muted">Metrics will appear after recalculation</p>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="col-md-9">
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h5>Weighted PP Decay Curve</h5>
+                        <small class="text-muted">Shows how PP decays with 0.965^index weighting - should be smooth</small>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="weightedDecayChart" style="height: 400px;"></canvas>
+                    </div>
+                </div>
+
+                <div class="row">
+                    <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h5>Component Balance</h5>
+                                <small class="text-muted">% contribution of Acc, Tech, Pass across score ranges</small>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="componentContributionChart" style="height: 300px;"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="col-md-6">
+                        <div class="card mb-3">
+                            <div class="card-header">
+                                <h5>Accuracy Reward</h5>
+                                <small class="text-muted">Average PP by accuracy %</small>
+                            </div>
+                            <div class="card-body">
+                                <canvas id="accuracyRewardChart" style="height: 300px;"></canvas>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h5>Rolling Average (50)</h5>
+                        <small class="text-muted">Smoothed trend - first 300 scores</small>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="rollingAverageChart" style="height: 400px;"></canvas>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h5>Total PP Comparison</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="totalPPChart" style="height: 400px;"></canvas>
+                    </div>
+                </div>
+
+                <div class="card mb-3">
+                    <div class="card-header">
+                        <h5>PP Components Breakdown</h5>
+                    </div>
+                    <div class="card-body">
+                        <canvas id="componentsChart" style="height: 400px;"></canvas>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
+    else if (!string.IsNullOrEmpty(Model.PlayerId))
+    {
+        <div class="alert alert-warning">
+            Player with ID "@Model.PlayerId" not found.
+        </div>
+    }
+    else
+    {
+        <div class="alert alert-info">
+            Enter a player ID to start balancing PP calculations.
+        </div>
+    }
+</div>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+    <script>
+        let originalScores = @Html.Raw(Model.Scores != null ? System.Text.Json.JsonSerializer.Serialize(Model.Scores) : "[]");
+        let recalculatedData = null;
+        let charts = {};
+
+        // Load saved parameters on page load
+        window.addEventListener('DOMContentLoaded', function() {
+            loadSavedParameters();
+        });
+
+        function saveParameters() {
+            const params = {
+                passMultiplier: parseFloat(document.getElementById('passMultiplier').value),
+                passExponent: parseFloat(document.getElementById('passExponent').value),
+                passOffset: parseFloat(document.getElementById('passOffset').value),
+                accMultiplier: parseFloat(document.getElementById('accMultiplier').value),
+                techAccExponent: parseFloat(document.getElementById('techAccExponent').value),
+                techAccMultiplier: parseFloat(document.getElementById('techAccMultiplier').value),
+                inflateMultiplier: parseFloat(document.getElementById('inflateMultiplier').value),
+                inflateExponent: parseFloat(document.getElementById('inflateExponent').value)
+            };
+            localStorage.setItem('ppParameters', JSON.stringify(params));
+        }
+
+        function loadSavedParameters() {
+            const saved = localStorage.getItem('ppParameters');
+            if (saved) {
+                try {
+                    const params = JSON.parse(saved);
+                    document.getElementById('passMultiplier').value = params.passMultiplier || 15.2;
+                    document.getElementById('passExponent').value = params.passExponent || 2.62;
+                    document.getElementById('passOffset').value = params.passOffset || 30;
+                    document.getElementById('accMultiplier').value = params.accMultiplier || 34;
+                    document.getElementById('techAccExponent').value = params.techAccExponent || 1.9;
+                    document.getElementById('techAccMultiplier').value = params.techAccMultiplier || 1.08;
+                    document.getElementById('inflateMultiplier').value = params.inflateMultiplier || 650;
+                    document.getElementById('inflateExponent').value = params.inflateExponent || 1.3;
+                } catch (e) {
+                    console.error('Failed to load saved parameters:', e);
+                }
+            }
+        }
+
+        function getParameters() {
+            return {
+                passMultiplier: parseFloat(document.getElementById('passMultiplier').value),
+                passExponent: parseFloat(document.getElementById('passExponent').value),
+                passOffset: parseFloat(document.getElementById('passOffset').value),
+                accMultiplier: parseFloat(document.getElementById('accMultiplier').value),
+                techAccExponent: parseFloat(document.getElementById('techAccExponent').value),
+                techAccMultiplier: parseFloat(document.getElementById('techAccMultiplier').value),
+                inflateMultiplier: parseFloat(document.getElementById('inflateMultiplier').value),
+                inflateExponent: parseFloat(document.getElementById('inflateExponent').value),
+                useAlternateCurve: true
+            };
+        }
+
+        function resetParameters() {
+            document.getElementById('passMultiplier').value = 15.2;
+            document.getElementById('passExponent').value = 2.62;
+            document.getElementById('passOffset').value = 30;
+            document.getElementById('accMultiplier').value = 34;
+            document.getElementById('techAccExponent').value = 1.9;
+            document.getElementById('techAccMultiplier').value = 1.08;
+            document.getElementById('inflateMultiplier').value = 650;
+            document.getElementById('inflateExponent').value = 1.3;
+            saveParameters();
+        }
+
+        async function recalculatePP() {
+            const playerId = '@Model.PlayerId';
+            if (!playerId) {
+                alert('No player loaded');
+                return;
+            }
+
+            const parameters = getParameters();
+            saveParameters(); // Save parameters when recalculating
+            const tokenElement = document.querySelector('input[name="__RequestVerificationToken"]');
+            
+            if (!tokenElement) {
+                alert('Security token not found. Please refresh the page.');
+                return;
+            }
+
+            try {
+                const response = await fetch('/PlayersBalancingGraphs?handler=Recalculate', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'RequestVerificationToken': tokenElement.value
+                    },
+                    body: JSON.stringify({
+                        playerId: playerId,
+                        parameters: parameters
+                    })
+                });
+
+                if (!response.ok) {
+                    throw new Error('Failed to recalculate');
+                }
+
+                recalculatedData = await response.json();
+                updateCharts();
+                updateComparisonResults();
+                updateBalanceMetrics();
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error recalculating PP. Please try again.');
+            }
+        }
+
+        function updateBalanceMetrics() {
+            if (!recalculatedData) return;
+            
+            const metrics = calculateBalanceMetrics(recalculatedData.scores);
+            
+            const html = `
+                <div class="mb-2">
+                    <strong>Component Balance:</strong><br>
+                    <small>
+                        Acc: ${metrics.componentBalance.acc}%<br>
+                        Tech: ${metrics.componentBalance.tech}%<br>
+                        Pass: ${metrics.componentBalance.pass}%
+                    </small>
+                </div>
+                <div class="mb-2">
+                    <strong>Decay CV:</strong> ${metrics.decayCV}%<br>
+                    <small class="text-muted">(Lower = smoother)</small>
+                </div>
+                <div>
+                    <strong>Outliers:</strong> ${metrics.outliers} (${metrics.outlierPercent}%)<br>
+                    <small class="text-muted">(>2σ from avg)</small>
+                </div>
+            `;
+            
+            document.getElementById('balanceMetrics').innerHTML = html;
+        }
+
+        function updateComparisonResults() {
+            if (!recalculatedData) return;
+
+            const totals = recalculatedData.totals;
+            const ppChange = totals.pp - totals.originalPP;
+            const accPPChange = totals.accPP - totals.originalAccPP;
+            const techPPChange = totals.techPP - totals.originalTechPP;
+            const passPPChange = totals.passPP - totals.originalPassPP;
+
+            const html = `
+                <table class="table table-sm">
+                    <tr>
+                        <th>Metric</th>
+                        <th>Original</th>
+                        <th>New</th>
+                        <th>Change</th>
+                    </tr>
+                    <tr>
+                        <td><strong>Total PP</strong></td>
+                        <td>${totals.originalPP.toFixed(2)}</td>
+                        <td>${totals.pp.toFixed(2)}</td>
+                        <td class="${ppChange >= 0 ? 'text-success' : 'text-danger'}">
+                            ${ppChange >= 0 ? '+' : ''}${ppChange.toFixed(2)}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Acc PP</td>
+                        <td>${totals.originalAccPP.toFixed(2)}</td>
+                        <td>${totals.accPP.toFixed(2)}</td>
+                        <td class="${accPPChange >= 0 ? 'text-success' : 'text-danger'}">
+                            ${accPPChange >= 0 ? '+' : ''}${accPPChange.toFixed(2)}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Tech PP</td>
+                        <td>${totals.originalTechPP.toFixed(2)}</td>
+                        <td>${totals.techPP.toFixed(2)}</td>
+                        <td class="${techPPChange >= 0 ? 'text-success' : 'text-danger'}">
+                            ${techPPChange >= 0 ? '+' : ''}${techPPChange.toFixed(2)}
+                        </td>
+                    </tr>
+                    <tr>
+                        <td>Pass PP</td>
+                        <td>${totals.originalPassPP.toFixed(2)}</td>
+                        <td>${totals.passPP.toFixed(2)}</td>
+                        <td class="${passPPChange >= 0 ? 'text-success' : 'text-danger'}">
+                            ${passPPChange >= 0 ? '+' : ''}${passPPChange.toFixed(2)}
+                        </td>
+                    </tr>
+                </table>
+            `;
+
+            document.getElementById('comparisonResults').innerHTML = html;
+        }
+
+        function updateCharts() {
+            if (!recalculatedData) return;
+            updateWeightedDecayChart();
+            updateComponentContributionChart();
+            updateAccuracyRewardChart();
+            updateRollingAverageChart();
+            updateTotalPPChart();
+            updateComponentsChart();
+        }
+
+        function calculateBalanceMetrics(scores) {
+            const weightedPPs = scores.map((s, i) => s.newPP * Math.pow(0.965, i));
+            
+            const totalAcc = scores.reduce((sum, s) => sum + s.newAccPP, 0);
+            const totalTech = scores.reduce((sum, s) => sum + s.newTechPP, 0);
+            const totalPass = scores.reduce((sum, s) => sum + s.newPassPP, 0);
+            const total = totalAcc + totalTech + totalPass;
+            
+            const ppDrops = [];
+            for (let i = 1; i < Math.min(100, weightedPPs.length); i++) {
+                ppDrops.push(weightedPPs[i-1] - weightedPPs[i]);
+            }
+            const avgDrop = ppDrops.reduce((a, b) => a + b, 0) / ppDrops.length;
+            const stdDrop = Math.sqrt(ppDrops.reduce((sum, x) => sum + Math.pow(x - avgDrop, 2), 0) / ppDrops.length);
+            const cvDrop = (stdDrop / avgDrop) * 100;
+            
+            const rollingAvg = calculateRollingAverage(scores.map(s => s.newPP), 20);
+            const diffs = scores.map((s, i) => Math.abs(s.newPP - rollingAvg[i]));
+            const meanDiff = diffs.reduce((a, b) => a + b, 0) / diffs.length;
+            const stdDiff = Math.sqrt(diffs.reduce((sum, x) => sum + Math.pow(x - meanDiff, 2), 0) / diffs.length);
+            const outliers = diffs.filter(d => d > meanDiff + 2 * stdDiff).length;
+            
+            return {
+                componentBalance: {
+                    acc: ((totalAcc / total) * 100).toFixed(1),
+                    tech: ((totalTech / total) * 100).toFixed(1),
+                    pass: ((totalPass / total) * 100).toFixed(1)
+                },
+                decayCV: cvDrop.toFixed(1),
+                outliers: outliers,
+                outlierPercent: ((outliers / scores.length) * 100).toFixed(1)
+            };
+        }
+
+        function calculateRollingAverage(data, windowSize) {
+            const result = [];
+            for (let i = 0; i < data.length; i++) {
+                const start = Math.max(0, i - windowSize + 1);
+                const window = data.slice(start, i + 1);
+                const avg = window.reduce((sum, val) => sum + val, 0) / window.length;
+                result.push(avg);
+            }
+            return result;
+        }
+
+        function updateWeightedDecayChart() {
+            const ctx = document.getElementById('weightedDecayChart').getContext('2d');
+            
+            if (charts.weightedDecay) {
+                charts.weightedDecay.destroy();
+            }
+
+            const scores = recalculatedData.scores.slice(0, 200);
+            const weightedOriginal = scores.map((s, i) => s.currentPP * Math.pow(0.965, i));
+            const weightedNew = scores.map((s, i) => s.newPP * Math.pow(0.965, i));
+            const labels = scores.map((_, i) => i + 1);
+            
+            charts.weightedDecay = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Original Weighted PP',
+                            data: weightedOriginal,
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            fill: false
+                        },
+                        {
+                            label: 'New Weighted PP',
+                            data: weightedNew,
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            backgroundColor: 'rgba(255, 99, 132, 0.1)',
+                            borderWidth: 2,
+                            pointRadius: 0,
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Weighted PP (PP × 0.965^index)'
+                            }
+                        },
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Score Index'
+                            },
+                            ticks: {
+                                maxTicksLimit: 20
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateComponentContributionChart() {
+            const ctx = document.getElementById('componentContributionChart').getContext('2d');
+            
+            if (charts.componentContribution) {
+                charts.componentContribution.destroy();
+            }
+
+            const bucketSize = 50;
+            const buckets = [];
+            const scores = recalculatedData.scores;
+            
+            for (let i = 0; i < Math.min(200, scores.length); i += bucketSize) {
+                const bucket = scores.slice(i, i + bucketSize);
+                const totalAcc = bucket.reduce((sum, s) => sum + s.newAccPP, 0);
+                const totalTech = bucket.reduce((sum, s) => sum + s.newTechPP, 0);
+                const totalPass = bucket.reduce((sum, s) => sum + s.newPassPP, 0);
+                const total = totalAcc + totalTech + totalPass;
+                
+                buckets.push({
+                    label: `#${i+1}-${i+bucketSize}`,
+                    acc: (totalAcc / total) * 100,
+                    tech: (totalTech / total) * 100,
+                    pass: (totalPass / total) * 100
+                });
+            }
+            
+            charts.componentContribution = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: buckets.map(b => b.label),
+                    datasets: [
+                        {
+                            label: 'Acc PP %',
+                            data: buckets.map(b => b.acc),
+                            backgroundColor: 'rgba(54, 162, 235, 0.7)'
+                        },
+                        {
+                            label: 'Tech PP %',
+                            data: buckets.map(b => b.tech),
+                            backgroundColor: 'rgba(255, 206, 86, 0.7)'
+                        },
+                        {
+                            label: 'Pass PP %',
+                            data: buckets.map(b => b.pass),
+                            backgroundColor: 'rgba(75, 192, 192, 0.7)'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            stacked: true
+                        },
+                        y: {
+                            stacked: true,
+                            max: 100,
+                            title: {
+                                display: true,
+                                text: 'Percentage'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateAccuracyRewardChart() {
+            const ctx = document.getElementById('accuracyRewardChart').getContext('2d');
+            
+            if (charts.accuracyReward) {
+                charts.accuracyReward.destroy();
+            }
+
+            const accBuckets = {};
+            recalculatedData.scores.forEach(s => {
+                const accPercent = Math.floor(s.accuracy * 100);
+                if (!accBuckets[accPercent]) {
+                    accBuckets[accPercent] = { total: 0, count: 0 };
+                }
+                accBuckets[accPercent].total += s.newPP;
+                accBuckets[accPercent].count++;
+            });
+            
+            const accData = Object.keys(accBuckets)
+                .map(k => parseInt(k))
+                .sort((a, b) => a - b)
+                .map(acc => ({
+                    x: acc,
+                    y: accBuckets[acc].total / accBuckets[acc].count
+                }));
+            
+            charts.accuracyReward = new Chart(ctx, {
+                type: 'scatter',
+                data: {
+                    datasets: [{
+                        label: 'Average PP by Accuracy',
+                        data: accData,
+                        backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                        borderColor: 'rgba(255, 99, 132, 1)',
+                        showLine: true,
+                        tension: 0.4
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: {
+                            title: {
+                                display: true,
+                                text: 'Accuracy %'
+                            },
+                            min: 85,
+                            max: 100
+                        },
+                        y: {
+                            beginAtZero: true,
+                            title: {
+                                display: true,
+                                text: 'Average PP'
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateRollingAverageChart() {
+            const ctx = document.getElementById('rollingAverageChart').getContext('2d');
+            
+            if (charts.rollingAverage) {
+                charts.rollingAverage.destroy();
+            }
+
+            const scores = recalculatedData.scores.slice(0, 300);
+            const windowSize = 50;
+            const originalPPs = scores.map(s => s.currentPP);
+            const newPPs = scores.map(s => s.newPP);
+            
+            const originalRolling = calculateRollingAverage(originalPPs, windowSize);
+            const newRolling = calculateRollingAverage(newPPs, windowSize);
+            
+            const labels = scores.map((_, i) => i + 1);
+            
+            charts.rollingAverage = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Original PP',
+                            data: originalPPs,
+                            borderColor: 'rgba(54, 162, 235, 0.3)',
+                            borderWidth: 1,
+                            pointRadius: 0
+                        },
+                        {
+                            label: 'Original Avg',
+                            data: originalRolling,
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 3,
+                            pointRadius: 0
+                        },
+                        {
+                            label: 'New PP',
+                            data: newPPs,
+                            borderColor: 'rgba(255, 99, 132, 0.3)',
+                            borderWidth: 1,
+                            pointRadius: 0
+                        },
+                        {
+                            label: 'New Avg',
+                            data: newRolling,
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            borderWidth: 3,
+                            pointRadius: 0
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        },
+                        x: {
+                            ticks: {
+                                maxTicksLimit: 15
+                            }
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateTotalPPChart() {
+            const ctx = document.getElementById('totalPPChart').getContext('2d');
+            
+            if (charts.totalPP) {
+                charts.totalPP.destroy();
+            }
+
+            const scores = recalculatedData.scores.slice(0, 100);
+            const labels = scores.map((_, i) => `#${i + 1}`);
+            
+            charts.totalPP = new Chart(ctx, {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Original PP',
+                            data: scores.map(s => s.currentPP),
+                            backgroundColor: 'rgba(54, 162, 235, 0.5)',
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            borderWidth: 1
+                        },
+                        {
+                            label: 'New PP',
+                            data: scores.map(s => s.newPP),
+                            backgroundColor: 'rgba(255, 99, 132, 0.5)',
+                            borderColor: 'rgba(255, 99, 132, 1)',
+                            borderWidth: 1
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+
+        function updateComponentsChart() {
+            const ctx = document.getElementById('componentsChart').getContext('2d');
+            
+            if (charts.components) {
+                charts.components.destroy();
+            }
+
+            const scores = recalculatedData.scores.slice(0, 50);
+            const labels = scores.map((_, i) => `#${i + 1}`);
+            
+            charts.components = new Chart(ctx, {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Acc PP',
+                            data: scores.map(s => s.newAccPP),
+                            borderColor: 'rgba(54, 162, 235, 1)',
+                            backgroundColor: 'rgba(54, 162, 235, 0.1)',
+                            borderWidth: 2,
+                            fill: false
+                        },
+                        {
+                            label: 'Tech PP',
+                            data: scores.map(s => s.newTechPP),
+                            borderColor: 'rgba(255, 206, 86, 1)',
+                            backgroundColor: 'rgba(255, 206, 86, 0.1)',
+                            borderWidth: 2,
+                            fill: false
+                        },
+                        {
+                            label: 'Pass PP',
+                            data: scores.map(s => s.newPassPP),
+                            borderColor: 'rgba(75, 192, 192, 1)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                            borderWidth: 2,
+                            fill: false
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    maintainAspectRatio: false,
+                    interaction: {
+                        mode: 'index',
+                        intersect: false
+                    },
+                    scales: {
+                        y: {
+                            beginAtZero: true
+                        }
+                    }
+                }
+            });
+        }
+    </script>
+}

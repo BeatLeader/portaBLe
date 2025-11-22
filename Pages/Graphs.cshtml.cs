@@ -15,7 +15,7 @@ namespace portaBLe.Pages
             {
                 new LinkItem { Title = "Weighted Scores Graph", Url = "/WeightedScoresGraph" },
                 new LinkItem { Title = "Unweighted Scores Graph", Url = "/UnweightedScoresGraph" },
-                new LinkItem { Title = "Players Triangle Graph", Url = "/PlayersTriangleGraph" },
+                new LinkItem { Title = "Players PP 3D Graph", Url = "/PlayersPPGraph" },
                 new LinkItem { Title = "Players Balancing Graphs", Url = "/PlayersBalancingGraphs" }
             };
         }

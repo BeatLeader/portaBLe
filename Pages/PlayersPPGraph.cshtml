@@ -1,44 +1,77 @@
 ﻿@page
-@model portaBLe.Pages.PlayersTriangleGraphModel
+@model portaBLe.Pages.PlayersPPGraphModel
 @{
     ViewData["Title"] = "Players Triangle Graph";
 }
 
-<h2>Players Triangle Graph</h2>
+<h2>@ViewData["Title"]</h2>
 
-<div class="graph-controls">
-    <div class="control">
-        <label for="maxPlayerRank">Max Player Rank (0 = unfiltered)</label>
-        <input id="maxPlayerRank" type="number" value="@Model.MaxPlayerRank" />
-    </div>
-
-    <div class="control">
-        <label for="minRankedPlayCount">Min Ranked Play Count</label>
-        <input id="minRankedPlayCount" type="number" value="@Model.MinRankedPlayCount" />
-    </div>
-
-    <div class="control">
-        <label for="playerId">Player ID (optional)</label>
-        <input id="playerId" type="text" value="@Model.PlayerId" />
-    </div>
-
-    <div class="controls-bottom">
-        <button id="applyFilters" class="apply-button">Apply</button>
-        <div id="spinner" class="spinner-container" style="display:none;">
-            <div class="spinner" aria-hidden="true"></div>
-            <span style="margin-left:8px;">Loading...</span>
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Filters</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="maxPlayerRank">Max Player Rank</label>
+                                <input id="maxPlayerRank" type="number" class="form-control" value="@Model.MaxPlayerRank" placeholder="0 = unfiltered" />
+                                <small class="form-text text-muted">0 = unfiltered</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="minRankedPlayCount">Min Ranked Play Count</label>
+                                <input id="minRankedPlayCount" type="number" class="form-control" value="@Model.MinRankedPlayCount" />
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="playerId">Player ID (optional)</label>
+                                <input id="playerId" type="text" class="form-control" value="@Model.PlayerId" placeholder="Enter player ID" />
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="colorSelect">Color by:</label>
+                                <select id="colorSelect" class="form-control">
+                                    <option value="AccPP">AccPP</option>
+                                    <option value="TechPP">TechPP</option>
+                                    <option value="PassPP">PassPP</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <button id="applyFilters" class="btn btn-primary">Apply Filters</button>
+                            <div id="spinner" class="spinner-border spinner-border-sm ml-2" role="status" style="display:none;">
+                                <span class="sr-only">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
         </div>
+    </div>
 
-        <label for="colorSelect">Color by:</label>
-        <select id="colorSelect">
-            <option value="AccPP">AccPP</option>
-            <option value="TechPP">TechPP</option>
-            <option value="PassPP">PassPP</option>
-        </select>
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">3D Player Distribution</h5>
+                    <small class="text-muted">Interactive 3D scatter plot of AccPP, TechPP, and PassPP</small>
+                </div>
+                <div class="card-body">
+                    <div id="myPlot" style="width:100%;height:600px;"></div>
+                </div>
+            </div>
+        </div>
     </div>
 </div>
-
-<div id="myPlot" style="width:100%;height:600px;margin-top:10px;"></div>
 
 @section Scripts {
     <script src="https://cdn.plot.ly/plotly-2.29.1.min.js"></script>
@@ -87,7 +120,7 @@
                     yaxis: { title: 'TechPP' },
                     zaxis: { title: 'PassPP' }
                 },
-                margin: { t: 30, b: 30, l: 30, r: 30 }
+                margin: { t: 10, b: 10, l: 10, r: 10 }
             };
 
             const config = { staticPlot: false, displayModeBar: true, responsive: true };
@@ -106,7 +139,7 @@
 
         function showSpinner(show) {
             const spinner = document.getElementById('spinner');
-            if (spinner) spinner.style.display = show ? 'flex' : 'none';
+            if (spinner) spinner.style.display = show ? 'inline-block' : 'none';
         }
 
         async function fetchFiltered() {
