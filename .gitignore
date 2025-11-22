@@ -8,3 +8,4 @@ Properties/PublishProfiles/*
 .csproj.user
 wwwroot/Database.*
 maps
+/wwwroot/Comparison.db
