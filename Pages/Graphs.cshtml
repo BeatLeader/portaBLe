@@ -18,16 +18,22 @@
                             @switch (link.Title)
                             {
                                 case "Weighted Scores Graph":
-                                    @:Analyze weighted score distribution
-                                    break;
-                                case "Players PP 3D Graph":
-                                    @:3D visualization of player stats (AccPP, TechPP, PassPP)
+                                    @:Analyze weighted score distribution with weight filtering
                                     break;
                                 case "Unweighted Scores Graph":
-                                    @:Analyze unweighted score distribution
+                                    @:Analyze score distribution and PP progression
+                                    break;
+                                case "Players Triangle Graph":
+                                    @:3D visualization of player stats (AccPP, TechPP, PassPP)
                                     break;
                                 case "Players Balancing Graphs":
-                                    @:Players PP balancing analysis
+                                    @:Single player PP balancing analysis
+                                    break;
+                                case "Batch Players Balancing":
+                                    @:Multi-player PP balancing analysis
+                                    break;
+                                case "Database Comparison":
+                                    @:Compare current database with comparison snapshot
                                     break;
                                 default:
                                     @:View detailed analytics

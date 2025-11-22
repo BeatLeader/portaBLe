@@ -23,6 +23,18 @@ namespace portaBLe
         public DbSet<ModifiersRating> ModifiersRating { get; set; }
     }
 
+    public class ComparisonContext : DbContext
+    {
+        public ComparisonContext(DbContextOptions<ComparisonContext> options)
+            : base(options)
+        { }
+
+        public DbSet<Player> Players { get; set; }
+        public DbSet<Score> Scores { get; set; }
+        public DbSet<Leaderboard> Leaderboards { get; set; }
+        public DbSet<ModifiersRating> ModifiersRating { get; set; }
+    }
+
     public class Program
     {
         public static RootObject ParseJson(string path)
@@ -201,6 +213,10 @@ namespace portaBLe
 
                 var connectionString = $"Data Source={builder.Environment.WebRootPath}/Database.db;";
                 builder.Services.AddDbContextFactory<AppContext>(options => options.UseSqlite(connectionString));
+                
+                var comparisonConnectionString = $"Data Source={builder.Environment.WebRootPath}/Comparison.db;";
+                builder.Services.AddDbContextFactory<ComparisonContext>(options => options.UseSqlite(comparisonConnectionString));
+                
                 builder.Services.AddRazorPages();
 
                 var app = builder.Build();
