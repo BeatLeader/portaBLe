@@ -56,7 +56,7 @@
 
   <ItemGroup>
     <Reference Include="RatingAPI">
-      <HintPath>RatingAPI\bin\Release\net9.0\RatingAPI.dll</HintPath>
+      <HintPath>RatingAPI\bin\Debug\net9.0\RatingAPI.dll</HintPath>
     </Reference>
   </ItemGroup>
 
