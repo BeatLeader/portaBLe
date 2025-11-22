@@ -176,6 +176,14 @@ namespace portaBLe
             return File.ReadAllText(path);
         }
 
+        public static void SetComparisonDBTarget()
+        {
+            var path = Path.Combine(Environment.CurrentDirectory, "wwwroot");
+            var dest = Path.Combine(path, "Comparison.db");
+            path = Path.Combine(path, "Database.db");
+            File.Copy(path, dest, true);
+        }
+
         public static async Task Main(string[] args)
         {
             var builder = WebApplication.CreateBuilder(args);
@@ -187,6 +195,9 @@ namespace portaBLe
 
                 // Uncomment to upload the local Database.db to S3
                 // await UploadDatabaseAsync($"{builder.Environment.WebRootPath}/Database.db");
+
+                // Uncomment to set the current .db file as comparison target
+                // SetComparisonDBTarget();
 
                 var connectionString = $"Data Source={builder.Environment.WebRootPath}/Database.db;";
                 builder.Services.AddDbContextFactory<AppContext>(options => options.UseSqlite(connectionString));
@@ -234,7 +245,7 @@ namespace portaBLe
 
                     // Uncomment to refresh everything with current ratings
                     // await ScoresRefresh.Refresh(dbContext);
-                    // await PlayersRefresh.Refresh(dbContext);
+                    // await PlayersRefresh.Refresh(dbContext); // 20 seconds
                     // await LeaderboardsRefresh.RefreshStars(dbContext);
 
                     // Uncomment to update the Megametric
