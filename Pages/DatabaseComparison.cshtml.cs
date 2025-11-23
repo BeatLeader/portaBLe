@@ -10,6 +10,11 @@ namespace portaBLe.Pages
     {
         private readonly IDbContextFactory<AppContext> _contextFactory;
         private readonly IDbContextFactory<ComparisonContext> _comparisonContextFactory;
+        
+        private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
+        {
+            PropertyNamingPolicy = JsonNamingPolicy.CamelCase
+        };
 
         public DatabaseComparisonModel(
             IDbContextFactory<AppContext> contextFactory,
@@ -37,6 +42,7 @@ namespace portaBLe.Pages
             // Get top 100 players from both databases
             var currentPlayers = await currentDb.Players
                 .OrderBy(p => p.Rank)
+                .Where(p => p.Rank != 0)
                 .Take(100)
                 .Select(p => new PlayerComparisonData
                 {
@@ -52,6 +58,7 @@ namespace portaBLe.Pages
 
             var comparisonPlayers = await comparisonDb.Players
                 .OrderBy(p => p.Rank)
+                .Where(p => p.Rank != 0)
                 .Take(100)
                 .Select(p => new PlayerComparisonData
                 {
@@ -65,8 +72,8 @@ namespace portaBLe.Pages
                 })
                 .ToListAsync();
 
-            CurrentJsonData = JsonSerializer.Serialize(currentPlayers);
-            ComparisonJsonData = JsonSerializer.Serialize(comparisonPlayers);
+            CurrentJsonData = JsonSerializer.Serialize(currentPlayers, _jsonOptions);
+            ComparisonJsonData = JsonSerializer.Serialize(comparisonPlayers, _jsonOptions);
 
             Stats = new ComparisonStats
             {

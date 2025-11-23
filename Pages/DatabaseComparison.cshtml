@@ -133,6 +133,12 @@
         let charts = {};
         let playerData = null;
 
+        // Debug: Log the data structure
+        console.log('Current players:', currentPlayers);
+        console.log('First current player:', currentPlayers[0]);
+        console.log('Comparison players:', comparisonPlayers);
+        console.log('First comparison player:', comparisonPlayers[0]);
+
         // Render top 100 comparison on load
         renderTop100Comparison();
 
@@ -151,7 +157,8 @@
             currentPlayers.forEach((current, index) => {
                 const comparison = comparisonMap.get(current.id);
                 if (comparison) {
-                    labels.push(`#${index + 1} ${current.name.substring(0, 15)}`);
+                    const playerName = current.name || 'Unknown';
+                    labels.push(`#${index + 1} ${playerName.substring(0, 15)}`);
                     ppDiffs.push(current.pp - comparison.pp);
                 }
             });
@@ -315,7 +322,7 @@
                         }
                     }
                 }
-            });
+                });
         }
 
         function renderComponentsComparison(data) {

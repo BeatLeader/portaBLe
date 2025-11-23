@@ -251,7 +251,7 @@ namespace portaBLe
                     using var dbContext = dbContextFactory.CreateDbContext();
 
                     // Uncomment to overwrite ratings with RatingAPI
-                    // await RatingsRefresh.Refresh(dbContext);
+                    // await RatingsRefresh.Refresh(dbContext); // 90 minutes average for all ranked maps
 
                     // Uncomment to run the reweighter 
                     // Nerf
@@ -260,12 +260,12 @@ namespace portaBLe
                     // await ScoresRefresh.Autoreweight3(dbContext);
 
                     // Uncomment to refresh everything with current ratings
-                    // await ScoresRefresh.Refresh(dbContext);
-                    // await PlayersRefresh.Refresh(dbContext); // 20 seconds
-                    // await LeaderboardsRefresh.RefreshStars(dbContext);
+                    // await ScoresRefresh.Refresh(dbContext);// 60 seconds
+                    // await PlayersRefresh.Refresh(dbContext); // 40 seconds
+                    // await LeaderboardsRefresh.RefreshStars(dbContext); // 1 second
 
                     // Uncomment to update the Megametric
-                    // await LeaderboardsRefresh.Refresh(dbContext);
+                    // await LeaderboardsRefresh.Refresh(dbContext); // 20 seconds
                 }
 
                 await app.RunAsync();
