@@ -255,9 +255,9 @@ namespace portaBLe
 
                     // Uncomment to run the reweighter 
                     // Nerf
-                    // await ScoresRefresh.Autoreweight(dbContext);
+                    // await ScoresRefresh.Autoreweight(dbContext); // 30 seconds
                     // Buff
-                    // await ScoresRefresh.Autoreweight3(dbContext);
+                    // await ScoresRefresh.Autoreweight3(dbContext); // 30 seconds
 
                     // Uncomment to refresh everything with current ratings
                     // await ScoresRefresh.Refresh(dbContext);// 60 seconds
