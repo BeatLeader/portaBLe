@@ -198,6 +198,10 @@ namespace portaBLe
 
         public static async Task Main(string[] args)
         {
+            // For this to run properly, make sure to target those submodules:
+            // RatingAPI: portaBLe
+            // Analyzer: System.Text.Json
+            // Parser: System.Text.Json
             var builder = WebApplication.CreateBuilder(args);
 
             try {
