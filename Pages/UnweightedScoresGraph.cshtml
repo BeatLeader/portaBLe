@@ -46,7 +46,7 @@
                         </div>
                     </div>
                     <div class="row">
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="form-group">
                                 <label for="ySelect">Y-axis</label>
                                 <select id="ySelect" class="form-control">
@@ -58,20 +58,29 @@
                                 </select>
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="xSelect">X-axis</label>
+                                <select id="xSelect" class="form-control">
+                                    <option value="x">Stars</option>
+                                    <option value="passRating">Pass Rating</option>
+                                    <option value="techRating">Tech Rating</option>
+                                    <option value="accRating">Acc Rating</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
                             <div class="form-group">
                                 <label for="rollingWindow">Rolling window smoothing (points)</label>
                                 <input id="rollingWindow" type="number" class="form-control" min="1" step="1" value="50" />
                             </div>
                         </div>
-                        <div class="col-md-4">
+                        <div class="col-md-3">
                             <div class="form-group">
                                 <label>&nbsp;</label>
-                                <div>
+                                <div class="d-flex align-items-center">
                                     <button id="applyFilters" class="btn btn-primary">Apply Filters</button>
-                                    <div id="spinner" class="spinner-border spinner-border-sm ml-2" role="status" style="display:none;">
-                                        <span class="sr-only">Loading...</span>
-                                    </div>
+                                    <div id="spinner" class="spinner-border spinner-border-sm ms-2" role="status" style="display:none;"></div>
                                 </div>
                             </div>
                         </div>
@@ -115,22 +124,26 @@
 @section Scripts {
     <script src="https://cdn.plot.ly/plotly-2.29.1.min.js"></script>
     <script>
-        let data = @Html.Raw(Model.UnweightedJsonData);
+        let data = [];
 
-        function getYLabel(yField) {
-            switch (yField) {
+        function getAxisLabel(field) {
+            switch (field) {
+                case 'x': return 'Stars';
                 case 'pp': return 'Unweighted PP';
                 case 'acc': return 'Score Accuracy';
                 case 'accPP': return 'Unweighted Acc PP';
                 case 'passPP': return 'Unweighted Pass PP';
                 case 'techPP': return 'Unweighted Tech PP';
-                default: return yField;
+                case 'accRating': return 'Acc Rating';
+                case 'passRating': return 'Pass Rating';
+                case 'techRating': return 'Tech Rating';
+                default: return field;
             }
         }
 
-        function computeRollingAverage(points, yField, windowSize, maxPoints = 200) {
+        function computeRollingAverage(points, xField, yField, windowSize, maxPoints = 200) {
             if (!points || points.length === 0) return { xs: [], ys: [] };
-            const pts = points.slice().sort((a, b) => a.x - b.x);
+            const pts = points.slice().sort((a, b) => a[xField] - b[xField]);
             const n = pts.length;
             const half = Math.floor(windowSize / 2);
             const xsFull = new Array(n);
@@ -144,7 +157,7 @@
                     const v = pts[j][yField];
                     if (v != null && !isNaN(v)) { sum += v; count++; }
                 }
-                xsFull[i] = pts[i].x;
+                xsFull[i] = pts[i][xField];
                 ysFull[i] = count > 0 ? sum / count : null;
             }
 
@@ -202,9 +215,28 @@
             return magic;
         }
 
-        function renderPlot(points, yField, windowSize) {
+        function renderPlot(points, xField, yField, windowSize) {
+            if (!points || points.length === 0) {
+                Plotly.react('myPlot', [], {
+                    xaxis: { title: getAxisLabel(xField) },
+                    yaxis: { title: getAxisLabel(yField) },
+                    margin: { t: 10, b: 50, l: 50, r: 10 },
+                    annotations: [{
+                        text: 'Click "Apply Filters" to load data',
+                        xref: 'paper',
+                        yref: 'paper',
+                        x: 0.5,
+                        y: 0.5,
+                        showarrow: false,
+                        font: { size: 16, color: 'gray' }
+                    }]
+                });
+                document.getElementById('magicValue').textContent = '-';
+                return;
+            }
+
             const tracePoints = {
-                x: points.map(p => p.x),
+                x: points.map(p => p[xField]),
                 y: points.map(p => p[yField]),
                 mode: 'markers',
                 type: 'scattergl',
@@ -212,7 +244,7 @@
                 name: 'Points'
             };
 
-            const ra = computeRollingAverage(points, yField, windowSize);
+            const ra = computeRollingAverage(points, xField, yField, windowSize);
             const traceAvg = {
                 x: ra.xs,
                 y: ra.ys,
@@ -223,8 +255,8 @@
             };
 
             const layout = {
-                xaxis: { title: 'Stars' },
-                yaxis: { title: getYLabel(yField) },
+                xaxis: { title: getAxisLabel(xField) },
+                yaxis: { title: getAxisLabel(yField) },
                 hovermode: 'closest',
                 margin: { t: 10, b: 50, l: 50, r: 10 }
             };
@@ -232,25 +264,34 @@
 
             // compute and display magic value
             const magic = computeMagicValue(ra.xs, ra.ys);
-            const label = `Rolling average for ${getYLabel(yField)} (0 = perfectly linear):`;
+            const label = `Rolling average for ${getAxisLabel(yField)} vs ${getAxisLabel(xField)} (0 = perfectly linear):`;
             document.getElementById('magicLabel').textContent = label;
             document.getElementById('magicValue').textContent = magic.toFixed(4);
         }
 
-        // initial render: default window
+        // initial render with empty data
         const defaultWindow = parseInt(document.getElementById('rollingWindow').value || '50');
-        renderPlot(data, 'pp', defaultWindow);
+        renderPlot(data, 'x', 'pp', defaultWindow);
+
+        document.getElementById('xSelect').addEventListener('change', function () {
+            const x = this.value;
+            const y = document.getElementById('ySelect').value;
+            const w = parseInt(document.getElementById('rollingWindow').value || '50');
+            renderPlot(data, x, y, w);
+        });
 
         document.getElementById('ySelect').addEventListener('change', function () {
+            const x = document.getElementById('xSelect').value;
             const y = this.value;
             const w = parseInt(document.getElementById('rollingWindow').value || '50');
-            renderPlot(data, y, w);
+            renderPlot(data, x, y, w);
         });
 
         document.getElementById('rollingWindow').addEventListener('change', function () {
+            const x = document.getElementById('xSelect').value;
             const y = document.getElementById('ySelect').value;
             const w = parseInt(this.value || '50');
-            renderPlot(data, y, w);
+            renderPlot(data, x, y, w);
         });
 
         function showSpinner(show) {
@@ -264,6 +305,7 @@
             const maxPlayerRank = parseInt(document.getElementById('maxPlayerRank').value) || 0;
             const minRankedPlayCount = parseInt(document.getElementById('minRankedPlayCount').value) || 0;
             const playerId = (document.getElementById('playerId').value || '').trim();
+            const x = document.getElementById('xSelect').value;
             const y = document.getElementById('ySelect').value;
             const windowSize = parseInt(document.getElementById('rollingWindow').value) || 50;
 
@@ -280,7 +322,7 @@
                 }
                 const json = await resp.json();
                 data = json;
-                renderPlot(data, y, windowSize);
+                renderPlot(data, x, y, windowSize);
             } finally {
                 showSpinner(false);
             }
@@ -291,4 +333,4 @@
         });
     </script>
     }
-}}
+}

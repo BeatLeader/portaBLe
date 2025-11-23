@@ -41,9 +41,7 @@ namespace portaBLe.Pages
 
         public async Task OnGetAsync()
         {
-            int minTimepost = ConvertDateToUnix(MinYear, MinMonth, MinDay);
-            var filteredPoints = await GetFilteredPointsAsync(MinWeightPercent / 100f, minTimepost, MaxPlayerRank, MinRankedPlayCount, PlayerId);
-            WeightedJsonData = JsonSerializer.Serialize(filteredPoints);
+            WeightedJsonData = "[]";
         }
 
         public async Task<IActionResult> OnGetDataAsync(float minWeightPercent = 0, int minYear = 0, int minMonth = 0, int minDay = 0, int maxPlayerRank = 0, int minRankedPlayCount = 0, string playerId = "")
@@ -88,7 +86,11 @@ namespace portaBLe.Pages
                     acc = (double)s.Accuracy,
                     accPP = (double)s.AccPP * s.Weight,
                     passPP = (double)s.PassPP * s.Weight,
-                    techPP = (double)s.TechPP * s.Weight
+                    techPP = (double)s.TechPP * s.Weight,
+                    accRating = (double)s.Leaderboard.AccRating,
+                    passRating = (double)s.Leaderboard.PassRating,
+                    techRating = (double)s.Leaderboard.TechRating,
+                    weight = (double)s.Weight
                 })
                 .ToListAsync();
 
