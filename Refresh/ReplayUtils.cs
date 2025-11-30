@@ -316,10 +316,10 @@ namespace portaBLe.Refresh
         public int ModifierId { get; set; }
 
         public float DA { get; set; } = 0.0f;
-        public float FS { get; set; } = 0.20f;
-        public float SF { get; set; } = 0.36f;
-        public float SS { get; set; } = -0.3f;
-        public float GN { get; set; } = 0.04f;
+        public float FS { get; set; } = 0.0f;
+        public float SF { get; set; } = 0.0f;
+        public float SS { get; set; } = 0.0f;
+        public float GN { get; set; } = 0.0f;
         public float NA { get; set; } = -0.3f;
         public float NB { get; set; } = -0.2f;
         public float NF { get; set; } = -0.5f;
@@ -332,10 +332,10 @@ namespace portaBLe.Refresh
         public static ModifiersMap RankedMap() {
             return new ModifiersMap {
                 DA = 0.0f,
-                FS = 0.20f * 2,
-                SF = 0.36f * 2,
-                SS = -0.3f,
-                GN = 0.04f * 2,
+                FS = 0.0f,
+                SF = 0.0f,
+                SS = 0.0f,
+                GN = 0.0f,
                 NA = -0.3f,
                 NB = -0.2f,
                 NF = -1.0f,
