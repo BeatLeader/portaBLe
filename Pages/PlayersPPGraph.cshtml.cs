@@ -1,14 +1,12 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using portaBLe.Services;
 using System.Text.Json;
 
 namespace portaBLe.Pages
 {
-    public class PlayersPPGraphModel : PageModel
+    public class PlayersPPGraphModel : BasePageModel
     {
-        private readonly AppContext _context;
-
         public string TriangleJsonData { get; set; }
 
         [BindProperty(SupportsGet = true)]
@@ -20,9 +18,8 @@ namespace portaBLe.Pages
         [BindProperty(SupportsGet = true)]
         public string PlayerId { get; set; } = string.Empty;
 
-        public PlayersPPGraphModel(AppContext context)
+        public PlayersPPGraphModel(IDynamicDbContextService dbService) : base(dbService)
         {
-            _context = context;
         }
 
         public class PlayerPoint
@@ -34,22 +31,26 @@ namespace portaBLe.Pages
             public double techPP { get; set; }
         }
 
-        public async Task OnGetAsync()
+        public async Task OnGetAsync(string db = null)
         {
+            await InitializeDatabaseSelectionAsync(db);
             var playerPoints = await GetFilteredPointsAsync(MaxPlayerRank, MinRankedPlayCount, PlayerId);
             TriangleJsonData = JsonSerializer.Serialize(playerPoints);
         }
 
         // Handler for AJAX requests: ?handler=Data
-        public async Task<IActionResult> OnGetDataAsync()
+        public async Task<IActionResult> OnGetDataAsync(string db = null)
         {
+            await InitializeDatabaseSelectionAsync(db);
             var playerPoints = await GetFilteredPointsAsync(MaxPlayerRank, MinRankedPlayCount, PlayerId);
             return new JsonResult(playerPoints);
         }
 
         private async Task<List<PlayerPoint>> GetFilteredPointsAsync(int maxPlayerRank, int minRankedPlayCount, string playerId)
         {
-            var players = await _context.Players
+            using var context = (Services.DynamicDbContext)GetDbContext();
+
+            var players = await context.Players
                 .Where(s => s != null
                             && (maxPlayerRank == 0 || s.Rank <= maxPlayerRank)
                             && s.RankedPlayCount >= minRankedPlayCount

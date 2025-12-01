@@ -1,19 +1,16 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using portaBLe.DB;
 using portaBLe.Refresh;
+using portaBLe.Services;
 using System.Text.Json;
 
 namespace portaBLe.Pages
 {
-    public class PlayersBalancingGraphsModel : PageModel
+    public class PlayersBalancingGraphsModel : BasePageModel
     {
-        private readonly AppContext _context;
-
-        public PlayersBalancingGraphsModel(AppContext context)
+        public PlayersBalancingGraphsModel(IDynamicDbContextService dbService) : base(dbService)
         {
-            _context = context;
         }
 
         [BindProperty(SupportsGet = true)]
@@ -22,14 +19,18 @@ namespace portaBLe.Pages
         public Player Player { get; set; }
         public List<ScoreData> Scores { get; set; }
 
-        public async Task<IActionResult> OnGetAsync()
+        public async Task<IActionResult> OnGetAsync(string db = null)
         {
+            await InitializeDatabaseSelectionAsync(db);
+
             if (string.IsNullOrEmpty(PlayerId))
             {
                 return Page();
             }
 
-            Player = await _context.Players.FirstOrDefaultAsync(p => p.Id == PlayerId);
+            using var context = (Services.DynamicDbContext)GetDbContext();
+
+            Player = await context.Players.FirstOrDefaultAsync(p => p.Id == PlayerId);
 
             if (Player == null)
             {
@@ -37,7 +38,7 @@ namespace portaBLe.Pages
                 return Page();
             }
 
-            Scores = await _context.Scores
+            Scores = await context.Scores
                 .Include(s => s.Leaderboard)
                 .ThenInclude(l => l.ModifiersRating)
                 .Where(s => s.PlayerId == PlayerId)
@@ -66,7 +67,9 @@ namespace portaBLe.Pages
 
         public async Task<IActionResult> OnPostRecalculateAsync([FromBody] RecalculateRequest request)
         {
-            var scores = await _context.Scores
+            using var context = (Services.DynamicDbContext)GetDbContext();
+
+            var scores = await context.Scores
                 .Include(s => s.Leaderboard)
                 .ThenInclude(l => l.ModifiersRating)
                 .Where(s => s.PlayerId == request.PlayerId)

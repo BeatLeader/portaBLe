@@ -6,5 +6,5 @@ obj
 Properties/PublishProfiles/*
 /azstorage
 .csproj.user
-wwwroot/Database.*
+wwwroot/*.db
 maps

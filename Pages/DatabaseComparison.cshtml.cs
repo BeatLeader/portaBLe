@@ -2,42 +2,58 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using portaBLe.DB;
+using portaBLe.Services;
 using System.Text.Json;
 
 namespace portaBLe.Pages
 {
     public class DatabaseComparisonModel : PageModel
     {
-        private readonly IDbContextFactory<AppContext> _contextFactory;
-        private readonly IDbContextFactory<ComparisonContext> _comparisonContextFactory;
+        private readonly IDynamicDbContextService _dbService;
         
         private static readonly JsonSerializerOptions _jsonOptions = new JsonSerializerOptions
         {
             PropertyNamingPolicy = JsonNamingPolicy.CamelCase
         };
 
-        public DatabaseComparisonModel(
-            IDbContextFactory<AppContext> contextFactory,
-            IDbContextFactory<ComparisonContext> comparisonContextFactory)
+        public DatabaseComparisonModel(IDynamicDbContextService dbService)
         {
-            _contextFactory = contextFactory;
-            _comparisonContextFactory = comparisonContextFactory;
+            _dbService = dbService;
         }
 
         public string CurrentJsonData { get; set; }
         public string ComparisonJsonData { get; set; }
         public ComparisonStats Stats { get; set; }
+        public List<DatabaseConfig> AvailableDatabases { get; set; }
+        public string SelectedMainDb { get; set; }
+        public string SelectedComparisonDb { get; set; }
 
-        public async Task OnGetAsync()
+        public async Task OnGetAsync(string mainDb = null, string comparisonDb = null)
         {
-            using var currentDb = _contextFactory.CreateDbContext();
-            using var comparisonDb = _comparisonContextFactory.CreateDbContext();
+            // Get available databases
+            AvailableDatabases = await _dbService.GetAvailableDatabasesAsync();
+            
+            // Set default selections
+            SelectedMainDb = mainDb ?? _dbService.GetMainDatabaseFileName();
+            SelectedComparisonDb = comparisonDb ?? AvailableDatabases.FirstOrDefault(db => db.FileName != SelectedMainDb)?.FileName 
+                                   ?? AvailableDatabases.FirstOrDefault()?.FileName;
+
+            if (SelectedMainDb == null || SelectedComparisonDb == null)
+            {
+                Stats = new ComparisonStats();
+                CurrentJsonData = "[]";
+                ComparisonJsonData = "[]";
+                return;
+            }
+
+            using var currentDb = (DynamicDbContext)_dbService.CreateContext(SelectedMainDb);
+            using var comparisonDbContext = (DynamicDbContext)_dbService.CreateContext(SelectedComparisonDb);
 
             // Get summary statistics
             var currentPlayerCount = await currentDb.Players.CountAsync();
-            var comparisonPlayerCount = await comparisonDb.Players.CountAsync();
+            var comparisonPlayerCount = await comparisonDbContext.Players.CountAsync();
             var currentScoreCount = await currentDb.Scores.CountAsync();
-            var comparisonScoreCount = await comparisonDb.Scores.CountAsync();
+            var comparisonScoreCount = await comparisonDbContext.Scores.CountAsync();
 
             // Get top 100 players from both databases
             var currentPlayers = await currentDb.Players
@@ -56,7 +72,7 @@ namespace portaBLe.Pages
                 })
                 .ToListAsync();
 
-            var comparisonPlayers = await comparisonDb.Players
+            var comparisonPlayers = await comparisonDbContext.Players
                 .OrderBy(p => p.Rank)
                 .Where(p => p.Rank != 0)
                 .Take(100)
@@ -86,13 +102,26 @@ namespace portaBLe.Pages
             };
         }
 
-        public async Task<IActionResult> OnGetPlayerComparisonAsync(string playerId)
+        public async Task<IActionResult> OnGetPlayerComparisonAsync(string playerId, string mainDb = null, string comparisonDb = null)
         {
-            using var currentDb = _contextFactory.CreateDbContext();
-            using var comparisonDb = _comparisonContextFactory.CreateDbContext();
+            // Get available databases
+            var availableDatabases = await _dbService.GetAvailableDatabasesAsync();
+            
+            // Set default selections
+            var selectedMainDb = mainDb ?? _dbService.GetMainDatabaseFileName();
+            var selectedComparisonDb = comparisonDb ?? availableDatabases.FirstOrDefault(db => db.FileName != selectedMainDb)?.FileName 
+                                       ?? availableDatabases.FirstOrDefault()?.FileName;
+
+            if (selectedMainDb == null || selectedComparisonDb == null)
+            {
+                return new JsonResult(new { error = "Databases not configured" });
+            }
+
+            using var currentDb = (DynamicDbContext)_dbService.CreateContext(selectedMainDb);
+            using var comparisonDbContext = (DynamicDbContext)_dbService.CreateContext(selectedComparisonDb);
 
             var currentPlayer = await currentDb.Players.FirstOrDefaultAsync(p => p.Id == playerId);
-            var comparisonPlayer = await comparisonDb.Players.FirstOrDefaultAsync(p => p.Id == playerId);
+            var comparisonPlayer = await comparisonDbContext.Players.FirstOrDefaultAsync(p => p.Id == playerId);
 
             if (currentPlayer == null && comparisonPlayer == null)
             {
@@ -119,7 +148,7 @@ namespace portaBLe.Pages
                 : new List<ScoreComparisonData>();
 
             var comparisonScores = comparisonPlayer != null
-                ? await comparisonDb.Scores
+                ? await comparisonDbContext.Scores
                     .Where(s => s.PlayerId == playerId)
                     .OrderByDescending(s => s.Pp)
                     .Take(200)

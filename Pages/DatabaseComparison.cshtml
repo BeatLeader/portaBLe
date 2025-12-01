@@ -11,17 +11,69 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-header">
+                    <h5 class="mb-0">Database Selection</h5>
+                </div>
+                <div class="card-body">
+                    <form method="get" id="dbSelectionForm">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="mainDb">Main Database:</label>
+                                    <select class="form-control" id="mainDb" name="mainDb" onchange="document.getElementById('dbSelectionForm').submit();">
+                                        @foreach (var db in Model.AvailableDatabases)
+                                        {
+                                            <option value="@db.FileName" selected="@(db.FileName == Model.SelectedMainDb)">
+                                                @db.Name - @db.FileName
+                                            </option>
+                                        }
+                                    </select>
+                                    @if (Model.AvailableDatabases.Any(db => db.FileName == Model.SelectedMainDb && !string.IsNullOrEmpty(db.Description)))
+                                    {
+                                        var mainDbConfig = Model.AvailableDatabases.First(db => db.FileName == Model.SelectedMainDb);
+                                        <small class="form-text text-muted">@mainDbConfig.Description</small>
+                                    }
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="comparisonDb">Comparison Database:</label>
+                                    <select class="form-control" id="comparisonDb" name="comparisonDb" onchange="document.getElementById('dbSelectionForm').submit();">
+                                        @foreach (var db in Model.AvailableDatabases)
+                                        {
+                                            <option value="@db.FileName" selected="@(db.FileName == Model.SelectedComparisonDb)">
+                                                @db.Name - @db.FileName
+                                            </option>
+                                        }
+                                    </select>
+                                    @if (Model.AvailableDatabases.Any(db => db.FileName == Model.SelectedComparisonDb && !string.IsNullOrEmpty(db.Description)))
+                                    {
+                                        var compDbConfig = Model.AvailableDatabases.First(db => db.FileName == Model.SelectedComparisonDb);
+                                        <small class="form-text text-muted">@compDbConfig.Description</small>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
                     <h5 class="mb-0">Database Statistics</h5>
                 </div>
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-6">
-                            <h6>Current Database (Database.db)</h6>
+                            <h6>Main Database (@Model.SelectedMainDb)</h6>
                             <p><strong>Players:</strong> @Model.Stats.CurrentPlayerCount</p>
                             <p><strong>Scores:</strong> @Model.Stats.CurrentScoreCount</p>
                         </div>
                         <div class="col-md-6">
-                            <h6>Comparison Database (Comparison.db)</h6>
+                            <h6>Comparison Database (@Model.SelectedComparisonDb)</h6>
                             <p><strong>Players:</strong> @Model.Stats.ComparisonPlayerCount</p>
                             <p><strong>Scores:</strong> @Model.Stats.ComparisonScoreCount</p>
                         </div>
@@ -200,8 +252,11 @@
                 return;
             }
 
+            const mainDb = document.getElementById('mainDb').value;
+            const comparisonDb = document.getElementById('comparisonDb').value;
+
             try {
-                const response = await fetch(`/DatabaseComparison?handler=PlayerComparison&playerId=${encodeURIComponent(playerId)}`);
+                const response = await fetch(`/DatabaseComparison?handler=PlayerComparison&playerId=${encodeURIComponent(playerId)}&mainDb=${encodeURIComponent(mainDb)}&comparisonDb=${encodeURIComponent(comparisonDb)}`);
                 if (!response.ok) {
                     throw new Error('Failed to load player comparison');
                 }

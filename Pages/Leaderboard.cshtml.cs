@@ -1,16 +1,15 @@
 ﻿using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using portaBLe.DB;
+using portaBLe.Services;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
 namespace portaBLe.Pages
 {
-    public class LeaderboardModel : PageModel
+    public class LeaderboardModel : BasePageModel
     {
-        private readonly AppContext _context;
         public Leaderboard Leaderboard { get; set; }
         public Leaderboard? CompareLeaderboard { get; set; }
         public List<Score> Scores { get; set; }
@@ -26,14 +25,17 @@ namespace portaBLe.Pages
         public ICollection<ScoreGraphEntry> ScoreGraphEntries { get; set; }
         public ICollection<ScoreGraphEntry>? CompareScoreGraphEntries { get; set; }
 
-        public LeaderboardModel(AppContext context)
+        public LeaderboardModel(IDynamicDbContextService dbService) : base(dbService)
         {
-            _context = context;
         }
 
-        public async Task<IActionResult> OnGetAsync(string id, string compareId = null, int currentPage = 1, int compareCurrentPage = 1)
+        public async Task<IActionResult> OnGetAsync(string id, string compareId = null, int currentPage = 1, int compareCurrentPage = 1, string db = null)
         {
-            Leaderboard = await _context.Leaderboards.FirstOrDefaultAsync(l => l.Id == id);
+            await InitializeDatabaseSelectionAsync(db);
+
+            using var context = (Services.DynamicDbContext)GetDbContext();
+
+            Leaderboard = await context.Leaderboards.FirstOrDefaultAsync(l => l.Id == id);
 
             if (Leaderboard == null)
             {
@@ -44,10 +46,10 @@ namespace portaBLe.Pages
             CurrentPage = currentPage;
             CompareCurrentPage = compareCurrentPage;
 
-            TotalScores = await _context.Scores.Where(s => s.LeaderboardId == id).CountAsync();
+            TotalScores = await context.Scores.Where(s => s.LeaderboardId == id).CountAsync();
             TotalPages = (int)System.Math.Ceiling(TotalScores / (double)pageSize);
 
-            Scores = await _context.Scores
+            Scores = await context.Scores
                                    .Where(s => s.LeaderboardId == id)
                                    .Include(s => s.Player)
                                    .OrderByDescending(s => s.Pp)
@@ -56,7 +58,7 @@ namespace portaBLe.Pages
                                    .ToListAsync();
 
             // Fetch data for first leaderboard chart
-            ScoreGraphEntries = await _context.Scores
+            ScoreGraphEntries = await context.Scores
                 .Where(s => s.LeaderboardId == id)
                 .Select(s => new ScoreGraphEntry
                 {
@@ -78,14 +80,14 @@ namespace portaBLe.Pages
             // Handle comparison leaderboard if compareId is provided
             if (!string.IsNullOrEmpty(compareId))
             {
-                CompareLeaderboard = await _context.Leaderboards.FirstOrDefaultAsync(l => l.Id == compareId);
+                CompareLeaderboard = await context.Leaderboards.FirstOrDefaultAsync(l => l.Id == compareId);
                 
                 if (CompareLeaderboard != null)
                 {
-                    CompareTotalScores = await _context.Scores.Where(s => s.LeaderboardId == compareId).CountAsync();
+                    CompareTotalScores = await context.Scores.Where(s => s.LeaderboardId == compareId).CountAsync();
                     CompareTotalPages = (int)System.Math.Ceiling(CompareTotalScores / (double)pageSize);
 
-                    CompareScores = await _context.Scores
+                    CompareScores = await context.Scores
                                        .Where(s => s.LeaderboardId == compareId)
                                        .Include(s => s.Player)
                                        .OrderByDescending(s => s.Pp)
@@ -94,7 +96,7 @@ namespace portaBLe.Pages
                                        .ToListAsync();
 
                     // Fetch data for comparison leaderboard chart
-                    CompareScoreGraphEntries = await _context.Scores
+                    CompareScoreGraphEntries = await context.Scores
                         .Where(s => s.LeaderboardId == compareId)
                         .Select(s => new ScoreGraphEntry
                         {

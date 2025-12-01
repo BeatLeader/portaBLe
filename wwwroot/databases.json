@@ -1,0 +1,26 @@
+{
+  "MainDB": 0,
+  "Databases": [
+    {
+      "Name": "Prod",
+      "FileName": "db-20251201145358-6435.db",
+      "Description": "Current production website"
+    },
+    {
+      "Name": "New model, no reweight",
+      "FileName": "db-20251130205540-5354.db",
+      "Description": "Re-trained model, 0.7 -> 0.5. New ratings"
+    },
+    {
+      "Name": "Reweight, only nerf",
+      "FileName": "db-20251130205026-3932.db",
+      "Description": "New ratings, autoreweighted to nerf overweights"
+    },
+    {
+      "Name": "Reweight, with buff",
+      "FileName": "db-20251130205435-5134.db",
+      "Description": "New ratings, autoreweighted on top to buff underweights"
+    }
+  ]
+}
+

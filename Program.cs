@@ -8,6 +8,7 @@ using Amazon;
 using System.Diagnostics;
 using portaBLe.DB;
 using portaBLe.Refresh;
+using portaBLe.Services;
 
 namespace portaBLe
 {
@@ -107,7 +108,11 @@ namespace portaBLe
             return new AmazonS3Client(accessKey, secretKey, RegionEndpoint.USEast1);
         }
 
-        public static async Task<string> UploadDatabaseAsync(string filePath)
+        public static async Task<string> UploadDatabaseAsync(
+            string filePath, 
+            string? name = null, 
+            string? description = null,
+            bool isMain = false)
         {
             var client = GetS3Client();
 
@@ -119,8 +124,42 @@ namespace portaBLe
 
             await fileTransferUtility.UploadAsync(filePath, "portabledbs", key);
 
-            // Save the database name to a file in wwwroot
-            File.WriteAllText(Path.Combine("wwwroot", "current_db_name.txt"), dbName);
+            // Update databases.json with the new database entry
+            var configPath = Path.Combine("wwwroot", "databases.json");
+            DatabasesConfig config;
+            
+            if (File.Exists(configPath))
+            {
+                var json = File.ReadAllText(configPath);
+                config = JsonSerializer.Deserialize<DatabasesConfig>(json, new JsonSerializerOptions 
+                { 
+                    PropertyNameCaseInsensitive = true 
+                });
+            }
+            else
+            {
+                config = new DatabasesConfig
+                {
+                    MainDB = 0,
+                    Databases = new List<DatabaseConfig>()
+                };
+            }
+
+            // Add new database to the config
+            config.Databases.Add(new DatabaseConfig
+            {
+                Name = name ?? $"Database {DateTime.UtcNow:yyyy-MM-dd HH:mm}",
+                FileName = dbName,
+                Description = description ?? "Uploaded database"
+            });
+
+            if (isMain) {
+                config.MainDB = config.Databases.Count - 1;
+            }
+
+            // Save updated config
+            var updatedJson = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(configPath, updatedJson);
 
             return dbName;
         }
@@ -215,6 +254,13 @@ namespace portaBLe
                 // Uncomment to set the current .db file as comparison target
                 // SetComparisonDBTarget();
 
+                // Register the dynamic DB context service
+                builder.Services.AddSingleton<IDynamicDbContextService, DynamicDbContextService>();
+                
+                // Uncomment to download all databases from S3 based on databases.json
+                 var tempDbService = new DynamicDbContextService(builder.Environment);
+                await tempDbService.DownloadAllDatabasesAsync(builder.Environment.WebRootPath);
+                
                 var connectionString = $"Data Source={builder.Environment.WebRootPath}/Database.db;";
                 builder.Services.AddDbContextFactory<AppContext>(options => options.UseSqlite(connectionString));
                 

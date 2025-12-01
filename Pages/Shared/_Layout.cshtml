@@ -1,4 +1,6 @@
-﻿<!DOCTYPE html>
+﻿@using portaBLe.Services
+@inject IDynamicDbContextService DbService
+<!DOCTYPE html>
 <html lang="en">
 <head>
     <meta charset="utf-8" />
@@ -31,7 +33,23 @@
                         <li class="nav-item">
                             <a class="nav-link text-dark" asp-page="/Graphs">Graphs</a>
                         </li>
+                        <li class="nav-item">
+                            <a class="nav-link text-dark" asp-page="/DatabaseComparison">DB Comparison</a>
+                        </li>
                     </ul>
+                    <div class="d-flex align-items-center">
+                        @{
+                            var availableDatabases = await DbService.GetAvailableDatabasesAsync();
+                            var currentDb = Context.Request.Query["db"].FirstOrDefault() ?? DbService.GetMainDatabaseFileName();
+                        }
+                        <label class="me-2 mb-0 text-nowrap" for="dbSelector" style="font-size: 0.9rem;">Database:</label>
+                        <select id="dbSelector" class="form-select form-select-sm" style="width: auto; min-width: 200px;" onchange="switchDatabase(this.value)">
+                            @foreach (var db in availableDatabases)
+                            {
+                                <option value="@db.FileName" selected="@(db.FileName == currentDb)">@db.Name</option>
+                            }
+                        </select>
+                    </div>
                 </div>
             </div>
         </nav>
@@ -51,6 +69,19 @@
     <script src="~/lib/jquery/dist/jquery.min.js"></script>
     <script src="~/lib/bootstrap/dist/js/bootstrap.bundle.min.js"></script>
     <script src="~/js/site.js" asp-append-version="true"></script>
+
+    <script>
+        function switchDatabase(dbFileName) {
+            // Get current URL
+            var url = new URL(window.location.href);
+            
+            // Update or add the db parameter
+            url.searchParams.set('db', dbFileName);
+            
+            // Reload the page with the new database parameter
+            window.location.href = url.toString();
+        }
+    </script>
 
     @await RenderSectionAsync("Scripts", required: false)
 </body>
