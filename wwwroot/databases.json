@@ -20,6 +20,16 @@
       "Name": "Reweight, with buff",
       "FileName": "db-20251130205435-5134.db",
       "Description": "New ratings, autoreweighted on top to buff underweights"
+    },
+    {
+      "Name": "Old Old model, no reweight",
+      "FileName": "db-20251201185915-5265.db",
+      "Description": "Very old model, no autoreweight"
+    },
+    {
+      "Name": "OOmodel, reweight with buff",
+      "FileName": "db-20251201190820-8840.db",
+      "Description": "Very old model, autoreweighted with nerf and buff"
     }
   ]
 }
