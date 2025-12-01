@@ -22,19 +22,19 @@
                 <div class="navbar-collapse collapse d-sm-inline-flex justify-content-between">
                     <ul class="navbar-nav flex-grow-1">
                         <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-page="/Ranking">Ranking</a>
+                            <a class="nav-link text-dark db-aware-link" asp-area="" asp-page="/Ranking">Ranking</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link text-dark" asp-area="" asp-page="/Leaderboards">Leaderboards</a>
+                            <a class="nav-link text-dark db-aware-link" asp-area="" asp-page="/Leaderboards">Leaderboards</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link text-dark" asp-page="/LeaderboardStats">Leaderboard Stats</a>
+                            <a class="nav-link text-dark db-aware-link" asp-page="/LeaderboardStats">Leaderboard Stats</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link text-dark" asp-page="/Graphs">Graphs</a>
+                            <a class="nav-link text-dark db-aware-link" asp-page="/Graphs">Graphs</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link text-dark" asp-page="/DatabaseComparison">DB Comparison</a>
+                            <a class="nav-link text-dark db-aware-link" asp-page="/DatabaseComparison">DB Comparison</a>
                         </li>
                     </ul>
                     <div class="d-flex align-items-center">
@@ -71,7 +71,38 @@
     <script src="~/js/site.js" asp-append-version="true"></script>
 
     <script>
+        // LocalStorage key for database selection
+        const DB_STORAGE_KEY = 'portaBLe_selectedDatabase';
+
+        // On page load, check localStorage and update URL if needed
+        document.addEventListener('DOMContentLoaded', function() {
+            const savedDb = localStorage.getItem(DB_STORAGE_KEY);
+            const urlParams = new URLSearchParams(window.location.search);
+            const urlDb = urlParams.get('db');
+            
+            // If we have a saved database but no db parameter in URL, redirect with the parameter
+            if (savedDb && !urlDb) {
+                urlParams.set('db', savedDb);
+                const newUrl = window.location.pathname + '?' + urlParams.toString();
+                window.location.href = newUrl;
+                return;
+            }
+            
+            // If URL has a db parameter, make sure it's saved to localStorage
+            if (urlDb) {
+                localStorage.setItem(DB_STORAGE_KEY, urlDb);
+                // Update dropdown to reflect current selection
+                const selector = document.getElementById('dbSelector');
+                if (selector) {
+                    selector.value = urlDb;
+                }
+            }
+        });
+
         function switchDatabase(dbFileName) {
+            // Save selection to localStorage
+            localStorage.setItem(DB_STORAGE_KEY, dbFileName);
+            
             // Get current URL
             var url = new URL(window.location.href);
             
@@ -80,6 +111,33 @@
             
             // Reload the page with the new database parameter
             window.location.href = url.toString();
+        }
+
+        // Optional: Add a function to clear the saved database
+        function clearSavedDatabase() {
+            localStorage.removeItem(DB_STORAGE_KEY);
+        }
+
+        // Update all navigation links to include the selected database
+        function updateNavigationLinks() {
+            const savedDb = localStorage.getItem(DB_STORAGE_KEY);
+            if (!savedDb) return;
+
+            // Update all links with the db-aware-link class
+            document.querySelectorAll('.db-aware-link').forEach(link => {
+                const href = link.getAttribute('href');
+                if (href && !href.includes('db=')) {
+                    const separator = href.includes('?') ? '&' : '?';
+                    link.setAttribute('href', href + separator + 'db=' + encodeURIComponent(savedDb));
+                }
+            });
+        }
+
+        // Call updateNavigationLinks when DOM is ready
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', updateNavigationLinks);
+        } else {
+            updateNavigationLinks();
         }
     </script>
 

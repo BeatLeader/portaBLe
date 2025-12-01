@@ -3,6 +3,30 @@
 
 <h2>Player Rankings</h2>
 
+<div class="mb-3">
+    <form method="get" class="form-inline">
+        <div class="input-group" style="max-width: 500px;">
+            <input type="text" 
+                   name="searchString" 
+                   value="@Model.SearchString" 
+                   class="form-control" 
+                   placeholder="Search players by name..." 
+                   aria-label="Search players" />
+            <button type="submit" class="btn btn-primary">Search</button>
+            @if (!string.IsNullOrEmpty(Model.SearchString))
+            {
+                <a asp-page="./Ranking" class="btn btn-secondary">Clear</a>
+            }
+        </div>
+    </form>
+    @if (!string.IsNullOrEmpty(Model.SearchString))
+    {
+        <small class="text-muted mt-2 d-block">
+            Found @Model.Players.Count result(s) for "@Model.SearchString"
+        </small>
+    }
+</div>
+
 <table class="table">
     <thead>
         <tr>
@@ -45,7 +69,10 @@
             for (int i = firstPageToShow; i <= lastPageToShow; i++)
             {
                 <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
-                    <a class="page-link" asp-page="./Ranking" asp-route-currentPage="@i">@i</a>
+                    <a class="page-link" 
+                       asp-page="./Ranking" 
+                       asp-route-currentPage="@i"
+                       asp-route-searchString="@Model.SearchString">@i</a>
                 </li>
             }
         }
