@@ -1,19 +1,16 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using portaBLe.DB;
 using portaBLe.Refresh;
+using portaBLe.Services;
 using System.Text.Json;
 
 namespace portaBLe.Pages
 {
-    public class BatchPlayersBalancingModel : PageModel
+    public class BatchPlayersBalancingModel : BasePageModel
     {
-        private readonly AppContext _context;
-
-        public BatchPlayersBalancingModel(AppContext context)
+        public BatchPlayersBalancingModel(IDynamicDbContextService dbService) : base(dbService)
         {
-            _context = context;
         }
 
         [BindProperty]
@@ -33,8 +30,10 @@ namespace portaBLe.Pages
             return Page();
         }
 
-        public async Task<IActionResult> OnPostAsync()
+        public async Task<IActionResult> OnPostAsync(string db = null)
         {
+            await InitializeDatabaseSelectionAsync(db);
+
             if (!MinRank.HasValue || !MaxRank.HasValue)
             {
                 return Page();
@@ -46,8 +45,10 @@ namespace portaBLe.Pages
                 return Page();
             }
 
+            using var context = (Services.DynamicDbContext)GetDbContext();
+
             // Load players by rank range
-            Players = await _context.Players
+            Players = await context.Players
                 .Where(p => p.Rank >= MinRank.Value && p.Rank <= MaxRank.Value && p.Pp > 0)
                 .OrderBy(p => p.Rank)
                 .ToListAsync();
@@ -60,7 +61,7 @@ namespace portaBLe.Pages
             PlayerIds = Players.Select(p => p.Id).ToList();
 
             // Load all scores for these players
-            AllScores = await _context.Scores
+            AllScores = await context.Scores
                 .Include(s => s.Leaderboard)
                 .ThenInclude(l => l.ModifiersRating)
                 .Where(s => PlayerIds.Contains(s.PlayerId))
@@ -90,13 +91,17 @@ namespace portaBLe.Pages
             return Page();
         }
 
-        public async Task<IActionResult> OnPostRecalculateBatchAsync([FromBody] RecalculateBatchRequest request)
+        public async Task<IActionResult> OnPostRecalculateBatchAsync([FromBody] RecalculateBatchRequest request, string db = null)
         {
+            await InitializeDatabaseSelectionAsync(db);
+
+            using var context = (Services.DynamicDbContext)GetDbContext();
+
             var playerResults = new List<PlayerResult>();
 
             foreach (var playerId in request.PlayerIds)
             {
-                var scores = await _context.Scores
+                var scores = await context.Scores
                     .Include(s => s.Leaderboard)
                     .ThenInclude(l => l.ModifiersRating)
                     .Where(s => s.PlayerId == playerId)

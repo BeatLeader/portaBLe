@@ -65,8 +65,10 @@ namespace portaBLe.Pages
             return Page();
         }
 
-        public async Task<IActionResult> OnPostRecalculateAsync([FromBody] RecalculateRequest request)
+        public async Task<IActionResult> OnPostRecalculateAsync([FromBody] RecalculateRequest request, string db = null)
         {
+            await InitializeDatabaseSelectionAsync(db);
+            
             using var context = (Services.DynamicDbContext)GetDbContext();
 
             var scores = await context.Scores

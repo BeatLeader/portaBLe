@@ -288,8 +288,21 @@
                 return;
             }
 
+            // Get the current database selection from URL or localStorage
+            const urlParams = new URLSearchParams(window.location.search);
+            let dbParam = urlParams.get('db');
+            if (!dbParam) {
+                dbParam = localStorage.getItem('portaBLe_selectedDatabase');
+            }
+            
+            // Build URL with db parameter if present
+            let url = '/BatchPlayersBalancing?handler=RecalculateBatch';
+            if (dbParam) {
+                url += '&db=' + encodeURIComponent(dbParam);
+            }
+
             try {
-                const response = await fetch('/BatchPlayersBalancing?handler=RecalculateBatch', {
+                const response = await fetch(url, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
