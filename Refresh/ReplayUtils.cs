@@ -1,7 +1,8 @@
-﻿using System.ComponentModel;
+﻿using portaBLe.DB;
+using System.ComponentModel;
 using System.Reflection;
 
-namespace portaBLe
+namespace portaBLe.Refresh
 {
     static class ReplayUtils
     {
@@ -124,7 +125,7 @@ namespace portaBLe
         }
 
         private static float Inflate(float peepee) {
-            return (650f * MathF.Pow(peepee, 1.3f)) / MathF.Pow(650f, 1.3f);
+            return 650f * MathF.Pow(peepee, 1.3f) / MathF.Pow(650f, 1.3f);
         }
 
         private static (float, float, float) GetPp(float accuracy, float accRating, float passRating, float techRating) {
@@ -183,7 +184,7 @@ namespace portaBLe
                 }
                 (passPP, accPP, techPP) = GetPp(accuracy, accRating * mp, passRating * mp, techRating * mp);
                 fullPP = Inflate(passPP + accPP + techPP);
-                if ((passPP + accPP + techPP) > 0) {
+                if (passPP + accPP + techPP > 0) {
                     increase = fullPP / (passPP + accPP + techPP);
                 }
             }
@@ -276,7 +277,7 @@ namespace portaBLe
                 }
             }
 
-            return (String.Join(",", modifierArray), multiplier);
+            return (string.Join(",", modifierArray), multiplier);
         }
 
         public static int ScoreForRank(int rank) {
@@ -315,10 +316,10 @@ namespace portaBLe
         public int ModifierId { get; set; }
 
         public float DA { get; set; } = 0.0f;
-        public float FS { get; set; } = 0.20f;
-        public float SF { get; set; } = 0.36f;
-        public float SS { get; set; } = -0.3f;
-        public float GN { get; set; } = 0.04f;
+        public float FS { get; set; } = 0.0f;
+        public float SF { get; set; } = 0.0f;
+        public float SS { get; set; } = 0.0f;
+        public float GN { get; set; } = 0.0f;
         public float NA { get; set; } = -0.3f;
         public float NB { get; set; } = -0.2f;
         public float NF { get; set; } = -0.5f;
@@ -331,10 +332,10 @@ namespace portaBLe
         public static ModifiersMap RankedMap() {
             return new ModifiersMap {
                 DA = 0.0f,
-                FS = 0.20f * 2,
-                SF = 0.36f * 2,
-                SS = -0.3f,
-                GN = 0.04f * 2,
+                FS = 0.0f,
+                SF = 0.0f,
+                SS = 0.0f,
+                GN = 0.0f,
                 NA = -0.3f,
                 NB = -0.2f,
                 NF = -1.0f,
@@ -365,7 +366,7 @@ namespace portaBLe
 
             var dictionary = new Dictionary<string, T>();
             foreach (PropertyDescriptor property in TypeDescriptor.GetProperties(source))
-                AddPropertyToDictionary<T>(property, source, dictionary);
+                AddPropertyToDictionary(property, source, dictionary);
             return dictionary;
         }
 

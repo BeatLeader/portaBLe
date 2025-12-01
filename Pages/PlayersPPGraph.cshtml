@@ -1,0 +1,171 @@
+﻿@page
+@model portaBLe.Pages.PlayersPPGraphModel
+@{
+    ViewData["Title"] = "Players Triangle Graph";
+}
+
+<h2>@ViewData["Title"]</h2>
+
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Filters</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="maxPlayerRank">Max Player Rank</label>
+                                <input id="maxPlayerRank" type="number" class="form-control" value="@Model.MaxPlayerRank" placeholder="0 = unfiltered" />
+                                <small class="form-text text-muted">0 = unfiltered</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="minRankedPlayCount">Min Ranked Play Count</label>
+                                <input id="minRankedPlayCount" type="number" class="form-control" value="@Model.MinRankedPlayCount" />
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="playerId">Player ID (optional)</label>
+                                <input id="playerId" type="text" class="form-control" value="@Model.PlayerId" placeholder="Enter player ID" />
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="colorSelect">Color by:</label>
+                                <select id="colorSelect" class="form-control">
+                                    <option value="AccPP">AccPP</option>
+                                    <option value="TechPP">TechPP</option>
+                                    <option value="PassPP">PassPP</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <button id="applyFilters" class="btn btn-primary">Apply Filters</button>
+                            <div id="spinner" class="spinner-border spinner-border-sm ml-2" role="status" style="display:none;">
+                                <span class="sr-only">Loading...</span>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">3D Player Distribution</h5>
+                    <small class="text-muted">Interactive 3D scatter plot of AccPP, TechPP, and PassPP</small>
+                </div>
+                <div class="card-body">
+                    <div id="myPlot" style="width:100%;height:600px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.plot.ly/plotly-2.29.1.min.js"></script>
+    <script type="text/javascript">
+        let players = @Html.Raw(Model.TriangleJsonData);
+
+        function renderPlot(playersData, colorVariable = 'AccPP') {
+            // Map the selected variable to marker color
+            let colorValues, colorTitle, colorscale;
+            if (colorVariable === 'AccPP') {
+                colorValues = playersData.map(p => Number(p.accPP));
+                colorTitle = 'AccPP';
+                colorscale = 'Viridis';
+            } else if (colorVariable === 'TechPP') {
+                colorValues = playersData.map(p => Number(p.techPP));
+                colorTitle = 'TechPP';
+                colorscale = 'Cividis';
+            } else if (colorVariable === 'PassPP') {
+                colorValues = playersData.map(p => Number(p.passPP));
+                colorTitle = 'PassPP';
+                colorscale = 'Plasma';
+            }
+
+            const trace = {
+                type: 'scatter3d',
+                mode: 'markers',
+                x: playersData.map(p => Number(p.accPP)),
+                y: playersData.map(p => Number(p.techPP)),
+                z: playersData.map(p => Number(p.passPP)),
+                text: playersData.map(p => (p.player || '') + ' (' + (p.id || '') + ')'),
+                customdata: playersData.map(p => [p.accPP, p.techPP, p.passPP]),
+                hovertemplate: 'Player: %{text}<br>AccPP: %{customdata[0]:.2f}<br>TechPP: %{customdata[1]:.2f}<br>PassPP: %{customdata[2]:.2f}<extra></extra>',
+                marker: { 
+                    size: 6,
+                    color: colorValues,
+                    colorscale: colorscale,
+                    cmin: 0,
+                    cmax: Math.max(...colorValues),
+                    colorbar: { title: colorTitle },
+                    opacity: 0.8 }
+            };
+
+            const layout = {
+                scene: {
+                    xaxis: { title: 'AccPP' },
+                    yaxis: { title: 'TechPP' },
+                    zaxis: { title: 'PassPP' }
+                },
+                margin: { t: 10, b: 10, l: 10, r: 10 }
+            };
+
+            const config = { staticPlot: false, displayModeBar: true, responsive: true };
+
+            Plotly.react('myPlot', [trace], layout, config);
+        }
+
+        // Initial render
+        renderPlot(players || []);
+
+        // Dropdown event listener
+        document.getElementById('colorSelect')?.addEventListener('change', function() {
+            const selected = this.value;
+            renderPlot(players, selected);
+        });
+
+        function showSpinner(show) {
+            const spinner = document.getElementById('spinner');
+            if (spinner) spinner.style.display = show ? 'inline-block' : 'none';
+        }
+
+        async function fetchFiltered() {
+            const maxPlayerRank = parseInt(document.getElementById('maxPlayerRank')?.value) || 0;
+            const minRankedPlayCount = parseInt(document.getElementById('minRankedPlayCount')?.value) || 0;
+            const playerId = (document.getElementById('playerId')?.value || '').trim();
+
+            const url = new URL(window.location.href);
+            url.pathname = url.pathname.replace(/\/$/, '');
+            url.search = `?handler=Data&maxPlayerRank=${encodeURIComponent(maxPlayerRank)}&minRankedPlayCount=${encodeURIComponent(minRankedPlayCount)}&playerId=${encodeURIComponent(playerId)}`;
+
+            showSpinner(true);
+            try {
+                const resp = await fetch(url.toString(), { headers: { 'Accept': 'application/json' } });
+                if (!resp.ok) {
+                    console.error('Failed to fetch filtered data');
+                    return;
+                }
+                const json = await resp.json();
+                players = json;
+                renderPlot(players, document.getElementById('colorSelect')?.value || 'AccPP');
+            } finally {
+                showSpinner(false);
+            }
+        }
+
+        document.getElementById('applyFilters')?.addEventListener('click', fetchFiltered);
+    </script>
+}

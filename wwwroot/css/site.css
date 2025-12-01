@@ -20,3 +20,70 @@ html {
 body {
   margin-bottom: 60px;
 }
+
+/* Spinner used by WeightedScoresGraph */
+.spinner-container { display: flex; align-items: center; margin-top: 10px; }
+.spinner { width: 20px; height: 20px; border: 3px solid rgba(0,0,0,0.1); border-top-color: #007bff; border-radius: 50%; animation: spin 1s linear infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* Graph controls layout */
+.graph-controls {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 12px;
+  align-items: start;
+  margin-bottom: 12px;
+  background: #f8f9fa;
+  padding: 12px;
+  border-radius: 6px;
+  border: 1px solid #e6eaef;
+}
+
+.control {
+  display: flex;
+  flex-direction: column;
+}
+
+.control label {
+  font-weight: 600;
+  margin-bottom: 6px;
+  font-size: 0.95rem;
+  color: #333;
+}
+
+.control input[type="number"], .control input[type="text"], .control select {
+  padding: 8px 10px;
+  border-radius: 6px;
+  border: 1px solid #cfd8e3;
+  background: #fff;
+}
+
+.controls-bottom {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  grid-column: 1 / -1;
+}
+
+.apply-button {
+  background: #007bff;
+  color: #fff;
+  border: none;
+  padding: 8px 14px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.apply-button:hover { background: #0069d9; }
+
+.magic-box {
+  margin-top: 8px;
+  padding: 8px 12px;
+  background: #ffffff;
+  border: 1px solid #e6eaef;
+  border-radius: 6px;
+  display: inline-block;
+}
+
+#myPlot { background: #fff; border: 1px solid #e6eaef; border-radius: 6px; }

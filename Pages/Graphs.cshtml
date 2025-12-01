@@ -1,0 +1,62 @@
+﻿@page
+@model portaBLe.Pages.GraphsModel
+@{
+    ViewData["Title"] = "Graphs Menu";
+}
+
+<h2>@ViewData["Title"]</h2>
+
+<div class="container-fluid">
+    <div class="row">
+        @foreach (var link in Model.Links)
+        {
+            <div class="col-md-4 mb-4">
+                <div class="card h-100">
+                    <div class="card-body d-flex flex-column">
+                        <h5 class="card-title">@link.Title</h5>
+                        <p class="card-text text-muted mb-3">
+                            @switch (link.Title)
+                            {
+                                case "Weighted Scores Graph":
+                                    @:Analyze weighted score distribution with weight filtering
+                                    break;
+                                case "Unweighted Scores Graph":
+                                    @:Analyze score distribution and PP progression
+                                    break;
+                                case "Players Triangle Graph":
+                                    @:3D visualization of player stats (AccPP, TechPP, PassPP)
+                                    break;
+                                case "Players Balancing Graphs":
+                                    @:Single player PP balancing analysis
+                                    break;
+                                case "Batch Players Balancing":
+                                    @:Multi-player PP balancing analysis
+                                    break;
+                                case "Database Comparison":
+                                    @:Compare current database with comparison snapshot
+                                    break;
+                                default:
+                                    @:View detailed analytics
+                                    break;
+                            }
+                        </p>
+                        <div class="mt-auto">
+                            <a asp-page="@link.Url" class="btn btn-primary btn-block">Open</a>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        }
+    </div>
+</div>
+
+<style>
+    .card {
+        transition: transform 0.2s, box-shadow 0.2s;
+    }
+    
+    .card:hover {
+        transform: translateY(-5px);
+        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    }
+</style>

@@ -5,8 +5,9 @@ using System.Linq;
 using System.Collections.Concurrent;
 using System.Diagnostics;
 using Z.EntityFramework.Extensions;
+using portaBLe.Refresh;
 
-namespace portaBLe
+namespace portaBLe.DB
 {
     public static class DataImporter
     {

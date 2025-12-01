@@ -6,6 +6,8 @@ using System.Text.Json;
 using Amazon.S3.Model;
 using Amazon;
 using System.Diagnostics;
+using portaBLe.DB;
+using portaBLe.Refresh;
 
 namespace portaBLe
 {
@@ -18,6 +20,19 @@ namespace portaBLe
         public DbSet<Player> Players { get; set; }
         public DbSet<Score> Scores { get; set; }
         public DbSet<Leaderboard> Leaderboards { get; set; }
+        public DbSet<ModifiersRating> ModifiersRating { get; set; }
+    }
+
+    public class ComparisonContext : DbContext
+    {
+        public ComparisonContext(DbContextOptions<ComparisonContext> options)
+            : base(options)
+        { }
+
+        public DbSet<Player> Players { get; set; }
+        public DbSet<Score> Scores { get; set; }
+        public DbSet<Leaderboard> Leaderboards { get; set; }
+        public DbSet<ModifiersRating> ModifiersRating { get; set; }
     }
 
     public class Program
@@ -173,19 +188,39 @@ namespace portaBLe
             return File.ReadAllText(path);
         }
 
+        public static void SetComparisonDBTarget()
+        {
+            var path = Path.Combine(Environment.CurrentDirectory, "wwwroot");
+            var dest = Path.Combine(path, "Comparison.db");
+            path = Path.Combine(path, "Database.db");
+            File.Copy(path, dest, true);
+        }
+
         public static async Task Main(string[] args)
         {
+            // For this to run properly, make sure to target those submodules:
+            // RatingAPI: portaBLe
+            // Analyzer: System.Text.Json
+            // Parser: System.Text.Json
             var builder = WebApplication.CreateBuilder(args);
 
             try {
-                // Remove downloading remote DB if you want to recreate it fresh
-                await DownloadDatabaseIfNeeded(builder.Environment.WebRootPath);
+                // The file current_db_name.txt in wwwroot should contain the S3 key of the current DB
+                // Uncomment to download the DB from S3 if Database.db from wwwroot is missing, this usually take 1-2 minutes
+                // await DownloadDatabaseIfNeeded(builder.Environment.WebRootPath);
 
-                // Store your version of DB in S3 for deploy
-                //await UploadDatabaseAsync($"{builder.Environment.WebRootPath}/Database.db");
+                // Uncomment to upload the local Database.db to S3
+                // await UploadDatabaseAsync($"{builder.Environment.WebRootPath}/Database.db");
+
+                // Uncomment to set the current .db file as comparison target
+                // SetComparisonDBTarget();
 
                 var connectionString = $"Data Source={builder.Environment.WebRootPath}/Database.db;";
                 builder.Services.AddDbContextFactory<AppContext>(options => options.UseSqlite(connectionString));
+                
+                var comparisonConnectionString = $"Data Source={builder.Environment.WebRootPath}/Comparison.db;";
+                builder.Services.AddDbContextFactory<ComparisonContext>(options => options.UseSqlite(comparisonConnectionString));
+                
                 builder.Services.AddRazorPages();
 
                 var app = builder.Build();
@@ -209,8 +244,33 @@ namespace portaBLe
 
                 app.MapRazorPages();
 
-                // JSON zip to Database. Takes 5-20 minutes and 8-15GB of RAM
+                // Import the JSON dump.zip from wwwroot to Database.db. Takes 5-20 minutes and 8-15GB of RAM
                 //await ImportDump(app);
+
+                using (var scope = app.Services.CreateScope())
+                {
+                    var services = scope.ServiceProvider;
+                    var dbContextFactory = services.GetRequiredService<IDbContextFactory<AppContext>>();
+                    var env = services.GetRequiredService<IWebHostEnvironment>();
+                    using var dbContext = dbContextFactory.CreateDbContext();
+
+                    // Uncomment to overwrite ratings with RatingAPI
+                    // await RatingsRefresh.Refresh(dbContext); // 90 minutes average for all ranked maps
+
+                    // Uncomment to run the reweighter 
+                    // Nerf
+                    // await ScoresRefresh.Autoreweight(dbContext); // 30 seconds
+                    // Buff
+                    // await ScoresRefresh.Autoreweight3(dbContext); // 30 seconds
+
+                    // Uncomment to refresh everything with current ratings
+                    // await ScoresRefresh.Refresh(dbContext);// 60 seconds
+                    // await PlayersRefresh.Refresh(dbContext); // 40 seconds
+                    // await LeaderboardsRefresh.RefreshStars(dbContext); // 1 second
+
+                    // Uncomment to update the Megametric
+                    // await LeaderboardsRefresh.Refresh(dbContext); // 20 seconds
+                }
 
                 await app.RunAsync();
             } catch (Exception e) {

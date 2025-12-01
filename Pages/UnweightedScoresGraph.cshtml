@@ -1,0 +1,336 @@
+﻿@page
+@model portaBLe.Pages.UnweightedScoresGraphModel
+@{
+    ViewData["Title"] = "Unweighted Scores Graph";
+}
+
+<h2>@ViewData["Title"]</h2>
+
+<div class="container-fluid">
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Filters</h5>
+                </div>
+                <div class="card-body">
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label>From Date (Y / M / D)</label>
+                                <div class="d-flex gap-2">
+                                    <input id="minYear" type="number" class="form-control" placeholder="Year" value="@Model.MinYear" style="width:100px;" />
+                                    <input id="minMonth" type="number" class="form-control" placeholder="Month" value="@Model.MinMonth" style="width:70px;" />
+                                    <input id="minDay" type="number" class="form-control" placeholder="Day" value="@Model.MinDay" style="width:70px;" />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="maxPlayerRank">Max Player Rank</label>
+                                <input id="maxPlayerRank" type="number" class="form-control" value="@Model.MaxPlayerRank" placeholder="0 = unfiltered" />
+                                <small class="form-text text-muted">0 = unfiltered</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="minRankedPlayCount">Min Ranked Play Count</label>
+                                <input id="minRankedPlayCount" type="number" class="form-control" value="@Model.MinRankedPlayCount" />
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="playerId">Player ID (optional)</label>
+                                <input id="playerId" type="text" class="form-control" value="@Model.PlayerId" placeholder="Enter player ID" />
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="ySelect">Y-axis</label>
+                                <select id="ySelect" class="form-control">
+                                    <option value="pp">Unweighted PP</option>
+                                    <option value="acc">Score Accuracy</option>
+                                    <option value="accPP">Unweighted Acc PP</option>
+                                    <option value="passPP">Unweighted Pass PP</option>
+                                    <option value="techPP">Unweighted Tech PP</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="xSelect">X-axis</label>
+                                <select id="xSelect" class="form-control">
+                                    <option value="x">Stars</option>
+                                    <option value="passRating">Pass Rating</option>
+                                    <option value="techRating">Tech Rating</option>
+                                    <option value="accRating">Acc Rating</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="rollingWindow">Rolling window smoothing (points)</label>
+                                <input id="rollingWindow" type="number" class="form-control" min="1" step="1" value="50" />
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label>&nbsp;</label>
+                                <div class="d-flex align-items-center">
+                                    <button id="applyFilters" class="btn btn-primary">Apply Filters</button>
+                                    <div id="spinner" class="spinner-border spinner-border-sm ms-2" role="status" style="display:none;"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Balance Metric</h5>
+                </div>
+                <div class="card-body">
+                    <div class="d-flex align-items-center">
+                        <span id="magicLabel" class="mr-2">Rolling average value (0 = perfectly linear):</span>
+                        <strong id="magicValue" class="text-primary" style="font-size: 1.2em;">-</strong>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Unweighted Scores Scatter Plot</h5>
+                    <small class="text-muted">Score distribution with rolling average overlay</small>
+                </div>
+                <div class="card-body">
+                    <div id="myPlot" style="width:100%;height:500px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@section Scripts {
+    <script src="https://cdn.plot.ly/plotly-2.29.1.min.js"></script>
+    <script>
+        let data = [];
+
+        function getAxisLabel(field) {
+            switch (field) {
+                case 'x': return 'Stars';
+                case 'pp': return 'Unweighted PP';
+                case 'acc': return 'Score Accuracy';
+                case 'accPP': return 'Unweighted Acc PP';
+                case 'passPP': return 'Unweighted Pass PP';
+                case 'techPP': return 'Unweighted Tech PP';
+                case 'accRating': return 'Acc Rating';
+                case 'passRating': return 'Pass Rating';
+                case 'techRating': return 'Tech Rating';
+                default: return field;
+            }
+        }
+
+        function computeRollingAverage(points, xField, yField, windowSize, maxPoints = 200) {
+            if (!points || points.length === 0) return { xs: [], ys: [] };
+            const pts = points.slice().sort((a, b) => a[xField] - b[xField]);
+            const n = pts.length;
+            const half = Math.floor(windowSize / 2);
+            const xsFull = new Array(n);
+            const ysFull = new Array(n);
+            for (let i = 0; i < n; i++) {
+                const start = Math.max(0, i - half);
+                const end = Math.min(n - 1, i + half);
+                let sum = 0;
+                let count = 0;
+                for (let j = start; j <= end; j++) {
+                    const v = pts[j][yField];
+                    if (v != null && !isNaN(v)) { sum += v; count++; }
+                }
+                xsFull[i] = pts[i][xField];
+                ysFull[i] = count > 0 ? sum / count : null;
+            }
+
+            // Downsample to at most maxPoints to get a smoother line
+            if (n <= maxPoints) return { xs: xsFull, ys: ysFull };
+            const step = Math.ceil(n / maxPoints);
+            const xs = [];
+            const ys = [];
+            for (let i = 0; i < n; i += step) {
+                xs.push(xsFull[i]);
+                ys.push(ysFull[i]);
+            }
+            // ensure last point included
+            if (xs[xs.length - 1] !== xsFull[n - 1]) {
+                xs.push(xsFull[n - 1]); ys.push(ysFull[n - 1]);
+            }
+            return { xs, ys };
+        }
+
+        function linearRegression(xs, ys) {
+            const n = xs.length;
+            let sx = 0, sy = 0, sxx = 0, sxy = 0;
+            let valid = 0;
+            for (let i = 0; i < n; i++) {
+                const x = xs[i], y = ys[i];
+                if (y == null || isNaN(y)) continue;
+                sx += x; sy += y; sxx += x * x; sxy += x * y; valid++;
+            }
+            if (valid === 0) return { m: 0, b: 0 };
+            const denom = valid * sxx - sx * sx;
+            const m = denom === 0 ? 0 : (valid * sxy - sx * sy) / denom;
+            const b = (sy - m * sx) / valid;
+            return { m, b };
+        }
+
+        function computeMagicValue(xs, ys) {
+            // RMSE normalized by y-range; 0 = perfectly linear
+            const n = xs.length;
+            let maxY = -Infinity, minY = Infinity;
+            for (let i = 0; i < n; i++) {
+                const y = ys[i]; if (y == null || isNaN(y)) continue; if (y > maxY) maxY = y; if (y < minY) minY = y;
+            }
+            if (!isFinite(maxY) || !isFinite(minY) || maxY === minY) return 0;
+            const lr = linearRegression(xs, ys);
+            let sumSq = 0, count = 0;
+            for (let i = 0; i < n; i++) {
+                const x = xs[i], y = ys[i]; if (y == null || isNaN(y)) continue;
+                const pred = lr.m * x + lr.b;
+                const diff = y - pred;
+                sumSq += diff * diff; count++;
+            }
+            if (count === 0) return 0;
+            const rmse = Math.sqrt(sumSq / count);
+            const magic = rmse / (maxY - minY);
+            return magic;
+        }
+
+        function renderPlot(points, xField, yField, windowSize) {
+            if (!points || points.length === 0) {
+                Plotly.react('myPlot', [], {
+                    xaxis: { title: getAxisLabel(xField) },
+                    yaxis: { title: getAxisLabel(yField) },
+                    margin: { t: 10, b: 50, l: 50, r: 10 },
+                    annotations: [{
+                        text: 'Click "Apply Filters" to load data',
+                        xref: 'paper',
+                        yref: 'paper',
+                        x: 0.5,
+                        y: 0.5,
+                        showarrow: false,
+                        font: { size: 16, color: 'gray' }
+                    }]
+                });
+                document.getElementById('magicValue').textContent = '-';
+                return;
+            }
+
+            const tracePoints = {
+                x: points.map(p => p[xField]),
+                y: points.map(p => p[yField]),
+                mode: 'markers',
+                type: 'scattergl',
+                marker: { size: 4, color: 'blue', opacity: 0.2 },
+                name: 'Points'
+            };
+
+            const ra = computeRollingAverage(points, xField, yField, windowSize);
+            const traceAvg = {
+                x: ra.xs,
+                y: ra.ys,
+                mode: 'lines',
+                type: 'scattergl',
+                line: { color: 'red', width: 2 },
+                name: `Rolling Avg (${windowSize})`
+            };
+
+            const layout = {
+                xaxis: { title: getAxisLabel(xField) },
+                yaxis: { title: getAxisLabel(yField) },
+                hovermode: 'closest',
+                margin: { t: 10, b: 50, l: 50, r: 10 }
+            };
+            Plotly.react('myPlot', [tracePoints, traceAvg], layout);
+
+            // compute and display magic value
+            const magic = computeMagicValue(ra.xs, ra.ys);
+            const label = `Rolling average for ${getAxisLabel(yField)} vs ${getAxisLabel(xField)} (0 = perfectly linear):`;
+            document.getElementById('magicLabel').textContent = label;
+            document.getElementById('magicValue').textContent = magic.toFixed(4);
+        }
+
+        // initial render with empty data
+        const defaultWindow = parseInt(document.getElementById('rollingWindow').value || '50');
+        renderPlot(data, 'x', 'pp', defaultWindow);
+
+        document.getElementById('xSelect').addEventListener('change', function () {
+            const x = this.value;
+            const y = document.getElementById('ySelect').value;
+            const w = parseInt(document.getElementById('rollingWindow').value || '50');
+            renderPlot(data, x, y, w);
+        });
+
+        document.getElementById('ySelect').addEventListener('change', function () {
+            const x = document.getElementById('xSelect').value;
+            const y = this.value;
+            const w = parseInt(document.getElementById('rollingWindow').value || '50');
+            renderPlot(data, x, y, w);
+        });
+
+        document.getElementById('rollingWindow').addEventListener('change', function () {
+            const x = document.getElementById('xSelect').value;
+            const y = document.getElementById('ySelect').value;
+            const w = parseInt(this.value || '50');
+            renderPlot(data, x, y, w);
+        });
+
+        function showSpinner(show) {
+            document.getElementById('spinner').style.display = show ? 'inline-block' : 'none';
+        }
+
+        async function fetchFiltered() {
+            const minYear = parseInt(document.getElementById('minYear').value) || 0;
+            const minMonth = parseInt(document.getElementById('minMonth').value) || 0;
+            const minDay = parseInt(document.getElementById('minDay').value) || 0;
+            const maxPlayerRank = parseInt(document.getElementById('maxPlayerRank').value) || 0;
+            const minRankedPlayCount = parseInt(document.getElementById('minRankedPlayCount').value) || 0;
+            const playerId = (document.getElementById('playerId').value || '').trim();
+            const x = document.getElementById('xSelect').value;
+            const y = document.getElementById('ySelect').value;
+            const windowSize = parseInt(document.getElementById('rollingWindow').value) || 50;
+
+            const url = new URL(window.location.href);
+            url.pathname = url.pathname.replace(/\/$/, '');
+            url.search = `?handler=Data&minYear=${encodeURIComponent(minYear)}&minMonth=${encodeURIComponent(minMonth)}&minDay=${encodeURIComponent(minDay)}&maxPlayerRank=${encodeURIComponent(maxPlayerRank)}&minRankedPlayCount=${encodeURIComponent(minRankedPlayCount)}&playerId=${encodeURIComponent(playerId)}`;
+
+            showSpinner(true);
+            try {
+                const resp = await fetch(url.toString(), { headers: { 'Accept': 'application/json' } });
+                if (!resp.ok) {
+                    console.error('Failed to fetch filtered data');
+                    return;
+                }
+                const json = await resp.json();
+                data = json;
+                renderPlot(data, x, y, windowSize);
+            } finally {
+                showSpinner(false);
+            }
+        }
+
+        document.getElementById('applyFilters').addEventListener('click', function () {
+            fetchFiltered();
+        });
+    </script>
+    }
+}

@@ -1,6 +1,6 @@
 ﻿using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
-using portaBLe;
+using portaBLe.DB;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
