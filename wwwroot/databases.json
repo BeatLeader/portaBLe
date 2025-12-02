@@ -50,6 +50,16 @@
       "Name": "Date filter (2022) reweighted",
       "FileName": "db-20251202171023-1119.db",
       "Description": "2022 Model, reweighted"
+    },
+    {
+      "Name": "NNmodel, 0.3 accfilter, no reweight",
+      "FileName": "db-20251202191138-1992.db",
+      "Description": "Model without score filter, acc filter by 0.3"
+    },
+    {
+      "Name": "NNmodel, 0.3 accfilter, reweighted",
+      "FileName": "db-20251202192254-6282.db",
+      "Description": "Acc filter by 0.3 model, autoreweighted"
     }
   ]
 }
