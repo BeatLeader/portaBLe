@@ -30,6 +30,16 @@
       "Name": "OOmodel, reweight with buff",
       "FileName": "db-20251201190820-8840.db",
       "Description": "Very old model, autoreweighted with nerf and buff"
+    },
+    {
+      "Name": "New New model, no reweight",
+      "FileName": "db-20251202033531-2178.db",
+      "Description": "Model with a new score filtering"
+    },
+    {
+      "Name": "NNmodel, reweight with buff",
+      "FileName": "db-20251202034404-7097.db",
+      "Description": "New new model, autoreweighted with nerf and buff"
     }
   ]
 }
