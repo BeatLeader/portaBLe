@@ -40,6 +40,16 @@
       "Name": "NNmodel, reweight with buff",
       "FileName": "db-20251202034404-7097.db",
       "Description": "New new model, autoreweighted with nerf and buff"
+    },
+    {
+      "Name": "Date filter (2022) no reweight",
+      "FileName": "db-20251202170245-2531.db",
+      "Description": "Model trained on maps 2022+ and 0.3%"
+    },
+    {
+      "Name": "Date filter (2022) reweighted",
+      "FileName": "db-20251202171023-1119.db",
+      "Description": "2022 Model, reweighted"
     }
   ]
 }
