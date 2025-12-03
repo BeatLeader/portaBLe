@@ -198,9 +198,11 @@ namespace portaBLe
 
         public static async Task Main(string[] args)
         {
+            // Run this line in terminal once to clone submodules:
+            // git submodule update --init --recursive
             // For this to run properly, make sure to target those submodules:
             // RatingAPI: portaBLe
-            // Analyzer: System.Text.Json
+            // Analyzer: portaBLe
             // Parser: System.Text.Json
             var builder = WebApplication.CreateBuilder(args);
 
