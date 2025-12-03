@@ -204,6 +204,7 @@ namespace portaBLe
             // RatingAPI: portaBLe
             // Analyzer: portaBLe
             // Parser: System.Text.Json
+            // Then, compile Parser, then Analyzer, then RatingAPI, then this project in Debug
             var builder = WebApplication.CreateBuilder(args);
 
             try {
