@@ -273,8 +273,14 @@ namespace portaBLe.Pages
                     CurrentStars = current.Stars,
                     ComparisonStars = comparison?.Stars ?? 0,
                     StarsDiff = comparison != null ? comparison.Stars - current.Stars : 0,
+                    CurrentAccRating = current.AccRating,
+                    ComparisonAccRating = comparison?.AccRating ?? 0,
                     AccRatingDiff = comparison != null ? comparison.AccRating - current.AccRating : 0,
+                    CurrentPassRating = current.PassRating,
+                    ComparisonPassRating = comparison?.PassRating ?? 0,
                     PassRatingDiff = comparison != null ? comparison.PassRating - current.PassRating : 0,
+                    CurrentTechRating = current.TechRating,
+                    ComparisonTechRating = comparison?.TechRating ?? 0,
                     TechRatingDiff = comparison != null ? comparison.TechRating - current.TechRating : 0
                 };
             }).ToList();
@@ -414,8 +420,14 @@ namespace portaBLe.Pages
             public float CurrentStars { get; set; }
             public float ComparisonStars { get; set; }
             public float StarsDiff { get; set; }
+            public float CurrentAccRating { get; set; }
+            public float ComparisonAccRating { get; set; }
             public float AccRatingDiff { get; set; }
+            public float CurrentPassRating { get; set; }
+            public float ComparisonPassRating { get; set; }
             public float PassRatingDiff { get; set; }
+            public float CurrentTechRating { get; set; }
+            public float ComparisonTechRating { get; set; }
             public float TechRatingDiff { get; set; }
         }
     }
