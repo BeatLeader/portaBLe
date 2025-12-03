@@ -2,8 +2,13 @@
   "MainDB": 0,
   "Databases": [
     {
+      "Name": "Prod unreweighted",
+      "FileName": "db-20251203202359-5035.db",
+      "Description": "Recalculated ratings with prod algo"
+    },
+    {
       "Name": "Prod",
-      "FileName": "db-20251201145358-6435.db",
+      "FileName": "db-20251203211442-2609.db",
       "Description": "Current production website"
     },
     {
@@ -25,6 +30,16 @@
       "Name": "New 0.5% filter model reweighted",
       "FileName": "db-20251202211809-2776.db",
       "Description": "0.5% acc filtering, reweighted and 15.375 -> 15.65 acc rebalance"
+    },
+    {
+      "Name": "New 0.8% filter model",
+      "FileName": "db-20251203192456-2756.db",
+      "Description": "0.8% acc filtering and 15.375 -> 15.65 acc rebalance"
+    },
+    {
+      "Name": "New 0.8% filter model reweighted",
+      "FileName": "db-20251203193346-7190.db",
+      "Description": "0.8% acc filtering, reweighted and 15.375 -> 15.65 acc rebalance"
     }
   ]
 }
