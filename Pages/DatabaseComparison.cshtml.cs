@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using portaBLe.DB;
 using portaBLe.Services;
+using System.Text;
 using System.Text.Json;
 
 namespace portaBLe.Pages
@@ -193,6 +194,169 @@ namespace portaBLe.Pages
             });
         }
 
+        public async Task<IActionResult> OnGetAllPlayersComparisonAsync(string mainDb = null, string comparisonDb = null, int rankLimit = 1000)
+        {
+            var availableDatabases = await _dbService.GetAvailableDatabasesAsync();
+            
+            var selectedMainDb = mainDb ?? _dbService.GetMainDatabaseFileName();
+            var selectedComparisonDb = comparisonDb ?? availableDatabases.FirstOrDefault(db => db.FileName != selectedMainDb)?.FileName 
+                                       ?? availableDatabases.FirstOrDefault()?.FileName;
+
+            if (selectedMainDb == null || selectedComparisonDb == null)
+            {
+                return new JsonResult(new { error = "Databases not configured" });
+            }
+
+            using var currentDb = (DynamicDbContext)_dbService.CreateContext(selectedMainDb);
+            using var comparisonDbContext = (DynamicDbContext)_dbService.CreateContext(selectedComparisonDb);
+
+            var comparisonPlayers = await comparisonDbContext.Players
+                .Where(p => p.Rank != 0 && p.Rank <= rankLimit)
+                .OrderBy(p => p.Rank)
+                .ToListAsync();
+
+            var currentPlayersDict = await currentDb.Players
+                .Where(p => p.Rank != 0)
+                .ToDictionaryAsync(p => p.Id, p => p);
+
+            var result = comparisonPlayers.Select(comparison =>
+            {
+                var current = currentPlayersDict.GetValueOrDefault(comparison.Id);
+                return new PlayerComparisonResult
+                {
+                    Id = comparison.Id,
+                    Name = comparison.Name,
+                    CurrentRank = current?.Rank ?? 0,
+                    ComparisonRank = comparison.Rank,
+                    RankDiff = current != null ? current.Rank - comparison.Rank : 0,
+                    CurrentPp = current?.Pp ?? 0,
+                    ComparisonPp = comparison.Pp,
+                    PpDiff = current != null ? comparison.Pp - current.Pp : 0,
+                    AccPpDiff = current != null ? comparison.AccPp - current.AccPp : 0,
+                    TechPpDiff = current != null ? comparison.TechPp - current.TechPp : 0,
+                    PassPpDiff = current != null ? comparison.PassPp - current.PassPp : 0
+                };
+            }).ToList();
+
+            return new JsonResult(result);
+        }
+
+        public async Task<IActionResult> OnGetAllMapsComparisonAsync(string mainDb = null, string comparisonDb = null)
+        {
+            var availableDatabases = await _dbService.GetAvailableDatabasesAsync();
+            
+            var selectedMainDb = mainDb ?? _dbService.GetMainDatabaseFileName();
+            var selectedComparisonDb = comparisonDb ?? availableDatabases.FirstOrDefault(db => db.FileName != selectedMainDb)?.FileName 
+                                       ?? availableDatabases.FirstOrDefault()?.FileName;
+
+            if (selectedMainDb == null || selectedComparisonDb == null)
+            {
+                return new JsonResult(new { error = "Databases not configured" });
+            }
+
+            using var currentDb = (DynamicDbContext)_dbService.CreateContext(selectedMainDb);
+            using var comparisonDbContext = (DynamicDbContext)_dbService.CreateContext(selectedComparisonDb);
+
+            var currentMaps = await currentDb.Leaderboards.ToListAsync();
+            var comparisonMapsDict = await comparisonDbContext.Leaderboards
+                .ToDictionaryAsync(l => l.Id, l => l);
+
+            var result = currentMaps.Select(current =>
+            {
+                var comparison = comparisonMapsDict.GetValueOrDefault(current.Id);
+                return new MapComparisonResult
+                {
+                    Id = current.Id,
+                    Name = current.Name,
+                    ModeName = current.ModeName,
+                    DifficultyName = current.DifficultyName,
+                    CurrentStars = current.Stars,
+                    ComparisonStars = comparison?.Stars ?? 0,
+                    StarsDiff = comparison != null ? comparison.Stars - current.Stars : 0,
+                    AccRatingDiff = comparison != null ? comparison.AccRating - current.AccRating : 0,
+                    PassRatingDiff = comparison != null ? comparison.PassRating - current.PassRating : 0,
+                    TechRatingDiff = comparison != null ? comparison.TechRating - current.TechRating : 0
+                };
+            }).ToList();
+
+            return new JsonResult(result);
+        }
+
+        public async Task<IActionResult> OnGetExportPlayersCsvAsync(string mainDb = null, string comparisonDb = null)
+        {
+            var availableDatabases = await _dbService.GetAvailableDatabasesAsync();
+            
+            var selectedMainDb = mainDb ?? _dbService.GetMainDatabaseFileName();
+            var selectedComparisonDb = comparisonDb ?? availableDatabases.FirstOrDefault(db => db.FileName != selectedMainDb)?.FileName 
+                                       ?? availableDatabases.FirstOrDefault()?.FileName;
+
+            if (selectedMainDb == null || selectedComparisonDb == null)
+            {
+                return Content("Error: Databases not configured", "text/plain");
+            }
+
+            using var currentDb = (DynamicDbContext)_dbService.CreateContext(selectedMainDb);
+            using var comparisonDbContext = (DynamicDbContext)_dbService.CreateContext(selectedComparisonDb);
+
+            var comparisonPlayers = await comparisonDbContext.Players
+                .Where(p => p.Rank != 0)
+                .OrderBy(p => p.Rank)
+                .ToListAsync();
+
+            var currentPlayersDict = await currentDb.Players
+                .Where(p => p.Rank != 0)
+                .ToDictionaryAsync(p => p.Id, p => p);
+
+            var csv = new StringBuilder();
+            csv.AppendLine("Name,Rank Difference,PP Difference,AccPP Difference,TechPP Difference,PassPP Difference");
+
+            foreach (var comparison in comparisonPlayers)
+            {
+                var current = currentPlayersDict.GetValueOrDefault(comparison.Id);
+                if (current != null)
+                {
+                    csv.AppendLine($"\"{comparison.Name}\",{current.Rank - comparison.Rank},{comparison.Pp - current.Pp:F2},{comparison.AccPp - current.AccPp:F2},{comparison.TechPp - current.TechPp:F2},{comparison.PassPp - current.PassPp:F2}");
+                }
+            }
+
+            return File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv", $"players_comparison_{selectedMainDb}_vs_{selectedComparisonDb}.csv");
+        }
+
+        public async Task<IActionResult> OnGetExportMapsCsvAsync(string mainDb = null, string comparisonDb = null)
+        {
+            var availableDatabases = await _dbService.GetAvailableDatabasesAsync();
+            
+            var selectedMainDb = mainDb ?? _dbService.GetMainDatabaseFileName();
+            var selectedComparisonDb = comparisonDb ?? availableDatabases.FirstOrDefault(db => db.FileName != selectedMainDb)?.FileName 
+                                       ?? availableDatabases.FirstOrDefault()?.FileName;
+
+            if (selectedMainDb == null || selectedComparisonDb == null)
+            {
+                return Content("Error: Databases not configured", "text/plain");
+            }
+
+            using var currentDb = (DynamicDbContext)_dbService.CreateContext(selectedMainDb);
+            using var comparisonDbContext = (DynamicDbContext)_dbService.CreateContext(selectedComparisonDb);
+
+            var currentMaps = await currentDb.Leaderboards.ToListAsync();
+            var comparisonMapsDict = await comparisonDbContext.Leaderboards
+                .ToDictionaryAsync(l => l.Id, l => l);
+
+            var csv = new StringBuilder();
+            csv.AppendLine("Name,Difficulty,Star Rating Difference,Acc Rating Difference,Pass Rating Difference,Tech Rating Difference,Current Star Rating,Comparison Star Rating");
+
+            foreach (var current in currentMaps)
+            {
+                var comparison = comparisonMapsDict.GetValueOrDefault(current.Id);
+                if (comparison != null)
+                {
+                    csv.AppendLine($"\"{current.Name}\",\"{current.DifficultyName}\",{comparison.Stars - current.Stars:F2},{comparison.AccRating - current.AccRating:F2},{comparison.PassRating - current.PassRating:F2},{comparison.TechRating - current.TechRating:F2},{current.Stars:F2},{comparison.Stars:F2}");
+                }
+            }
+
+            return File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv", $"maps_comparison_{selectedMainDb}_vs_{selectedComparisonDb}.csv");
+        }
+
         public class PlayerComparisonData
         {
             public string Id { get; set; }
@@ -224,6 +388,35 @@ namespace portaBLe.Pages
             public int ComparisonScoreCount { get; set; }
             public int PlayerCountDiff { get; set; }
             public int ScoreCountDiff { get; set; }
+        }
+
+        public class PlayerComparisonResult
+        {
+            public string Id { get; set; }
+            public string Name { get; set; }
+            public int CurrentRank { get; set; }
+            public int ComparisonRank { get; set; }
+            public int RankDiff { get; set; }
+            public float CurrentPp { get; set; }
+            public float ComparisonPp { get; set; }
+            public float PpDiff { get; set; }
+            public float AccPpDiff { get; set; }
+            public float TechPpDiff { get; set; }
+            public float PassPpDiff { get; set; }
+        }
+
+        public class MapComparisonResult
+        {
+            public string Id { get; set; }
+            public string Name { get; set; }
+            public string ModeName { get; set; }
+            public string DifficultyName { get; set; }
+            public float CurrentStars { get; set; }
+            public float ComparisonStars { get; set; }
+            public float StarsDiff { get; set; }
+            public float AccRatingDiff { get; set; }
+            public float PassRatingDiff { get; set; }
+            public float TechRatingDiff { get; set; }
         }
     }
 }

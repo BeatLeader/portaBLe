@@ -7,59 +7,24 @@
       "Description": "Current production website"
     },
     {
-      "Name": "New model, no reweight",
-      "FileName": "db-20251130205540-5354.db",
-      "Description": "Re-trained model, 0.7 -> 0.5. New ratings"
-    },
-    {
-      "Name": "Reweight, only nerf",
-      "FileName": "db-20251130205026-3932.db",
-      "Description": "New ratings, autoreweighted to nerf overweights"
-    },
-    {
-      "Name": "Reweight, with buff",
-      "FileName": "db-20251130205435-5134.db",
-      "Description": "New ratings, autoreweighted on top to buff underweights"
-    },
-    {
-      "Name": "Old Old model, no reweight",
+      "Name": "Old DzRamen model",
       "FileName": "db-20251201185915-5265.db",
-      "Description": "Very old model, no autoreweight"
+      "Description": "Very old model"
     },
     {
-      "Name": "OOmodel, reweight with buff",
+      "Name": "Old DzRamen model reweighted",
       "FileName": "db-20251201190820-8840.db",
-      "Description": "Very old model, autoreweighted with nerf and buff"
+      "Description": "Very old model, reweighted"
     },
     {
-      "Name": "New New model, no reweight",
-      "FileName": "db-20251202033531-2178.db",
-      "Description": "Model with a new score filtering"
+      "Name": "New 0.5% filter model",
+      "FileName": "db-20251202210719-5007.db",
+      "Description": "0.5% acc filtering and 15.375 -> 15.65 acc rebalance"
     },
     {
-      "Name": "NNmodel, reweight with buff",
-      "FileName": "db-20251202034404-7097.db",
-      "Description": "New new model, autoreweighted with nerf and buff"
-    },
-    {
-      "Name": "Date filter (2022) no reweight",
-      "FileName": "db-20251202170245-2531.db",
-      "Description": "Model trained on maps 2022+ and 0.3%"
-    },
-    {
-      "Name": "Date filter (2022) reweighted",
-      "FileName": "db-20251202171023-1119.db",
-      "Description": "2022 Model, reweighted"
-    },
-    {
-      "Name": "NNmodel, 0.3 accfilter, no reweight",
-      "FileName": "db-20251202191138-1992.db",
-      "Description": "Model without score filter, acc filter by 0.3"
-    },
-    {
-      "Name": "NNmodel, 0.3 accfilter, reweighted",
-      "FileName": "db-20251202192254-6282.db",
-      "Description": "Acc filter by 0.3 model, autoreweighted"
+      "Name": "New 0.5% filter model reweighted",
+      "FileName": "db-20251202211809-2776.db",
+      "Description": "0.5% acc filtering, reweighted and 15.375 -> 15.65 acc rebalance"
     }
   ]
 }
