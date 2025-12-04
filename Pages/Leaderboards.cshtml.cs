@@ -18,7 +18,10 @@ namespace portaBLe.Pages
         public string SearchString { get; set; }
 
         [BindProperty(SupportsGet = true)]
-        public bool SortDescending { get; set; }
+        public bool SortDescending { get; set; } = true;
+
+        [BindProperty(SupportsGet = true)]
+        public string SortBy { get; set; } = "Stars";
 
         public LeaderboardsModel(IDynamicDbContextService dbService) : base(dbService)
         {
@@ -37,14 +40,14 @@ namespace portaBLe.Pages
                 leaderboardQuery = leaderboardQuery.Where(l => EF.Functions.Like(l.Name.ToLower(), $"%{SearchString.ToLower()}%"));
             }
 
-            if (SortDescending)
+            // Apply sorting based on SortBy parameter
+            leaderboardQuery = SortBy switch
             {
-                leaderboardQuery = leaderboardQuery.OrderByDescending(l => l.Stars);
-            }
-            else
-            {
-                leaderboardQuery = leaderboardQuery.OrderBy(l => l.Stars);
-            }
+                "PassRating" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.PassRating) : leaderboardQuery.OrderBy(l => l.PassRating),
+                "TechRating" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.TechRating) : leaderboardQuery.OrderBy(l => l.TechRating),
+                "AccRating" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.AccRating) : leaderboardQuery.OrderBy(l => l.AccRating),
+                _ => SortDescending ? leaderboardQuery.OrderByDescending(l => l.Stars) : leaderboardQuery.OrderBy(l => l.Stars),
+            };
 
             int pageSize = 10; // Set the number of items per page
             CurrentPage = currentPage;

@@ -3,9 +3,28 @@
 
 <h2>Leaderboards</h2>
 
-<form method="get">
-    <input type="text" name="SearchString" value="@Model.SearchString" placeholder="Search leaderboards" />
-    <input type="submit" value="Search" />
+<form method="get" class="mb-3" id="leaderboardsForm">
+    <div class="row">
+        <div class="col-md-6">
+            <label for="searchString" class="form-label">Search:</label>
+            <input type="text" name="SearchString" id="searchString" class="form-control" value="@Model.SearchString" placeholder="Search leaderboards" />
+        </div>
+        <div class="col-md-3">
+            <label for="sortBy" class="form-label">Sort By:</label>
+            <select name="SortBy" id="sortBy" class="form-control" onchange="this.form.submit()">
+                <option value="Stars" selected="@(Model.SortBy == "Stars" || string.IsNullOrEmpty(Model.SortBy))">Star Rating</option>
+                <option value="PassRating" selected="@(Model.SortBy == "PassRating")">Pass Rating</option>
+                <option value="TechRating" selected="@(Model.SortBy == "TechRating")">Tech Rating</option>
+                <option value="AccRating" selected="@(Model.SortBy == "AccRating")">Acc Rating</option>
+            </select>
+        </div>
+        @if (!string.IsNullOrEmpty(Model.SearchString))
+        {
+            <div class="col-md-3 d-flex align-items-end">
+                <a asp-page="./Leaderboards" asp-route-sortBy="@Model.SortBy" class="btn btn-secondary">Clear Search</a>
+            </div>
+        }
+    </div>
 </form>
 
 <table class="table">
@@ -13,7 +32,7 @@
         <tr>
             <th>---</th>
             <th>
-                <a asp-page="./Leaderboards" asp-route-sortDescending="@(Model.SortDescending ? "false" : "true")">Stars</a>
+                <a asp-page="./Leaderboards" asp-route-sortBy="@Model.SortBy" asp-route-sortDescending="@(Model.SortDescending ? "false" : "true")" asp-route-searchString="@Model.SearchString">@(Model.SortBy ?? "Stars")</a>
             </th>
             <th>Name</th>
             <th>Diff</th>
@@ -25,7 +44,23 @@
         {
             <tr>
                 <td><img class="lb-cover" src="@leaderboard.Cover" /></td>
-                <td>@leaderboard.Stars</td>
+                <td>
+                    @switch (Model.SortBy)
+                    {
+                        case "PassRating":
+                            @Math.Round(leaderboard.PassRating, 2)
+                            break;
+                        case "TechRating":
+                            @Math.Round(leaderboard.TechRating, 2)
+                            break;
+                        case "AccRating":
+                            @Math.Round(leaderboard.AccRating, 2)
+                            break;
+                        default:
+                            @Math.Round(leaderboard.Stars, 2)
+                            break;
+                    }
+                </td>
                 <td><a asp-page="/Leaderboard" asp-route-id="@leaderboard.Id">@leaderboard.Name</a></td>
                 <td>@leaderboard.DifficultyName</td>
                 <td>@leaderboard.Mapper</td>
@@ -53,7 +88,7 @@
             for (int i = firstPageToShow; i <= lastPageToShow; i++)
             {
                 <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
-                    <a class="page-link" asp-page="./Leaderboards" asp-route-currentPage="@i" asp-route-sortDescending="@Model.SortDescending" asp-route-searchString="@Model.SearchString">@i</a>
+                    <a class="page-link" asp-page="./Leaderboards" asp-route-currentPage="@i" asp-route-sortBy="@Model.SortBy" asp-route-sortDescending="@Model.SortDescending" asp-route-searchString="@Model.SearchString">@i</a>
                 </li>
             }
         }
@@ -66,4 +101,31 @@
         height: 3em;
     }
 </style>
+
+@section Scripts {
+    <script>
+        // Debounce function to avoid too many requests while typing
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // Auto-submit form when search input changes (with debounce)
+        const searchInput = document.getElementById('searchString');
+        if (searchInput) {
+            const debouncedSubmit = debounce(() => {
+                searchInput.form.submit();
+            }, 500); // Wait 500ms after user stops typing
+            
+            searchInput.addEventListener('input', debouncedSubmit);
+        }
+    </script>
+}
 

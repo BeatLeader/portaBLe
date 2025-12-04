@@ -30,7 +30,6 @@
                            class="form-control" 
                            placeholder="Search players by name..." 
                            aria-label="Search players" />
-                    <button type="submit" class="btn btn-primary">Search</button>
                     @if (!string.IsNullOrEmpty(Model.SearchString))
                     {
                         <a asp-page="./Ranking" asp-route-sortBy="@Model.SortBy" class="btn btn-secondary">Clear</a>
@@ -100,3 +99,30 @@
         }
     </ul>
 </nav>
+
+@section Scripts {
+    <script>
+        // Debounce function to avoid too many requests while typing
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // Auto-submit form when search input changes (with debounce)
+        const searchInput = document.getElementById('searchString');
+        if (searchInput) {
+            const debouncedSubmit = debounce(() => {
+                searchInput.form.submit();
+            }, 500); // Wait 500ms after user stops typing
+            
+            searchInput.addEventListener('input', debouncedSubmit);
+        }
+    </script>
+}

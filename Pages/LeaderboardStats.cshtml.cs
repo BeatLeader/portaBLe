@@ -12,7 +12,7 @@ namespace portaBLe.Pages
     {
         public List<Leaderboard> LeaderboardStats { get; set; }
         public string SearchString { get; set; }
-        public string SortBy { get; set; } = "TotalPP";
+        public string SortBy { get; set; } = "Megametric125";
         public bool SortDescending { get; set; } = true;
         public int CurrentPage { get; set; } = 1;
         public int TotalPages { get; set; }
@@ -21,7 +21,7 @@ namespace portaBLe.Pages
         {
         }
 
-        public async Task<IActionResult> OnGetAsync(string searchString, string sortBy = "TotalPP", bool? sortDescending = true, int currentPage = 1, string db = null)
+        public async Task<IActionResult> OnGetAsync(string searchString, string sortBy = "Megametric125", bool? sortDescending = true, int currentPage = 1, string db = null)
         {
             await InitializeDatabaseSelectionAsync(db);
 

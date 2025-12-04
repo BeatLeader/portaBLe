@@ -3,9 +3,10 @@
 
 <h2>Leaderboard Statistics</h2>
 
-<form method="get">
-    <input type="text" name="SearchString" value="@Model.SearchString" placeholder="Search leaderboards" />
-    <input type="submit" value="Search" />
+<form method="get" id="leaderboardStatsForm">
+    <input type="text" name="SearchString" id="searchString" value="@Model.SearchString" placeholder="Search leaderboards" class="form-control" style="max-width: 400px;" />
+    <input type="hidden" name="sortBy" value="@Model.SortBy" />
+    <input type="hidden" name="sortDescending" value="@Model.SortDescending" />
 </form>
 
 <table class="table">
@@ -288,4 +289,19 @@
         border-radius: 4px;
         z-index: 1000;
     }
-</style> 
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('searchString');
+        const form = document.getElementById('leaderboardStatsForm');
+        let debounceTimer;
+
+        searchInput.addEventListener('input', function() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(function() {
+                form.submit();
+            }, 500);
+        });
+    });
+</script> 
