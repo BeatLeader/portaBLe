@@ -5,18 +5,38 @@
 
 <div class="mb-3">
     <form method="get" class="form-inline">
-        <div class="input-group" style="max-width: 500px;">
-            <input type="text" 
-                   name="searchString" 
-                   value="@Model.SearchString" 
-                   class="form-control" 
-                   placeholder="Search players by name..." 
-                   aria-label="Search players" />
-            <button type="submit" class="btn btn-primary">Search</button>
-            @if (!string.IsNullOrEmpty(Model.SearchString))
-            {
-                <a asp-page="./Ranking" class="btn btn-secondary">Clear</a>
-            }
+        @if (!string.IsNullOrEmpty(Model.SelectedDatabase))
+        {
+            <input type="hidden" name="db" value="@Model.SelectedDatabase" />
+        }
+        <div class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label for="sortBy" class="form-label">Sort By:</label>
+                <select name="sortBy" id="sortBy" class="form-select" onchange="this.form.submit()">
+                    <option value="rank" selected="@(Model.SortBy == "rank" || string.IsNullOrEmpty(Model.SortBy))">Player Rank</option>
+                    <option value="topPP" selected="@(Model.SortBy == "topPP")">Top PP</option>
+                    <option value="accPP" selected="@(Model.SortBy == "accPP")">Total Acc PP</option>
+                    <option value="passPP" selected="@(Model.SortBy == "passPP")">Total Pass PP</option>
+                    <option value="techPP" selected="@(Model.SortBy == "techPP")">Total Tech PP</option>
+                </select>
+            </div>
+            <div class="col-auto" style="flex-grow: 1; max-width: 500px;">
+                <label for="searchString" class="form-label">Search:</label>
+                <div class="input-group">
+                    <input type="text" 
+                           name="searchString" 
+                           id="searchString"
+                           value="@Model.SearchString" 
+                           class="form-control" 
+                           placeholder="Search players by name..." 
+                           aria-label="Search players" />
+                    <button type="submit" class="btn btn-primary">Search</button>
+                    @if (!string.IsNullOrEmpty(Model.SearchString))
+                    {
+                        <a asp-page="./Ranking" asp-route-sortBy="@Model.SortBy" class="btn btn-secondary">Clear</a>
+                    }
+                </div>
+            </div>
         </div>
     </form>
     @if (!string.IsNullOrEmpty(Model.SearchString))
@@ -33,7 +53,7 @@
             <th>Rank</th>
             <th>Name</th>
             <th>Country</th>
-            <th>PP</th>
+            <th>@Model.GetSortColumnHeader()</th>
         </tr>
     </thead>
     <tbody>
@@ -44,7 +64,7 @@
                 <td>@player.Rank</td>
                 <td><a asp-page="/Player" asp-route-id="@player.Id">@player.Name</a></td>
                 <td>@player.Country</td>
-                <td>@player.Pp</td>
+                <td>@Model.GetSortColumnValue(player).ToString("F2")</td>
             </tr>
         }
     </tbody>
@@ -72,7 +92,9 @@
                     <a class="page-link" 
                        asp-page="./Ranking" 
                        asp-route-currentPage="@i"
-                       asp-route-searchString="@Model.SearchString">@i</a>
+                       asp-route-searchString="@Model.SearchString"
+                       asp-route-sortBy="@Model.SortBy"
+                       asp-route-db="@Model.SelectedDatabase">@i</a>
                 </li>
             }
         }

@@ -39,10 +39,10 @@ namespace portaBLe.Pages
         }
 
         // Handler for AJAX requests: ?handler=Data
-        public async Task<IActionResult> OnGetDataAsync(string db = null)
+        public async Task<IActionResult> OnGetDataAsync(int maxPlayerRank = 0, int minRankedPlayCount = 0, string playerId = "", string db = null)
         {
             await InitializeDatabaseSelectionAsync(db);
-            var playerPoints = await GetFilteredPointsAsync(MaxPlayerRank, MinRankedPlayCount, PlayerId);
+            var playerPoints = await GetFilteredPointsAsync(maxPlayerRank, minRankedPlayCount, playerId);
             return new JsonResult(playerPoints);
         }
 

@@ -28,9 +28,6 @@
                             <a class="nav-link text-dark db-aware-link" asp-area="" asp-page="/Leaderboards">Leaderboards</a>
                         </li>
                         <li class="nav-item">
-                            <a class="nav-link text-dark db-aware-link" asp-area="" asp-page="/Filters">Filters</a>
-                        </li>
-                        <li class="nav-item">
                             <a class="nav-link text-dark db-aware-link" asp-page="/LeaderboardStats">Leaderboard Stats</a>
                         </li>
                         <li class="nav-item">
@@ -109,10 +106,10 @@
             // Get current URL
             var url = new URL(window.location.href);
             
-            // Update or add the db parameter
+            // Update or add the db parameter (this preserves all other existing query parameters)
             url.searchParams.set('db', dbFileName);
             
-            // Reload the page with the new database parameter
+            // Reload the page with the new database parameter and all existing parameters
             window.location.href = url.toString();
         }
 

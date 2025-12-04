@@ -11,7 +11,11 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-body">
-                    <form method="post">
+                    <form method="get">
+                        @if (!string.IsNullOrEmpty(Model.SelectedDatabase))
+                        {
+                            <input type="hidden" name="db" value="@Model.SelectedDatabase" />
+                        }
                         <div class="row">
                             <div class="col-md-4">
                                 <div class="form-group">
@@ -212,6 +216,14 @@
         // Load saved parameters on page load
         window.addEventListener('DOMContentLoaded', function() {
             loadSavedParameters();
+            
+            // Auto-load graphs if players are loaded and scores exist
+            if (playerIds && playerIds.length > 0 && allScores && allScores.length > 0) {
+                // Give a small delay to ensure DOM is fully ready
+                setTimeout(function() {
+                    recalculateBatch();
+                }, 100);
+            }
         });
 
         function saveParameters() {

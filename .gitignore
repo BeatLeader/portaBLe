@@ -8,3 +8,6 @@ Properties/PublishProfiles/*
 .csproj.user
 wwwroot/*.db
 maps
+/add_autoload.py
+/add_balancing_autoload.py
+/temp_playerspp.txt

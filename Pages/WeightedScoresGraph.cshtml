@@ -1,4 +1,4 @@
-﻿@page
+@page
 @model portaBLe.Pages.WeightedScoresGraphModel
 @{
     ViewData["Title"] = "Weighted Scores Graph";
@@ -319,6 +319,17 @@
             const y = document.getElementById('ySelect').value;
             const windowSize = parseInt(document.getElementById('rollingWindow').value) || 50;
 
+            // Update the browser URL with filter parameters so they persist when switching databases
+            const pageUrl = new URL(window.location.href);
+            pageUrl.searchParams.set('minWeightPercent', minWeight);
+            pageUrl.searchParams.set('minYear', minYear);
+            pageUrl.searchParams.set('minMonth', minMonth);
+            pageUrl.searchParams.set('minDay', minDay);
+            pageUrl.searchParams.set('maxPlayerRank', maxPlayerRank);
+            pageUrl.searchParams.set('minRankedPlayCount', minRankedPlayCount);
+            pageUrl.searchParams.set('playerId', playerId);
+            window.history.replaceState({}, '', pageUrl);
+
             const url = new URL(window.location.href);
             url.pathname = url.pathname.replace(/\/$/, '');
             url.search = `?handler=Data&minWeightPercent=${encodeURIComponent(minWeight)}&minYear=${encodeURIComponent(minYear)}&minMonth=${encodeURIComponent(minMonth)}&minDay=${encodeURIComponent(minDay)}&maxPlayerRank=${encodeURIComponent(maxPlayerRank)}&minRankedPlayCount=${encodeURIComponent(minRankedPlayCount)}&playerId=${encodeURIComponent(playerId)}`;
@@ -341,5 +352,18 @@
         document.getElementById('applyFilters').addEventListener('click', function () {
             fetchFiltered();
         });
+
+        // Auto-load data on page load if filter parameters are present in URL
+        function shouldAutoLoad() {
+            const urlParams = new URLSearchParams(window.location.search);
+            // Check if any filter parameter is set (excluding just 'db')
+            const filterParams = ['minWeightPercent', 'minYear', 'minMonth', 'minDay', 'maxPlayerRank', 'minRankedPlayCount', 'playerId'];
+            return filterParams.some(param => urlParams.has(param) && urlParams.get(param) !== '' && urlParams.get(param) !== '0');
+        }
+
+        // Auto-load on page load if filters are present
+        if (shouldAutoLoad()) {
+            fetchFiltered();
+        }
     </script>
 }

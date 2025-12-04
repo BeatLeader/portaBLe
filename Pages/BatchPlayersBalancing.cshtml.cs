@@ -13,10 +13,10 @@ namespace portaBLe.Pages
         {
         }
 
-        [BindProperty]
+        [BindProperty(SupportsGet = true)]
         public int? MinRank { get; set; }
 
-        [BindProperty]
+        [BindProperty(SupportsGet = true)]
         public int? MaxRank { get; set; }
 
         public List<string> PlayerIds { get; set; }
@@ -24,21 +24,22 @@ namespace portaBLe.Pages
         public int TotalScores { get; set; }
         public List<ScoreData> AllScores { get; set; }
 
-        public async Task<IActionResult> OnGetAsync()
+        public async Task<IActionResult> OnGetAsync(string db = null)
         {
+            await InitializeDatabaseSelectionAsync(db);
+
+            // Auto-load players if rank parameters are present (e.g., when switching databases)
+            if (MinRank.HasValue && MaxRank.HasValue)
+            {
+                return await LoadPlayersAsync();
+            }
+
             // Just show the empty form on GET
             return Page();
         }
 
-        public async Task<IActionResult> OnPostAsync(string db = null)
+        private async Task<IActionResult> LoadPlayersAsync()
         {
-            await InitializeDatabaseSelectionAsync(db);
-
-            if (!MinRank.HasValue || !MaxRank.HasValue)
-            {
-                return Page();
-            }
-
             if (MinRank.Value < 1 || MaxRank.Value < MinRank.Value)
             {
                 ModelState.AddModelError(string.Empty, "Invalid rank range");
@@ -89,6 +90,18 @@ namespace portaBLe.Pages
             TotalScores = AllScores.Count;
 
             return Page();
+        }
+
+        public async Task<IActionResult> OnPostAsync(string db = null)
+        {
+            await InitializeDatabaseSelectionAsync(db);
+
+            if (!MinRank.HasValue || !MaxRank.HasValue)
+            {
+                return Page();
+            }
+
+            return await LoadPlayersAsync();
         }
 
         public async Task<IActionResult> OnPostRecalculateBatchAsync([FromBody] RecalculateBatchRequest request, string db = null)

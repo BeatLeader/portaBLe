@@ -3,7 +3,7 @@
   "Databases": [
     {
       "Name": "Prod unreweighted",
-      "FileName": "db-20251203202359-5035.db",
+      "FileName": "db-20251204142052-9785.db",
       "Description": "Recalculated ratings with prod algo"
     },
     {

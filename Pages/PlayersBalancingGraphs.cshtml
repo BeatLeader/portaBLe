@@ -10,6 +10,10 @@
     <div class="row mb-3">
         <div class="col-md-12">
             <form method="get" class="form-inline">
+                @if (!string.IsNullOrEmpty(Model.SelectedDatabase))
+                {
+                    <input type="hidden" name="db" value="@Model.SelectedDatabase" />
+                }
                 <div class="form-group mr-2">
                     <label for="playerId" class="mr-2">Player ID:</label>
                     <input type="text" class="form-control" id="playerId" name="playerId" value="@Model.PlayerId" placeholder="Enter player ID" />
@@ -225,6 +229,14 @@
         // Load saved parameters on page load
         window.addEventListener('DOMContentLoaded', function() {
             loadSavedParameters();
+            
+            // Auto-load graphs if player is loaded and scores exist
+            if (originalScores && originalScores.length > 0) {
+                // Give a small delay to ensure DOM is fully ready
+                setTimeout(function() {
+                    recalculatePP();
+                }, 100);
+            }
         });
 
         function saveParameters() {
@@ -302,12 +314,9 @@
                 return;
             }
 
-            // Get the current database selection from URL or localStorage
+            // Get the current database selection from URL
             const urlParams = new URLSearchParams(window.location.search);
-            let dbParam = urlParams.get('db');
-            if (!dbParam) {
-                dbParam = localStorage.getItem('portaBLe_selectedDatabase');
-            }
+            const dbParam = urlParams.get('db');
             
             // Build URL with db parameter if present
             let url = '/PlayersBalancingGraphs?handler=Recalculate';
