@@ -219,7 +219,11 @@
             const url = new URL(window.location.href);
             url.pathname = url.pathname.replace(/\/$/, '');
             const dbParam = url.searchParams.get('db');
-            url.search = `?handler=Data&maxPlayerRank=${encodeURIComponent(maxPlayerRank)}&minRankedPlayCount=${encodeURIComponent(minRankedPlayCount)}&playerId=${encodeURIComponent(playerId)}`;
+            url.search = '';
+            url.searchParams.set('handler', 'Data');
+            url.searchParams.set('maxPlayerRank', maxPlayerRank);
+            url.searchParams.set('minRankedPlayCount', minRankedPlayCount);
+            url.searchParams.set('playerId', playerId);
             if (dbParam) url.searchParams.set('db', dbParam);
 
             console.log('Fetching from URL:', url.toString());
