@@ -5,9 +5,19 @@
 
 <form method="get" class="mb-3" id="leaderboardsForm">
     <div class="row">
-        <div class="col-md-6">
+        <div class="col-md-4">
             <label for="searchString" class="form-label">Search:</label>
             <input type="text" name="SearchString" id="searchString" class="form-control" value="@Model.SearchString" placeholder="Search leaderboards" />
+        </div>
+        <div class="col-md-3">
+            <label for="modeName" class="form-label">Characteristic:</label>
+            <select name="ModeName" id="modeName" class="form-control" onchange="this.form.submit()">
+                <option value="">All</option>
+                @foreach (var mode in Model.ModeNames)
+                {
+                    <option value="@mode" selected="@(Model.ModeName == mode)">@mode</option>
+                }
+            </select>
         </div>
         <div class="col-md-3">
             <label for="sortBy" class="form-label">Sort By:</label>
@@ -18,10 +28,10 @@
                 <option value="AccRating" selected="@(Model.SortBy == "AccRating")">Acc Rating</option>
             </select>
         </div>
-        @if (!string.IsNullOrEmpty(Model.SearchString))
+        @if (!string.IsNullOrEmpty(Model.SearchString) || !string.IsNullOrEmpty(Model.ModeName))
         {
-            <div class="col-md-3 d-flex align-items-end">
-                <a asp-page="./Leaderboards" asp-route-sortBy="@Model.SortBy" class="btn btn-secondary">Clear Search</a>
+            <div class="col-md-2 d-flex align-items-end">
+                <a asp-page="./Leaderboards" asp-route-sortBy="@Model.SortBy" class="btn btn-secondary">Clear Filters</a>
             </div>
         }
     </div>
@@ -32,7 +42,7 @@
         <tr>
             <th>---</th>
             <th>
-                <a asp-page="./Leaderboards" asp-route-sortBy="@Model.SortBy" asp-route-sortDescending="@(Model.SortDescending ? "false" : "true")" asp-route-searchString="@Model.SearchString">@(Model.SortBy ?? "Stars")</a>
+                <a asp-page="./Leaderboards" asp-route-sortBy="@Model.SortBy" asp-route-sortDescending="@(Model.SortDescending ? "false" : "true")" asp-route-searchString="@Model.SearchString" asp-route-modeName="@Model.ModeName">@(Model.SortBy ?? "Stars")</a>
             </th>
             <th>Name</th>
             <th>Diff</th>
@@ -88,7 +98,7 @@
             for (int i = firstPageToShow; i <= lastPageToShow; i++)
             {
                 <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
-                    <a class="page-link" asp-page="./Leaderboards" asp-route-currentPage="@i" asp-route-sortBy="@Model.SortBy" asp-route-sortDescending="@Model.SortDescending" asp-route-searchString="@Model.SearchString">@i</a>
+                    <a class="page-link" asp-page="./Leaderboards" asp-route-currentPage="@i" asp-route-sortBy="@Model.SortBy" asp-route-sortDescending="@Model.SortDescending" asp-route-searchString="@Model.SearchString" asp-route-modeName="@Model.ModeName">@i</a>
                 </li>
             }
         }

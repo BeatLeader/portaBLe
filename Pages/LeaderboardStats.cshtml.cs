@@ -12,6 +12,8 @@ namespace portaBLe.Pages
     {
         public List<Leaderboard> LeaderboardStats { get; set; }
         public string SearchString { get; set; }
+        public string ModeName { get; set; }
+        public List<string> ModeNames { get; set; }
         public string SortBy { get; set; } = "Megametric125";
         public bool SortDescending { get; set; } = true;
         public int CurrentPage { get; set; } = 1;
@@ -21,13 +23,20 @@ namespace portaBLe.Pages
         {
         }
 
-        public async Task<IActionResult> OnGetAsync(string searchString, string sortBy = "Megametric125", bool? sortDescending = true, int currentPage = 1, string db = null)
+        public async Task<IActionResult> OnGetAsync(string searchString, string modeName, string sortBy = "Megametric125", bool? sortDescending = true, int currentPage = 1, string db = null)
         {
             await InitializeDatabaseSelectionAsync(db);
 
             using var context = (Services.DynamicDbContext)GetDbContext();
 
+            ModeNames = await context.Leaderboards
+                .Select(l => l.ModeName)
+                .Distinct()
+                .OrderBy(m => m)
+                .ToListAsync();
+
             SearchString = searchString;
+            ModeName = modeName;
             SortBy = sortBy;
             SortDescending = sortDescending ?? true;
             CurrentPage = currentPage;
@@ -38,6 +47,11 @@ namespace portaBLe.Pages
             if (!string.IsNullOrEmpty(SearchString))
             {
                 query = query.Where(l => l.Name.ToLower().Contains(SearchString.ToLower()));
+            }
+
+            if (!string.IsNullOrEmpty(ModeName))
+            {
+                query = query.Where(l => l.ModeName == ModeName);
             }
 
             var totalItems = await query.CountAsync();

@@ -13,6 +13,7 @@ namespace portaBLe.Pages
         public List<Leaderboard> Leaderboards { get; set; }
         public int CurrentPage { get; set; } = 1;
         public int TotalPages { get; set; }
+        public List<string> ModeNames { get; set; }
 
         [BindProperty(SupportsGet = true)]
         public string SearchString { get; set; }
@@ -22,6 +23,9 @@ namespace portaBLe.Pages
 
         [BindProperty(SupportsGet = true)]
         public string SortBy { get; set; } = "Stars";
+
+        [BindProperty(SupportsGet = true)]
+        public string ModeName { get; set; }
 
         public LeaderboardsModel(IDynamicDbContextService dbService) : base(dbService)
         {
@@ -33,11 +37,22 @@ namespace portaBLe.Pages
 
             using var context = (Services.DynamicDbContext)GetDbContext();
 
+            ModeNames = await context.Leaderboards
+                .Select(l => l.ModeName)
+                .Distinct()
+                .OrderBy(m => m)
+                .ToListAsync();
+
             IQueryable<Leaderboard> leaderboardQuery = context.Leaderboards;
 
             if (!string.IsNullOrEmpty(SearchString))
             {
                 leaderboardQuery = leaderboardQuery.Where(l => EF.Functions.Like(l.Name.ToLower(), $"%{SearchString.ToLower()}%"));
+            }
+
+            if (!string.IsNullOrEmpty(ModeName))
+            {
+                leaderboardQuery = leaderboardQuery.Where(l => l.ModeName == ModeName);
             }
 
             // Apply sorting based on SortBy parameter

@@ -4,7 +4,28 @@
 <h2>Leaderboard Statistics</h2>
 
 <form method="get" id="leaderboardStatsForm">
-    <input type="text" name="SearchString" id="searchString" value="@Model.SearchString" placeholder="Search leaderboards" class="form-control" style="max-width: 400px;" />
+    <div class="row mb-3">
+        <div class="col-md-6">
+            <label for="searchString" class="form-label">Search:</label>
+            <input type="text" name="SearchString" id="searchString" value="@Model.SearchString" placeholder="Search leaderboards" class="form-control" />
+        </div>
+        <div class="col-md-4">
+            <label for="modeName" class="form-label">Characteristic:</label>
+            <select name="ModeName" id="modeName" class="form-control" onchange="this.form.submit()">
+                <option value="">All</option>
+                @foreach (var mode in Model.ModeNames)
+                {
+                    <option value="@mode" selected="@(Model.ModeName == mode)">@mode</option>
+                }
+            </select>
+        </div>
+        @if (!string.IsNullOrEmpty(Model.SearchString) || !string.IsNullOrEmpty(Model.ModeName))
+        {
+            <div class="col-md-2 d-flex align-items-end">
+                <a asp-page="./LeaderboardStats" asp-route-sortBy="@Model.SortBy" asp-route-sortDescending="@Model.SortDescending" class="btn btn-secondary">Clear Filters</a>
+            </div>
+        }
+    </div>
     <input type="hidden" name="sortBy" value="@Model.SortBy" />
     <input type="hidden" name="sortDescending" value="@Model.SortDescending" />
 </form>
@@ -17,14 +38,16 @@
                    asp-page="./LeaderboardStats" 
                    asp-route-sortBy="TotalPP" 
                    asp-route-sortDescending="@(Model.SortBy == "TotalPP" && Model.SortDescending ? "false" : "true")" 
-                   asp-route-searchString="@Model.SearchString">Total PP</a>
+                   asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName">Total PP</a>
             </th>
             <th>
                 <a class="sort-header @(Model.SortBy == "Name" ? "active" : "") @(Model.SortBy == "Name" && Model.SortDescending ? "desc" : "asc")"
                    asp-page="./LeaderboardStats" 
                    asp-route-sortBy="Name" 
                    asp-route-sortDescending="@(Model.SortBy == "Name" && Model.SortDescending ? "false" : "true")" 
-                   asp-route-searchString="@Model.SearchString">Name</a>
+                   asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName">Name</a>
             </th>
             <th>
                 <a class="sort-header @(Model.SortBy == "Count" ? "active" : "") @(Model.SortBy == "Count" && Model.SortDescending ? "desc" : "asc")"
@@ -32,6 +55,7 @@
                    asp-route-sortBy="Count" 
                    asp-route-sortDescending="@(Model.SortBy == "Count" && Model.SortDescending ? "false" : "true")" 
                    asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName"
                    data-tooltip="Total number of scores on the leaderboard">Count</a>
             </th>
             <th>
@@ -40,6 +64,7 @@
                    asp-route-sortBy="Count80" 
                    asp-route-sortDescending="@(Model.SortBy == "Count80" && Model.SortDescending ? "false" : "true")" 
                    asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName"
                    data-tooltip="Number of scores with weight for the player >80%">Count >80%</a>
             </th>
             <th>
@@ -48,6 +73,7 @@
                    asp-route-sortBy="Count95" 
                    asp-route-sortDescending="@(Model.SortBy == "Count95" && Model.SortDescending ? "false" : "true")" 
                    asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName"
                    data-tooltip="Number of scores with weight for the player >95%">Count >95%</a>
             </th>
             <th>
@@ -56,6 +82,7 @@
                    asp-route-sortBy="Count80Ratio" 
                    asp-route-sortDescending="@(Model.SortBy == "Count80Ratio" && Model.SortDescending ? "false" : "true")" 
                    asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName"
                    data-tooltip="Count >80% / Count">Count/80</a>
             </th>
             <th>
@@ -64,6 +91,7 @@
                    asp-route-sortBy="Count95Ratio" 
                    asp-route-sortDescending="@(Model.SortBy == "Count95Ratio" && Model.SortDescending ? "false" : "true")" 
                    asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName"
                    data-tooltip="Count >95% / Count">Count/95</a>
             </th>
             <th>
@@ -72,6 +100,7 @@
                    asp-route-sortBy="Count95to80Ratio" 
                    asp-route-sortDescending="@(Model.SortBy == "Count95to80Ratio" && Model.SortDescending ? "false" : "true")" 
                    asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName"
                    data-tooltip="Count >95% / Count >80%">95/80</a>
             </th>
             <th>
@@ -80,6 +109,7 @@
                    asp-route-sortBy="Average" 
                    asp-route-sortDescending="@(Model.SortBy == "Average" && Model.SortDescending ? "false" : "true")" 
                    asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName"
                    data-tooltip="Average weights of all scores on the leaderboard">Average</a>
             </th>
             <th>
@@ -88,6 +118,7 @@
                    asp-route-sortBy="Percentile" 
                    asp-route-sortDescending="@(Model.SortBy == "Percentile" && Model.SortDescending ? "false" : "true")" 
                    asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName"
                    data-tooltip="Average weights of top 1/3 of leaderboard">Percentile</a>
             </th>
             <th>
@@ -96,6 +127,7 @@
                    asp-route-sortBy="Megametric" 
                    asp-route-sortDescending="@(Model.SortBy == "Megametric" && Model.SortDescending ? "false" : "true")" 
                    asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName"
                    data-tooltip="(score PP / player's top PP) * score Weight of top 1/3">Megametric</a>
             </th>
             <th>
@@ -104,6 +136,7 @@
                    asp-route-sortBy="Megametric125" 
                    asp-route-sortDescending="@(Model.SortBy == "Megametric125" && Model.SortDescending ? "false" : "true")" 
                    asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName"
                    data-tooltip="Megametric but for scores from players with >125 ranked plays">Megametric125</a>
             </th>
             <th>
@@ -112,6 +145,7 @@
                    asp-route-sortBy="Megametric75" 
                    asp-route-sortDescending="@(Model.SortBy == "Megametric75" && Model.SortDescending ? "false" : "true")" 
                    asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName"
                    data-tooltip="Megametric but for scores from players with >75 ranked plays">Megametric75</a>
             </th>
             <th>
@@ -120,6 +154,7 @@
                    asp-route-sortBy="Megametric40" 
                    asp-route-sortDescending="@(Model.SortBy == "Megametric40" && Model.SortDescending ? "false" : "true")" 
                    asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName"
                    data-tooltip="Megametric but for scores from players with >40 ranked plays">Megametric40</a>
             </th>
             <th>
@@ -128,6 +163,7 @@
                    asp-route-sortBy="Top250" 
                    asp-route-sortDescending="@(Model.SortBy == "Top250" && Model.SortDescending ? "false" : "true")" 
                    asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName"
                    data-tooltip="Scores from top250 players on their top 5 pages">Top250</a>
             </th>
             <th>
@@ -136,6 +172,7 @@
                    asp-route-sortBy="PPRatioFiltered" 
                    asp-route-sortDescending="@(Model.SortBy == "PPRatioFiltered" && Model.SortDescending ? "false" : "true")" 
                    asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName"
                    data-tooltip="Average score PP / player's top PP for players with 50 or more ranked plays">PP/topPP filtered</a>
             </th>
             <th>
@@ -144,6 +181,7 @@
                    asp-route-sortBy="PPRatioUnfiltered" 
                    asp-route-sortDescending="@(Model.SortBy == "PPRatioUnfiltered" && Model.SortDescending ? "false" : "true")" 
                    asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName"
                    data-tooltip="Average score PP / player's top PP">PP/topPP unfiltered</a>
             </th>
             <th>
@@ -151,21 +189,24 @@
                    asp-page="./LeaderboardStats" 
                    asp-route-sortBy="AccRating" 
                    asp-route-sortDescending="@(Model.SortBy == "AccRating" && Model.SortDescending ? "false" : "true")" 
-                   asp-route-searchString="@Model.SearchString">Acc Rating</a>
+                   asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName">Acc Rating</a>
             </th>
             <th>
                 <a class="sort-header @(Model.SortBy == "PassRating" ? "active" : "") @(Model.SortBy == "PassRating" && Model.SortDescending ? "desc" : "asc")"
                    asp-page="./LeaderboardStats" 
                    asp-route-sortBy="PassRating" 
                    asp-route-sortDescending="@(Model.SortBy == "PassRating" && Model.SortDescending ? "false" : "true")" 
-                   asp-route-searchString="@Model.SearchString">Pass Rating</a>
+                   asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName">Pass Rating</a>
             </th>
             <th>
                 <a class="sort-header @(Model.SortBy == "TechRating" ? "active" : "") @(Model.SortBy == "TechRating" && Model.SortDescending ? "desc" : "asc")"
                    asp-page="./LeaderboardStats" 
                    asp-route-sortBy="TechRating" 
                    asp-route-sortDescending="@(Model.SortBy == "TechRating" && Model.SortDescending ? "false" : "true")" 
-                   asp-route-searchString="@Model.SearchString">Tech Rating</a>
+                   asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName">Tech Rating</a>
             </th>
         </tr>
     </thead>
@@ -221,7 +262,8 @@
                        asp-route-currentPage="@i" 
                        asp-route-sortBy="@Model.SortBy"
                        asp-route-sortDescending="@Model.SortDescending" 
-                       asp-route-searchString="@Model.SearchString">@i</a>
+                       asp-route-searchString="@Model.SearchString"
+                       asp-route-modeName="@Model.ModeName">@i</a>
                 </li>
             }
         }
