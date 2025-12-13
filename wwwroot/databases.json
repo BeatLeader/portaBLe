@@ -40,6 +40,16 @@
       "Name": "New ai model/Pass rework/Reweighted",
       "FileName": "db-20251205034837-5123.db",
       "Description": "Analyzer pass rating rework, reweighted"
+    },
+    {
+      "Name": "Dev Unreweighted",
+      "FileName": "db-20251213063026-2955.db",
+      "Description": "dev"
+    },
+    {
+      "Name": "Dev Reweighted",
+      "FileName": "db-20251213064245-5057.db",
+      "Description": "dev"
     }
   ]
 }
