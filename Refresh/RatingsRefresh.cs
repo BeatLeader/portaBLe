@@ -35,7 +35,7 @@ namespace portaBLe.Refresh
 
             var controller = new RatingsController(configuration, logger);
 
-            var lbs = dbContext.Leaderboards.Include(lb => lb.ModifiersRating).ToList();
+            var lbs = dbContext.Leaderboards.Include(lb => lb.ModifiersRating).Include(lb => lb.AccCurve).ToList();
             foreach (var lb in lbs)
             {
                 try
@@ -44,31 +44,40 @@ namespace portaBLe.Refresh
 
                     lb.PassRating = (float)response["none"].LackMapCalculation.PassRating;
                     lb.TechRating = (float)response["none"].LackMapCalculation.TechRating;
-                    lb.PredictedAcc = (float)response["none"].PredictedAcc;
-                    lb.AccRating = (float)response["none"].AccRating;
-                    lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating);
+                    // lb.PredictedAcc = (float)response["none"].PredictedAcc;
+                    // lb.AccRating = (float)response["none"].AccRating;
+                    var pointList = response["none"].PointList;
+                    
+                    // Clear existing AccCurve entries
+                    if (lb.AccCurve != null)
+                    {
+                        dbContext.Points.RemoveRange(lb.AccCurve);
+                    }
+                    
+                    lb.AccCurve = pointList.Select(p => new DB.Point { X = p.x, Y = p.y, LeaderboardId = lb.Id}).ToList();
+                    lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.AccCurve.ToList());   
 
                     var modrating = lb.ModifiersRating = new ModifiersRating
                     {
                         SSPassRating = (float)response["SS"].LackMapCalculation.PassRating,
                         SSTechRating = (float)response["SS"].LackMapCalculation.TechRating,
-                        SSPredictedAcc = (float)response["SS"].PredictedAcc,
-                        SSAccRating = (float)response["SS"].AccRating,
+                        // SSPredictedAcc = (float)response["SS"].PredictedAcc,
+                        // SSAccRating = (float)response["SS"].AccRating,
 
                         FSPassRating = (float)response["FS"].LackMapCalculation.PassRating,
                         FSTechRating = (float)response["FS"].LackMapCalculation.TechRating,
-                        FSPredictedAcc = (float)response["FS"].PredictedAcc,
-                        FSAccRating = (float)response["FS"].AccRating,
+                        // FSPredictedAcc = (float)response["FS"].PredictedAcc,
+                        // FSAccRating = (float)response["FS"].AccRating,
 
                         SFPassRating = (float)response["SFS"].LackMapCalculation.PassRating,
                         SFTechRating = (float)response["SFS"].LackMapCalculation.TechRating,
-                        SFPredictedAcc = (float)response["SFS"].PredictedAcc,
-                        SFAccRating = (float)response["SFS"].AccRating,
+                        // SFPredictedAcc = (float)response["SFS"].PredictedAcc,
+                        // SFAccRating = (float)response["SFS"].AccRating,
                     };
 
-                    modrating.SFStars = ReplayUtils.ToStars(modrating.SFAccRating, modrating.SFPassRating, modrating.SFTechRating);
-                    modrating.FSStars = ReplayUtils.ToStars(modrating.FSAccRating, modrating.FSPassRating, modrating.FSTechRating);
-                    modrating.SSStars = ReplayUtils.ToStars(modrating.SSAccRating, modrating.SSPassRating, modrating.SSTechRating);
+                    modrating.SFStars = ReplayUtils.ToStars(modrating.SFAccRating, modrating.SFPassRating, modrating.SFTechRating, lb.AccCurve.ToList());
+                    modrating.FSStars = ReplayUtils.ToStars(modrating.FSAccRating, modrating.FSPassRating, modrating.FSTechRating, lb.AccCurve.ToList());
+                    modrating.SSStars = ReplayUtils.ToStars(modrating.SSAccRating, modrating.SSPassRating, modrating.SSTechRating, lb.AccCurve.ToList());
                 }
                 catch (Exception e)
                 {

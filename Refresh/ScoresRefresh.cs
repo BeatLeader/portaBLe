@@ -1,4 +1,5 @@
 ﻿using Dasync.Collections;
+using Microsoft.EntityFrameworkCore;
 using portaBLe.DB;
 
 namespace portaBLe.Refresh
@@ -10,12 +11,16 @@ namespace portaBLe.Refresh
             dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
 
             var allLeaderboards = dbContext.Leaderboards
+                .Include(lb => lb.AccCurve)
+                .Include(lb => lb.Scores)
+                .AsEnumerable()
                 .Select(lb => new {
                     lb.AccRating,
                     lb.PassRating,
                     lb.TechRating,
                     lb.ModifiersRating,
-                    Scores = lb.Scores.Select(s => new {s.Id, s.LeaderboardId, s.Accuracy, s.Modifiers })
+                    AccCurve = lb.AccCurve.ToList(),
+                    Scores = lb.Scores.Select(s => new {s.Id, s.LeaderboardId, s.Accuracy, s.Modifiers }).ToList()
                 }).ToAsyncEnumerable();
 
             List<Score> newTotalScores = new();
@@ -30,7 +35,8 @@ namespace portaBLe.Refresh
                         leaderboard.ModifiersRating,
                         leaderboard.AccRating,
                         leaderboard.PassRating,
-                        leaderboard.TechRating);
+                        leaderboard.TechRating,
+                        leaderboard.AccCurve);
 
                     if (float.IsNaN(pp))
                     {

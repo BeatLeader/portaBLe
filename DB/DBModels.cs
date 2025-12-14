@@ -3,6 +3,14 @@ using System.ComponentModel.DataAnnotations.Schema;
 
 namespace portaBLe.DB
 {
+    public class Point
+    {
+        public int Id { get; set; }
+        public double X { get; set; }
+        public double Y { get; set; }
+        public string LeaderboardId { get; set; }
+        public Leaderboard Leaderboard { get; set; }
+    }
     public class Player
     {
         [StringLength(25, MinimumLength = 0)]
@@ -92,7 +100,7 @@ namespace portaBLe.DB
         public float PassRating { get; set; }
         public float AccRating { get; set; }
         public float TechRating { get; set; }
-
+        public ICollection<Point> AccCurve { get; set; }
         public float PredictedAcc { get; set; }
         public ModifiersRating? ModifiersRating { get; set; }
         public ICollection<Score> Scores { get; set; }

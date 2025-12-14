@@ -9,3 +9,4 @@ Properties/PublishProfiles/*
 wwwroot/Database.*
 maps
 /wwwroot/Comparison.db
+*.db

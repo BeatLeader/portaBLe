@@ -34,7 +34,7 @@
         public float PassRating { get; set; }
         public float AccRating { get; set; }
         public float TechRating { get; set; }
-
+        public List<Point> AccCurve { get; set; }
         public float PredictedAcc { get; set; }
         public ModifiersRating? ModifiersRating { get; set; }
     }

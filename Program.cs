@@ -20,7 +20,7 @@ namespace portaBLe
         public DbSet<Player> Players { get; set; }
         public DbSet<Score> Scores { get; set; }
         public DbSet<Leaderboard> Leaderboards { get; set; }
-        public DbSet<ModifiersRating> ModifiersRating { get; set; }
+        public DbSet<DB.Point> Points { get; set; }
     }
 
     public class ComparisonContext : DbContext
@@ -32,7 +32,7 @@ namespace portaBLe
         public DbSet<Player> Players { get; set; }
         public DbSet<Score> Scores { get; set; }
         public DbSet<Leaderboard> Leaderboards { get; set; }
-        public DbSet<ModifiersRating> ModifiersRating { get; set; }
+        public DbSet<DB.Point> Points { get; set; }
     }
 
     public class Program
@@ -56,11 +56,43 @@ namespace portaBLe
             {
                 var services = scope.ServiceProvider;
                 var dbContext = services.GetRequiredService<AppContext>();
-                dbContext.Database.EnsureCreated();
-
-                try {
+                
+                // Check if database exists
+                bool dbExists = dbContext.Database.CanConnect();
+                
+                if (!dbExists)
+                {
+                    // For new databases, use Migrate to apply all migrations
                     dbContext.Database.Migrate();
-                } catch { }
+                }
+                else
+                {
+                    // For existing databases created with EnsureCreated(), 
+                    // manually ensure the Points table exists without running migrations
+                    try
+                    {
+                        // Try to query the Points table to see if it exists
+                        dbContext.Points.Any();
+                    }
+                    catch
+                    {
+                        // Points table doesn't exist, create it manually
+                        dbContext.Database.ExecuteSqlRaw(@"
+                            CREATE TABLE IF NOT EXISTS ""Points"" (
+                                ""Id"" INTEGER NOT NULL CONSTRAINT ""PK_Points"" PRIMARY KEY AUTOINCREMENT,
+                                ""X"" REAL NOT NULL,
+                                ""Y"" REAL NOT NULL,
+                                ""LeaderboardId"" TEXT NOT NULL,
+                                CONSTRAINT ""FK_Points_Leaderboards_LeaderboardId"" FOREIGN KEY (""LeaderboardId"") REFERENCES ""Leaderboards"" (""Id"") ON DELETE CASCADE
+                            );
+                            
+                            CREATE INDEX IF NOT EXISTS ""IX_Points_LeaderboardId"" ON ""Points"" (""LeaderboardId"");
+                        ");
+                    }
+                    
+                    // Don't call Migrate() for databases created with EnsureCreated()
+                    // as they don't have __EFMigrationsHistory table
+                }
             }
         }
 
@@ -263,16 +295,19 @@ namespace portaBLe
                     // Uncomment to run the reweighter 
                     // Nerf
                     // await ScoresRefresh.Autoreweight(dbContext); // 30 seconds
+
                     // Buff
                     // await ScoresRefresh.Autoreweight3(dbContext); // 30 seconds
 
                     // Uncomment to refresh everything with current ratings
-                    // await ScoresRefresh.Refresh(dbContext);// 60 seconds
-                    // await PlayersRefresh.Refresh(dbContext); // 40 seconds
-                    // await LeaderboardsRefresh.RefreshStars(dbContext); // 1 second
+                    /*
+                    await ScoresRefresh.Refresh(dbContext);// 60 seconds
+                    await PlayersRefresh.Refresh(dbContext); // 40 seconds
+                    await LeaderboardsRefresh.RefreshStars(dbContext); // 1 second
 
                     // Uncomment to update the Megametric
-                    // await LeaderboardsRefresh.Refresh(dbContext); // 20 seconds
+                    await LeaderboardsRefresh.Refresh(dbContext); // 20 seconds
+                    */
                 }
 
                 await app.RunAsync();

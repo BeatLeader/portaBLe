@@ -92,12 +92,12 @@ namespace portaBLe.Refresh
             return (float)(pointList[i-1].Item2 + middle_dis * (pointList[i].Item2 - pointList[i-1].Item2));
         }
 
-        public static float Curve2(float acc)
+        public static float Curve2(float acc, List<Point> accCurve)
         {
             int i = 0;
-            for (; i < pointList2.Count; i++)
+            for (; i < accCurve.Count; i++)
             {
-                if (pointList2[i].Item1 <= acc) {
+                if (accCurve[i].X <= acc) {
                     break;
                 }
             }
@@ -105,9 +105,9 @@ namespace portaBLe.Refresh
             if (i == 0) {
                 i = 1;
             }
-    
-            double middle_dis = (acc - pointList2[i-1].Item1) / (pointList2[i].Item1 - pointList2[i-1].Item1);
-            return (float)(pointList2[i-1].Item2 + middle_dis * (pointList2[i].Item2 - pointList2[i-1].Item2));
+
+            double middle_dis = (acc - accCurve[i-1].X) / (accCurve[i].X - accCurve[i-1].X);
+            return (float)(accCurve[i-1].Y + middle_dis * (accCurve[i].Y - accCurve[i-1].Y));
         }
 
         public static float AccRating(float? predictedAcc, float? passRating, float? techRating) {
@@ -128,21 +128,21 @@ namespace portaBLe.Refresh
             return 650f * MathF.Pow(peepee, 1.3f) / MathF.Pow(650f, 1.3f);
         }
 
-        private static (float, float, float) GetPp(float accuracy, float accRating, float passRating, float techRating) {
+        private static (float, float, float) GetPp(float accuracy, float accRating, float passRating, float techRating, List<Point> accCurve) {
 
             float passPP = 15.2f * MathF.Exp(MathF.Pow(passRating, 1 / 2.62f)) - 30f;
             if (float.IsInfinity(passPP) || float.IsNaN(passPP) || float.IsNegativeInfinity(passPP) || passPP < 0)
             {
                 passPP = 0;
             }
-            float accPP = Curve2(accuracy) * accRating * 34f;
+            float accPP = Curve2(accuracy, accCurve) * accRating * 34f;
             float techPP = MathF.Exp(1.9f * accuracy) * 1.08f * techRating;
             
             return (passPP, accPP, techPP);
         }
 
-        public static float ToStars(float accRating, float passRating, float techRating) {
-            (float passPP, float accPP, float techPP) = GetPp(0.96f, accRating, passRating, techRating);
+        public static float ToStars(float accRating, float passRating, float techRating, List<Point> accCurve) {
+            (float passPP, float accPP, float techPP) = GetPp(0.96f, accRating, passRating, techRating, accCurve);
 
             return Inflate(passPP + accPP + techPP) / 52f;
         }
@@ -153,7 +153,8 @@ namespace portaBLe.Refresh
             ModifiersRating? modifiersRating,
             float accRating, 
             float passRating, 
-            float techRating)
+            float techRating,
+            List<Point> accCurve)
         {
             if (accuracy <= 0 || accuracy > 1) return (0, 0, 0, 0, 0);
 
@@ -166,7 +167,7 @@ namespace portaBLe.Refresh
             float rawPP = 0; float fullPP = 0; float passPP = 0; float accPP = 0; float techPP = 0; float increase = 0; 
             if (!modifiers.Contains("NF"))
             {
-                (passPP, accPP, techPP) = GetPp(accuracy, accRating, passRating, techRating);
+                (passPP, accPP, techPP) = GetPp(accuracy, accRating, passRating, techRating, accCurve);
                         
                 rawPP = Inflate(passPP + accPP + techPP);
                 if (modifiersRating != null) {
@@ -182,7 +183,7 @@ namespace portaBLe.Refresh
                         }
                     }
                 }
-                (passPP, accPP, techPP) = GetPp(accuracy, accRating * mp, passRating * mp, techRating * mp);
+                (passPP, accPP, techPP) = GetPp(accuracy, accRating * mp, passRating * mp, techRating * mp, accCurve);
                 fullPP = Inflate(passPP + accPP + techPP);
                 if (passPP + accPP + techPP > 0) {
                     increase = fullPP / (passPP + accPP + techPP);
