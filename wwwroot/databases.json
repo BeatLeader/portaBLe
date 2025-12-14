@@ -60,6 +60,16 @@
       "Name": "Dev 2 Reweighted",
       "FileName": "db-20251214151130-8686.db",
       "Description": "dev2"
+    },
+    {
+      "Name": "Dev 3 Unreweighted",
+      "FileName": "db-20251214152428-9329.db",
+      "Description": "dev3"
+    },
+    {
+      "Name": "Dev 3 Reweighted",
+      "FileName": "db-20251214153226-7715.db",
+      "Description": "dev3"
     }
   ]
 }
