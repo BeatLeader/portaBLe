@@ -56,11 +56,20 @@ namespace portaBLe
             {
                 var services = scope.ServiceProvider;
                 var dbContext = services.GetRequiredService<AppContext>();
-                dbContext.Database.EnsureCreated();
-
-                try {
-                    dbContext.Database.Migrate();
-                } catch { }
+                
+                var pendingMigrations = dbContext.Database.GetPendingMigrations();
+                if (pendingMigrations.Any())
+                {
+                    try {
+                        dbContext.Database.Migrate();
+                    } catch (Exception ex) {
+                        Console.WriteLine($"Migration failed (this may be expected): {ex.Message}");
+                    }
+                }
+                else
+                {
+                    dbContext.Database.EnsureCreated();
+                }
             }
         }
 
@@ -213,7 +222,7 @@ namespace portaBLe
                 // await DownloadDatabaseIfNeeded(builder.Environment.WebRootPath);
 
                 // Uncomment to upload the local Database.db to S3
-                // await UploadDatabaseAsync($"{builder.Environment.WebRootPath}/Database.db");
+                await UploadDatabaseAsync($"{builder.Environment.WebRootPath}/Database.db");
 
                 // Uncomment to set the current .db file as comparison target
                 // SetComparisonDBTarget();
@@ -258,7 +267,9 @@ namespace portaBLe
                     using var dbContext = dbContextFactory.CreateDbContext();
 
                     // Uncomment to overwrite ratings with RatingAPI
-                    // await RatingsRefresh.Refresh(dbContext); // 90 minutes average for all ranked maps
+                    // await RatingsRefresh.Overwrite(dbContext); // 90 minutes average for all ranked maps
+                    // Uncomment to recalculate ratings after changing ReplayUtils.
+                    // await RatingsRefresh.Refresh(dbContext);
 
                     // Uncomment to run the reweighter 
                     // Nerf
@@ -267,12 +278,15 @@ namespace portaBLe
                     // await ScoresRefresh.Autoreweight3(dbContext); // 30 seconds
 
                     // Uncomment to refresh everything with current ratings
+
+
                     // await ScoresRefresh.Refresh(dbContext);// 60 seconds
                     // await PlayersRefresh.Refresh(dbContext); // 40 seconds
                     // await LeaderboardsRefresh.RefreshStars(dbContext); // 1 second
 
                     // Uncomment to update the Megametric
                     // await LeaderboardsRefresh.Refresh(dbContext); // 20 seconds
+
                 }
 
                 await app.RunAsync();

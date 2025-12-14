@@ -19,7 +19,7 @@ namespace portaBLe.Refresh
             }
         }
 
-        public static async Task Refresh(AppContext dbContext)
+        public static async Task Overwrite(AppContext dbContext)
         {
             var configDictionary = new Dictionary<string, string>
             {
@@ -44,31 +44,57 @@ namespace portaBLe.Refresh
 
                     lb.PassRating = (float)response["none"].LackMapCalculation.PassRating;
                     lb.TechRating = (float)response["none"].LackMapCalculation.TechRating;
-                    lb.PredictedAcc = (float)response["none"].PredictedAcc;
-                    lb.AccRating = (float)response["none"].AccRating;
+                    // lb.PredictedAcc = (float)response["none"].PredictedAcc;
+                    // lb.AccRating = (float)response["none"].AccRating;
                     lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating);
 
-                    var modrating = lb.ModifiersRating = new ModifiersRating
-                    {
-                        SSPassRating = (float)response["SS"].LackMapCalculation.PassRating,
-                        SSTechRating = (float)response["SS"].LackMapCalculation.TechRating,
-                        SSPredictedAcc = (float)response["SS"].PredictedAcc,
-                        SSAccRating = (float)response["SS"].AccRating,
+                    lb.ModifiersRating.SSPassRating = (float)response["SS"].LackMapCalculation.PassRating;
+                    lb.ModifiersRating.SSTechRating = (float)response["SS"].LackMapCalculation.TechRating;
+                    // lb.ModifiersRating.SSPredictedAcc = (float)response["SS"].PredictedAcc;
+                    // lb.ModifiersRating.SSAccRating = (float)response["SS"].AccRating;
 
-                        FSPassRating = (float)response["FS"].LackMapCalculation.PassRating,
-                        FSTechRating = (float)response["FS"].LackMapCalculation.TechRating,
-                        FSPredictedAcc = (float)response["FS"].PredictedAcc,
-                        FSAccRating = (float)response["FS"].AccRating,
+                    lb.ModifiersRating.FSPassRating = (float)response["FS"].LackMapCalculation.PassRating;
+                    lb.ModifiersRating.FSTechRating = (float)response["FS"].LackMapCalculation.TechRating;
+                    // lb.ModifiersRating.FSPredictedAcc = (float)response["FS"].PredictedAcc;
+                    // lb.ModifiersRating.FSAccRating = (float)response["FS"].AccRating;
 
-                        SFPassRating = (float)response["SFS"].LackMapCalculation.PassRating,
-                        SFTechRating = (float)response["SFS"].LackMapCalculation.TechRating,
-                        SFPredictedAcc = (float)response["SFS"].PredictedAcc,
-                        SFAccRating = (float)response["SFS"].AccRating,
-                    };
+                    lb.ModifiersRating.SFPassRating = (float)response["SFS"].LackMapCalculation.PassRating;
+                    lb.ModifiersRating.SFTechRating = (float)response["SFS"].LackMapCalculation.TechRating;
+                    // lb.ModifiersRating.SFPredictedAcc = (float)response["SFS"].PredictedAcc;
+                    // lb.ModifiersRating.SFAccRating = (float)response["SFS"].AccRating;
 
-                    modrating.SFStars = ReplayUtils.ToStars(modrating.SFAccRating, modrating.SFPassRating, modrating.SFTechRating);
-                    modrating.FSStars = ReplayUtils.ToStars(modrating.FSAccRating, modrating.FSPassRating, modrating.FSTechRating);
-                    modrating.SSStars = ReplayUtils.ToStars(modrating.SSAccRating, modrating.SSPassRating, modrating.SSTechRating);
+                    lb.ModifiersRating.SFStars = ReplayUtils.ToStars(lb.ModifiersRating.SFAccRating, lb.ModifiersRating.SFPassRating, lb.ModifiersRating.SFTechRating);
+                    lb.ModifiersRating.FSStars = ReplayUtils.ToStars(lb.ModifiersRating.FSAccRating, lb.ModifiersRating.FSPassRating, lb.ModifiersRating.FSTechRating);
+                    lb.ModifiersRating.SSStars = ReplayUtils.ToStars(lb.ModifiersRating.SSAccRating, lb.ModifiersRating.SSPassRating, lb.ModifiersRating.SSTechRating);
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"{e.Message}");
+                }
+            }
+
+            dbContext.BulkSaveChanges();
+        }
+
+        public static async Task Refresh(AppContext dbContext)
+        {
+            var lbs = dbContext.Leaderboards.Include(lb => lb.ModifiersRating).ToList();
+            foreach (var lb in lbs)
+            {
+                try
+                {
+                    var mod = lb.ModifiersRating;
+
+                    lb.AccRating = ReplayUtils.AccRating(lb.PredictedAcc, lb.PassRating, lb.TechRating);
+                    lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating);
+
+                    lb.ModifiersRating.SSAccRating = ReplayUtils.AccRating(mod.SSPredictedAcc, mod.SSPassRating, mod.SSTechRating);
+                    lb.ModifiersRating.FSAccRating = ReplayUtils.AccRating(mod.FSPredictedAcc, mod.FSPassRating, mod.FSTechRating);
+                    lb.ModifiersRating.SFAccRating = ReplayUtils.AccRating(mod.SFPredictedAcc, mod.SFPassRating, mod.SFTechRating);
+
+                    lb.ModifiersRating.SFStars = ReplayUtils.ToStars(lb.ModifiersRating.SFAccRating, lb.ModifiersRating.SFPassRating, lb.ModifiersRating.SFTechRating);
+                    lb.ModifiersRating.FSStars = ReplayUtils.ToStars(lb.ModifiersRating.FSAccRating, lb.ModifiersRating.FSPassRating, lb.ModifiersRating.FSTechRating);
+                    lb.ModifiersRating.SSStars = ReplayUtils.ToStars(lb.ModifiersRating.SSAccRating, lb.ModifiersRating.SSPassRating, lb.ModifiersRating.SSTechRating);
                 }
                 catch (Exception e)
                 {

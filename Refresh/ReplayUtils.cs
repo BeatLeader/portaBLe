@@ -113,7 +113,7 @@ namespace portaBLe.Refresh
         public static float AccRating(float? predictedAcc, float? passRating, float? techRating) {
             float difficulty_to_acc;
             if (predictedAcc > 0) {
-                difficulty_to_acc = 15f / Curve((predictedAcc ?? 0) + 0.0022f);
+                difficulty_to_acc = 15.5f / Curve((predictedAcc ?? 0) + 0.0022f);
             } else {
                 float tiny_tech = 0.0208f * (techRating ?? 0) + 1.1284f;
                 difficulty_to_acc = (-MathF.Pow(tiny_tech, -(passRating ?? 0)) + 1) * 8 + 2 + 0.01f * (techRating ?? 0) * (passRating ?? 0);
@@ -167,7 +167,7 @@ namespace portaBLe.Refresh
             if (!modifiers.Contains("NF"))
             {
                 (passPP, accPP, techPP) = GetPp(accuracy, accRating, passRating, techRating);
-                        
+
                 rawPP = Inflate(passPP + accPP + techPP);
                 if (modifiersRating != null) {
                     var modifiersMap = modifiersRating.ToDictionary<float>();
@@ -176,7 +176,7 @@ namespace portaBLe.Refresh
                         if (modifiersMap.ContainsKey(modifier + "AccRating")) { 
                             accRating = modifiersMap[modifier + "AccRating"]; 
                             passRating = modifiersMap[modifier + "PassRating"]; 
-                            techRating = modifiersMap[modifier + "TechRating"]; 
+                            techRating = modifiersMap[modifier + "TechRating"];
 
                             break;
                         }
