@@ -42,44 +42,14 @@
       "Description": "Analyzer pass rating rework, reweighted"
     },
     {
-      "Name": "Dev Unreweighted",
-      "FileName": "db-20251213063026-2955.db",
-      "Description": "dev"
+      "Name": "Final.Final Unreweighted",
+      "FileName": "db-20251215213712-3509.db",
+      "Description": "finalfinal"
     },
     {
-      "Name": "Dev Reweighted",
-      "FileName": "db-20251213064245-5057.db",
-      "Description": "dev"
-    },
-    {
-      "Name": "Dev 2 Unreweighted",
-      "FileName": "db-20251214045242-9299.db",
-      "Description": "dev2"
-    },
-    {
-      "Name": "Dev 2 Reweighted",
-      "FileName": "db-20251214151130-8686.db",
-      "Description": "dev2"
-    },
-    {
-      "Name": "Dev 3 Unreweighted",
-      "FileName": "db-20251214152428-9329.db",
-      "Description": "dev3"
-    },
-    {
-      "Name": "Dev 3 Reweighted",
-      "FileName": "db-20251214153226-7715.db",
-      "Description": "dev3"
-    },
-    {
-      "Name": "Final.txt Unreweighted",
-      "FileName": "db-20251214193822-5138.db",
-      "Description": "final"
-    },
-    {
-      "Name": "Final.txt Reweighted",
-      "FileName": "db-20251214195255-7769.db",
-      "Description": "final"
+      "Name": "Final.Final Reweighted",
+      "FileName": "db-20251215215204-3608.db",
+      "Description": "finalfinalr"
     }
   ]
 }
