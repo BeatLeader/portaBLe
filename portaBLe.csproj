@@ -55,9 +55,7 @@
   </ItemGroup>
 
   <ItemGroup>
-    <Reference Include="RatingAPI">
-      <HintPath>RatingAPI\bin\Debug\net9.0\RatingAPI.dll</HintPath>
-    </Reference>
+    <ProjectReference Include="RatingAPI\RatingAPI.csproj" />
   </ItemGroup>
 
   <ItemGroup>
