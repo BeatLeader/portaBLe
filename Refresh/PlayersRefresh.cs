@@ -56,6 +56,7 @@ namespace portaBLe.Refresh
         }
 
         public static async Task Refresh(AppContext dbContext) {
+            Console.WriteLine("Recalculating Players");
             dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
             
             var weights = new Dictionary<int, float>();

@@ -36,6 +36,7 @@ namespace portaBLe.Refresh
             var controller = new RatingsController(configuration, logger);
 
             var lbs = dbContext.Leaderboards.Include(lb => lb.ModifiersRating).ToList();
+            Console.WriteLine("Recalculating from RatingAPI");
             foreach (var lb in lbs)
             {
                 try
@@ -78,6 +79,7 @@ namespace portaBLe.Refresh
 
         public static async Task Refresh(AppContext dbContext)
         {
+            Console.WriteLine("Recalculating Acc Rating from Predicted Accuracy");
             var lbs = dbContext.Leaderboards.Include(lb => lb.ModifiersRating).ToList();
             foreach (var lb in lbs)
             {

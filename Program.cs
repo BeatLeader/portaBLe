@@ -127,7 +127,7 @@ namespace portaBLe
             var key = $"{dbName}";
 
             await fileTransferUtility.UploadAsync(filePath, "portabledbs", key);
-
+            Console.WriteLine("Uploading DB: " + dbName);
             // Save the database name to a file in wwwroot
             File.WriteAllText(Path.Combine("wwwroot", "current_db_name.txt"), dbName);
 
@@ -174,6 +174,7 @@ namespace portaBLe
 
                 if (!File.Exists(localDbPath))
                 {
+                    Console.WriteLine("Downloading DB");
                     bool downloaded = await DownloadDatabaseFileAsync(dbName, localDbPath);
                     if (downloaded)
                     {
@@ -199,6 +200,7 @@ namespace portaBLe
 
         public static void SetComparisonDBTarget()
         {
+            Console.WriteLine("Set DB as comparison target");
             var path = Path.Combine(Environment.CurrentDirectory, "wwwroot");
             var dest = Path.Combine(path, "Comparison.db");
             path = Path.Combine(path, "Database.db");
@@ -222,7 +224,7 @@ namespace portaBLe
                 // await DownloadDatabaseIfNeeded(builder.Environment.WebRootPath);
 
                 // Uncomment to upload the local Database.db to S3
-                await UploadDatabaseAsync($"{builder.Environment.WebRootPath}/Database.db");
+                // await UploadDatabaseAsync($"{builder.Environment.WebRootPath}/Database.db");
 
                 // Uncomment to set the current .db file as comparison target
                 // SetComparisonDBTarget();
@@ -275,18 +277,18 @@ namespace portaBLe
                     // Nerf
                     // await ScoresRefresh.Autoreweight(dbContext); // 30 seconds
                     // Buff
-                    // await ScoresRefresh.Autoreweight3(dbContext); // 30 seconds
+                    //await ScoresRefresh.Autoreweight3(dbContext); // 30 seconds
 
                     // Uncomment to refresh everything with current ratings
 
-
-                    // await ScoresRefresh.Refresh(dbContext);// 60 seconds
-                    // await PlayersRefresh.Refresh(dbContext); // 40 seconds
-                    // await LeaderboardsRefresh.RefreshStars(dbContext); // 1 second
+                    /*
+                    await ScoresRefresh.Refresh(dbContext);// 60 seconds
+                    await PlayersRefresh.Refresh(dbContext); // 40 seconds
+                    await LeaderboardsRefresh.RefreshStars(dbContext); // 1 second
 
                     // Uncomment to update the Megametric
-                    // await LeaderboardsRefresh.Refresh(dbContext); // 20 seconds
-
+                    await LeaderboardsRefresh.Refresh(dbContext); // 20 seconds */
+                    // await LeaderboardsRefresh.Outliers(dbContext);
                 }
 
                 await app.RunAsync();

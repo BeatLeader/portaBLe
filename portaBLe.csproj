@@ -38,6 +38,7 @@
   </ItemGroup>
 
   <ItemGroup>
+    <Content Remove="wwwroot\Comparison.db" />
     <Content Remove="wwwroot\Database.db" />
     <Content Remove="wwwroot\export.json" />
   </ItemGroup>

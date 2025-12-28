@@ -6,9 +6,129 @@ namespace portaBLe.Refresh
 {
     public class LeaderboardsRefresh
     {
-        public static async Task Refresh(AppContext dbContext) {
+        public static async Task Outliers(AppContext dbContext)
+        {
+            Console.WriteLine("Recalculating Outliers");
             dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
-            
+
+            // Ensure OutlierCount column exists
+            try
+            {
+                await dbContext.Database.ExecuteSqlRawAsync(
+                    "ALTER TABLE Leaderboards ADD COLUMN OutlierCount INTEGER DEFAULT 0");
+                Console.WriteLine("OutlierCount column added successfully.");
+            }
+            catch
+            {
+                // Column already exists, continue
+            }
+
+            const int minScoresCount = 100;
+            const float outlierThreshold = 8f;
+            const int maxTopScoresToCheck = 10;
+
+            // Step 1: Get all scores with PP and player info in one query
+            var allScores = await dbContext.Scores
+                .Where(s => s.Pp > 0)
+                .Select(s => new
+                {
+                    s.PlayerId,
+                    s.LeaderboardId,
+                    s.Pp
+                })
+                .ToListAsync();
+
+            Console.WriteLine($"Loaded {allScores.Count} scores with PP > 0");
+
+            // Step 2: Group by player and identify outlier scores in top 10
+            var playerScoreGroups = allScores
+                .GroupBy(s => s.PlayerId)
+                .Where(g => g.Count() >= minScoresCount)
+                .Select(g =>
+                {
+                    var orderedScores = g.OrderByDescending(s => s.Pp).Take(maxTopScoresToCheck).ToList();
+                    var outlierScores = new HashSet<float>();
+
+                    // Find the cutoff point where there's a >8% drop
+                    for (int i = 0; i < orderedScores.Count - 1; i++)
+                    {
+                        float currentPp = orderedScores[i].Pp;
+                        float nextPp = orderedScores[i + 1].Pp;
+
+                        if (nextPp > 0)
+                        {
+                            float ppDifference = currentPp - nextPp;
+                            float percentageDifference = (ppDifference / nextPp) * 100f;
+
+                            // If there's a >8% drop, all scores above this point are outliers
+                            if (percentageDifference > outlierThreshold)
+                            {
+                                for (int j = 0; j <= i; j++)
+                                {
+                                    outlierScores.Add(orderedScores[j].Pp);
+                                }
+                                break;
+                            }
+                        }
+                    }
+
+                    return new
+                    {
+                        PlayerId = g.Key,
+                        OutlierScores = outlierScores,
+                        AllScores = g.ToList()
+                    };
+                })
+                .ToList();
+
+            Console.WriteLine($"Found {playerScoreGroups.Count} eligible players with {minScoresCount}+ scores");
+
+            // Create a dictionary for fast lookup: PlayerId -> Set of outlier PP values
+            var playerOutlierScores = playerScoreGroups.ToDictionary(
+                p => p.PlayerId,
+                p => p.OutlierScores
+            );
+
+            // Step 3: Calculate outliers per leaderboard
+            var leaderboardOutliers = allScores
+                .Where(s => playerOutlierScores.ContainsKey(s.PlayerId))
+                .GroupBy(s => s.LeaderboardId)
+                .Select(g => new
+                {
+                    LeaderboardId = g.Key,
+                    OutlierCount = g.Count(score =>
+                    {
+                        if (!playerOutlierScores.TryGetValue(score.PlayerId, out var outlierScores))
+                            return false;
+
+                        // Check if this score's PP is in the player's outlier set
+                        return outlierScores.Contains(score.Pp);
+                    })
+                })
+                .ToDictionary(x => x.LeaderboardId, x => x.OutlierCount);
+
+            Console.WriteLine($"Calculated outliers for {leaderboardOutliers.Count} leaderboards");
+
+            // Step 4: Update leaderboards
+            var leaderboards = await dbContext.Leaderboards
+                .Select(l => new Leaderboard { Id = l.Id })
+                .ToListAsync();
+
+            foreach (var leaderboard in leaderboards)
+            {
+                leaderboard.OutlierCount = leaderboardOutliers.TryGetValue(leaderboard.Id, out var count) ? count : 0;
+            }
+
+            await dbContext.BulkUpdateAsync(leaderboards, options => options.ColumnInputExpression = c =>
+                new { c.OutlierCount });
+
+            Console.WriteLine("Outlier calculation completed");
+        }
+
+        public static async Task Refresh(AppContext dbContext) {
+            Console.WriteLine("Recalculating Megametric");
+            dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
+
             var weights = new Dictionary<int, float>();
             for (int i = 0; i < 10000; i++)
             {
@@ -98,6 +218,7 @@ namespace portaBLe.Refresh
 
         public static async Task RefreshStars(AppContext dbContext)
         {
+            Console.WriteLine("Recalculating Star Ratings");
             var lbs = dbContext
                 .Leaderboards
                 .AsNoTracking()

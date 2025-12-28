@@ -7,6 +7,7 @@ namespace portaBLe.Refresh
     {
         public static async Task Refresh(AppContext dbContext)
         {
+            Console.WriteLine("Recalculating Scores");
             dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
 
             var allLeaderboards = dbContext.Leaderboards
@@ -71,7 +72,7 @@ namespace portaBLe.Refresh
 
         public static async Task Autoreweight(AppContext dbContext)
         {
-
+            Console.WriteLine("Applying Autoreweight Nerf");
             var leaderboards = dbContext
                 .Leaderboards
                 .Where(lb =>
@@ -121,6 +122,7 @@ namespace portaBLe.Refresh
 
         public static async Task Autoreweight3(AppContext dbContext)
         {
+            Console.WriteLine("Applying Autoreweight Buff");
             var leaderboards = dbContext
                 .Leaderboards
                 .Where(lb =>

@@ -100,6 +100,7 @@ namespace portaBLe.DB
         public int Count { get; set; }
         public int Count80 { get; set; }
         public int Count95 { get; set; }
+        public int OutlierCount { get; set; }
         public float Average { get; set; }
         public float Top250 { get; set; }
         public float TotalPP { get; set; }
