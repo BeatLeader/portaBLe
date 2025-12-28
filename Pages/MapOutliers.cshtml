@@ -1,0 +1,207 @@
+@page
+@model MapOutliersModel
+
+<h2>Map PP Outliers</h2>
+
+<p class="text-muted">
+    This page shows maps where players have one of their top PP score significantly higher (>8% difference) than the next score.
+    Only players with at least 100 PP-giving scores are considered. The outlier counts are pre-calculated and stored in the database.
+</p>
+
+<form method="get" id="mapOutliersForm">
+    <div class="row mb-3">
+        <div class="col-md-5">
+            <label for="searchString" class="form-label">Search:</label>
+            <input type="text" name="SearchString" id="searchString" value="@Model.SearchString" placeholder="Search maps" class="form-control" />
+        </div>
+        <div class="col-md-4">
+            <label for="modeName" class="form-label">Characteristic:</label>
+            <select name="ModeName" id="modeName" class="form-control" onchange="this.form.submit()">
+                <option value="">All</option>
+                @foreach (var mode in Model.ModeNames)
+                {
+                    <option value="@mode" selected="@(Model.ModeName == mode)">@mode</option>
+                }
+            </select>
+        </div>
+        @if (!string.IsNullOrEmpty(Model.SearchString) || !string.IsNullOrEmpty(Model.ModeName))
+        {
+            <div class="col-md-3 d-flex align-items-end">
+                <a asp-page="./MapOutliers" asp-route-sortBy="@Model.SortBy" asp-route-sortDescending="@Model.SortDescending" class="btn btn-secondary">Clear Filters</a>
+            </div>
+        }
+    </div>
+    <input type="hidden" name="sortBy" value="@Model.SortBy" />
+    <input type="hidden" name="sortDescending" value="@Model.SortDescending" />
+</form>
+
+<table class="table table-striped">
+    <thead>
+        <tr>
+            <th>
+                <a class="sort-header @(Model.SortBy == "OutlierCount" ? "active" : "") @(Model.SortBy == "OutlierCount" && Model.SortDescending ? "desc" : "asc")"
+                   asp-page="./MapOutliers" 
+                   asp-route-sortBy="OutlierCount" 
+                   asp-route-sortDescending="@(Model.SortBy == "OutlierCount" && Model.SortDescending ? "false" : "true")" 
+                   asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName"
+                   data-tooltip="Number of players for whom this map is an outlier">Outlier Count</a>
+            </th>
+            <th>
+                <a class="sort-header @(Model.SortBy == "Name" ? "active" : "") @(Model.SortBy == "Name" && Model.SortDescending ? "desc" : "asc")"
+                   asp-page="./MapOutliers" 
+                   asp-route-sortBy="Name" 
+                   asp-route-sortDescending="@(Model.SortBy == "Name" && Model.SortDescending ? "false" : "true")" 
+                   asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName">Map Name</a>
+            </th>
+            <th>Characteristic</th>
+            <th>
+                <a class="sort-header @(Model.SortBy == "Count" ? "active" : "") @(Model.SortBy == "Count" && Model.SortDescending ? "desc" : "asc")"
+                   asp-page="./MapOutliers" 
+                   asp-route-sortBy="Count" 
+                   asp-route-sortDescending="@(Model.SortBy == "Count" && Model.SortDescending ? "false" : "true")" 
+                   asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName"
+                   data-tooltip="Total number of scores on this map">Total Scores</a>
+            </th>
+        </tr>
+    </thead>
+    <tbody>
+        @if (Model.MapOutliers == null || !Model.MapOutliers.Any())
+        {
+            <tr>
+                <td colspan="4" class="text-center">
+                    <em>No outliers found. The outlier counts are calculated when the database is refreshed.</em>
+                </td>
+            </tr>
+        }
+        else
+        {
+            @foreach (var outlier in Model.MapOutliers)
+            {
+                <tr>
+                    <td><strong>@outlier.OutlierCount</strong></td>
+                    <td class="map-name">
+                        <a asp-page="/Leaderboard" asp-route-id="@outlier.Id">@outlier.Name</a>
+                    </td>
+                    <td>@outlier.ModeName</td>
+                    <td>@outlier.Count</td>
+                </tr>
+            }
+        }
+    </tbody>
+</table>
+
+@if (Model.TotalPages > 1)
+{
+    <nav aria-label="Page navigation">
+        <ul class="pagination">
+            @{
+                int firstPageToShow = Model.CurrentPage - 5;
+                int lastPageToShow = Model.CurrentPage + 4;
+                if (firstPageToShow < 1)
+                {
+                    firstPageToShow = 1;
+                    lastPageToShow = 10;
+                }
+                if (lastPageToShow > Model.TotalPages)
+                {
+                    lastPageToShow = Model.TotalPages;
+                    firstPageToShow = Model.TotalPages - 9 > 1 ? Model.TotalPages - 9 : 1;
+                }
+
+                for (int i = firstPageToShow; i <= lastPageToShow; i++)
+                {
+                    <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
+                        <a class="page-link" asp-page="./MapOutliers" 
+                           asp-route-currentPage="@i" 
+                           asp-route-sortBy="@Model.SortBy"
+                           asp-route-sortDescending="@Model.SortDescending" 
+                           asp-route-searchString="@Model.SearchString"
+                           asp-route-modeName="@Model.ModeName">@i</a>
+                    </li>
+                }
+            }
+        </ul>
+    </nav>
+}
+
+<style>
+    .sort-header {
+        position: relative;
+        cursor: pointer;
+        text-decoration: none;
+        color: inherit;
+    }
+
+    .sort-header.active {
+        background-color: #f8f9fa;
+    }
+
+    .sort-header:hover {
+        color: inherit;
+        text-decoration: none;
+        background-color: #f8f9fa;
+    }
+
+    .sort-header.active::after {
+        content: '';
+        display: inline-block;
+        width: 0;
+        height: 0;
+        margin-left: 8px;
+        vertical-align: middle;
+        border-left: 4px solid transparent;
+        border-right: 4px solid transparent;
+    }
+
+    .sort-header.active.desc::after {
+        border-top: 8px solid #0d6efd;
+        border-bottom: 0;
+    }
+
+    .sort-header.active.asc::after {
+        border-bottom: 8px solid #0d6efd;
+        border-top: 0;
+    }
+
+    .map-name {
+        width: 20em;
+    }
+
+    [data-tooltip] {
+        position: relative;
+    }
+
+    [data-tooltip]:hover::before {
+        content: attr(data-tooltip);
+        position: absolute;
+        bottom: 100%;
+        left: 50%;
+        transform: translateX(-50%);
+        padding: 5px 10px;
+        background: #333;
+        color: white;
+        font-size: 12px;
+        white-space: nowrap;
+        border-radius: 4px;
+        z-index: 1000;
+    }
+</style>
+
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        const searchInput = document.getElementById('searchString');
+        const form = document.getElementById('mapOutliersForm');
+        let debounceTimer;
+
+        searchInput.addEventListener('input', function() {
+            clearTimeout(debounceTimer);
+            debounceTimer = setTimeout(function() {
+                form.submit();
+            }, 500);
+        });
+    });
+</script>
+

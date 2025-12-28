@@ -82,6 +82,9 @@ namespace portaBLe.Migrations
                         .HasMaxLength(150)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("OutlierCount")
+                        .HasColumnType("INTEGER");
+
                     b.Property<float>("PPRatioFiltered")
                         .HasColumnType("REAL");
 

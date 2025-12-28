@@ -2,64 +2,34 @@
   "MainDB": 0,
   "Databases": [
     {
-      "Name": "Prod unreweighted",
-      "FileName": "db-20251204142052-9785.db",
+      "Name": "Prod",
+      "FileName": "db-20251228183029-6291.db",
       "Description": "Recalculated ratings with prod algo"
     },
     {
-      "Name": "Prod",
-      "FileName": "db-20251203211442-2609.db",
+      "Name": "Prod Reweighted",
+      "FileName": "db-20251228183430-3257.db",
       "Description": "Current production website"
     },
     {
-      "Name": "Old DzRamen model",
-      "FileName": "db-20251201185915-5265.db",
-      "Description": "Very old model"
-    },
-    {
-      "Name": "Old DzRamen model reweighted",
-      "FileName": "db-20251201190820-8840.db",
-      "Description": "Very old model, reweighted"
-    },
-    {
-      "Name": "New ai model",
-      "FileName": "db-20251202210719-5007.db",
+      "Name": "AccAi",
+      "FileName": "db-20251228183728-5702.db",
       "Description": "0.5% acc filtering and 15.375 -> 15.65 acc rebalance"
     },
     {
-      "Name": "New ai model/reweighted",
-      "FileName": "db-20251202211809-2776.db",
+      "Name": "AccAi Reweighted",
+      "FileName": "db-20251228184056-6041.db",
       "Description": "0.5% acc filtering, reweighted and 15.375 -> 15.65 acc rebalance"
     },
     {
-      "Name": "New ai model/Pass rework",
-      "FileName": "db-20251205033611-2663.db",
-      "Description": "Analyzer pass rating rework"
-    },
-    {
-      "Name": "New ai model/Pass rework/Reweighted",
-      "FileName": "db-20251205034837-5123.db",
-      "Description": "Analyzer pass rating rework, reweighted"
-    },
-    {
-      "Name": "Dev Unreweighted",
-      "FileName": "db-20251213063026-2955.db",
+      "Name": "Dev",
+      "FileName": "db-20251228181245-6055.db",
       "Description": "dev"
     },
     {
       "Name": "Dev Reweighted",
-      "FileName": "db-20251213064245-5057.db",
-      "Description": "dev"
-    },
-    {
-      "Name": "Dev 2 Unreweighted",
-      "FileName": "db-20251214045242-9299.db",
-      "Description": "dev2"
-    },
-    {
-      "Name": "Dev 2 Reweighted",
-      "FileName": "db-20251214151130-8686.db",
-      "Description": "dev2"
+      "FileName": "db-20251228182135-2627.db",
+      "Description": "dev reweighted"
     }
   ]
 }
