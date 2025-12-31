@@ -136,6 +136,7 @@ namespace portaBLe.Refresh
                 passPP = 0;
             }
             float accPP = Curve2(accuracy) * accRating * 34f;
+            // https://www.desmos.com/calculator/jdpmaozieo
             float techPP = MathF.Exp(1.9f * accuracy) * 1.08f * techRating;
             
             return (passPP, accPP, techPP);

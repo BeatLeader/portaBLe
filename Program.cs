@@ -90,6 +90,7 @@ namespace portaBLe
                 await PlayersRefresh.Refresh(dbContext);
                 await LeaderboardsRefresh.Refresh(dbContext);
             }
+            Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
         }
 
         private static string ReconstructKey(string shuffledKey, int[] indices)
@@ -130,7 +131,7 @@ namespace portaBLe
             Console.WriteLine("Uploading DB: " + dbName);
             // Save the database name to a file in wwwroot
             File.WriteAllText(Path.Combine("wwwroot", "current_db_name.txt"), dbName);
-
+            Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
             return dbName;
         }
 
@@ -190,6 +191,7 @@ namespace portaBLe
             {
                 Console.WriteLine("Database name file not found.");
             }
+            Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
         }
 
         public string GetCurrentDatabaseName()
@@ -205,10 +207,14 @@ namespace portaBLe
             var dest = Path.Combine(path, "Comparison.db");
             path = Path.Combine(path, "Database.db");
             File.Copy(path, dest, true);
+            Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
         }
+
+        public static Stopwatch Stopwatch = new();
 
         public static async Task Main(string[] args)
         {
+            Stopwatch = Stopwatch.StartNew();
             // Run this line in terminal once to clone submodules:
             // git submodule update --init --recursive
             // For this to run properly, make sure to target those submodules:
@@ -259,7 +265,7 @@ namespace portaBLe
                 app.MapRazorPages();
 
                 // Import the JSON dump.zip from wwwroot to Database.db. Takes 5-20 minutes and 8-15GB of RAM
-                //await ImportDump(app);
+                // await ImportDump(app);
 
                 using (var scope = app.Services.CreateScope())
                 {
@@ -269,7 +275,7 @@ namespace portaBLe
                     using var dbContext = dbContextFactory.CreateDbContext();
 
                     // Uncomment to overwrite ratings with RatingAPI
-                    // await RatingsRefresh.Overwrite(dbContext); // 90 minutes average for all ranked maps
+                    await RatingsRefresh.Overwrite(dbContext); // 90 minutes average for all ranked maps
                     // Uncomment to recalculate ratings after changing ReplayUtils.
                     // await RatingsRefresh.Refresh(dbContext);
 
@@ -277,18 +283,17 @@ namespace portaBLe
                     // Nerf
                     // await ScoresRefresh.Autoreweight(dbContext); // 30 seconds
                     // Buff
-                    //await ScoresRefresh.Autoreweight3(dbContext); // 30 seconds
+                    // await ScoresRefresh.Autoreweight3(dbContext); // 30 seconds
 
                     // Uncomment to refresh everything with current ratings
-
-                    /*
+                    
                     await ScoresRefresh.Refresh(dbContext);// 60 seconds
                     await PlayersRefresh.Refresh(dbContext); // 40 seconds
                     await LeaderboardsRefresh.RefreshStars(dbContext); // 1 second
 
                     // Uncomment to update the Megametric
-                    await LeaderboardsRefresh.Refresh(dbContext); // 20 seconds */
-                    // await LeaderboardsRefresh.Outliers(dbContext);
+                    await LeaderboardsRefresh.Refresh(dbContext); // 20 seconds 
+                    await LeaderboardsRefresh.Outliers(dbContext);
                 }
 
                 await app.RunAsync();

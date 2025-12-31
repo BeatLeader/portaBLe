@@ -51,6 +51,7 @@ namespace portaBLe.Refresh
                 } catch (Exception) {
                 }
             }
+            Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
 
             return (scoreUpdates, playerUpdates);
         }
@@ -100,6 +101,8 @@ namespace portaBLe.Refresh
             }
             await dbContext.BulkUpdateAsync(scoreUpdates, options => options.ColumnInputExpression = c => new { c.Weight });
             await dbContext.BulkUpdateAsync(playerUpdates, options => options.ColumnInputExpression = c => new { c.Rank, c.Pp, c.TopPp, c.RankedPlayCount, c.CountryRank, c.AccPp, c.PassPp, c.TechPp });
+
+            Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
         }
     }
 

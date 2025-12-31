@@ -1,6 +1,3 @@
 [submodule "RatingAPI"]
 	path = RatingAPI
 	url = https://github.com/BeatLeader/RatingAPI.git
-[submodule "Analyzer"]
-	path = Analyzer
-	url = https://github.com/BeatLeader/beatleader-analyzer.git

@@ -123,6 +123,7 @@ namespace portaBLe.Refresh
                 new { c.OutlierCount });
 
             Console.WriteLine("Outlier calculation completed");
+            Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
         }
 
         public static async Task Refresh(AppContext dbContext) {
@@ -214,6 +215,7 @@ namespace portaBLe.Refresh
                     c.Megametric75,
                     c.Megametric125
                 });
+            Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
         }
 
         public static async Task RefreshStars(AppContext dbContext)
@@ -263,6 +265,7 @@ namespace portaBLe.Refresh
             }
 
             await dbContext.BulkUpdateAsync(mods, options => options.ColumnInputExpression = c => new { c.SSStars, c.SFStars, c.FSStars });
+            Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
         }
     }
 }

@@ -75,6 +75,7 @@ namespace portaBLe.Refresh
             }
 
             dbContext.BulkSaveChanges();
+            Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
         }
 
         public static async Task Refresh(AppContext dbContext)
@@ -105,6 +106,7 @@ namespace portaBLe.Refresh
             }
 
             dbContext.BulkSaveChanges();
+            Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
         }
     }
 }

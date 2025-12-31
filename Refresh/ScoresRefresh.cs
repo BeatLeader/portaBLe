@@ -59,6 +59,7 @@ namespace portaBLe.Refresh
 
             await dbContext.BulkUpdateAsync(newTotalScores, options => options.ColumnInputExpression = c => new { c.Rank, c.Pp, c.BonusPp, c.PassPP, c.AccPP, c.TechPP });
             dbContext.ChangeTracker.AutoDetectChangesEnabled = true;
+            Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
         }
 
         public class PlayerSelect
@@ -118,6 +119,7 @@ namespace portaBLe.Refresh
                 }
             }
             await dbContext.SaveChangesAsync();
+            Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
         }
 
         public static async Task Autoreweight3(AppContext dbContext)
@@ -163,6 +165,7 @@ namespace portaBLe.Refresh
                 }
             }
             await dbContext.SaveChangesAsync();
+            Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
         }
     }
 }
