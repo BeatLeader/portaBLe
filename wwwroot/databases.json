@@ -13,12 +13,12 @@
     },
     {
       "Name": "AccAi",
-      "FileName": "db-20251228183728-5702.db",
+      "FileName": "db-20251231185631-9159.db",
       "Description": "0.5% acc filtering and 15.375 -> 15.65 acc rebalance"
     },
     {
       "Name": "AccAi Reweighted",
-      "FileName": "db-20251228184056-6041.db",
+      "FileName": "db-20251231190241-9962.db",
       "Description": "0.5% acc filtering, reweighted and 15.375 -> 15.65 acc rebalance"
     },
     {

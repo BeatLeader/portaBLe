@@ -65,13 +65,22 @@
                    asp-route-modeName="@Model.ModeName"
                    data-tooltip="Total number of scores on this map">Total Scores</a>
             </th>
+            <th>
+                <a class="sort-header @(Model.SortBy == "OutlierPercentage" ? "active" : "") @(Model.SortBy == "OutlierPercentage" && Model.SortDescending ? "desc" : "asc")"
+                   asp-page="./MapOutliers" 
+                   asp-route-sortBy="OutlierPercentage" 
+                   asp-route-sortDescending="@(Model.SortBy == "OutlierPercentage" && Model.SortDescending ? "false" : "true")" 
+                   asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName"
+                   data-tooltip="Percentage of scores that are outliers">Outlier %</a>
+            </th>
         </tr>
     </thead>
     <tbody>
         @if (Model.MapOutliers == null || !Model.MapOutliers.Any())
         {
             <tr>
-                <td colspan="4" class="text-center">
+                <td colspan="5" class="text-center">
                     <em>No outliers found. The outlier counts are calculated when the database is refreshed.</em>
                 </td>
             </tr>
@@ -87,6 +96,7 @@
                     </td>
                     <td>@outlier.ModeName</td>
                     <td>@outlier.Count</td>
+                    <td>@((outlier.Count > 0 ? (float)outlier.OutlierCount / outlier.Count * 100 : 0).ToString("F1"))%</td>
                 </tr>
             }
         }

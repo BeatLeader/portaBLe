@@ -66,6 +66,9 @@ namespace portaBLe.Pages
             {
                 "Name" => SortDescending ? query.OrderByDescending(x => x.Name) : query.OrderBy(x => x.Name),
                 "Count" => SortDescending ? query.OrderByDescending(x => x.Count) : query.OrderBy(x => x.Count),
+                "OutlierPercentage" => SortDescending 
+                    ? query.OrderByDescending(x => x.Count > 0 ? (float)x.OutlierCount / x.Count : 0) 
+                    : query.OrderBy(x => x.Count > 0 ? (float)x.OutlierCount / x.Count : 0),
                 _ => SortDescending ? query.OrderByDescending(x => x.OutlierCount) : query.OrderBy(x => x.OutlierCount),
             };
 
