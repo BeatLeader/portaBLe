@@ -154,17 +154,17 @@ namespace portaBLe.Refresh
                 ? outlierLeaderboards.Average(l => l.Count > 0 ? (float)l.OutlierCount / l.Count * 100 : 0)
                 : 0;
 
-            // Megametric averages (only above 0.5)
-            var leaderboardsAbove05 = leaderboards.Where(l => l.Megametric > 0.5f).ToList();
+            // Megametric averages
+            var leaderboardsAbove05 = leaderboards.OrderByDescending(l => l.Megametric).Take(50).ToList();
             stats.AvgMegametric = leaderboardsAbove05.Any() ? leaderboardsAbove05.Average(l => l.Megametric) : 0;
 
-            var leaderboardsAbove05_125 = leaderboards.Where(l => l.Megametric125 > 0.5f).ToList();
+            var leaderboardsAbove05_125 = leaderboards.OrderByDescending(l => l.Megametric125).Take(50).ToList();
             stats.AvgMegametric125 = leaderboardsAbove05_125.Any() ? leaderboardsAbove05_125.Average(l => l.Megametric125) : 0;
 
-            var leaderboardsAbove05_75 = leaderboards.Where(l => l.Megametric75 > 0.5f).ToList();
+            var leaderboardsAbove05_75 = leaderboards.OrderByDescending(l => l.Megametric75).Take(50).ToList();
             stats.AvgMegametric75 = leaderboardsAbove05_75.Any() ? leaderboardsAbove05_75.Average(l => l.Megametric75) : 0;
 
-            var leaderboardsAbove05_40 = leaderboards.Where(l => l.Megametric40 > 0.5f).ToList();
+            var leaderboardsAbove05_40 = leaderboards.OrderByDescending(l => l.Megametric40).Take(50).ToList();
             stats.AvgMegametric40 = leaderboardsAbove05_40.Any() ? leaderboardsAbove05_40.Average(l => l.Megametric40) : 0;
 
             // Score counts where unweighted PP is above thresholds

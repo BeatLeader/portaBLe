@@ -253,6 +253,9 @@ namespace portaBLe
                 // Uncomment to upload the local Database.db to S3
                 // await UploadDatabaseAsync($"{builder.Environment.WebRootPath}/Database.db");
 
+                // Uncomment to upload all local databases to S3 and update databases.json
+                // await UploadAllDatabasesAsync(builder.Environment.WebRootPath);
+
                 // Uncomment to set the current .db file as comparison target
                 // SetComparisonDBTarget();
 
@@ -361,6 +364,94 @@ namespace portaBLe
             
             Console.WriteLine($"\n========================================");
             Console.WriteLine($"Completed refreshing stats for all databases");
+            Console.WriteLine($"========================================");
+        }
+
+        // Helper method to upload all databases to S3 and update databases.json
+        private static async Task UploadAllDatabasesAsync(string webRootPath)
+        {
+            // Read current databases.json to get existing database info
+            var configPath = Path.Combine(webRootPath, "databases.json");
+            DatabasesConfig config;
+            
+            if (File.Exists(configPath))
+            {
+                var json = File.ReadAllText(configPath);
+                config = JsonSerializer.Deserialize<DatabasesConfig>(json, new JsonSerializerOptions 
+                { 
+                    PropertyNameCaseInsensitive = true 
+                });
+            }
+            else
+            {
+                Console.WriteLine("Error: databases.json not found!");
+                return;
+            }
+
+            Console.WriteLine($"Uploading {config.Databases.Count} databases to S3...");
+
+            // Create new config with uploaded databases
+            var newConfig = new DatabasesConfig
+            {
+                MainDB = config.MainDB,
+                Databases = new List<DatabaseConfig>()
+            };
+
+            for (int i = 0; i < config.Databases.Count; i++)
+            {
+                var db = config.Databases[i];
+                var localPath = Path.Combine(webRootPath, db.FileName);
+
+                Console.WriteLine($"\n========================================");
+                Console.WriteLine($"[{i + 1}/{config.Databases.Count}] Uploading: {db.Name}");
+                Console.WriteLine($"========================================");
+
+                if (!File.Exists(localPath))
+                {
+                    Console.WriteLine($"⚠ Warning: File not found locally: {db.FileName}");
+                    Console.WriteLine($"  Keeping existing entry in databases.json");
+                    newConfig.Databases.Add(db);
+                    continue;
+                }
+
+                try
+                {
+                    // Upload to S3 and get new filename
+                    var client = GetS3Client();
+                    var fileTransferUtility = new TransferUtility(client);
+
+                    // Create a unique name for the database file
+                    var newDbName = $"db-{DateTime.UtcNow:yyyyMMddHHmmss}-{new Random().Next(1000, 9999)}.db";
+                    
+                    Console.WriteLine($"  Uploading as: {newDbName}");
+                    await fileTransferUtility.UploadAsync(localPath, "portabledbs", newDbName);
+                    Console.WriteLine($"  ✓ Upload successful");
+
+                    // Add to new config with updated filename
+                    newConfig.Databases.Add(new DatabaseConfig
+                    {
+                        Name = db.Name,
+                        FileName = newDbName,
+                        Description = db.Description
+                    });
+
+                    Console.WriteLine($"  ✓ Updated entry in databases.json");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"  ✗ Error uploading {db.Name}: {ex.Message}");
+                    Console.WriteLine($"  Keeping existing entry in databases.json");
+                    newConfig.Databases.Add(db);
+                }
+            }
+
+            // Save updated config
+            var updatedJson = JsonSerializer.Serialize(newConfig, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(configPath, updatedJson);
+
+            Console.WriteLine($"\n========================================");
+            Console.WriteLine($"Completed uploading databases");
+            Console.WriteLine($"Updated databases.json with new S3 filenames");
             Console.WriteLine($"========================================");
         }
     }
