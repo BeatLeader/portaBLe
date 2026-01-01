@@ -1,13 +1,13 @@
-using Microsoft.EntityFrameworkCore;
-using System.IO.Compression;
-using Amazon.S3;
-using Amazon.S3.Transfer;
-using System.Text.Json;
-using Amazon.S3.Model;
 using Amazon;
-using System.Diagnostics;
+using Amazon.S3;
+using Amazon.S3.Model;
+using Amazon.S3.Transfer;
+using Microsoft.EntityFrameworkCore;
 using portaBLe.DB;
 using portaBLe.Refresh;
+using System.Diagnostics;
+using System.IO.Compression;
+using System.Text.Json;
 
 namespace portaBLe
 {
@@ -21,6 +21,7 @@ namespace portaBLe
         public DbSet<Score> Scores { get; set; }
         public DbSet<Leaderboard> Leaderboards { get; set; }
         public DbSet<ModifiersRating> ModifiersRating { get; set; }
+        public DbSet<DB.Stats> Stats { get; set; }
     }
 
     public class ComparisonContext : DbContext
@@ -275,31 +276,39 @@ namespace portaBLe
                     using var dbContext = dbContextFactory.CreateDbContext();
 
                     // Uncomment to overwrite ratings with RatingAPI
-                    await RatingsRefresh.Overwrite(dbContext); // 90 minutes average for all ranked maps
+
+                    // await RatingsRefresh.Overwrite(dbContext); // 90 minutes average for all ranked maps
                     // Uncomment to recalculate ratings after changing ReplayUtils.
                     // await RatingsRefresh.Refresh(dbContext);
-
+                    /*
                     // Uncomment to run the reweighter 
                     // Nerf
                     // await ScoresRefresh.Autoreweight(dbContext); // 30 seconds
                     // Buff
-                    // await ScoresRefresh.Autoreweight3(dbContext); // 30 seconds
+                    await ScoresRefresh.Autoreweight3(dbContext); // 30 seconds
 
                     // Uncomment to refresh everything with current ratings
                     
                     await ScoresRefresh.Refresh(dbContext);// 60 seconds
                     await PlayersRefresh.Refresh(dbContext); // 40 seconds
                     await LeaderboardsRefresh.RefreshStars(dbContext); // 1 second
+                    */
 
-                    // Uncomment to update the Megametric
-                    await LeaderboardsRefresh.Refresh(dbContext); // 20 seconds 
-                    await LeaderboardsRefresh.Outliers(dbContext);
+                    // Uncomment to update the Megametric and Stats
+                    // await UpdateStats(dbContext);
                 }
 
                 await app.RunAsync();
             } catch (Exception e) {
                 Console.WriteLine(e.Message + "   " + e.StackTrace);
             }
+        }
+
+        public static async Task UpdateStats(AppContext dbContext)
+        {
+            await LeaderboardsRefresh.Refresh(dbContext);
+            await LeaderboardsRefresh.Outliers(dbContext);
+            await StatsRefresh.Refresh(dbContext);
         }
     }
 }

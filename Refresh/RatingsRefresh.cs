@@ -21,6 +21,48 @@ namespace portaBLe.Refresh
 
         public static async Task Overwrite(AppContext dbContext)
         {
+            try
+            {
+                await dbContext.Database.ExecuteSqlRawAsync(
+                    "ALTER TABLE Leaderboards ADD COLUMN LinearPercent REAL DEFAULT 0");
+                Console.WriteLine("LinearPercent column added successfully.");
+            }
+            catch
+            {
+                Console.WriteLine("LinearPercent column already exist.");
+            }
+            try
+            {
+                await dbContext.Database.ExecuteSqlRawAsync(
+                    "ALTER TABLE Leaderboards ADD COLUMN MultiRating REAL DEFAULT 0");
+                Console.WriteLine("MultiRating column added successfully.");
+            }
+            catch
+            {
+                Console.WriteLine("MultiRating column already exist.");
+            }
+            try
+            {
+                await dbContext.Database.ExecuteSqlRawAsync(
+                     "ALTER TABLE Leaderboards ADD COLUMN ParityErrors INTEGER DEFAULT 0");
+                Console.WriteLine("ParityErrors column added successfully.");
+            }
+            catch
+            {
+                Console.WriteLine("ParityErrors column already exist.");
+            }
+            try
+            {
+
+                await dbContext.Database.ExecuteSqlRawAsync(
+                    "ALTER TABLE Leaderboards ADD COLUMN BombAvoidances INTEGER DEFAULT 0");
+                Console.WriteLine("BombAvoidances column added successfully.");
+            }
+            catch
+            {
+                Console.WriteLine("BombAvoidances column already exist.");
+            }
+
             var configDictionary = new Dictionary<string, string>
             {
                 { "MapsPath", "maps" },
@@ -43,6 +85,11 @@ namespace portaBLe.Refresh
                 {
                     var response = controller.Get(lb.Hash, lb.ModeName, GetDiffCode(lb.DifficultyName)).Value;
 
+                    lb.LinearPercent = (float)response["none"].LackMapCalculation.LinearPercentage;
+                    lb.MultiRating = (float)response["none"].LackMapCalculation.MultiRating;
+                    lb.ParityErrors = (float)response["none"].LackMapCalculation.Statistics.ParityErrors;
+                    lb.BombAvoidances = (float)response["none"].LackMapCalculation.Statistics.BombAvoidances;
+                    
                     lb.PassRating = (float)response["none"].LackMapCalculation.PassRating;
                     lb.TechRating = (float)response["none"].LackMapCalculation.TechRating;
                     // lb.PredictedAcc = (float)response["none"].PredictedAcc;
