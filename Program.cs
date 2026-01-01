@@ -22,6 +22,7 @@ namespace portaBLe
         public DbSet<Score> Scores { get; set; }
         public DbSet<Leaderboard> Leaderboards { get; set; }
         public DbSet<ModifiersRating> ModifiersRating { get; set; }
+        public DbSet<DB.Stats> Stats { get; set; }
     }
 
     public class ComparisonContext : DbContext
@@ -34,6 +35,7 @@ namespace portaBLe
         public DbSet<Score> Scores { get; set; }
         public DbSet<Leaderboard> Leaderboards { get; set; }
         public DbSet<ModifiersRating> ModifiersRating { get; set; }
+        public DbSet<DB.Stats> Stats { get; set; }
     }
 
     public class Program
@@ -316,12 +318,50 @@ namespace portaBLe
 
                     // Uncomment to update the Megametric
                     // await LeaderboardsRefresh.Refresh(dbContext); // 20 seconds
+
+                    // Uncomment to calculate and store database statistics for ALL databases
+                    // await RefreshStatsForAllDatabases(tempDbService, builder.Environment.WebRootPath); // ~30 seconds per database
                 }
 
                 await app.RunAsync();
             } catch (Exception e) {
                 Console.WriteLine(e.Message + "   " + e.StackTrace);
             }
+        }
+
+        // Helper method to refresh stats for all databases
+        private static async Task RefreshStatsForAllDatabases(IDynamicDbContextService dbService, string webRootPath)
+        {
+            var databases = await dbService.GetAvailableDatabasesAsync();
+            
+            Console.WriteLine($"Refreshing statistics for {databases.Count} databases...");
+            
+            foreach (var db in databases)
+            {
+                Console.WriteLine($"\n========================================");
+                Console.WriteLine($"Processing: {db.Name} ({db.FileName})");
+                Console.WriteLine($"========================================");
+                
+                try
+                {
+                    var connectionString = $"Data Source={Path.Combine(webRootPath, db.FileName)};";
+                    var optionsBuilder = new DbContextOptionsBuilder<AppContext>();
+                    optionsBuilder.UseSqlite(connectionString);
+                    
+                    using var dbContext = new AppContext(optionsBuilder.Options);
+                    await StatsRefresh.Refresh(dbContext);
+                    
+                    Console.WriteLine($"✓ Successfully refreshed stats for {db.Name}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"✗ Error refreshing stats for {db.Name}: {ex.Message}");
+                }
+            }
+            
+            Console.WriteLine($"\n========================================");
+            Console.WriteLine($"Completed refreshing stats for all databases");
+            Console.WriteLine($"========================================");
         }
     }
 }

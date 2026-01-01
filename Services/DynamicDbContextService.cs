@@ -142,6 +142,7 @@ namespace portaBLe.Services
         public DbSet<Score> Scores { get; set; }
         public DbSet<Leaderboard> Leaderboards { get; set; }
         public DbSet<ModifiersRating> ModifiersRating { get; set; }
+        public DbSet<DB.Stats> Stats { get; set; }
     }
 }
 

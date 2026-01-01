@@ -208,6 +208,38 @@
                    asp-route-searchString="@Model.SearchString"
                    asp-route-modeName="@Model.ModeName">Tech Rating</a>
             </th>
+            <th>
+                <a class="sort-header @(Model.SortBy == "MultiRating" ? "active" : "") @(Model.SortBy == "MultiRating" && Model.SortDescending ? "desc" : "asc")"
+                   asp-page="./LeaderboardStats"
+                   asp-route-sortBy="MultiRating"
+                   asp-route-sortDescending="@(Model.SortBy == "MultiRating" && Model.SortDescending ? "false" : "true")"
+                   asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName">Multi Rating</a>
+            </th>
+            <th>
+                <a class="sort-header @(Model.SortBy == "LinearPercent" ? "active" : "") @(Model.SortBy == "LinearPercent" && Model.SortDescending ? "desc" : "asc")"
+                   asp-page="./LeaderboardStats"
+                   asp-route-sortBy="LinearPercent"
+                   asp-route-sortDescending="@(Model.SortBy == "LinearPercent" && Model.SortDescending ? "false" : "true")"
+                   asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName">Linear Percent</a>
+            </th>
+            <th>
+                <a class="sort-header @(Model.SortBy == "ParityErrors" ? "active" : "") @(Model.SortBy == "ParityErrors" && Model.SortDescending ? "desc" : "asc")"
+                   asp-page="./LeaderboardStats" 
+                   asp-route-sortBy="ParityErrors"
+                   asp-route-sortDescending="@(Model.SortBy == "ParityErrors" && Model.SortDescending ? "false" : "true")"
+                   asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName">Parity Errors</a>
+            </th>
+            <th>
+                <a class="sort-header @(Model.SortBy == "BombAvoidances" ? "active" : "") @(Model.SortBy == "BombAvoidances" && Model.SortDescending ? "desc" : "asc")"
+                   asp-page="./LeaderboardStats"
+                   asp-route-sortBy="BombAvoidances"
+                   asp-route-sortDescending="@(Model.SortBy == "BombAvoidances" && Model.SortDescending ? "false" : "true")"
+                   asp-route-searchString="@Model.SearchString"
+                   asp-route-modeName="@Model.ModeName">Bomb Avoidances</a>
+            </th>
         </tr>
     </thead>
     <tbody>
@@ -234,6 +266,10 @@
                 <td>@stat.AccRating.ToString("F2")</td>
                 <td>@stat.PassRating.ToString("F2")</td>
                 <td>@stat.TechRating.ToString("F2")</td>
+                <td>@stat.MultiRating.ToString("F2")</td>
+                <td>@stat.LinearPercent.ToString("F3")</td>
+                <td>@stat.ParityErrors</td>
+                <td>@stat.BombAvoidances</td>
             </tr>
         }
     </tbody>
