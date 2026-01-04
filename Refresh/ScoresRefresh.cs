@@ -1,65 +1,139 @@
 ﻿using Dasync.Collections;
 using portaBLe.DB;
+using Microsoft.EntityFrameworkCore;
+using System.Collections.Concurrent;
 
 namespace portaBLe.Refresh
 {
     public class ScoresRefresh
     {
+        private const int LEADERBOARD_BATCH_SIZE = 1000;
+        private const int UPDATE_BATCH_SIZE = 5000;
+
         public static async Task Refresh(AppContext dbContext)
         {
             Console.WriteLine("Recalculating Scores");
             dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
 
-            var allLeaderboards = dbContext.Leaderboards
-                .Select(lb => new {
-                    lb.AccRating,
-                    lb.PassRating,
-                    lb.TechRating,
-                    lb.ModifiersRating,
-                    Scores = lb.Scores.Select(s => new {s.Id, s.LeaderboardId, s.Accuracy, s.Modifiers })
-                }).ToAsyncEnumerable();
+            // Get all leaderboard IDs first to enable batch processing
+            var leaderboardIds = await dbContext.Leaderboards
+                .Select(lb => lb.Id)
+                .ToListAsync();
 
-            List<Score> newTotalScores = new();
-            List<Score> newScores = new();
-            await foreach (var leaderboard in allLeaderboards)
+            Console.WriteLine($"Processing {leaderboardIds.Count} leaderboards in batches of {LEADERBOARD_BATCH_SIZE}");
+
+            var allProcessedScores = new ConcurrentBag<Score>();
+            int processedCount = 0;
+
+            // Process leaderboards in batches
+            for (int i = 0; i < leaderboardIds.Count; i += LEADERBOARD_BATCH_SIZE)
             {
-                foreach (var s in leaderboard.Scores)
-                {
-                    (float pp, float bonuspp, float passPP, float accPP, float techPP) = ReplayUtils.PpFromScore(
-                        s.Accuracy,
-                        s.Modifiers,
-                        leaderboard.ModifiersRating,
-                        leaderboard.AccRating,
-                        leaderboard.PassRating,
-                        leaderboard.TechRating);
-
-                    if (float.IsNaN(pp))
+                var batchIds = leaderboardIds.Skip(i).Take(LEADERBOARD_BATCH_SIZE).ToList();
+                
+                // Load batch data
+                var batchLeaderboards = await dbContext.Leaderboards
+                    .Where(lb => batchIds.Contains(lb.Id))
+                    .Select(lb => new
                     {
-                        pp = 0.0f;
-                    }
+                        lb.Id,
+                        lb.AccRating,
+                        lb.PassRating,
+                        lb.TechRating,
+                        lb.ModifiersRating,
+                        Scores = lb.Scores.Select(s => new { s.Id, s.Accuracy, s.Modifiers }).ToList()
+                    })
+                    .ToListAsync();
 
-                    newScores.Add(new() { 
-                        Id = s.Id,
-                        Pp = pp,
-                        BonusPp = bonuspp,
-                        PassPP = passPP,
-                        AccPP = accPP,
-                        TechPP = techPP,
+                // Process leaderboards in parallel
+                var batchScores = new ConcurrentBag<Score>();
+                
+                await Parallel.ForEachAsync(batchLeaderboards, 
+                    new ParallelOptions { MaxDegreeOfParallelism = Program.CoreCount },
+                    async (leaderboard, ct) =>
+                    {
+                        var leaderboardScores = new List<Score>(leaderboard.Scores.Count);
+
+                        // Calculate PP for all scores
+                        foreach (var s in leaderboard.Scores)
+                        {
+                            (float pp, float bonuspp, float passPP, float accPP, float techPP) = ReplayUtils.PpFromScore(
+                                s.Accuracy,
+                                s.Modifiers,
+                                leaderboard.ModifiersRating,
+                                leaderboard.AccRating,
+                                leaderboard.PassRating,
+                                leaderboard.TechRating);
+
+                            if (float.IsNaN(pp))
+                            {
+                                pp = 0.0f;
+                            }
+
+                            leaderboardScores.Add(new Score
+                            {
+                                Id = s.Id,
+                                Accuracy = s.Accuracy,
+                                Pp = pp,
+                                BonusPp = bonuspp,
+                                PassPP = passPP,
+                                AccPP = accPP,
+                                TechPP = techPP,
+                            });
+                        }
+
+                        // Optimize ranking by pre-calculating rounded values
+                        var rankedScores = leaderboardScores
+                            .Select(s => new { Score = s, RoundedPp = Math.Round(s.Pp, 2), RoundedAcc = Math.Round(s.Accuracy, 4) })
+                            .OrderByDescending(x => x.RoundedPp)
+                            .ThenByDescending(x => x.RoundedAcc)
+                            .ToList();
+
+                        for (int rank = 0; rank < rankedScores.Count; rank++)
+                        {
+                            rankedScores[rank].Score.Rank = rank + 1;
+                        }
+
+                        // Add to concurrent bag
+                        foreach (var score in leaderboardScores)
+                        {
+                            batchScores.Add(score);
+                        }
+
+                        await Task.CompletedTask;
                     });
-                }
 
-                foreach ((int i, Score? s) in newScores.OrderByDescending(el => Math.Round(el.Pp, 2)).ThenByDescending(el => Math.Round(el.Accuracy, 4)).Select((value, i) => (i, value)))
+                // Add batch to total
+                foreach (var score in batchScores)
                 {
-                    s.Rank = i + 1;
+                    allProcessedScores.Add(score);
                 }
 
-                newTotalScores.AddRange(newScores);
-                newScores.Clear();
-            };
+                processedCount += batchLeaderboards.Count;
+                Console.WriteLine($"Processed {processedCount}/{leaderboardIds.Count} leaderboards ({(processedCount * 100 / leaderboardIds.Count)}%)");
 
-            await dbContext.BulkUpdateAsync(newTotalScores, options => options.ColumnInputExpression = c => new { c.Rank, c.Pp, c.BonusPp, c.PassPP, c.AccPP, c.TechPP });
+                // Flush to database every batch to avoid memory issues
+                if (allProcessedScores.Count >= UPDATE_BATCH_SIZE)
+                {
+                    var toUpdate = allProcessedScores.ToList();
+                    allProcessedScores.Clear();
+                    
+                    await dbContext.BulkUpdateAsync(toUpdate, 
+                        options => options.ColumnInputExpression = c => new { c.Rank, c.Pp, c.BonusPp, c.PassPP, c.AccPP, c.TechPP });
+                }
+            }
+
+            // Final update for remaining scores
+            if (allProcessedScores.Count > 0)
+            {
+                var finalScores = allProcessedScores.ToList();
+                await dbContext.BulkUpdateAsync(finalScores, 
+                    options => options.ColumnInputExpression = c => new { c.Rank, c.Pp, c.BonusPp, c.PassPP, c.AccPP, c.TechPP });
+                
+                Console.WriteLine($"Updated final {finalScores.Count} scores in database");
+            }
+
             dbContext.ChangeTracker.AutoDetectChangesEnabled = true;
-            Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
+            Console.WriteLine($"Complete! Total time: {Program.Stopwatch.ElapsedMilliseconds / 1000} seconds");
         }
 
         public class PlayerSelect

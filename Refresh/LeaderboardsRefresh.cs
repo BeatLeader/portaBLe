@@ -1,9 +1,18 @@
 ﻿using Dasync.Collections;
 using Microsoft.EntityFrameworkCore;
 using portaBLe.DB;
+using System.Collections.Concurrent;
 
 namespace portaBLe.Refresh
 {
+    public class MegametricData
+    {
+        public float Weight { get; set; }
+        public int RankedPlayCount { get; set; }
+        public float Pp { get; set; }
+        public float TopPp { get; set; }
+    }
+
     public class LeaderboardsRefresh
     {
         public static async Task Outliers(AppContext dbContext)
@@ -126,84 +135,138 @@ namespace portaBLe.Refresh
             Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
         }
 
-        public static async Task Refresh(AppContext dbContext) {
+        public static async Task Refresh(AppContext dbContext)
+        {
             Console.WriteLine("Recalculating Megametric");
             dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
 
-            var weights = new Dictionary<int, float>();
-            for (int i = 0; i < 10000; i++)
-            {
-                weights[i] = MathF.Pow(0.965f, i);
-            }
+            // Pre-calculate weight threshold
+            float weightThreshold = MathF.Pow(0.965f, 40);
 
-            float weightTreshold = MathF.Pow(0.965f, 40);
+            // Load all leaderboard IDs first for batch processing
+            var leaderboardIds = await dbContext.Leaderboards
+                .Select(lb => lb.Id)
+                .ToListAsync();
 
-            var leaderboards = dbContext.Scores.Select(s => new {
-                s.LeaderboardId,
-                s.Weight,
-                s.Pp,
-                s.Player.TopPp,
-                s.Player.RankedPlayCount,
-                s.Player.Rank
-            }).ToList()
-            .GroupBy(s => s.LeaderboardId)
-            .Select(g => new
+            Console.WriteLine($"Processing {leaderboardIds.Count} leaderboards");
+
+            // Load all scores with necessary data in a single query
+            var allScores = await dbContext.Scores
+                .Select(s => new
                 {
-                    Average = g.Average(s => s.Weight),
-                    Megametric = g.Where(s => s.TopPp != 0).Select(s => new { s.Weight, s.RankedPlayCount, s.Pp, s.TopPp }),
-                    Count8 = g.Where(s => s.Weight > 0.8).Count(),
-                    Count95 = g.Where(s => s.Weight > 0.95).Count(),
-                    PPsum = g.Sum(s => s.Pp * s.Weight),
-
-                    PPAverage = g.Where(s => s.RankedPlayCount >= 50 && s.TopPp != 0).Average(s => s.Pp / s.TopPp),
-                    PPAverage2 = g.Where(s => s.TopPp != 0).Average(s => s.Pp / s.TopPp),
-                    Count = g.Count(),
-                    Top250 = g.Where(s => s.Rank < 250 && s.Weight > weightTreshold).Count(),
-                    Id = g.Key,
+                    s.LeaderboardId,
+                    s.Weight,
+                    s.Pp,
+                    s.Player.TopPp,
+                    s.Player.RankedPlayCount,
+                    s.Player.Rank
                 })
-            .ToList();
+                .ToListAsync();
 
-            var updates = new List<Leaderboard>();
+            Console.WriteLine($"Loaded {allScores.Count} scores");
 
-            foreach (var item in leaderboards)
-            {
-                var l = item.Megametric.OrderByDescending(s => s.Weight).Take((int)(item.Megametric.Count() * 0.33));
-                var ll = l.Count() > 10 ? l.Average(s => s.Weight) : 0;
+            // Group by leaderboard in memory (more efficient than database grouping)
+            var leaderboardGroups = allScores
+                .GroupBy(s => s.LeaderboardId)
+                .ToDictionary(g => g.Key, g => g.ToList());
 
-                var m = item.Megametric.OrderByDescending(s => s.Weight).Take((int)(item.Megametric.Count() * 0.33)).Where(s => s.RankedPlayCount > 75);
-                var mm = m.Count() > 10 ? m.Average(s => s.Pp / s.TopPp * s.Weight) : 0;
+            var updates = new ConcurrentBag<Leaderboard>();
 
-                var m2 = item.Megametric.Where(s => s.RankedPlayCount > 125).OrderByDescending(s => s.Weight).Take((int)(item.Megametric.Count() * 0.33));
-                var mm2 = m2.Count() > 10 ? m2.Average(s => s.Pp / s.TopPp * s.Weight) : 0;
+            // Process leaderboards in parallel
+            await Parallel.ForEachAsync(leaderboardIds,
+                new ParallelOptions { MaxDegreeOfParallelism = Program.CoreCount },
+                async (leaderboardId, ct) =>
+                {
+                    if (!leaderboardGroups.TryGetValue(leaderboardId, out var scores))
+                    {
+                        // Leaderboard has no scores
+                        updates.Add(new Leaderboard
+                        {
+                            Id = leaderboardId,
+                            Count = 0,
+                            Count80 = 0,
+                            Count95 = 0,
+                            Average = 0,
+                            Percentile = 0,
+                            Megametric = 0,
+                            Megametric125 = 0,
+                            Megametric75 = 0,
+                            Megametric40 = 0,
+                            Top250 = 0,
+                            TotalPP = 0,
+                            PPRatioFiltered = 0,
+                            PPRatioUnfiltered = 0
+                        });
+                        await Task.CompletedTask;
+                        return;
+                    }
 
-                var m3 = item.Megametric.Where(s => s.RankedPlayCount > 75).OrderByDescending(s => s.Weight).Take((int)(item.Megametric.Count() * 0.33));
-                var mm3 = m3.Count() > 10 ? m3.Average(s => s.Pp / s.TopPp * s.Weight) : 0;
+                    // Pre-filter megametric data
+                    var megametricData = scores
+                        .Where(s => s.TopPp != 0)
+                        .Select(s => new MegametricData { Weight = s.Weight, RankedPlayCount = s.RankedPlayCount, Pp = s.Pp, TopPp = s.TopPp })
+                        .ToList();
 
-                var m4 = item.Megametric.Where(s => s.RankedPlayCount > 40).OrderByDescending(s => s.Weight).Take((int)(item.Megametric.Count() * 0.33));
-                var mm4 = m4.Count() > 10 ? m4.Average(s => s.Pp / s.TopPp * s.Weight) : 0;
+                    // Calculate basic stats
+                    int count = scores.Count;
+                    float average = scores.Average(s => s.Weight);
+                    int count80 = scores.Count(s => s.Weight > 0.8f);
+                    int count95 = scores.Count(s => s.Weight > 0.95f);
+                    float ppSum = scores.Sum(s => s.Pp * s.Weight);
+                    int top250 = scores.Count(s => s.Rank < 250 && s.Weight > weightThreshold);
 
-                updates.Add(new Leaderboard {
-                    Id = item.Id,
-                    Count = item.Count,
-                    Count80 = item.Count8,
-                    Count95 = item.Count95,
-                    Average = item.Average,
-                    Percentile = ll,
-                    Megametric = mm,
-                    Megametric125 = mm2,
-                    Megametric75 = mm3,
-                    Megametric40 = mm4,
-                    Top250 = item.Top250,
-                    TotalPP = item.PPsum,
-                    PPRatioFiltered = item.PPAverage,
-                    PPRatioUnfiltered = item.PPAverage
+                    // Calculate PP ratios
+                    var filteredScores = scores.Where(s => s.RankedPlayCount >= 50 && s.TopPp != 0).ToList();
+                    float ppRatioFiltered = filteredScores.Count > 0
+                        ? filteredScores.Average(s => s.Pp / s.TopPp)
+                        : 0;
+
+                    var unfilteredScores = scores.Where(s => s.TopPp != 0).ToList();
+                    float ppRatioUnfiltered = unfilteredScores.Count > 0
+                        ? unfilteredScores.Average(s => s.Pp / s.TopPp)
+                        : 0;
+
+                    // Calculate percentile (top 33% by weight)
+                    int topCount = (int)(megametricData.Count * 0.33);
+                    var topByWeight = megametricData.OrderByDescending(s => s.Weight).Take(topCount).ToList();
+                    float percentile = topByWeight.Count > 10 ? topByWeight.Average(s => s.Weight) : 0;
+
+                    // Calculate megametric variants
+                    float megametric = CalculateMegametric(megametricData, topCount, 75);
+                    float megametric125 = CalculateMegametric(megametricData, topCount, 125);
+                    float megametric75 = CalculateMegametric(megametricData, topCount, 75);
+                    float megametric40 = CalculateMegametric(megametricData, topCount, 40);
+
+                    updates.Add(new Leaderboard
+                    {
+                        Id = leaderboardId,
+                        Count = count,
+                        Count80 = count80,
+                        Count95 = count95,
+                        Average = average,
+                        Percentile = percentile,
+                        Megametric = megametric,
+                        Megametric125 = megametric125,
+                        Megametric75 = megametric75,
+                        Megametric40 = megametric40,
+                        Top250 = top250,
+                        TotalPP = ppSum,
+                        PPRatioFiltered = ppRatioFiltered,
+                        PPRatioUnfiltered = ppRatioUnfiltered
+                    });
+
+                    await Task.CompletedTask;
                 });
-            }
-            await dbContext.BulkUpdateAsync(updates, options => options.ColumnInputExpression = c => 
-                new { 
-                    c.Count, 
-                    c.Count80, 
-                    c.Count95, 
+
+            Console.WriteLine($"Processed {updates.Count} leaderboards, writing to database...");
+
+            var updateList = updates.ToList();
+            await dbContext.BulkUpdateAsync(updateList, options => options.ColumnInputExpression = c =>
+                new
+                {
+                    c.Count,
+                    c.Count80,
+                    c.Count95,
                     c.Average,
                     c.Top250,
                     c.TotalPP,
@@ -215,7 +278,25 @@ namespace portaBLe.Refresh
                     c.Megametric75,
                     c.Megametric125
                 });
-            Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
+
+            dbContext.ChangeTracker.AutoDetectChangesEnabled = true;
+            Console.WriteLine($"Complete! Total time: {Program.Stopwatch.ElapsedMilliseconds / 1000} seconds");
+        }
+
+        private static float CalculateMegametric(
+            List<MegametricData> megametricData,
+            int topCount,
+            int minRankedPlayCount)
+        {
+            var filtered = megametricData
+                .Where(s => s.RankedPlayCount > minRankedPlayCount)
+                .OrderByDescending(s => s.Weight)
+                .Take(topCount)
+                .ToList();
+
+            return filtered.Count > 10
+                ? filtered.Average(s => s.Pp / s.TopPp * s.Weight)
+                : 0;
         }
 
         public static async Task RefreshStars(AppContext dbContext)

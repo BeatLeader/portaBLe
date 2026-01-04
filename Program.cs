@@ -212,6 +212,7 @@ namespace portaBLe
         }
 
         public static Stopwatch Stopwatch = new();
+        public static int CoreCount = Environment.ProcessorCount;
 
         public static async Task Main(string[] args)
         {
@@ -274,24 +275,23 @@ namespace portaBLe
                     var dbContextFactory = services.GetRequiredService<IDbContextFactory<AppContext>>();
                     var env = services.GetRequiredService<IWebHostEnvironment>();
                     using var dbContext = dbContextFactory.CreateDbContext();
-
+                    
                     // Uncomment to overwrite ratings with RatingAPI
-
-                    // await RatingsRefresh.Overwrite(dbContext); // 90 minutes average for all ranked maps
+                    // await RatingsRefresh.Overwrite(dbContext);
                     // Uncomment to recalculate ratings after changing ReplayUtils.
                     // await RatingsRefresh.Refresh(dbContext);
                     /*
                     // Uncomment to run the reweighter 
                     // Nerf
-                    // await ScoresRefresh.Autoreweight(dbContext); // 30 seconds
+                    // await ScoresRefresh.Autoreweight(dbContext);
                     // Buff
-                    await ScoresRefresh.Autoreweight3(dbContext); // 30 seconds
+                    // await ScoresRefresh.Autoreweight3(dbContext);
 
                     // Uncomment to refresh everything with current ratings
                     
-                    await ScoresRefresh.Refresh(dbContext);// 60 seconds
-                    await PlayersRefresh.Refresh(dbContext); // 40 seconds
-                    await LeaderboardsRefresh.RefreshStars(dbContext); // 1 second
+                    await ScoresRefresh.Refresh(dbContext);
+                    await PlayersRefresh.Refresh(dbContext);
+                    await LeaderboardsRefresh.RefreshStars(dbContext);
                     */
 
                     // Uncomment to update the Megametric and Stats

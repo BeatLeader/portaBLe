@@ -72,55 +72,88 @@ namespace portaBLe.Refresh
                 .AddInMemoryCollection(configDictionary)
                 .Build();
 
-            using var loggerFactory = LoggerFactory.Create(builder => builder.AddConsole());
-            var logger = loggerFactory.CreateLogger<RatingsController>();
-
-            var controller = new RatingsController(configuration, logger);
-
             var lbs = dbContext.Leaderboards.Include(lb => lb.ModifiersRating).ToList();
-            Console.WriteLine("Recalculating from RatingAPI");
-            foreach (var lb in lbs)
+            Console.WriteLine($"Recalculating from RatingAPI for {lbs.Count} leaderboards");
+            
+            int processedCount = 0;
+            int totalCount = lbs.Count;
+            int errorCount = 0;
+            var lockObj = new object();
+            var startTime = DateTime.Now;
+
+            // Use CPU core count for CPU-bound inference operations
+            var parallelOptions = new ParallelOptions 
+            { 
+                MaxDegreeOfParallelism = Program.CoreCount
+            };
+
+            await Parallel.ForEachAsync(lbs, parallelOptions, async (lb, ct) =>
             {
                 try
                 {
+                    // Create per-thread instances to avoid sharing state
+                    using var loggerFactory = LoggerFactory.Create(builder => { });
+                    var logger = loggerFactory.CreateLogger<RatingsController>();
+                    var controller = new RatingsController(configuration, logger);
+                    
                     var response = controller.Get(lb.Hash, lb.ModeName, GetDiffCode(lb.DifficultyName)).Value;
 
                     lb.LinearPercent = (float)response["none"].LackMapCalculation.LinearPercentage;
                     lb.MultiRating = (float)response["none"].LackMapCalculation.MultiRating;
                     lb.ParityErrors = (float)response["none"].LackMapCalculation.Statistics.ParityErrors;
                     lb.BombAvoidances = (float)response["none"].LackMapCalculation.Statistics.BombAvoidances;
-                    
+
                     lb.PassRating = (float)response["none"].LackMapCalculation.PassRating;
                     lb.TechRating = (float)response["none"].LackMapCalculation.TechRating;
-                    // lb.PredictedAcc = (float)response["none"].PredictedAcc;
-                    // lb.AccRating = (float)response["none"].AccRating;
+                    lb.PredictedAcc = (float)response["none"].PredictedAcc;
+                    lb.AccRating = (float)response["none"].AccRating;
                     lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating);
 
                     lb.ModifiersRating.SSPassRating = (float)response["SS"].LackMapCalculation.PassRating;
                     lb.ModifiersRating.SSTechRating = (float)response["SS"].LackMapCalculation.TechRating;
-                    // lb.ModifiersRating.SSPredictedAcc = (float)response["SS"].PredictedAcc;
-                    // lb.ModifiersRating.SSAccRating = (float)response["SS"].AccRating;
+                    lb.ModifiersRating.SSPredictedAcc = (float)response["SS"].PredictedAcc;
+                    lb.ModifiersRating.SSAccRating = (float)response["SS"].AccRating;
 
                     lb.ModifiersRating.FSPassRating = (float)response["FS"].LackMapCalculation.PassRating;
                     lb.ModifiersRating.FSTechRating = (float)response["FS"].LackMapCalculation.TechRating;
-                    // lb.ModifiersRating.FSPredictedAcc = (float)response["FS"].PredictedAcc;
-                    // lb.ModifiersRating.FSAccRating = (float)response["FS"].AccRating;
+                    lb.ModifiersRating.FSPredictedAcc = (float)response["FS"].PredictedAcc;
+                    lb.ModifiersRating.FSAccRating = (float)response["FS"].AccRating;
 
                     lb.ModifiersRating.SFPassRating = (float)response["SFS"].LackMapCalculation.PassRating;
                     lb.ModifiersRating.SFTechRating = (float)response["SFS"].LackMapCalculation.TechRating;
-                    // lb.ModifiersRating.SFPredictedAcc = (float)response["SFS"].PredictedAcc;
-                    // lb.ModifiersRating.SFAccRating = (float)response["SFS"].AccRating;
+                    lb.ModifiersRating.SFPredictedAcc = (float)response["SFS"].PredictedAcc;
+                    lb.ModifiersRating.SFAccRating = (float)response["SFS"].AccRating;
 
                     lb.ModifiersRating.SFStars = ReplayUtils.ToStars(lb.ModifiersRating.SFAccRating, lb.ModifiersRating.SFPassRating, lb.ModifiersRating.SFTechRating);
                     lb.ModifiersRating.FSStars = ReplayUtils.ToStars(lb.ModifiersRating.FSAccRating, lb.ModifiersRating.FSPassRating, lb.ModifiersRating.FSTechRating);
                     lb.ModifiersRating.SSStars = ReplayUtils.ToStars(lb.ModifiersRating.SSAccRating, lb.ModifiersRating.SSPassRating, lb.ModifiersRating.SSTechRating);
+
+                    lock (lockObj)
+                    {
+                        processedCount++;
+                        if (processedCount % 100 == 0 || processedCount == totalCount)
+                        {
+                            var elapsed = (DateTime.Now - startTime).TotalSeconds;
+                            var rate = processedCount / elapsed;
+                            var remaining = (totalCount - processedCount) / rate;
+                            Console.WriteLine($"Progress: {processedCount}/{totalCount} ({processedCount * 100 / totalCount}%) - Rate: {rate:F1}/s - ETA: {TimeSpan.FromSeconds(remaining):hh\\:mm\\:ss} - Errors: {errorCount} - Time: {(Program.Stopwatch.ElapsedMilliseconds / 1000)}s");
+                        }
+                    }
                 }
                 catch (Exception e)
                 {
-                    Console.WriteLine($"{e.Message}");
+                    lock (lockObj)
+                    {
+                        errorCount++;
+                        if (errorCount <= 10 || errorCount % 100 == 0)
+                        {
+                            Console.WriteLine($"Error processing {lb.Hash}: {e.Message}");
+                        }
+                    }
                 }
-            }
+            });
 
+            Console.WriteLine($"\nCompleted: {processedCount - errorCount} successful, {errorCount} errors");
             dbContext.BulkSaveChanges();
             Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
         }
