@@ -3,7 +3,7 @@
   "Databases": [
     {
       "Name": "Prod",
-      "FileName": "db-20260101025802-8622.db",
+      "FileName": "db-20260107045448-4571.db",
       "Description": "Recalculated ratings with prod algo"
     },
     {
@@ -23,12 +23,12 @@
     },
     {
       "Name": "Dev",
-      "FileName": "db-20260101030012-2495.db",
+      "FileName": "db-20260107135843-8613.db",
       "Description": "dev"
     },
     {
       "Name": "Dev Reweighted",
-      "FileName": "db-20260101030044-4769.db",
+      "FileName": "db-20260107140510-2645.db",
       "Description": "dev reweighted"
     }
   ]

@@ -103,6 +103,7 @@
                             <div class="btn-group w-100" role="group">
                                 <button type="button" class="btn btn-primary" id="btnPlayers" onclick="showView('players')">All Players</button>
                                 <button type="button" class="btn btn-outline-primary" id="btnMaps" onclick="showView('maps')">All Maps</button>
+                                <button type="button" class="btn btn-outline-primary" id="btnMegametrics" onclick="showView('megametrics')">Megametrics</button>
                             </div>
                         </div>
                         <div class="col-md-4" id="rankLimitContainer">
@@ -167,7 +168,22 @@
                                 </div>
                             </div>
                             <div class="card-body">
-                                <canvas id="ratingsChart" style="height: 300px;"></canvas>
+                                <div class="row mb-3">
+                                    <div class="col-md-12">
+                                        <div class="alert alert-info mb-0 d-flex justify-content-between align-items-center">
+                                            <span>
+                                                <strong>Average Difference (Main - Comparison):</strong>
+                                                <span id="avgDifference" class="ms-2">-</span>
+                                            </span>
+                                            <small class="text-muted">
+                                                <em>A value close to 0 indicates balanced databases</em>
+                                            </small>
+                                        </div>
+                                    </div>
+                                </div>
+                                <div style="position: relative; height: 300px; width: 100%;">
+                                    <canvas id="ratingsChart"></canvas>
+                                </div>
                             </div>
                         </div>
                         
@@ -189,6 +205,32 @@
                             </table>
                         </div>
                     </div>
+
+                    <div id="megametricsView" style="display: none;">
+                        <div class="alert alert-info">
+                            <strong>Note:</strong> This view only shows maps where at least one database has Megametric125 > 0.5
+                        </div>
+                        
+                        <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                            <table class="table table-striped table-hover" id="megametricsTable">
+                                <thead class="sticky-top bg-light">
+                                    <tr>
+                                        <th onclick="sortTable('megametrics', 'name')" style="cursor: pointer;">Name <span id="sort-mega-name"></span></th>
+                                        <th onclick="sortTable('megametrics', 'megametric125Diff')" style="cursor: pointer;">Megametric125 Diff <span id="sort-mega-megametric125Diff"></span></th>
+                                        <th onclick="sortTable('megametrics', 'megametric75Diff')" style="cursor: pointer;">Megametric75 Diff <span id="sort-mega-megametric75Diff"></span></th>
+                                        <th onclick="sortTable('megametrics', 'megametric40Diff')" style="cursor: pointer;">Megametric40 Diff <span id="sort-mega-megametric40Diff"></span></th>
+                                        <th onclick="sortTable('megametrics', 'outlierCountDiff')" style="cursor: pointer;">Outlier Count Diff <span id="sort-mega-outlierCountDiff"></span></th>
+                                        <th onclick="sortTable('megametrics', 'currentOutlierPercentage')" style="cursor: pointer;">Main Outlier % <span id="sort-mega-currentOutlierPercentage"></span></th>
+                                        <th onclick="sortTable('megametrics', 'comparisonOutlierPercentage')" style="cursor: pointer;">Comparison Outlier % <span id="sort-mega-comparisonOutlierPercentage"></span></th>
+                                        <th onclick="sortTable('megametrics', 'currentMegametric125')" style="cursor: pointer;">Main Megametric125 <span id="sort-mega-currentMegametric125"></span></th>
+                                        <th onclick="sortTable('megametrics', 'comparisonMegametric125')" style="cursor: pointer;">Comparison Megametric125 <span id="sort-mega-comparisonMegametric125"></span></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="megametricsTableBody">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -201,6 +243,7 @@
         let currentView = 'players';
         let playersData = [];
         let mapsData = [];
+        let megametricsData = [];
         let sortColumn = null;
         let sortDirection = 'asc';
         let isFormSubmitting = false;
@@ -234,8 +277,10 @@
             if (view === 'players') {
                 document.getElementById('btnPlayers').className = 'btn btn-primary';
                 document.getElementById('btnMaps').className = 'btn btn-outline-primary';
+                document.getElementById('btnMegametrics').className = 'btn btn-outline-primary';
                 document.getElementById('playersView').style.display = 'block';
                 document.getElementById('mapsView').style.display = 'none';
+                document.getElementById('megametricsView').style.display = 'none';
                 document.getElementById('rankLimitContainer').style.display = 'block';
                 
                 if (playersData.length === 0) {
@@ -243,11 +288,13 @@
                 } else {
                     renderPlayersTable();
                 }
-            } else {
+            } else if (view === 'maps') {
                 document.getElementById('btnPlayers').className = 'btn btn-outline-primary';
                 document.getElementById('btnMaps').className = 'btn btn-primary';
+                document.getElementById('btnMegametrics').className = 'btn btn-outline-primary';
                 document.getElementById('playersView').style.display = 'none';
                 document.getElementById('mapsView').style.display = 'block';
+                document.getElementById('megametricsView').style.display = 'none';
                 document.getElementById('rankLimitContainer').style.display = 'none';
                 
                 if (mapsData.length === 0) {
@@ -255,6 +302,20 @@
                 } else {
                     renderMapsTable();
                     updateRatingsChart();
+                }
+            } else if (view === 'megametrics') {
+                document.getElementById('btnPlayers').className = 'btn btn-outline-primary';
+                document.getElementById('btnMaps').className = 'btn btn-outline-primary';
+                document.getElementById('btnMegametrics').className = 'btn btn-primary';
+                document.getElementById('playersView').style.display = 'none';
+                document.getElementById('mapsView').style.display = 'none';
+                document.getElementById('megametricsView').style.display = 'block';
+                document.getElementById('rankLimitContainer').style.display = 'none';
+                
+                if (megametricsData.length === 0) {
+                    loadMegametricsData();
+                } else {
+                    renderMegametricsTable();
                 }
             }
 
@@ -296,6 +357,24 @@
             } catch (error) {
                 console.error('Error:', error);
                 alert('Error loading maps data');
+            } finally {
+                document.getElementById('loadingIndicator').style.display = 'none';
+            }
+        }
+
+        async function loadMegametricsData() {
+            document.getElementById('loadingIndicator').style.display = 'block';
+            const mainDb = getMainDb();
+            const comparisonDb = getComparisonDb();
+            try {
+                const response = await fetch(`/DatabaseComparison?handler=MegametricsComparison&mainDb=${encodeURIComponent(mainDb)}&comparisonDb=${encodeURIComponent(comparisonDb)}`);
+                if (!response.ok) throw new Error('Failed to load megametrics data');
+                
+                megametricsData = await response.json();
+                renderMegametricsTable();
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error loading megametrics data');
             } finally {
                 document.getElementById('loadingIndicator').style.display = 'none';
             }
@@ -356,6 +435,37 @@
             updateRecordCount(filteredData.length, mapsData.length);
         }
 
+        function renderMegametricsTable() {
+            const tbody = document.getElementById('megametricsTableBody');
+            tbody.innerHTML = '';
+
+            const searchTerm = document.getElementById('searchBox').value.toLowerCase();
+            let filteredData = megametricsData;
+
+            if (searchTerm) {
+                filteredData = megametricsData.filter(m => m.name.toLowerCase().includes(searchTerm));
+            }
+
+            filteredData.forEach(map => {
+                const row = tbody.insertRow();
+                const modeDisplay = map.modeName ? ` (${map.modeName}` : '';
+                const diffDisplay = map.difficultyName ? (modeDisplay ? ` - ${map.difficultyName})` : ` (${map.difficultyName})`) : (modeDisplay ? ')' : '');
+                row.innerHTML = `
+                    <td><a href="/leaderboard/${map.id}" class="text-decoration-none">${map.name}${modeDisplay}${diffDisplay}</a></td>
+                    <td class="${map.megametric125Diff > 0 ? 'text-success' : map.megametric125Diff < 0 ? 'text-danger' : ''}">${map.megametric125Diff > 0 ? '+' : ''}${map.megametric125Diff.toFixed(4)}</td>
+                    <td class="${map.megametric75Diff > 0 ? 'text-success' : map.megametric75Diff < 0 ? 'text-danger' : ''}">${map.megametric75Diff > 0 ? '+' : ''}${map.megametric75Diff.toFixed(4)}</td>
+                    <td class="${map.megametric40Diff > 0 ? 'text-success' : map.megametric40Diff < 0 ? 'text-danger' : ''}">${map.megametric40Diff > 0 ? '+' : ''}${map.megametric40Diff.toFixed(4)}</td>
+                    <td class="${map.outlierCountDiff > 0 ? 'text-danger' : map.outlierCountDiff < 0 ? 'text-success' : ''}">${map.outlierCountDiff > 0 ? '+' : ''}${map.outlierCountDiff}</td>
+                    <td>${map.currentOutlierPercentage.toFixed(2)}%</td>
+                    <td>${map.comparisonOutlierPercentage.toFixed(2)}%</td>
+                    <td>${map.currentMegametric125.toFixed(4)}</td>
+                    <td>${map.comparisonMegametric125.toFixed(4)}</td>
+                `;
+            });
+
+            updateRecordCount(filteredData.length, megametricsData.length);
+        }
+
         function updateRecordCount(filtered, total) {
             const countElement = document.getElementById('recordCount');
             if (filtered === total) {
@@ -368,8 +478,10 @@
         function filterTable() {
             if (currentView === 'players') {
                 renderPlayersTable();
-            } else {
+            } else if (currentView === 'maps') {
                 renderMapsTable();
+            } else if (currentView === 'megametrics') {
+                renderMegametricsTable();
             }
         }
 
@@ -384,7 +496,15 @@
             clearSortIndicators(view);
             
             const indicator = sortDirection === 'asc' ? '▲' : '▼';
-            const elementId = view === 'players' ? `sort-${column}` : `sort-map-${column}`;
+            let elementId;
+            if (view === 'players') {
+                elementId = `sort-${column}`;
+            } else if (view === 'maps') {
+                elementId = `sort-map-${column}`;
+            } else if (view === 'megametrics') {
+                elementId = `sort-mega-${column}`;
+            }
+            
             const element = document.getElementById(elementId);
             if (element) {
                 element.textContent = indicator;
@@ -407,7 +527,7 @@
                     }
                 });
                 renderPlayersTable();
-            } else {
+            } else if (view === 'maps') {
                 const columnMap = {
                     'name': 'name',
                     'starsDiff': 'starsDiff',
@@ -436,6 +556,23 @@
                     }
                 });
                 renderMapsTable();
+            } else if (view === 'megametrics') {
+                megametricsData.sort((a, b) => {
+                    let valA = a[column];
+                    let valB = b[column];
+                    
+                    if (typeof valA === 'string') {
+                        valA = valA.toLowerCase();
+                        valB = valB.toLowerCase();
+                    }
+                    
+                    if (sortDirection === 'asc') {
+                        return valA < valB ? -1 : valA > valB ? 1 : 0;
+                    } else {
+                        return valA > valB ? -1 : valA < valB ? 1 : 0;
+                    }
+                });
+                renderMegametricsTable();
             }
         }
 
@@ -445,9 +582,14 @@
                     const element = document.getElementById(`sort-${col}`);
                     if (element) element.textContent = '';
                 });
-            } else {
+            } else if (view === 'maps') {
                 ['name', 'starsDiff', 'accRatingDiff', 'passRatingDiff', 'techRatingDiff', 'currentStars', 'comparisonStars'].forEach(col => {
                     const element = document.getElementById(`sort-map-${col}`);
+                    if (element) element.textContent = '';
+                });
+            } else if (view === 'megametrics') {
+                ['name', 'megametric125Diff', 'megametric75Diff', 'megametric40Diff', 'outlierCountDiff', 'currentOutlierPercentage', 'comparisonOutlierPercentage', 'currentMegametric125', 'comparisonMegametric125'].forEach(col => {
+                    const element = document.getElementById(`sort-mega-${col}`);
                     if (element) element.textContent = '';
                 });
             }
@@ -459,8 +601,11 @@
             if (currentView === 'players') {
                 const url = `/DatabaseComparison?handler=ExportPlayersCsv&mainDb=${encodeURIComponent(mainDb)}&comparisonDb=${encodeURIComponent(comparisonDb)}`;
                 window.location.href = url;
-            } else {
+            } else if (currentView === 'maps') {
                 const url = `/DatabaseComparison?handler=ExportMapsCsv&mainDb=${encodeURIComponent(mainDb)}&comparisonDb=${encodeURIComponent(comparisonDb)}`;
+                window.location.href = url;
+            } else if (currentView === 'megametrics') {
+                const url = `/DatabaseComparison?handler=ExportMegametricsCsv&mainDb=${encodeURIComponent(mainDb)}&comparisonDb=${encodeURIComponent(comparisonDb)}`;
                 window.location.href = url;
             }
         }
@@ -468,7 +613,20 @@
         function updateRatingsChart() {
             if (!mapsData || mapsData.length === 0) return;
 
-            const ctx = document.getElementById('ratingsChart').getContext('2d');
+            // Destroy existing chart if it exists
+            if (ratingsChart) {
+                ratingsChart.destroy();
+                ratingsChart = null;
+            }
+
+            // Reset canvas by replacing it
+            const oldCanvas = document.getElementById('ratingsChart');
+            const canvasContainer = oldCanvas.parentNode;
+            const newCanvas = document.createElement('canvas');
+            newCanvas.id = 'ratingsChart';
+            canvasContainer.replaceChild(newCanvas, oldCanvas);
+
+            const ctx = newCanvas.getContext('2d');
             const selectedRating = document.getElementById('ratingSelect').value;
             const independentSort = document.getElementById('independentSortToggle').checked;
             
@@ -481,6 +639,16 @@
             };
             
             const fields = ratingFieldMap[selectedRating];
+            
+            // Calculate average difference (Main - Comparison)
+            const differences = mapsData.map(m => m[fields.current] - m[fields.comparison]);
+            const avgDifference = differences.reduce((sum, diff) => sum + diff, 0) / differences.length;
+            
+            // Update the average difference display
+            const avgDiffElement = document.getElementById('avgDifference');
+            const formattedAvg = avgDifference.toFixed(4);
+            const colorClass = Math.abs(avgDifference) < 0.01 ? 'text-success' : Math.abs(avgDifference) < 0.1 ? 'text-warning' : 'text-danger';
+            avgDiffElement.innerHTML = `<span class="${colorClass} fw-bold">${formattedAvg > 0 ? '+' : ''}${formattedAvg}</span>`;
             
             let currentValues, comparisonValues, labels, xAxisLabel;
             
@@ -501,11 +669,6 @@
                 currentValues = sortedMaps.map(m => m[fields.current]);
                 comparisonValues = sortedMaps.map(m => m[fields.comparison]);
                 xAxisLabel = 'Map Index (sorted by Main DB rating)';
-            }
-
-            // Destroy existing chart if it exists
-            if (ratingsChart) {
-                ratingsChart.destroy();
             }
 
             ratingsChart = new Chart(ctx, {

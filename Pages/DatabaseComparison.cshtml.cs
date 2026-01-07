@@ -288,6 +288,76 @@ namespace portaBLe.Pages
             return new JsonResult(result);
         }
 
+        public async Task<IActionResult> OnGetMegametricsComparisonAsync(string mainDb = null, string comparisonDb = null)
+        {
+            var availableDatabases = await _dbService.GetAvailableDatabasesAsync();
+            
+            var selectedMainDb = mainDb ?? _dbService.GetMainDatabaseFileName();
+            var selectedComparisonDb = comparisonDb ?? availableDatabases.FirstOrDefault(db => db.FileName != selectedMainDb)?.FileName 
+                                       ?? availableDatabases.FirstOrDefault()?.FileName;
+
+            if (selectedMainDb == null || selectedComparisonDb == null)
+            {
+                return new JsonResult(new { error = "Databases not configured" });
+            }
+
+            using var currentDb = (DynamicDbContext)_dbService.CreateContext(selectedMainDb);
+            using var comparisonDbContext = (DynamicDbContext)_dbService.CreateContext(selectedComparisonDb);
+
+            // Load ALL leaderboards from both databases first
+            var currentMapsAll = await currentDb.Leaderboards.ToListAsync();
+            var comparisonMapsAll = await comparisonDbContext.Leaderboards.ToListAsync();
+
+            // Filter for maps with Megametric125 > 0.5 after loading
+            var currentMaps = currentMapsAll.Where(l => l.Megametric125 > 0.5f).ToList();
+            var comparisonMapsDict = comparisonMapsAll.ToDictionary(l => l.Id, l => l);
+
+            // Get all IDs from maps that have Megametric125 > 0.5 in at least one database
+            var allIds = currentMaps.Select(m => m.Id)
+                .Union(comparisonMapsAll.Where(l => l.Megametric125 > 0.5f).Select(l => l.Id))
+                .ToHashSet();
+
+            var result = new List<MegametricComparisonResult>();
+
+            foreach (var id in allIds)
+            {
+                var current = currentMapsAll.FirstOrDefault(m => m.Id == id);
+                var comparison = comparisonMapsDict.GetValueOrDefault(id);
+
+                // Only include if at least one has Megametric125 > 0.5
+                if ((current != null && current.Megametric125 > 0.5f) || 
+                    (comparison != null && comparison.Megametric125 > 0.5f))
+                {
+                    var currentCount = current?.Count ?? 1;
+                    var comparisonCount = comparison?.Count ?? 1;
+                    
+                    result.Add(new MegametricComparisonResult
+                    {
+                        Id = id,
+                        Name = current?.Name ?? comparison?.Name ?? "",
+                        ModeName = current?.ModeName ?? comparison?.ModeName ?? "",
+                        DifficultyName = current?.DifficultyName ?? comparison?.DifficultyName ?? "",
+                        CurrentMegametric125 = current?.Megametric125 ?? 0,
+                        ComparisonMegametric125 = comparison?.Megametric125 ?? 0,
+                        Megametric125Diff = (comparison?.Megametric125 ?? 0) - (current?.Megametric125 ?? 0),
+                        CurrentMegametric75 = current?.Megametric75 ?? 0,
+                        ComparisonMegametric75 = comparison?.Megametric75 ?? 0,
+                        Megametric75Diff = (comparison?.Megametric75 ?? 0) - (current?.Megametric75 ?? 0),
+                        CurrentMegametric40 = current?.Megametric40 ?? 0,
+                        ComparisonMegametric40 = comparison?.Megametric40 ?? 0,
+                        Megametric40Diff = (comparison?.Megametric40 ?? 0) - (current?.Megametric40 ?? 0),
+                        CurrentOutlierCount = current?.OutlierCount ?? 0,
+                        ComparisonOutlierCount = comparison?.OutlierCount ?? 0,
+                        OutlierCountDiff = (comparison?.OutlierCount ?? 0) - (current?.OutlierCount ?? 0),
+                        CurrentOutlierPercentage = currentCount > 0 ? ((current?.OutlierCount ?? 0) / (float)currentCount) * 100f : 0,
+                        ComparisonOutlierPercentage = comparisonCount > 0 ? ((comparison?.OutlierCount ?? 0) / (float)comparisonCount) * 100f : 0
+                    });
+                }
+            }
+
+            return new JsonResult(result);
+        }
+
         public async Task<IActionResult> OnGetExportPlayersCsvAsync(string mainDb = null, string comparisonDb = null)
         {
             var availableDatabases = await _dbService.GetAvailableDatabasesAsync();
@@ -363,6 +433,78 @@ namespace portaBLe.Pages
             return File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv", $"maps_comparison_{selectedMainDb}_vs_{selectedComparisonDb}.csv");
         }
 
+        public async Task<IActionResult> OnGetExportMegametricsCsvAsync(string mainDb = null, string comparisonDb = null)
+        {
+            var availableDatabases = await _dbService.GetAvailableDatabasesAsync();
+            
+            var selectedMainDb = mainDb ?? _dbService.GetMainDatabaseFileName();
+            var selectedComparisonDb = comparisonDb ?? availableDatabases.FirstOrDefault(db => db.FileName != selectedMainDb)?.FileName 
+                                       ?? availableDatabases.FirstOrDefault()?.FileName;
+
+            if (selectedMainDb == null || selectedComparisonDb == null)
+            {
+                return Content("Error: Databases not configured", "text/plain");
+            }
+
+            using var currentDb = (DynamicDbContext)_dbService.CreateContext(selectedMainDb);
+            using var comparisonDbContext = (DynamicDbContext)_dbService.CreateContext(selectedComparisonDb);
+
+            // Load ALL leaderboards from both databases first
+            var currentMapsAll = await currentDb.Leaderboards.ToListAsync();
+            var comparisonMapsAll = await comparisonDbContext.Leaderboards.ToListAsync();
+            
+            // Filter for maps with Megametric125 > 0.5 after loading
+            var currentMaps = currentMapsAll.Where(l => l.Megametric125 > 0.5f).ToList();
+            var comparisonMapsDict = comparisonMapsAll.ToDictionary(l => l.Id, l => l);
+
+            // Get all IDs from maps that have Megametric125 > 0.5 in at least one database
+            var allIds = currentMaps.Select(m => m.Id)
+                .Union(comparisonMapsAll.Where(l => l.Megametric125 > 0.5f).Select(l => l.Id))
+                .ToHashSet();
+
+            var csv = new StringBuilder();
+            csv.AppendLine("Name,Mode,Difficulty,Megametric125 Diff,Megametric75 Diff,Megametric40 Diff,Outlier Count Diff,Main Outlier %,Comparison Outlier %,Main Megametric125,Comparison Megametric125");
+
+            foreach (var id in allIds)
+            {
+                var current = currentMapsAll.FirstOrDefault(m => m.Id == id);
+                var comparison = comparisonMapsDict.GetValueOrDefault(id);
+
+                if ((current != null && current.Megametric125 > 0.5f) || 
+                    (comparison != null && comparison.Megametric125 > 0.5f))
+                {
+                    var name = current?.Name ?? comparison?.Name ?? "";
+                    var mode = current?.ModeName ?? comparison?.ModeName ?? "";
+                    var diff = current?.DifficultyName ?? comparison?.DifficultyName ?? "";
+                    
+                    var currentMega125 = current?.Megametric125 ?? 0;
+                    var comparisonMega125 = comparison?.Megametric125 ?? 0;
+                    var mega125Diff = comparisonMega125 - currentMega125;
+                    
+                    var currentMega75 = current?.Megametric75 ?? 0;
+                    var comparisonMega75 = comparison?.Megametric75 ?? 0;
+                    var mega75Diff = comparisonMega75 - currentMega75;
+                    
+                    var currentMega40 = current?.Megametric40 ?? 0;
+                    var comparisonMega40 = comparison?.Megametric40 ?? 0;
+                    var mega40Diff = comparisonMega40 - currentMega40;
+                    
+                    var currentOutlierCount = current?.OutlierCount ?? 0;
+                    var comparisonOutlierCount = comparison?.OutlierCount ?? 0;
+                    var outlierCountDiff = comparisonOutlierCount - currentOutlierCount;
+                    
+                    var currentCount = current?.Count ?? 1;
+                    var comparisonCount = comparison?.Count ?? 1;
+                    var currentOutlierPct = currentCount > 0 ? (currentOutlierCount / (float)currentCount) * 100f : 0;
+                    var comparisonOutlierPct = comparisonCount > 0 ? (comparisonOutlierCount / (float)comparisonCount) * 100f : 0;
+                    
+                    csv.AppendLine($"\"{name}\",\"{mode}\",\"{diff}\",{mega125Diff:F4},{mega75Diff:F4},{mega40Diff:F4},{outlierCountDiff},{currentOutlierPct:F2},{comparisonOutlierPct:F2},{currentMega125:F4},{comparisonMega125:F4}");
+                }
+            }
+
+            return File(Encoding.UTF8.GetBytes(csv.ToString()), "text/csv", $"megametrics_comparison_{selectedMainDb}_vs_{selectedComparisonDb}.csv");
+        }
+
         public class PlayerComparisonData
         {
             public string Id { get; set; }
@@ -429,6 +571,28 @@ namespace portaBLe.Pages
             public float CurrentTechRating { get; set; }
             public float ComparisonTechRating { get; set; }
             public float TechRatingDiff { get; set; }
+        }
+
+        public class MegametricComparisonResult
+        {
+            public string Id { get; set; }
+            public string Name { get; set; }
+            public string ModeName { get; set; }
+            public string DifficultyName { get; set; }
+            public float CurrentMegametric125 { get; set; }
+            public float ComparisonMegametric125 { get; set; }
+            public float Megametric125Diff { get; set; }
+            public float CurrentMegametric75 { get; set; }
+            public float ComparisonMegametric75 { get; set; }
+            public float Megametric75Diff { get; set; }
+            public float CurrentMegametric40 { get; set; }
+            public float ComparisonMegametric40 { get; set; }
+            public float Megametric40Diff { get; set; }
+            public int CurrentOutlierCount { get; set; }
+            public int ComparisonOutlierCount { get; set; }
+            public int OutlierCountDiff { get; set; }
+            public float CurrentOutlierPercentage { get; set; }
+            public float ComparisonOutlierPercentage { get; set; }
         }
     }
 }
