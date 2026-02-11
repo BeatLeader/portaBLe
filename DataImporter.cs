@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using Microsoft.EntityFrameworkCore;
 using System.Collections.Generic;
 using System.Linq;
@@ -10,7 +10,7 @@ namespace portaBLe
 {
     public static class DataImporter
     {
-        public static void ImportJsonData(RootObject rootObject, AppContext dbContext)
+        public static void ImportData(BigExportResponse export, AppContext dbContext)
         {
             dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
             
@@ -18,14 +18,7 @@ namespace portaBLe
             dbContext.Database.ExecuteSql($"PRAGMA journal_mode=OFF;");
             dbContext.Database.ExecuteSql($"PRAGMA synchronous=OFF;");
 
-            foreach (var item in rootObject.Maps)
-            {
-                if (item.ModifiersRating != null) {
-                    item.ModifiersRating.Id = 0;
-                }
-            }
-
-            var leaderboards = rootObject.Maps.Select(map => new Leaderboard
+            var leaderboards = export.Maps.Select(map => new Leaderboard
             {
                 Id = map.Id,
                 Name = map.Name,
@@ -33,19 +26,19 @@ namespace portaBLe
                 SongId = map.SongId,
                 ModeName = map.ModeName,
                 DifficultyName = map.DifficultyName,
-                PassRating = map.PassRating,
-                AccRating = map.AccRating,
-                TechRating = map.TechRating,
-                PredictedAcc = map.PredictedAcc,
-                ModifiersRating = map.ModifiersRating,
+                PassRating = map.PassRating ?? 0,
+                AccRating = map.AccRating ?? 0,
+                TechRating = map.TechRating ?? 0,
+                PredictedAcc = map.PredictedAcc ?? 0,
+                ModifiersRating = map.ModifiersRating?.ToDBModel(),
                 Cover = map.CoverImage,
                 Mapper = map.Mapper,
-                Stars = ReplayUtils.ToStars(map.AccRating, map.PassRating, map.TechRating)
+                Stars = ReplayUtils.ToStars(map.AccRating ?? 0, map.PassRating ?? 0, map.TechRating ?? 0)
             });
 
             dbContext.Leaderboards.BulkInsertOptimized(leaderboards, options => options.IncludeGraph = true);
 
-            var players = rootObject.Players.Select(player => new Player
+            var players = export.Players.Select(player => new Player
             {
                 Id = player.Id,
                 Name = player.Name,
@@ -55,7 +48,7 @@ namespace portaBLe
             
             dbContext.Players.BulkInsertOptimized(players);
 
-            var scores = rootObject.Scores.Select(score => new Score
+            var scores = export.Scores.Select(score => new Score
             {
                 Id = score.Id,
                 PlayerId = score.PlayerId,
