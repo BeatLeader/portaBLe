@@ -22,9 +22,14 @@
       "Description": "0.5% acc filtering, reweighted and 15.375 - 15.65 acc rebalance"
     },
     {
-      "Name": "Dev (RD change)",
-      "FileName": "db-20260223220338-2236.db",
-      "Description": "devrd"
+      "Name": "Release (RAW)",
+      "FileName": "db-20260224144843-2819.db",
+      "Description": "releaseraw"
+    },
+    {
+      "Name": "Release (Reweighted)",
+      "FileName": "db-20260224145729-5356.db",
+      "Description": "releasereweight"
     }
   ]
 }
