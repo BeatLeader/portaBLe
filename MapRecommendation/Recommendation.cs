@@ -145,7 +145,7 @@ public class RecommendationService
         await ExportPlaylistToJsonAsync(playlist, playerId);
     }
 
-    private static async Task ExportPlaylistToJsonAsync(Playlist playlist, string playerId)
+    public static async Task ExportPlaylistToJsonAsync(Playlist playlist, string playerId)
     {
         try
         {
