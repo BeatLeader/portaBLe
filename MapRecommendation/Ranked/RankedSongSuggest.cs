@@ -29,7 +29,40 @@ namespace portaBLe.MapRecommendation.Ranked
         {
             Console.WriteLine($"[SuggestedSongs] Starting song suggestion process for player: {songSuggestData.playerID}");
 
-            songSuggestData.activePlayer = songSuggestData.leaderboards.top10kPlayers.Where(p => p.id == songSuggestData.playerID).FirstOrDefault();
+            // Get the player's top 100 scores (best first)
+            var scores = appContext.Scores
+                .Where(s => s.PlayerId == songSuggestData.playerID)
+                .Where(s => !s.Modifiers.Contains("NF") && !s.Modifiers.Contains("SS") && !s.Modifiers.Contains("NA") && !s.Modifiers.Contains("FS") && !s.Modifiers.Contains("SF"))
+                .OrderByDescending(s => s.Pp)  // Best scores first
+                .Take(100)
+                .ToList();
+
+            // Get player info
+            var playerInfo = appContext.Players
+                .FirstOrDefault(p => p.Id == songSuggestData.playerID);
+
+            // Create Top10kPlayer with correct structure
+            Top10kPlayer player = new Top10kPlayer
+            {
+                id = songSuggestData.playerID,
+                rank = playerInfo?.Rank ?? -1,
+                name = playerInfo?.Name ?? "Unknown",
+                top10kScore = scores.Select(s => new Top10kScore
+                {
+                    songID = s.LeaderboardId,
+                    pp = s.Pp
+                }).ToList()
+            };
+
+            // Assign ranks (starting at 1)
+            for (int i = 0; i < player.top10kScore.Count; i++)
+            {
+                var score = player.top10kScore[i];
+                score.parent = player;
+                score.rank = i + 1;  // Ranks: 1, 2, 3, ... 100
+            }
+
+            songSuggestData.activePlayer = player;
 
             //Setup Base Linking (song links).
             CreateLinks(songSuggestData);
@@ -192,7 +225,7 @@ namespace portaBLe.MapRecommendation.Ranked
 
             //Ignore recently/all played songs
             //Add either all played songs
-            var playedSongs = songSuggestData.activePlayer.top10kScore.Select(s => s.leaderboardID).ToList();
+            var playedSongs = songSuggestData.activePlayer.top10kScore.Select(s => s.songID).ToList();
 
             if (ignoreDays == -1)
             {
@@ -231,7 +264,7 @@ namespace portaBLe.MapRecommendation.Ranked
 
             foreach (string leaderboardID in songSuggestData.sortedSuggestions)
             {
-                int? currentSongRank = songSuggestData.activePlayer.top10kScore.FirstOrDefault(s => s.leaderboardID == leaderboardID)?.rank;
+                int? currentSongRank = songSuggestData.activePlayer.top10kScore.FirstOrDefault(s => s.songID == leaderboardID)?.rank;
                 if (currentSongRank == null)
                 {
                     currentSongRank = -1;
@@ -259,7 +292,6 @@ namespace portaBLe.MapRecommendation.Ranked
                 .OrderByDescending(value => PlayerWeightedScoreValue(value.pp, value.rank))            //Order Songs by Leaderboards Effective value
                 .ToList();
             Console.WriteLine($"[SelectPlayedOriginSongs] Total songs gathered: {filteredSongs.Count}");
-            // HtmlExporter.ExportList("PlayedOriginSongs_Initial", filteredSongs.ConvertAll(x => new { LeaderboardID = x.leaderboardID, PP = x.pp, Rank = x.rank }));
 
             //To ensure worst songs are always removed (progression while getting enough songs) we only keep a certain percent of songs (75% default)
             int valueSongCount = filteredSongs.Count();
@@ -279,7 +311,7 @@ namespace portaBLe.MapRecommendation.Ranked
 
             // Step 2: Order by relative score
             var step2 = step1
-                .OrderByDescending(c => PlayerRelativeScoreValue(c.pp, c.leaderboardID, songSuggestData.leaderboards))
+                .OrderByDescending(c => PlayerRelativeScoreValue(c.pp, c.songID, songSuggestData.leaderboards))
                 .ToList();
 
             // Step 3: Take comparative best (adaptive count)
@@ -295,10 +327,9 @@ namespace portaBLe.MapRecommendation.Ranked
             // Step 5: Reorder by weighted score
             var filteredLeaderboards = step4
                 .OrderByDescending(c => PlayerWeightedScoreValue(c.pp, c.rank))
-                .Select(x => x.leaderboardID)
+                .Select(x => x.songID)
                 .ToList();
             Console.WriteLine($"[SelectPlayedOriginSongs] Final selected origin songs: {filteredLeaderboards.Count}");
-            // HtmlExporter.ExportList("PlayedOriginSongs_Final", filteredLeaderboards.ConvertAll(x => new { LeaderboardID = x }));
 
             //Returns the found songs.
             return filteredLeaderboards;

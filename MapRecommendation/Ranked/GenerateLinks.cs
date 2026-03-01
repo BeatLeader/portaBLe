@@ -24,7 +24,7 @@
             //We are preparing the actual linking between a playrs origin songs to their suggested target songs.
             //origin -> matching leaderboard player -> other leaderboard players songs
             var links = songSuggestData.leaderboards.top10kPlayers                                          //Get reference to the top 10k players data                        
-                .Where(player => ValidateLinkPlayer(player, songSuggestData.playerID))                     //Remove active player so player does not use their own data
+                .Where(player => player.id != songSuggestData.playerID)                     //Remove active player so player does not use their own data
                 .SelectMany(linkPlayer => linkPlayer.top10kScore                                //Get the players scores
                     .Where(originSongCandidate => ValidateOriginSong(songSuggestData.originleaderboardIDs, originSongCandidate)) //Remove scores that does not fit filtering for Origin Song.
                     .Select(originLeaderboard => new { player = linkPlayer, originLeaderboard = originLeaderboard }) //Keep variables needed for creating SongLinks
@@ -33,7 +33,7 @@
                     .Where(potentialTargetSong => ValidateTargetSong(originLinks.originLeaderboard, potentialTargetSong))                        //Remove the selflink and bans
                     .Select(targetLeaderboard => new { player = originLinks.player, originLeaderboard = originLinks.originLeaderboard, targetLeaderboard = targetLeaderboard })    //Store needed variables again
                 )
-                .Select(linkData => new { link = GenerateSongLink(linkData.player, linkData.originLeaderboard, linkData.targetLeaderboard, maxRank), index = linkData.player.rank })    //Create songlinks for further processing
+                .Select(linkData => new { link = GenerateSongLink(linkData.player, linkData.originLeaderboard, linkData.targetLeaderboard), index = linkData.player.rank })    //Create songlinks for further processing
                 .OrderBy(c => c.link.distance)
                 .ToList();
 
@@ -51,11 +51,11 @@
             foreach (var item in links)
             {
                 //Add the songlink to the origin list
-                string originSongID = item.link.originSongScore.leaderboardID;
+                string originSongID = item.link.originSongScore.songID;
                 originLeaderboards.endPoints[originSongID].songLinks.Add(item.link);
 
                 //Create the target endpoint if needed.
-                string targetSongID = item.link.targetSongScore.leaderboardID;
+                string targetSongID = item.link.targetSongScore.songID;
                 if (!targetLeaderboards.endPoints.ContainsKey(targetSongID))
                 {
                     var endPoint = new LeaderboardEndPoint { leaderboardID = targetSongID };
@@ -74,21 +74,57 @@
             songSuggestData.targetLeaderboards = targetLeaderboards;
         }
 
-        //Filters players that should not be used. (Only filters out the active player currently, previous versions checked global rank and such, but it did not improve results).
-        private static bool ValidateLinkPlayer(Top10kPlayer player, String playerID)
+        //Export details for a specific song ID after Execute has been run
+        public static void ExportSongLinkDetailsToFile(SongSuggestData songSuggestData, string songID, AppContext appContext = null)
         {
-            return player.id != playerID;
+            ExportSongLinkDetails.Execute(songSuggestData, songID, songSuggestData.leaderboards, appContext);
+        }
+
+        //Export details for all song IDs in a single file after Execute has been run
+        public static void ExportAllSongLinkDetailsToFile(SongSuggestData songSuggestData, AppContext appContext = null)
+        {
+            ExportSongLinkDetails.ExecuteAll(songSuggestData, songSuggestData.leaderboards, appContext);
+        }
+
+        //Export the 50 origin leaderboards (player's top songs)
+        public static void ExportOriginLeaderboardsToFile(SongSuggestData songSuggestData, AppContext appContext = null)
+        {
+            ExportSongLinkDetails.ExportOriginLeaderboards(songSuggestData, appContext);
+        }
+
+        //Export leaderboard details for a specific song showing all players' scores
+        public static void ExportLeaderboardDetailsToFile(SongSuggestData songSuggestData, string songID, AppContext appContext = null)
+        {
+            ExportSongLinkDetails.ExportLeaderboardDetails(songSuggestData, songID, appContext);
+        }
+
+        //Export the top 50 selected songs for the playlist with detailed information
+        public static void ExportPlaylistSuggestionsToFile(SongSuggestData songSuggestData, AppContext appContext = null)
+        {
+            ExportSongLinkDetails.ExportPlaylistSuggestions(songSuggestData, appContext);
+        }
+
+        //Export detailed filtering information for origin songs selection
+        public static void ExportOriginSongsFilteringToFile(SongSuggestData songSuggestData, AppContext appContext = null)
+        {
+            ExportOriginSongsFiltering.Execute(songSuggestData, appContext);
+        }
+
+        //Export all leaderboard link data with statistics and organization
+        public static void ExportLeaderboardLinksToFile(SongSuggestData songSuggestData, AppContext appContext = null)
+        {
+            ExportSongLinkDetails.ExportLeaderboardLinks(songSuggestData, appContext);
         }
 
         //Removes songs that are to be ignored, as well as songs linking itself.
         private static bool ValidateTargetSong(Top10kScore originLeaderboard, Top10kScore suggestedSong)
         {
-            string suggestedSongID = suggestedSong.leaderboardID;
+            string suggestedSongID = suggestedSong.songID;
             return suggestedSong.rank != originLeaderboard.rank;
         }
 
         //Generate the Song Link, as well as set the aproximate completion, as majority of loop should be in this part
-        private static LeaderboardLink GenerateSongLink(Top10kPlayer player, Top10kScore originLeaderboard, Top10kScore suggestedSong, int maxRank)
+        private static LeaderboardLink GenerateSongLink(Top10kPlayer player, Top10kScore originLeaderboard, Top10kScore suggestedSong)
         {
             //If originsongs PP is 0, it is because it is a seed/liked song, so it should be treated as optimal distance
             //Else we calculate the absolute distance (over or under does not matter)
@@ -115,7 +151,7 @@
 
         private static bool ValidateOriginSong(List<string> originSongIDs, Top10kScore originSongCandidate)
         {
-            var originSongCandidateID = originSongCandidate.leaderboardID;
+            var originSongCandidateID = originSongCandidate.songID;
             //Return false if song is not in the list of songs we are looking for.
             if (!originSongIDs.Contains(originSongCandidateID)) return false;
 

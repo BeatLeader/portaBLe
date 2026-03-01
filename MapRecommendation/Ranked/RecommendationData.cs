@@ -1,4 +1,4 @@
-﻿using System.Text.Json.Serialization;
+﻿using Newtonsoft.Json;
 
 namespace portaBLe.MapRecommendation.Ranked
 {
@@ -29,11 +29,11 @@ namespace portaBLe.MapRecommendation.Ranked
                 foreach (Top10kScore score in player.top10kScore)
                 {
                     //Add any missing songs.
-                    if (!top10kLeaderboardMeta.ContainsKey(score.leaderboardID))
+                    if (!top10kLeaderboardMeta.ContainsKey(score.songID))
                     {
-                        top10kLeaderboardMeta.Add(score.leaderboardID, new Top10kLeaderboardMeta { leaderboardID = score.leaderboardID });
+                        top10kLeaderboardMeta.Add(score.songID, new Top10kLeaderboardMeta { leaderboardID = score.songID });
                     }
-                    Top10kLeaderboardMeta songMeta = top10kLeaderboardMeta[score.leaderboardID];
+                    Top10kLeaderboardMeta songMeta = top10kLeaderboardMeta[score.songID];
                     songMeta.count++;
                     songMeta.totalRank += score.rank;
                     songMeta.maxScore = Math.Max(songMeta.maxScore, score.pp);
@@ -62,7 +62,7 @@ namespace portaBLe.MapRecommendation.Ranked
 
     public class Top10kScore
     {
-        public string leaderboardID { get; set; }
+        public string songID { get; set; }
         public float pp { get; set; }
         public int rank { get; set; }
         [JsonIgnore]

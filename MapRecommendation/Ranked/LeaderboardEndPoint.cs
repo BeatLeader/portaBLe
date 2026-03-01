@@ -38,13 +38,13 @@
         public void SetStyle(LeaderboardEndPointCollection originSongs)
         {
             List<string> originSongIDs = songLinks
-                .Select(c => c.originSongScore.leaderboardID)
+                .Select(c => c.originSongScore.songID)
                 .Distinct()
                 .ToList();
             foreach (string originSongID in originSongIDs)
             {
                 int originSongCount = originSongs.endPoints[originSongID].songLinks.Count();
-                int linkedCount = songLinks.Select(c => c.originSongScore.leaderboardID == leaderboardID).Count();
+                int linkedCount = songLinks.Select(c => c.originSongScore.songID == leaderboardID).Count();
                 proportionalStyle += 1.0 * linkedCount / originSongCount;
             }
         }
