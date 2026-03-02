@@ -151,7 +151,12 @@ namespace portaBLe.Refresh
                     var logger = loggerFactory.CreateLogger<RatingsController>();
                     var controller = new RatingsController(configuration, logger);
                     
-                    var response = controller.Get(lb.Hash, lb.ModeName, GetDiffCode(lb.DifficultyName)).Value;
+                    var result = controller.Get(lb.Hash, lb.ModeName, GetDiffCode(lb.DifficultyName));
+                    var response = result.Value;
+                    if (response == null || !response.ContainsKey("none"))
+                    {
+                        throw new InvalidOperationException($"No rating data returned for {lb.Hash} ({lb.ModeName}/{lb.DifficultyName})");
+                    }
                     lb.DodgeWalls = (int)response["none"].LackMapCalculation.Statistics.DodgeWalls;
                     lb.CrouchWalls = (int)response["none"].LackMapCalculation.Statistics.CrouchWalls;
                     lb.LinearPercent = (float)response["none"].LackMapCalculation.LinearPercentage;
