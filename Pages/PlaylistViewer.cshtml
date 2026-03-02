@@ -1,0 +1,434 @@
+@page
+@model portaBLe.Pages.PlaylistViewerModel
+@{
+    ViewData["Title"] = "Playlist Viewer";
+}
+
+<style>
+    .playlist-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 2rem;
+        border-radius: 8px;
+        margin-bottom: 2rem;
+    }
+
+    .playlist-title {
+        font-size: 2rem;
+        font-weight: bold;
+        margin: 0;
+    }
+
+    .playlist-meta {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+        font-size: 0.95rem;
+    }
+
+    .meta-item {
+        display: flex;
+        flex-direction: column;
+        gap: 0.25rem;
+    }
+
+    .meta-label {
+        opacity: 0.9;
+        font-size: 0.85rem;
+        text-transform: uppercase;
+        font-weight: 600;
+    }
+
+    .meta-value {
+        font-size: 1.1rem;
+    }
+
+    .error-message {
+        background-color: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
+        padding: 1rem;
+        border-radius: 4px;
+        margin-bottom: 2rem;
+    }
+
+    .songs-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: white;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .songs-table thead {
+        background-color: #f8f9fa;
+        border-bottom: 2px solid #dee2e6;
+    }
+
+    .songs-table th {
+        padding: 1rem;
+        text-align: left;
+        font-weight: 600;
+        color: #333;
+        font-size: 0.9rem;
+        text-transform: uppercase;
+    }
+
+    .songs-table td {
+        padding: 1rem;
+        border-bottom: 1px solid #dee2e6;
+        vertical-align: middle;
+    }
+
+    .songs-table tbody tr:hover {
+        background-color: #f8f9fa;
+    }
+
+    .rank-badge {
+        background-color: #667eea;
+        color: white;
+        padding: 0.25rem 0.75rem;
+        border-radius: 20px;
+        font-weight: 600;
+        min-width: 40px;
+        text-align: center;
+        display: inline-block;
+    }
+
+    .song-name-cell {
+        font-weight: 500;
+        color: #333;
+    }
+
+    .mapper-cell {
+        color: #666;
+        font-size: 0.9rem;
+    }
+
+    .difficulty-badge {
+        display: inline-block;
+        padding: 0.25rem 0.5rem;
+        border-radius: 4px;
+        font-size: 0.85rem;
+        font-weight: 600;
+        margin-right: 0.5rem;
+    }
+
+    .difficulty-expert {
+        background-color: #667eea;
+        color: white;
+    }
+
+    .difficulty-hard {
+        background-color: #f093fb;
+        color: white;
+    }
+
+    .difficulty-normal {
+        background-color: #4facfe;
+        color: white;
+    }
+
+    .difficulty-easy {
+        background-color: #43e97b;
+        color: white;
+    }
+
+    .rating-cell {
+        text-align: center;
+        font-weight: 500;
+        padding: 0.5rem;
+        border-radius: 4px;
+    }
+
+    .rating-high {
+        background-color: #ffe0e0;
+        color: #c41e3a;
+    }
+
+    .rating-medium {
+        background-color: #fff3cd;
+        color: #856404;
+    }
+
+    .rating-low {
+        background-color: #d4edda;
+        color: #155724;
+    }
+
+    .loading {
+        text-align: center;
+        padding: 2rem;
+        color: #666;
+    }
+
+    .file-selector {
+        margin-bottom: 2rem;
+    }
+
+    .file-selector select {
+        padding: 0.5rem;
+        border-radius: 4px;
+        border: 1px solid #ddd;
+        font-size: 1rem;
+        min-width: 300px;
+    }
+
+    .file-selector button {
+        padding: 0.5rem 1rem;
+        background-color: #667eea;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 1rem;
+        margin-left: 0.5rem;
+    }
+
+    .file-selector button:hover {
+        background-color: #5568d3;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 1rem;
+        margin-bottom: 2rem;
+    }
+
+    .stat-box {
+        background: white;
+        padding: 1.5rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        text-align: center;
+    }
+
+    .stat-value {
+        font-size: 2rem;
+        font-weight: bold;
+        color: #667eea;
+    }
+
+    .stat-label {
+        color: #666;
+        font-size: 0.9rem;
+        margin-top: 0.5rem;
+    }
+</style>
+
+<div class="container mt-4">
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="error-message">
+            <strong>Error:</strong> @Model.ErrorMessage
+        </div>
+
+        <div class="file-selector">
+            <label for="playlistSelect">Or select a saved playlist:</label>
+            <select id="playlistSelect" onchange="loadPlaylist(this.value)">
+                <option value="">-- Load saved playlist --</option>
+            </select>
+        </div>
+
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                fetch('/PlaylistViewer?handler=List')
+                    .then(response => response.json())
+                    .then(data => {
+                        const select = document.getElementById('playlistSelect');
+                        if (data.files && data.files.length > 0) {
+                            data.files.forEach(file => {
+                                const option = document.createElement('option');
+                                option.value = file.filename;
+                                option.textContent = `${file.displayName} (${file.lastModified})`;
+                                select.appendChild(option);
+                            });
+                        } else {
+                            select.innerHTML = '<option value="">No saved playlists found</option>';
+                        }
+                    })
+                    .catch(err => console.error('Error loading playlist list:', err));
+            });
+
+            function loadPlaylist(filename) {
+                if (filename) {
+                    window.location.href = `/PlaylistViewer?playlistFile=${filename}`;
+                }
+            }
+        </script>
+    }
+    else if (Model.SongDetails != null && Model.SongDetails.Count > 0)
+    {
+        <div class="playlist-header">
+            <div class="playlist-title">@Model.PlaylistTitle</div>
+            <div class="playlist-meta">
+                <div class="meta-item">
+                    <span class="meta-label">Author</span>
+                    <span class="meta-value">@Model.PlaylistAuthor</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Player ID</span>
+                    <span class="meta-value">@Model.PlayerId</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Generated</span>
+                    <span class="meta-value">@Model.GeneratedTime</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Source</span>
+                    <span class="meta-value">@Model.PlaylistSource</span>
+                </div>
+                <div class="meta-item">
+                    <span class="meta-label">Total Songs</span>
+                    <span class="meta-value">@Model.TotalSongs</span>
+                </div>
+            </div>
+        </div>
+
+        <div class="stats-grid">
+            <div class="stat-box">
+                <div class="stat-value">@Model.SongDetails.Count</div>
+                <div class="stat-label">Songs</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value">@Model.SongDetails.Average(s => s.Stars).ToString("F2")</div>
+                <div class="stat-label">Avg. Stars</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value">@Model.SongDetails.Average(s => s.AccRating).ToString("F2")</div>
+                <div class="stat-label">Avg. Acc Rating</div>
+            </div>
+            <div class="stat-box">
+                <div class="stat-value">@Model.SongDetails.Average(s => s.TechRating).ToString("F2")</div>
+                <div class="stat-label">Avg. Tech Rating</div>
+            </div>
+        </div>
+
+        <table class="songs-table">
+            <thead>
+                <tr>
+                    <th style="width: 50px;">#</th>
+                    <th>Song Name</th>
+                    <th style="width: 150px;">Mapper</th>
+                    <th style="width: 120px;">Difficulty</th>
+                    <th style="width: 100px;">Stars</th>
+                    <th style="width: 100px;">Acc Rating</th>
+                    <th style="width: 100px;">Tech Rating</th>
+                    <th style="width: 100px;">Pass Rating</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var song in Model.SongDetails)
+                {
+                    <tr>
+                        <td>
+                            <span class="rank-badge">@song.Rank</span>
+                        </td>
+                        <td class="song-name-cell">
+                            @song.SongName
+                            <div class="mapper-cell">@song.Hash</div>
+                        </td>
+                        <td class="mapper-cell">@song.Mapper</td>
+                        <td>
+                            @{
+                                var diffClass = song.Difficulty.ToLower() switch
+                                {
+                                    "expert" or "expertplus" => "difficulty-expert",
+                                    "hard" => "difficulty-hard",
+                                    "normal" => "difficulty-normal",
+                                    "easy" => "difficulty-easy",
+                                    _ => "difficulty-normal"
+                                };
+                            }
+                            <span class="difficulty-badge @diffClass">@song.Difficulty</span>
+                        </td>
+                        <td class="rating-cell @(song.Stars > 8 ? "rating-high" : song.Stars > 5 ? "rating-medium" : "rating-low")">
+                            @song.Stars.ToString("F2")
+                        </td>
+                        <td class="rating-cell @(song.AccRating > 8 ? "rating-high" : song.AccRating > 5 ? "rating-medium" : "rating-low")">
+                            @song.AccRating.ToString("F2")
+                        </td>
+                        <td class="rating-cell @(song.TechRating > 8 ? "rating-high" : song.TechRating > 5 ? "rating-medium" : "rating-low")">
+                            @song.TechRating.ToString("F2")
+                        </td>
+                        <td class="rating-cell @(song.PassRating > 8 ? "rating-high" : song.PassRating > 5 ? "rating-medium" : "rating-low")">
+                            @song.PassRating.ToString("F2")
+                        </td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <div class="file-selector" style="margin-top: 2rem;">
+            <label for="playlistSelect">Or load a different playlist:</label>
+            <select id="playlistSelect" onchange="loadPlaylist(this.value)">
+                <option value="">-- Select a saved playlist --</option>
+            </select>
+        </div>
+
+        <script>
+            document.addEventListener('DOMContentLoaded', function () {
+                fetch('/PlaylistViewer?handler=List')
+                    .then(response => response.json())
+                    .then(data => {
+                        const select = document.getElementById('playlistSelect');
+                        if (data.files && data.files.length > 0) {
+                            data.files.forEach(file => {
+                                const option = document.createElement('option');
+                                option.value = file.filename;
+                                option.textContent = `${file.displayName} (${file.lastModified})`;
+                                select.appendChild(option);
+                            });
+                        }
+                    });
+            });
+
+            function loadPlaylist(filename) {
+                if (filename) {
+                    window.location.href = `/PlaylistViewer?playlistFile=${filename}`;
+                }
+            }
+        </script>
+    }
+    else
+    {
+        <div class="loading">
+            <p>No playlist data to display. Please ensure a playlist has been generated.</p>
+            <div class="file-selector" style="margin-top: 2rem;">
+                <label for="playlistSelect">Select a saved playlist:</label>
+                <select id="playlistSelect" onchange="loadPlaylist(this.value)">
+                    <option value="">-- Load saved playlist --</option>
+                </select>
+            </div>
+
+            <script>
+                document.addEventListener('DOMContentLoaded', function () {
+                    fetch('/PlaylistViewer?handler=List')
+                        .then(response => response.json())
+                        .then(data => {
+                            const select = document.getElementById('playlistSelect');
+                            if (data.files && data.files.length > 0) {
+                                data.files.forEach(file => {
+                                    const option = document.createElement('option');
+                                    option.value = file.filename;
+                                    option.textContent = `${file.displayName} (${file.lastModified})`;
+                                    select.appendChild(option);
+                                });
+                            } else {
+                                select.innerHTML = '<option value="">No saved playlists found</option>';
+                            }
+                        });
+                });
+
+                function loadPlaylist(filename) {
+                    if (filename) {
+                        window.location.href = `/PlaylistViewer?playlistFile=${filename}`;
+                    }
+                }
+            </script>
+        </div>
+    }
+</div>

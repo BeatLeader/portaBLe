@@ -1,0 +1,657 @@
+@page
+@model portaBLe.Pages.SongSuggestAnalysisModel
+@{
+    ViewData["Title"] = "Song Suggest Analysis";
+}
+
+<style>
+    .analysis-header {
+        background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+        color: white;
+        padding: 1.5rem 2rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+    }
+    .analysis-header h1 { margin: 0; font-size: 1.8rem; }
+
+    .tab-nav {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.25rem;
+        margin-bottom: 1.5rem;
+        border-bottom: 2px solid #dee2e6;
+        padding-bottom: 0;
+    }
+    .tab-nav a {
+        padding: 0.6rem 1.2rem;
+        text-decoration: none;
+        color: #666;
+        border: 1px solid transparent;
+        border-bottom: none;
+        border-radius: 6px 6px 0 0;
+        font-weight: 500;
+        font-size: 0.9rem;
+        margin-bottom: -2px;
+        background: #f8f9fa;
+    }
+    .tab-nav a:hover { color: #333; background: #e9ecef; }
+    .tab-nav a.active {
+        color: #667eea;
+        background: white;
+        border-color: #dee2e6;
+        border-bottom-color: white;
+        font-weight: 600;
+    }
+
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        overflow: hidden;
+        font-size: 0.88rem;
+    }
+    .data-table thead { background-color: #f8f9fa; border-bottom: 2px solid #dee2e6; }
+    .data-table th {
+        padding: 0.75rem;
+        text-align: left;
+        font-weight: 600;
+        color: #333;
+        font-size: 0.82rem;
+        text-transform: uppercase;
+    }
+    .data-table td { padding: 0.6rem 0.75rem; border-bottom: 1px solid #dee2e6; vertical-align: middle; }
+    .data-table tbody tr:hover { background-color: #f8f9fa; }
+
+    .rank-badge {
+        background-color: #667eea;
+        color: white;
+        padding: 0.15rem 0.5rem;
+        border-radius: 12px;
+        font-weight: 600;
+        font-size: 0.82rem;
+        display: inline-block;
+        min-width: 30px;
+        text-align: center;
+    }
+    .used-badge {
+        background-color: #28a745;
+        color: white;
+        padding: 0.15rem 0.45rem;
+        border-radius: 4px;
+        font-size: 0.78rem;
+        font-weight: 600;
+    }
+    .unused-badge {
+        background-color: #dc3545;
+        color: white;
+        padding: 0.15rem 0.45rem;
+        border-radius: 4px;
+        font-size: 0.78rem;
+        font-weight: 600;
+    }
+    .unplayed-badge {
+        background-color: #ffc107;
+        color: #333;
+        padding: 0.15rem 0.45rem;
+        border-radius: 4px;
+        font-size: 0.78rem;
+        font-weight: 600;
+    }
+
+    .stats-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(140px, 1fr));
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+    }
+    .stat-box {
+        background: white;
+        padding: 1.2rem;
+        border-radius: 8px;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        text-align: center;
+    }
+    .stat-value { font-size: 1.6rem; font-weight: bold; color: #667eea; }
+    .stat-label { color: #666; font-size: 0.85rem; margin-top: 0.3rem; }
+
+    .section-title {
+        font-size: 1.2rem;
+        font-weight: 600;
+        color: #333;
+        margin: 1.5rem 0 0.75rem;
+        padding-bottom: 0.4rem;
+        border-bottom: 2px solid #667eea;
+    }
+
+    .song-selector {
+        display: flex;
+        gap: 0.5rem;
+        align-items: center;
+        margin-bottom: 1rem;
+        flex-wrap: wrap;
+    }
+    .song-selector select {
+        padding: 0.4rem 0.6rem;
+        border-radius: 4px;
+        border: 1px solid #ddd;
+        font-size: 0.9rem;
+        min-width: 300px;
+        max-width: 500px;
+    }
+    .song-selector button, .song-selector a.btn {
+        padding: 0.4rem 1rem;
+        background-color: #667eea;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.9rem;
+        text-decoration: none;
+        display: inline-block;
+    }
+    .song-selector button:hover, .song-selector a.btn:hover { background-color: #5568d3; }
+
+    .error-message {
+        background-color: #f8d7da;
+        border: 1px solid #f5c6cb;
+        color: #721c24;
+        padding: 1rem;
+        border-radius: 4px;
+        margin-bottom: 1.5rem;
+    }
+
+    .dist-bar {
+        background-color: #667eea;
+        height: 18px;
+        border-radius: 3px;
+        display: inline-block;
+        vertical-align: middle;
+    }
+
+    .step-card {
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 1rem 1.5rem;
+        margin-bottom: 1rem;
+        box-shadow: 0 1px 3px rgba(0,0,0,0.08);
+    }
+    .step-card h3 {
+        font-size: 1rem;
+        font-weight: 600;
+        color: #667eea;
+        margin: 0 0 0.5rem;
+    }
+    .step-card .step-stats { color: #555; font-size: 0.9rem; }
+    .step-card .step-stats strong { color: #333; }
+</style>
+
+<div class="container-fluid mt-3">
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="error-message">@Model.ErrorMessage</div>
+    }
+
+    <div class="analysis-header">
+        <h1>Song Suggest Analysis</h1>
+    </div>
+
+    <nav class="tab-nav">
+        <a href="/SongSuggestAnalysis?tab=playlist" class="@(Model.ActiveTab == "playlist" ? "active" : "")">Playlist Suggestions</a>
+        <a href="/SongSuggestAnalysis?tab=origins" class="@(Model.ActiveTab == "origins" ? "active" : "")">Origin Songs</a>
+        <a href="/SongSuggestAnalysis?tab=filtering" class="@(Model.ActiveTab == "filtering" ? "active" : "")">Origin Filtering</a>
+        <a href="/SongSuggestAnalysis?tab=songlinks" class="@(Model.ActiveTab == "songlinks" ? "active" : "")">Song Links</a>
+        <a href="/SongSuggestAnalysis?tab=leaderboard" class="@(Model.ActiveTab == "leaderboard" ? "active" : "")">Leaderboard</a>
+        <a href="/SongSuggestAnalysis?tab=links" class="@(Model.ActiveTab == "links" ? "active" : "")">Link Analysis</a>
+    </nav>
+
+    @if (!Model.HasData)
+    {
+        <div class="error-message">Song suggestion data has not been computed yet. Ensure the analysis runs at startup.</div>
+    }
+    else
+    {
+        @* ===== PLAYLIST SUGGESTIONS ===== *@
+        @if (Model.ActiveTab == "playlist")
+        {
+            <h2 class="section-title">Playlist Suggestions (Top 50)</h2>
+            @if (Model.PlaylistSuggestions.Count > 0)
+            {
+                <div class="stats-grid">
+                    <div class="stat-box">
+                        <div class="stat-value">@Model.PlaylistSuggestions.Count</div>
+                        <div class="stat-label">Songs</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value">@Model.PlaylistSuggestions.Count(s => s.IsUnplayed)</div>
+                        <div class="stat-label">Unplayed</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value">@Model.PlaylistSuggestions.Average(s => s.MaxScore).ToString("F1")</div>
+                        <div class="stat-label">Avg Max PP</div>
+                    </div>
+                    <div class="stat-box">
+                        <div class="stat-value">@Model.PlaylistSuggestions.Average(s => s.LinkedPlayers).ToString("F0")</div>
+                        <div class="stat-label">Avg Linked Players</div>
+                    </div>
+                </div>
+
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Song</th>
+                            <th>Player PP</th>
+                            <th>Max PP</th>
+                            <th>Advantage</th>
+                            <th>Players</th>
+                            <th>Linked</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var s in Model.PlaylistSuggestions)
+                        {
+                            <tr>
+                                <td><span class="rank-badge">@s.Position</span></td>
+                                <td>@s.SongName</td>
+                                <td>
+                                    @if (s.IsUnplayed)
+                                    {
+                                        <span class="unplayed-badge">UNPLAYED</span>
+                                    }
+                                    else
+                                    {
+                                        @s.PlayerScore.ToString("F2")
+                                    }
+                                </td>
+                                <td>@s.MaxScore.ToString("F2")</td>
+                                <td>@s.Advantage.ToString("F2")%</td>
+                                <td>@s.PlayerCount</td>
+                                <td>@s.LinkedPlayers</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <p>No playlist suggestions available.</p>
+            }
+        }
+
+        @* ===== ORIGIN SONGS ===== *@
+        @if (Model.ActiveTab == "origins")
+        {
+            <h2 class="section-title">Origin Song Candidates (@Model.OriginSongs.Count) — ✓ = kept in final 50</h2>
+            @if (Model.OriginSongs.Count > 0)
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>Kept</th>
+                            <th>Song</th>
+                            <th>Links</th>
+                            <th>Player PP</th>
+                            <th>Weighted PP</th>
+                            <th>Advantage%</th>
+                            <th>Comparative Rank</th>
+                            <th>Players</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var s in Model.OriginSongs)
+                        {
+                            <tr>
+                                <td>
+                                    @if (s.IsKept)
+                                    {
+                                        <span class="used-badge">✓</span>
+                                    }
+                                </td>
+                                <td>@s.SongName</td>
+                                <td>@s.LinkedCount</td>
+                                <td>@s.PlayerScore.ToString("F2")</td>
+                                <td>@s.WeightedPP.ToString("F2")</td>
+                                <td>@s.AdvantagePercent.ToString("F2")%</td>
+                                <td>@s.ComparativeRank</td>
+                                <td>@s.PlayerCount</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <p>No origin songs data available.</p>
+            }
+        }
+
+        @* ===== ORIGIN FILTERING ===== *@
+        @if (Model.ActiveTab == "filtering" && Model.OriginFiltering != null)
+        {
+            var f = Model.OriginFiltering;
+            <h2 class="section-title">Origin Songs Filtering — Player @f.PlayerID</h2>
+
+            <div class="step-card">
+                <h3>Step 1: All Player Songs</h3>
+                <div class="step-stats">Total: <strong>@f.TotalSongs</strong> songs</div>
+            </div>
+
+            <div class="step-card">
+                <h3>Step 2: Keep Top 75%</h3>
+                <div class="step-stats">
+                    Kept: <strong>@f.Step2Kept</strong> | Filtered: <strong>@f.Step2Filtered</strong>
+                </div>
+                @if (f.Step2FilteredSongs.Count > 0)
+                {
+                    <table class="data-table" style="margin-top:0.75rem">
+                        <thead>
+                            <tr><th>Song</th><th>PP</th><th>Rank</th><th>Weighted</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var s in f.Step2FilteredSongs)
+                            {
+                                <tr>
+                                    <td>@s.SongName</td>
+                                    <td>@s.PP.ToString("F2")</td>
+                                    <td>@s.Rank</td>
+                                    <td>@s.WeightedScore.ToString("F2")</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+
+            <div class="step-card">
+                <h3>Step 3: Filter by Relative Score (Top @f.PercentToKeep.ToString("P1"))</h3>
+                <div class="step-stats">
+                    Kept: <strong>@f.Step3Kept</strong> | Filtered: <strong>@f.Step3Filtered</strong>
+                </div>
+                @if (f.Step3FilteredSongs.Count > 0)
+                {
+                    <table class="data-table" style="margin-top:0.75rem">
+                        <thead>
+                            <tr><th>Song</th><th>PP</th><th>Max</th><th>Relative</th><th>Advantage%</th></tr>
+                        </thead>
+                        <tbody>
+                            @foreach (var s in f.Step3FilteredSongs)
+                            {
+                                <tr>
+                                    <td>@s.SongName</td>
+                                    <td>@s.PP.ToString("F2")</td>
+                                    <td>@s.MaxScore.ToString("F2")</td>
+                                    <td>@s.RelativeScore.ToString("F4")</td>
+                                    <td>@s.Advantage.ToString("F2")%</td>
+                                </tr>
+                            }
+                        </tbody>
+                    </table>
+                }
+            </div>
+
+            <div class="step-card">
+                <h3>Step 4: Final Selection — @f.FinalCount Songs</h3>
+                <table class="data-table" style="margin-top:0.75rem">
+                    <thead>
+                        <tr><th>#</th><th>Song</th><th>PP</th><th>Rank</th><th>Weighted</th><th>Relative</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var s in f.SelectedSongs)
+                        {
+                            <tr>
+                                <td><span class="rank-badge">@s.Position</span></td>
+                                <td>@s.SongName</td>
+                                <td>@s.PP.ToString("F2")</td>
+                                <td>@s.Rank</td>
+                                <td>@s.WeightedScore.ToString("F2")</td>
+                                <td>@s.RelativeScore.ToString("F4")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+
+        @* ===== SONG LINKS ===== *@
+        @if (Model.ActiveTab == "songlinks")
+        {
+            <h2 class="section-title">Song Link Details</h2>
+
+            <div class="song-selector">
+                <label>Search by name or ID:</label>
+                <input type="text" id="songLinkSearch" placeholder="Type song name or ID..." value="@Model.SongSearchQuery" style="padding:0.4rem 0.6rem;border-radius:4px;border:1px solid #ddd;font-size:0.9rem;min-width:250px;" />
+                <button onclick="var v=document.getElementById('songLinkSearch').value; if(v) window.location.href='/SongSuggestAnalysis?tab=songlinks&songSearch='+encodeURIComponent(v);">Search</button>
+            </div>
+            <div class="song-selector">
+                <label>Or select from dropdown:</label>
+                <select id="songLinkSelect">
+                    <option value="">-- All songs summary --</option>
+                    @foreach (var opt in Model.AvailableTargetSongs)
+                    {
+                        <option value="@opt.Id" selected="@(opt.Id == Model.SongID)">@opt.Name</option>
+                    }
+                </select>
+                <button onclick="var v=document.getElementById('songLinkSelect').value; window.location.href='/SongSuggestAnalysis?tab=songlinks'+(v?'&songId='+v:'');">Go</button>
+            </div>
+
+            @if (Model.SongSearchResults.Count > 0)
+            {
+                <p>Search results for "@Model.SongSearchQuery" — click to view:</p>
+                <div style="margin-bottom:1rem;">
+                    @foreach (var r in Model.SongSearchResults)
+                    {
+                        <div style="padding:0.3rem 0;"><a href="/SongSuggestAnalysis?tab=songlinks&songId=@r.Id">@r.Name</a></div>
+                    }
+                </div>
+            }
+            else if (!string.IsNullOrEmpty(Model.SongSearchQuery) && string.IsNullOrEmpty(Model.SongID))
+            {
+                <p>No songs found matching "@Model.SongSearchQuery".</p>
+            }
+
+            @if (!string.IsNullOrEmpty(Model.SongID) && Model.SongLinkDetails.Count > 0)
+            {
+                <h3>@Model.SongLinkSongName</h3>
+                <p>@Model.SongLinkDetails.Count link entries — @Model.SongLinkDetails.Count(l => l.IsUsed) used</p>
+
+                <table class="data-table">
+                    <thead>
+                        <tr><th>Used</th><th>Player</th><th>Rank</th><th>PP</th><th>Origin Song</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var l in Model.SongLinkDetails)
+                        {
+                            <tr>
+                                <td>
+                                    @if (l.IsUsed) { <span class="used-badge">+</span> }
+                                    else { <span class="unused-badge">-</span> }
+                                </td>
+                                <td>@l.PlayerName (@l.PlayerID)</td>
+                                <td>@l.PlayerRank</td>
+                                <td>@l.PP.ToString("F2")</td>
+                                <td>@l.OriginSongName</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else if (Model.AllSongLinksSummary.Count > 0)
+            {
+                <p>Showing top @Model.AllSongLinksSummary.Count target songs by link count. Select a song above for details.</p>
+                <table class="data-table">
+                    <thead>
+                        <tr><th>Song</th><th>Links</th><th>Players</th><th>Origin Songs</th><th>Avg Distance</th><th>Avg Rank</th><th></th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var s in Model.AllSongLinksSummary)
+                        {
+                            <tr>
+                                <td>@s.SongName</td>
+                                <td>@s.TotalLinks</td>
+                                <td>@s.UniquePlayers</td>
+                                <td>@s.UniqueOriginSongs</td>
+                                <td>@s.AverageDistance.ToString("F4")</td>
+                                <td>@s.AverageRank.ToString("F2")</td>
+                                <td><a href="/SongSuggestAnalysis?tab=songlinks&songId=@s.SongID" class="btn" style="padding:0.2rem 0.6rem;font-size:0.8rem;">Details</a></td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else
+            {
+                <p>No song link data available.</p>
+            }
+        }
+
+        @* ===== LEADERBOARD ===== *@
+        @if (Model.ActiveTab == "leaderboard")
+        {
+            <h2 class="section-title">Leaderboard Details</h2>
+
+            <div class="song-selector">
+                <label>Search by name or ID:</label>
+                <input type="text" id="leaderboardSearch" placeholder="Type song name or ID..." value="@Model.SongSearchQuery" style="padding:0.4rem 0.6rem;border-radius:4px;border:1px solid #ddd;font-size:0.9rem;min-width:250px;" />
+                <button onclick="var v=document.getElementById('leaderboardSearch').value; if(v) window.location.href='/SongSuggestAnalysis?tab=leaderboard&songSearch='+encodeURIComponent(v);">Search</button>
+            </div>
+            <div class="song-selector">
+                <label>Or select from dropdown:</label>
+                <select id="leaderboardSelect">
+                    <option value="">-- Select a song --</option>
+                    @foreach (var opt in Model.AvailableLeaderboardSongs)
+                    {
+                        <option value="@opt.Id" selected="@(opt.Id == Model.SongID)">@opt.Name</option>
+                    }
+                </select>
+                <button onclick="var v=document.getElementById('leaderboardSelect').value; if(v) window.location.href='/SongSuggestAnalysis?tab=leaderboard&songId='+v;">Go</button>
+            </div>
+
+            @if (Model.SongSearchResults.Count > 0)
+            {
+                <p>Search results for "@Model.SongSearchQuery" — click to view:</p>
+                <div style="margin-bottom:1rem;">
+                    @foreach (var r in Model.SongSearchResults)
+                    {
+                        <div style="padding:0.3rem 0;"><a href="/SongSuggestAnalysis?tab=leaderboard&songId=@r.Id">@r.Name</a></div>
+                    }
+                </div>
+            }
+            else if (!string.IsNullOrEmpty(Model.SongSearchQuery) && string.IsNullOrEmpty(Model.SongID))
+            {
+                <p>No songs found matching "@Model.SongSearchQuery".</p>
+            }
+
+            @if (Model.LeaderboardPlayers.Count > 0)
+            {
+                <h3>@Model.LeaderboardSongName</h3>
+                <p>@Model.LeaderboardPlayers.Count players</p>
+
+                <table class="data-table">
+                    <thead>
+                        <tr><th>PP</th><th>Player Rank</th><th>Player ID</th><th>Player Name</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var p in Model.LeaderboardPlayers)
+                        {
+                            <tr>
+                                <td>@p.PP.ToString("F2")</td>
+                                <td>@p.PlayerRank</td>
+                                <td>@p.PlayerID</td>
+                                <td>@p.PlayerName</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+            else if (!string.IsNullOrEmpty(Model.SongID))
+            {
+                <p>No players found with scores on this song.</p>
+            }
+            else
+            {
+                <p>Select a song to view its leaderboard.</p>
+            }
+        }
+
+        @* ===== LINK ANALYSIS ===== *@
+        @if (Model.ActiveTab == "links" && Model.LeaderboardLinks != null)
+        {
+            var lk = Model.LeaderboardLinks;
+            <h2 class="section-title">Leaderboard Links Analysis</h2>
+
+            <div class="stats-grid">
+                <div class="stat-box">
+                    <div class="stat-value">@lk.TotalLinks</div>
+                    <div class="stat-label">Total Links</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value">@lk.UniquePlayers</div>
+                    <div class="stat-label">Unique Players</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value">@lk.UniqueOriginSongs</div>
+                    <div class="stat-label">Origin Songs</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value">@lk.UniqueTargetSongs</div>
+                    <div class="stat-label">Target Songs</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value">@lk.MinDistance.ToString("F4")</div>
+                    <div class="stat-label">Min Distance</div>
+                </div>
+                <div class="stat-box">
+                    <div class="stat-value">@lk.MaxDistance.ToString("F4")</div>
+                    <div class="stat-label">Max Distance</div>
+                </div>
+            </div>
+
+            <h3 class="section-title">Top Target Songs by Link Count</h3>
+            <table class="data-table">
+                <thead>
+                    <tr><th>Target Song</th><th>Links</th><th>Players</th><th>Origins</th><th>Avg Dist</th><th>Min Dist</th><th>Max Dist</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var g in lk.TargetGroups)
+                    {
+                        <tr>
+                            <td>@g.SongName</td>
+                            <td>@g.TotalLinks</td>
+                            <td>@g.UniquePlayers</td>
+                            <td>@g.UniqueOriginSongs</td>
+                            <td>@g.AvgDistance.ToString("F4")</td>
+                            <td>@g.MinDistance.ToString("F4")</td>
+                            <td>@g.MaxDistance.ToString("F4")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+
+            @if (lk.DistributionBuckets.Count > 0)
+            {
+                var maxCount = lk.DistributionBuckets.Max(b => b.Count);
+                <h3 class="section-title">Distance Distribution</h3>
+                <table class="data-table">
+                    <thead>
+                        <tr><th style="width:100px">Distance</th><th>Distribution</th><th style="width:80px">Count</th><th style="width:80px">%</th></tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var b in lk.DistributionBuckets)
+                        {
+                            var barWidth = maxCount > 0 ? (int)(b.Count / (double)maxCount * 300) : 0;
+                            <tr>
+                                <td>@b.Distance.ToString("F2")</td>
+                                <td><span class="dist-bar" style="width:@(barWidth)px"></span></td>
+                                <td>@b.Count</td>
+                                <td>@b.Percentage.ToString("F1")%</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        }
+    }
+</div>

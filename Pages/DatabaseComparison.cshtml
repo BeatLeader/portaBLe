@@ -7,38 +7,226 @@
 <h2>@ViewData["Title"]</h2>
 
 <div class="container-fluid">
-    <div class="row mb-3">
-        <div class="col-md-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Database Statistics</h5>
-                </div>
-                <div class="card-body">
-                    <div class="row">
-                        <div class="col-md-6">
-                            <h6>Current Database (Database.db)</h6>
-                            <p><strong>Players:</strong> @Model.Stats.CurrentPlayerCount</p>
-                            <p><strong>Scores:</strong> @Model.Stats.CurrentScoreCount</p>
-                        </div>
-                        <div class="col-md-6">
-                            <h6>Comparison Database (Comparison.db)</h6>
-                            <p><strong>Players:</strong> @Model.Stats.ComparisonPlayerCount</p>
-                            <p><strong>Scores:</strong> @Model.Stats.ComparisonScoreCount</p>
-                        </div>
+<div class="row mb-3">
+    <div class="col-md-12">
+        <div class="card">
+            <div class="card-header">
+                <h5 class="mb-0">Database Statistics</h5>
+            </div>
+            <div class="card-body">
+                <div class="row">
+                    <div class="col-md-6">
+                        <h6>Current Database (Database.db)</h6>
+                        <p><strong>Players:</strong> @Model.Stats.CurrentPlayerCount</p>
+                        <p><strong>Scores:</strong> @Model.Stats.CurrentScoreCount</p>
                     </div>
-                    <div class="row mt-3">
-                        <div class="col-md-12">
-                            <h6>Differences</h6>
-                            <p><strong>Player Count Difference:</strong> <span class="@(Model.Stats.PlayerCountDiff >= 0 ? "text-success" : "text-danger")">@(Model.Stats.PlayerCountDiff >= 0 ? "+" : "")@Model.Stats.PlayerCountDiff</span></p>
-                            <p><strong>Score Count Difference:</strong> <span class="@(Model.Stats.ScoreCountDiff >= 0 ? "text-success" : "text-danger")">@(Model.Stats.ScoreCountDiff >= 0 ? "+" : "")@Model.Stats.ScoreCountDiff</span></p>
-                        </div>
+                    <div class="col-md-6">
+                        <h6>Comparison Database (Comparison.db)</h6>
+                        <p><strong>Players:</strong> @Model.Stats.ComparisonPlayerCount</p>
+                        <p><strong>Scores:</strong> @Model.Stats.ComparisonScoreCount</p>
+                    </div>
+                </div>
+                <div class="row mt-3">
+                    <div class="col-md-12">
+                        <h6>Differences</h6>
+                        <p><strong>Player Count Difference:</strong> <span class="@(Model.Stats.PlayerCountDiff >= 0 ? "text-success" : "text-danger")">@(Model.Stats.PlayerCountDiff >= 0 ? "+" : "")@Model.Stats.PlayerCountDiff</span></p>
+                        <p><strong>Score Count Difference:</strong> <span class="@(Model.Stats.ScoreCountDiff >= 0 ? "text-success" : "text-danger")">@(Model.Stats.ScoreCountDiff >= 0 ? "+" : "")@Model.Stats.ScoreCountDiff</span></p>
                     </div>
                 </div>
             </div>
         </div>
     </div>
+</div>
 
+@if (Model.StatsComparison != null)
+{
     <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">Quality Metrics Comparison</h5>
+                    <small class="text-muted">Lower values are better (indicates better balancing)</small>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive">
+                        <table class="table table-bordered table-hover">
+                            <thead class="thead-dark">
+                                <tr>
+                                    <th>Metric</th>
+                                    <th class="text-center">Current DB</th>
+                                    <th class="text-center">Comparison DB</th>
+                                    <th class="text-center">Difference</th>
+                                    <th class="text-center">Better?</th>
+                                </tr>
+                            </thead>
+                            <tbody>
+                                <tr>
+                                    <td><strong>Total Outliers</strong></td>
+                                    <td class="text-center">@Model.StatsComparison.CurrentTotalOutlier</td>
+                                    <td class="text-center">@Model.StatsComparison.ComparisonTotalOutlier</td>
+                                    <td class="text-center">
+                                        <span class="@(Model.StatsComparison.OutlierDiff <= 0 ? "text-success" : "text-danger")">
+                                            @(Model.StatsComparison.OutlierDiff > 0 ? "+" : "")@Model.StatsComparison.OutlierDiff
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        @if (Model.StatsComparison.OutlierDiff < 0)
+                                        {
+                                            <span class="badge bg-success">✓ Yes</span>
+                                        }
+                                        else if (Model.StatsComparison.OutlierDiff > 0)
+                                        {
+                                            <span class="badge bg-danger">✗ No</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">= Same</span>
+                                        }
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Avg Outlier Percentage</strong></td>
+                                    <td class="text-center">@Model.StatsComparison.CurrentAvgOutlierPercentage.ToString("F2")%</td>
+                                    <td class="text-center">@Model.StatsComparison.ComparisonAvgOutlierPercentage.ToString("F2")%</td>
+                                    <td class="text-center">
+                                        <span class="@(Model.StatsComparison.AvgOutlierPercentageDiff <= 0 ? "text-success" : "text-danger")">
+                                            @(Model.StatsComparison.AvgOutlierPercentageDiff > 0 ? "+" : "")@Model.StatsComparison.AvgOutlierPercentageDiff.ToString("F2")%
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        @if (Model.StatsComparison.AvgOutlierPercentageDiff < 0)
+                                        {
+                                            <span class="badge bg-success">✓ Yes</span>
+                                        }
+                                        else if (Model.StatsComparison.AvgOutlierPercentageDiff > 0)
+                                        {
+                                            <span class="badge bg-danger">✗ No</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">= Same</span>
+                                        }
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Avg Megametric (1.0x)</strong></td>
+                                    <td class="text-center">@Model.StatsComparison.CurrentAvgMegametric.ToString("F4")</td>
+                                    <td class="text-center">@Model.StatsComparison.ComparisonAvgMegametric.ToString("F4")</td>
+                                    <td class="text-center">
+                                        <span class="@(Model.StatsComparison.AvgMegametricDiff <= 0 ? "text-success" : "text-danger")">
+                                            @(Model.StatsComparison.AvgMegametricDiff > 0 ? "+" : "")@Model.StatsComparison.AvgMegametricDiff.ToString("F4")
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        @if (Model.StatsComparison.AvgMegametricDiff < 0)
+                                        {
+                                            <span class="badge bg-success">✓ Yes</span>
+                                        }
+                                        else if (Model.StatsComparison.AvgMegametricDiff > 0)
+                                        {
+                                            <span class="badge bg-danger">✗ No</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">= Same</span>
+                                        }
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Avg Megametric 40% (0.4x)</strong></td>
+                                    <td class="text-center">@Model.StatsComparison.CurrentAvgMegametric40.ToString("F4")</td>
+                                    <td class="text-center">@Model.StatsComparison.ComparisonAvgMegametric40.ToString("F4")</td>
+                                    <td class="text-center">
+                                        <span class="@(Model.StatsComparison.AvgMegametric40Diff <= 0 ? "text-success" : "text-danger")">
+                                            @(Model.StatsComparison.AvgMegametric40Diff > 0 ? "+" : "")@Model.StatsComparison.AvgMegametric40Diff.ToString("F4")
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        @if (Model.StatsComparison.AvgMegametric40Diff < 0)
+                                        {
+                                            <span class="badge bg-success">✓ Yes</span>
+                                        }
+                                        else if (Model.StatsComparison.AvgMegametric40Diff > 0)
+                                        {
+                                            <span class="badge bg-danger">✗ No</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">= Same</span>
+                                        }
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Avg Megametric 75% (0.75x)</strong></td>
+                                    <td class="text-center">@Model.StatsComparison.CurrentAvgMegametric75.ToString("F4")</td>
+                                    <td class="text-center">@Model.StatsComparison.ComparisonAvgMegametric75.ToString("F4")</td>
+                                    <td class="text-center">
+                                        <span class="@(Model.StatsComparison.AvgMegametric75Diff <= 0 ? "text-success" : "text-danger")">
+                                            @(Model.StatsComparison.AvgMegametric75Diff > 0 ? "+" : "")@Model.StatsComparison.AvgMegametric75Diff.ToString("F4")
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        @if (Model.StatsComparison.AvgMegametric75Diff < 0)
+                                        {
+                                            <span class="badge bg-success">✓ Yes</span>
+                                        }
+                                        else if (Model.StatsComparison.AvgMegametric75Diff > 0)
+                                        {
+                                            <span class="badge bg-danger">✗ No</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">= Same</span>
+                                        }
+                                    </td>
+                                </tr>
+                                <tr>
+                                    <td><strong>Avg Megametric 125% (1.25x)</strong></td>
+                                    <td class="text-center">@Model.StatsComparison.CurrentAvgMegametric125.ToString("F4")</td>
+                                    <td class="text-center">@Model.StatsComparison.ComparisonAvgMegametric125.ToString("F4")</td>
+                                    <td class="text-center">
+                                        <span class="@(Model.StatsComparison.AvgMegametric125Diff <= 0 ? "text-success" : "text-danger")">
+                                            @(Model.StatsComparison.AvgMegametric125Diff > 0 ? "+" : "")@Model.StatsComparison.AvgMegametric125Diff.ToString("F4")
+                                        </span>
+                                    </td>
+                                    <td class="text-center">
+                                        @if (Model.StatsComparison.AvgMegametric125Diff < 0)
+                                        {
+                                            <span class="badge bg-success">✓ Yes</span>
+                                        }
+                                        else if (Model.StatsComparison.AvgMegametric125Diff > 0)
+                                        {
+                                            <span class="badge bg-danger">✗ No</span>
+                                        }
+                                        else
+                                        {
+                                            <span class="badge bg-secondary">= Same</span>
+                                        }
+                                    </td>
+                                </tr>
+                            </tbody>
+                        </table>
+                    </div>
+                    <div class="alert alert-info mt-3">
+                        <strong>Interpretation:</strong> These metrics measure how well the rating system is balanced. Lower values indicate better balance and fewer outliers.
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+}
+else
+{
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="alert alert-warning">
+                <strong>Stats Not Available:</strong> One or both databases are missing Stats data. Please run <code>StatsRefresh.Refresh()</code> on both databases.
+            </div>
+        </div>
+    </div>
+}
+
+<div class="row mb-3">
         <div class="col-md-12">
             <div class="card">
                 <div class="card-header">
@@ -123,18 +311,222 @@
             </div>
         </div>
     </div>
+
+    @if (Model.LeaderboardComparisons != null && Model.LeaderboardComparisons.Any())
+    {
+        <div class="row mt-3">
+            <div class="col-md-12">
+                <div class="card">
+                <div class="card-header">
+                    <h5 class="mb-0">All Maps - Megametric125 Comparison</h5>
+                    <small class="text-muted">Showing maps with Megametric125 &gt; 0.5 in either database</small>
+                </div>
+                <div class="card-body">
+                    <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                        <table class="table table-striped table-hover table-sm">
+                                <thead class="thead-dark">
+                                    <tr>
+                                        <th>
+                                            <a class="sort-header @(Model.SortBy == "Name" ? "active" : "") @(Model.SortBy == "Name" && Model.SortDescending ? "desc" : "asc")"
+                                               asp-page="/DatabaseComparison"
+                                               asp-route-sortBy="Name"
+                                               asp-route-sortDescending="@(Model.SortBy == "Name" && Model.SortDescending ? "false" : "true")"
+                                               asp-route-currentPage="@Model.CurrentPage">
+                                                Map Name
+                                            </a>
+                                        </th>
+                                        <th>Difficulty</th>
+                                        <th>Mode</th>
+                                        <th class="text-center">
+                                            <a class="sort-header @(Model.SortBy == "Current" ? "active" : "") @(Model.SortBy == "Current" && Model.SortDescending ? "desc" : "asc")"
+                                               asp-page="/DatabaseComparison"
+                                               asp-route-sortBy="Current"
+                                               asp-route-sortDescending="@(Model.SortBy == "Current" && Model.SortDescending ? "false" : "true")"
+                                               asp-route-currentPage="@Model.CurrentPage">
+                                                Current DB
+                                            </a>
+                                        </th>
+                                        <th class="text-center">
+                                            <a class="sort-header @(Model.SortBy == "Comparison" ? "active" : "") @(Model.SortBy == "Comparison" && Model.SortDescending ? "desc" : "asc")"
+                                               asp-page="/DatabaseComparison"
+                                               asp-route-sortBy="Comparison"
+                                               asp-route-sortDescending="@(Model.SortBy == "Comparison" && Model.SortDescending ? "false" : "true")"
+                                               asp-route-currentPage="@Model.CurrentPage">
+                                                Comparison DB
+                                            </a>
+                                        </th>
+                                        <th class="text-center">
+                                            <a class="sort-header @(Model.SortBy == "AbsoluteDiff" ? "active" : "") @(Model.SortBy == "AbsoluteDiff" && Model.SortDescending ? "desc" : "asc")"
+                                               asp-page="/DatabaseComparison"
+                                               asp-route-sortBy="AbsoluteDiff"
+                                               asp-route-sortDescending="@(Model.SortBy == "AbsoluteDiff" && Model.SortDescending ? "false" : "true")"
+                                               asp-route-currentPage="@Model.CurrentPage">
+                                                Absolute Diff
+                                            </a>
+                                        </th>
+                                        <th class="text-center">
+                                            <a class="sort-header @(Model.SortBy == "RelativeDiff" ? "active" : "") @(Model.SortBy == "RelativeDiff" && Model.SortDescending ? "desc" : "asc")"
+                                               asp-page="/DatabaseComparison"
+                                               asp-route-sortBy="RelativeDiff"
+                                               asp-route-sortDescending="@(Model.SortBy == "RelativeDiff" && Model.SortDescending ? "false" : "true")"
+                                               asp-route-currentPage="@Model.CurrentPage">
+                                                Mega125 Diff (%)
+                                            </a>
+                                        </th>
+                                        <th class="text-center">Pass Δ (%)</th>
+                                        <th class="text-center">Tech Δ (%)</th>
+                                        <th class="text-center">Acc Δ (%)</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    @foreach (var comparison in Model.LeaderboardComparisons)
+                                    {
+                                        var rowClass = Math.Abs(comparison.RelativeDiff) > 10 ? "table-warning" : "";
+                                        var scoreCountMismatch = comparison.CurrentScoreCount != comparison.ComparisonScoreCount;
+                                        if (scoreCountMismatch)
+                                        {
+                                            rowClass += " table-danger";
+                                        }
+                                        <tr class="@rowClass">
+                                            <td>
+                                                <a asp-page="/Leaderboard" asp-route-id="@comparison.Id">
+                                                    @comparison.Name
+                                                </a>
+                                            </td>
+                                            <td>@comparison.DifficultyName</td>
+                                            <td>@comparison.ModeName</td>
+                                            <td class="text-center">@comparison.CurrentMegametric125.ToString("F4")</td>
+                                            <td class="text-center">@comparison.ComparisonMegametric125.ToString("F4")</td>
+                                            <td class="text-center">
+                                                <span class="@(comparison.AbsoluteDiff <= 0 ? "text-success" : "text-danger")">
+                                                    @(comparison.AbsoluteDiff > 0 ? "+" : "")@comparison.AbsoluteDiff.ToString("F4")
+                                                </span>
+                                            </td>
+                                            <td class="text-center">
+                                                <span class="@(comparison.RelativeDiff <= 0 ? "text-success" : "text-danger")">
+                                                    @(comparison.RelativeDiff > 0 ? "+" : "")@comparison.RelativeDiff.ToString("F2")%
+                                                </span>
+                                            </td>
+                                            <td class="text-center">
+                                                <span class="@(comparison.PassRatingRelativeDiff <= 0 ? "text-success" : "text-danger")">
+                                                    @(comparison.PassRatingRelativeDiff > 0 ? "+" : "")@comparison.PassRatingRelativeDiff.ToString("F1")%
+                                                </span>
+                                            </td>
+                                            <td class="text-center">
+                                                <span class="@(comparison.TechRatingRelativeDiff <= 0 ? "text-success" : "text-danger")">
+                                                    @(comparison.TechRatingRelativeDiff > 0 ? "+" : "")@comparison.TechRatingRelativeDiff.ToString("F1")%
+                                                </span>
+                                            </td>
+                                            <td class="text-center">
+                                                <span class="@(comparison.AccRatingRelativeDiff <= 0 ? "text-success" : "text-danger")">
+                                                    @(comparison.AccRatingRelativeDiff > 0 ? "+" : "")@comparison.AccRatingRelativeDiff.ToString("F1")%
+                                                </span>
+                                            </td>
+                                        </tr>
+                                    }
+                                </tbody>
+                            </table>
+                        </div>
+
+                        @if (Model.TotalPages > 1)
+                        {
+                            <nav aria-label="Leaderboard comparison navigation" class="mt-3">
+                                <ul class="pagination justify-content-center">
+                                    @if (Model.CurrentPage > 1)
+                                    {
+                                        <li class="page-item">
+                                            <a class="page-link" 
+                                               asp-page="/DatabaseComparison" 
+                                               asp-route-currentPage="@(Model.CurrentPage - 1)"
+                                               asp-route-sortBy="@Model.SortBy"
+                                               asp-route-sortDescending="@Model.SortDescending">
+                                                Previous
+                                            </a>
+                                        </li>
+                                    }
+
+                                    @{
+                                        int firstPageToShow = Model.CurrentPage - 5;
+                                        int lastPageToShow = Model.CurrentPage + 4;
+                                        if (firstPageToShow < 1)
+                                        {
+                                            firstPageToShow = 1;
+                                            lastPageToShow = 10;
+                                        }
+                                        if (lastPageToShow > Model.TotalPages)
+                                        {
+                                            lastPageToShow = Model.TotalPages;
+                                            firstPageToShow = Model.TotalPages - 9 > 1 ? Model.TotalPages - 9 : 1;
+                                        }
+
+                                        for (int i = firstPageToShow; i <= lastPageToShow; i++)
+                                        {
+                                            <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
+                                                <a class="page-link" 
+                                                   asp-page="/DatabaseComparison" 
+                                                   asp-route-currentPage="@i"
+                                                   asp-route-sortBy="@Model.SortBy"
+                                                   asp-route-sortDescending="@Model.SortDescending">
+                                                    @i
+                                                </a>
+                                            </li>
+                                        }
+                                    }
+
+                                    @if (Model.CurrentPage < Model.TotalPages)
+                                    {
+                                        <li class="page-item">
+                                            <a class="page-link" 
+                                               asp-page="/DatabaseComparison" 
+                                               asp-route-currentPage="@(Model.CurrentPage + 1)"
+                                               asp-route-sortBy="@Model.SortBy"
+                                               asp-route-sortDescending="@Model.SortDescending">
+                                                Next
+                                            </a>
+                                        </li>
+                                    }
+                                </ul>
+                            </nav>
+                        }
+
+                        <div class="alert alert-info mt-3">
+                            <strong>Color Legend:</strong>
+                            <ul class="mb-0">
+                                <li><span class="text-success">Green</span> = Current DB has lower (better) value</li>
+                                <li><span class="text-danger">Red</span> = Current DB has higher (worse) value</li>
+                                <li><span class="bg-warning px-2">Yellow highlight</span> = Megametric125 relative difference &gt; 10%</li>
+                                <li><span class="bg-danger px-2 text-white">Red highlight</span> = Score counts differ between databases (data mismatch!)</li>
+                            </ul>
+                            <strong class="mt-2 d-block">Rating Differences:</strong>
+                            <ul class="mb-0">
+                                <li><strong>Mega125 Δ</strong>: Relative change in Megametric125</li>
+                                <li><strong>Pass Δ</strong>: Relative change in Pass Rating (lower = easier to pass)</li>
+                                <li><strong>Tech Δ</strong>: Relative change in Tech Rating (lower = less technical)</li>
+                                <li><strong>Acc Δ</strong>: Relative change in Acc Rating (lower = easier to get high accuracy)</li>
+                            </ul>
+                            <div class="alert alert-warning mt-2 mb-0">
+                                <strong>⚠️ Important:</strong> If scores, weights, rankings, and TopPP are truly identical between databases,
+                                but Megametric125 differs, this indicates the <strong>Megametric values were not recalculated</strong> after copying the database.
+                                The Comparison.db still contains OLD Megametric125 values from before the score changes.
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    }
 </div>
 
 @section Scripts {
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
-    <script>
-        let currentPlayers = @Html.Raw(Model.CurrentJsonData);
-        let comparisonPlayers = @Html.Raw(Model.ComparisonJsonData);
-        let charts = {};
-        let playerData = null;
+<script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
+<script>
+    let currentPlayers = @Html.Raw(Model.CurrentJsonData);
+    let comparisonPlayers = @Html.Raw(Model.ComparisonJsonData);
+    let charts = {};
+    let playerData = null;
 
-        // Render top 100 comparison on load
-        renderTop100Comparison();
+    // Render top 100 comparison on load
+    renderTop100Comparison();
 
         function renderTop100Comparison() {
             const ctx = document.getElementById('top100ComparisonChart').getContext('2d');
@@ -408,4 +800,58 @@
             });
         }
     </script>
+
+    <style>
+        .sort-header {
+            position: relative;
+            cursor: pointer;
+            text-decoration: none;
+            color: inherit;
+            display: inline-block;
+            width: 100%;
+        }
+
+        .sort-header.active {
+            font-weight: bold;
+        }
+
+        .sort-header:hover {
+            color: inherit;
+            text-decoration: none;
+            opacity: 0.8;
+        }
+
+        .sort-header.active::after {
+            content: '';
+            display: inline-block;
+            width: 0;
+            height: 0;
+            margin-left: 8px;
+            vertical-align: middle;
+            border-left: 4px solid transparent;
+            border-right: 4px solid transparent;
+        }
+
+        .sort-header.active.desc::after {
+            border-top: 8px solid currentColor;
+            border-bottom: 0;
+        }
+
+        .sort-header.active.asc::after {
+            border-bottom: 8px solid currentColor;
+            border-top: 0;
+        }
+
+        .table-warning {
+            background-color: rgba(255, 193, 7, 0.2) !important;
+        }
+
+        .table thead th {
+            position: sticky;
+            top: 0;
+            background-color: #343a40;
+            color: white;
+            z-index: 10;
+        }
+    </style>
 }

@@ -281,6 +281,50 @@ namespace portaBLe.Refresh
 
             dbContext.ChangeTracker.AutoDetectChangesEnabled = true;
             Console.WriteLine($"Complete! Total time: {Program.Stopwatch.ElapsedMilliseconds / 1000} seconds");
+
+            await DetermineTags(dbContext);
+        }
+
+        private static async Task DetermineTags(AppContext dbContext)
+        {
+            Console.WriteLine("Determining Leaderboard Tags (Linear and Fitbeat)");
+            dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
+
+            const float linearPercentThreshold = 0.4f;
+            const float dodgeWallValue = 0.3f;
+            const float crouchWallValue = 5f;
+            const float fitbeatDensityThreshold = 0.15f;
+
+            var leaderboards = await dbContext.Leaderboards
+                .Select(l => new Leaderboard
+                {
+                    Id = l.Id,
+                    LinearPercent = l.LinearPercent,
+                    DodgeWalls = l.DodgeWalls,
+                    CrouchWalls = l.CrouchWalls,
+                    Duration = l.Duration
+                })
+                .ToListAsync();
+
+            foreach (var leaderboard in leaderboards)
+            {
+                leaderboard.IsLinear = leaderboard.LinearPercent >= linearPercentThreshold;
+
+                float wallScore = (leaderboard.DodgeWalls * dodgeWallValue) + (leaderboard.CrouchWalls * crouchWallValue);
+
+                if (leaderboard.Duration != 0)
+                {
+                    float wallDensity = wallScore / leaderboard.Duration;
+                    leaderboard.IsFitbeat = wallDensity >= fitbeatDensityThreshold;
+                }
+                else leaderboard.IsFitbeat = false;
+            }
+
+            await dbContext.BulkUpdateAsync(leaderboards, options => 
+                options.ColumnInputExpression = c => new { c.IsLinear, c.IsFitbeat });
+
+            Console.WriteLine("Tag determination completed");
+            Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
         }
 
         private static float CalculateMegametric(

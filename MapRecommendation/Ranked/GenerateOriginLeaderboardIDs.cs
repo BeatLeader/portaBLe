@@ -1,6 +1,4 @@
-﻿using portaBLe.MapRecommendation.Ranked;
-
-namespace Actions
+﻿namespace portaBLe.MapRecommendation.Ranked
 {
     public static class GenerateOriginLeaderboardIDs
     {

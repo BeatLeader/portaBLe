@@ -1,18 +1,18 @@
 ﻿using Newtonsoft.Json;
-using System.Net;
 
 namespace portaBLe.MapRecommendation.Ranked
 {
     public class LeaderboardSuggest
     {
+        private static readonly HttpClient _httpClient = new();
+
         public static List<Top10kPlayer> GetBeatLeaderLeaderboard()
         {
             try
             {
-                WebClient client = new WebClient();
                 JsonSerializerSettings serializerSettings = new JsonSerializerSettings { NullValueHandling = NullValueHandling.Ignore };
                 string webString = "https://api.beatleader.com/songsuggest/?leaderboardContext=noMods";
-                string songInfo = client.DownloadString(webString);
+                string songInfo = _httpClient.GetStringAsync(webString).GetAwaiter().GetResult();
                 return JsonConvert.DeserializeObject<List<Top10kPlayer>>(songInfo, serializerSettings);
             }
             catch
@@ -22,11 +22,11 @@ namespace portaBLe.MapRecommendation.Ranked
             return new();
         }
 
-        public static async void RefreshBeatLeaderLeaderBoard(AppContext appContext, SongSuggestData songSuggestData)
+        public static void RefreshBeatLeaderLeaderBoard(AppContext appContext, SongSuggestData songSuggestData)
         {
             var playerList = GetBeatLeaderLeaderboard();
 
-            var toRemove = new List<Top10kPlayer>();
+            var toRemove = new HashSet<Top10kPlayer>();
 
             foreach (var player in playerList)
             {
@@ -36,11 +36,7 @@ namespace portaBLe.MapRecommendation.Ranked
                     Console.WriteLine($"Player:{player.name}({player.id}) Rank: {player.rank} Diff: {diff}");
                     toRemove.Add(player);
                 }
-            }
-
-            foreach (var player in playerList)
-            {
-                if (player.top10kScore.Count < 30)//20)
+                else if (player.top10kScore.Count < 30)
                 {
                     Console.WriteLine($"Player:{player.name}({player.id}) Rank: {player.rank} Scores: {player.top10kScore.Count}");
                     toRemove.Add(player);
@@ -114,7 +110,7 @@ namespace portaBLe.MapRecommendation.Ranked
 
         public static Top10kLeaderboards CreateComparativeBestLeaderboardEvenMapDistribution(List<Top10kPlayer> top10kPlayers)
         {
-            Console.WriteLine($"Comparative Best: {top10kPlayers.Count()} Players, {top10kPlayers.First().top10kScore.Count()}songs");
+            Console.WriteLine($"Comparative Best: {top10kPlayers.Count} Players, {top10kPlayers.First().top10kScore.Count}songs");
             Top10kLeaderboards best30 = new Top10kLeaderboards();
             best30.top10kPlayers = top10kPlayers;
             //Generate meta data on top 30 scores, which allows for lookup of what the max score is on a map by the string ID of the map. (No Song Library needed)
@@ -128,8 +124,12 @@ namespace portaBLe.MapRecommendation.Ranked
             {
                 foreach (var score in person.top10kScore)
                 {
-                    if (!songScores.ContainsKey(score.songID)) songScores[score.songID] = new List<Top10kScore>();
-                    songScores[score.songID].Add(score);
+                    if (!songScores.TryGetValue(score.songID, out var scoreList))
+                    {
+                        scoreList = new List<Top10kScore>();
+                        songScores[score.songID] = scoreList;
+                    }
+                    scoreList.Add(score);
                     score.parent = person;
                 }
                 usedPlayerScores[person] = 0;
@@ -148,7 +148,7 @@ namespace portaBLe.MapRecommendation.Ranked
 
             //Get the assignment order, we want to assign scores with a priority to those with few entries, in case of a tie, strongest scores is used first.
             var songs = songScores
-                .OrderBy(c => c.Value.Count())
+                .OrderBy(c => c.Value.Count)
                 .ThenByDescending(c => c.Value.Last().pp)
                 .Select(c => c.Key)
                 .ToList();
@@ -199,7 +199,7 @@ namespace portaBLe.MapRecommendation.Ranked
                     .ToList();
             }
 
-            Console.WriteLine($"Comparative Best: {top10kPlayers.Count()} Players, {top10kPlayers.First().top10kScore.Count()}songs");
+            Console.WriteLine($"Comparative Best: {top10kPlayers.Count} Players, {top10kPlayers.First().top10kScore.Count}songs");
 
             var best20 = new Top10kLeaderboards();
             best20.top10kPlayers = best30.top10kPlayers;

@@ -62,6 +62,61 @@ namespace portaBLe.Refresh
             {
                 Console.WriteLine("BombAvoidances column already exist.");
             }
+            try
+            {
+
+                await dbContext.Database.ExecuteSqlRawAsync(
+                    "ALTER TABLE Leaderboards ADD COLUMN DodgeWalls INTEGER DEFAULT 0");
+                Console.WriteLine("DodgeWalls column added successfully.");
+            }
+            catch
+            {
+                Console.WriteLine("DodgeWalls column already exist.");
+            }
+            try
+            {
+
+                await dbContext.Database.ExecuteSqlRawAsync(
+                    "ALTER TABLE Leaderboards ADD COLUMN CrouchWalls INTEGER DEFAULT 0");
+                Console.WriteLine("CrouchWalls column added successfully.");
+            }
+            catch
+            {
+                Console.WriteLine("CrouchWalls column already exist.");
+            }
+            try
+            {
+
+                await dbContext.Database.ExecuteSqlRawAsync(
+                    "ALTER TABLE Leaderboards ADD COLUMN Duration REAL DEFAULT 0");
+                Console.WriteLine("Duration column added successfully.");
+            }
+            catch
+            {
+                Console.WriteLine("Duration column already exist.");
+            }
+            try
+            {
+
+                await dbContext.Database.ExecuteSqlRawAsync(
+                    "ALTER TABLE Leaderboards ADD COLUMN IsFitbeat INTEGER DEFAULT 0");
+                Console.WriteLine("IsFitbeat column added successfully.");
+            }
+            catch
+            {
+                Console.WriteLine("IsFitbeat column already exist.");
+            }
+            try
+            {
+
+                await dbContext.Database.ExecuteSqlRawAsync(
+                    "ALTER TABLE Leaderboards ADD COLUMN IsLinear INTEGER DEFAULT 0");
+                Console.WriteLine("IsLinear column added successfully.");
+            }
+            catch
+            {
+                Console.WriteLine("IsLinear column already exist.");
+            }
 
             var configDictionary = new Dictionary<string, string>
             {
@@ -97,11 +152,13 @@ namespace portaBLe.Refresh
                     var controller = new RatingsController(configuration, logger);
                     
                     var response = controller.Get(lb.Hash, lb.ModeName, GetDiffCode(lb.DifficultyName)).Value;
-
+                    lb.DodgeWalls = (int)response["none"].LackMapCalculation.Statistics.DodgeWalls;
+                    lb.CrouchWalls = (int)response["none"].LackMapCalculation.Statistics.CrouchWalls;
                     lb.LinearPercent = (float)response["none"].LackMapCalculation.LinearPercentage;
                     lb.MultiRating = (float)response["none"].LackMapCalculation.MultiRating;
                     lb.ParityErrors = (float)response["none"].LackMapCalculation.Statistics.ParityErrors;
                     lb.BombAvoidances = (float)response["none"].LackMapCalculation.Statistics.BombAvoidances;
+                    lb.Duration = (float)response["none"].Length;
 
                     lb.PassRating = (float)response["none"].LackMapCalculation.PassRating;
                     lb.TechRating = (float)response["none"].LackMapCalculation.TechRating;

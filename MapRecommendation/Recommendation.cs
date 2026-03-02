@@ -42,7 +42,7 @@ internal static class StringExtensions
 public class RecommendationService
 {
     // Returns top N maps predicted for playerId and exports as JSON playlist
-    public static async void GetRecommendationsAsync(
+    public static async Task GetRecommendationsAsync(
         portaBLe.AppContext _db,
         string playerId,
         List<string> selectedMaps,

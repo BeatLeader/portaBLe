@@ -21,6 +21,9 @@ namespace portaBLe.Pages
         [BindProperty(SupportsGet = true)]
         public bool SortDescending { get; set; }
 
+        [BindProperty(SupportsGet = true)]
+        public string TagFilter { get; set; } // "all", "linear", "fitbeat"
+
         public LeaderboardsModel(AppContext context)
         {
             _context = context;
@@ -35,6 +38,19 @@ namespace portaBLe.Pages
                 leaderboardQuery = leaderboardQuery.Where(l => EF.Functions.Like(l.Name.ToLower(), $"%{SearchString.ToLower()}%"));
             }
 
+            // Apply tag filter
+            if (!string.IsNullOrEmpty(TagFilter) && TagFilter != "all")
+            {
+                if (TagFilter == "linear")
+                {
+                    leaderboardQuery = leaderboardQuery.Where(l => l.IsLinear);
+                }
+                else if (TagFilter == "fitbeat")
+                {
+                    leaderboardQuery = leaderboardQuery.Where(l => l.IsFitbeat);
+                }
+            }
+
             if (SortDescending)
             {
                 leaderboardQuery = leaderboardQuery.OrderByDescending(l => l.Stars);
@@ -44,7 +60,7 @@ namespace portaBLe.Pages
                 leaderboardQuery = leaderboardQuery.OrderBy(l => l.Stars);
             }
 
-            int pageSize = 10; // Set the number of items per page
+            int pageSize = 10;
             CurrentPage = currentPage;
             var totalRecords = await leaderboardQuery.CountAsync();
             TotalPages = (int)System.Math.Ceiling(totalRecords / (double)pageSize);

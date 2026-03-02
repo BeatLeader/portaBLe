@@ -4,8 +4,20 @@
 <h2>Leaderboards</h2>
 
 <form method="get">
-    <input type="text" name="SearchString" value="@Model.SearchString" placeholder="Search leaderboards" />
-    <input type="submit" value="Search" />
+    <div class="search-filter-container">
+        <input type="text" name="SearchString" value="@Model.SearchString" placeholder="Search leaderboards" />
+        <select name="TagFilter" id="tagFilter" onchange="this.form.submit()">
+            @{
+                var isAllSelected = string.IsNullOrEmpty(Model.TagFilter) || Model.TagFilter == "all";
+                var isLinearSelected = Model.TagFilter == "linear";
+                var isFitbeatSelected = Model.TagFilter == "fitbeat";
+            }
+            <option value="all" selected="@isAllSelected">All Tags</option>
+            <option value="linear" selected="@isLinearSelected">Linear</option>
+            <option value="fitbeat" selected="@isFitbeatSelected">Fitbeat</option>
+        </select>
+        <input type="submit" value="Search" />
+    </div>
 </form>
 
 <table class="table">
@@ -18,6 +30,7 @@
             <th>Name</th>
             <th>Diff</th>
             <th>Mapper</th>
+            <th>Tags</th>
         </tr>
     </thead>
     <tbody>
@@ -29,6 +42,16 @@
                 <td><a asp-page="/Leaderboard" asp-route-id="@leaderboard.Id">@leaderboard.Name</a></td>
                 <td>@leaderboard.DifficultyName</td>
                 <td>@leaderboard.Mapper</td>
+                <td>
+                    @if (leaderboard.IsLinear)
+                    {
+                        <span class="tag linear-tag">Linear</span>
+                    }
+                    @if (leaderboard.IsFitbeat)
+                    {
+                        <span class="tag fitbeat-tag">Fitbeat</span>
+                    }
+                </td>
             </tr>
         }
     </tbody>
@@ -53,7 +76,7 @@
             for (int i = firstPageToShow; i <= lastPageToShow; i++)
             {
                 <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
-                    <a class="page-link" asp-page="./Leaderboards" asp-route-currentPage="@i" asp-route-sortDescending="@Model.SortDescending" asp-route-searchString="@Model.SearchString">@i</a>
+                    <a class="page-link" asp-page="./Leaderboards" asp-route-currentPage="@i" asp-route-sortDescending="@Model.SortDescending" asp-route-searchString="@Model.SearchString" asp-route-tagFilter="@Model.TagFilter">@i</a>
                 </li>
             }
         }
@@ -64,6 +87,39 @@
     .lb-cover {
         width: 3em;
         height: 3em;
+    }
+
+    .search-filter-container {
+        display: flex;
+        gap: 0.5em;
+        margin-bottom: 1em;
+    }
+
+    .search-filter-container input[type="text"],
+    .search-filter-container select,
+    .search-filter-container input[type="submit"] {
+        padding: 0.5em;
+        border: 1px solid #ccc;
+        border-radius: 4px;
+    }
+
+    .tag {
+        display: inline-block;
+        padding: 0.25em 0.75em;
+        border-radius: 12px;
+        font-size: 0.85em;
+        font-weight: 500;
+        margin-right: 0.5em;
+    }
+
+    .linear-tag {
+        background-color: #e3f2fd;
+        color: #1565c0;
+    }
+
+    .fitbeat-tag {
+        background-color: #fce4ec;
+        color: #c2185b;
     }
 </style>
 

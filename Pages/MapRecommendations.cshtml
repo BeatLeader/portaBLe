@@ -1,0 +1,328 @@
+@page
+@model portaBLe.Pages.MapRecommendationsModel
+@{
+    ViewData["Title"] = "Map Recommendations";
+}
+
+<style>
+    .runner-header {
+        background: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+        color: #1a3a2a;
+        padding: 1.5rem 2rem;
+        border-radius: 8px;
+        margin-bottom: 1.5rem;
+    }
+    .runner-header h1 { margin: 0; font-size: 1.8rem; }
+    .runner-header p { margin: 0.5rem 0 0; opacity: 0.85; }
+
+    .form-card {
+        background: white;
+        border: 1px solid #dee2e6;
+        border-radius: 8px;
+        padding: 1.5rem;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.08);
+    }
+    .form-card h2 {
+        font-size: 1.1rem;
+        font-weight: 600;
+        color: #28a745;
+        margin: 0 0 1rem;
+    }
+
+    .param-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+        gap: 1rem;
+    }
+    .param-group label {
+        display: block;
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: #333;
+        margin-bottom: 0.3rem;
+    }
+    .param-group input[type="text"],
+    .param-group input[type="number"] {
+        width: 100%;
+        padding: 0.45rem 0.6rem;
+        border: 1px solid #ced4da;
+        border-radius: 4px;
+        font-size: 0.9rem;
+    }
+    .param-group .help-text {
+        font-size: 0.78rem;
+        color: #888;
+        margin-top: 0.2rem;
+    }
+
+    .btn-run {
+        padding: 0.6rem 2rem;
+        background-color: #28a745;
+        color: white;
+        border: none;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 1rem;
+        font-weight: 600;
+    }
+    .btn-run:hover { background-color: #218838; }
+    .btn-search {
+        padding: 0.45rem 1rem;
+        background-color: #6c757d;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.88rem;
+    }
+    .btn-search:hover { background-color: #5a6268; }
+    .btn-add {
+        padding: 0.2rem 0.6rem;
+        background-color: #28a745;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.8rem;
+    }
+    .btn-add:hover { background-color: #218838; }
+    .btn-remove {
+        padding: 0.15rem 0.5rem;
+        background-color: #dc3545;
+        color: white;
+        border: none;
+        border-radius: 4px;
+        cursor: pointer;
+        font-size: 0.78rem;
+    }
+    .btn-remove:hover { background-color: #c82333; }
+
+    .search-results {
+        margin-top: 0.5rem;
+        max-height: 200px;
+        overflow-y: auto;
+        border: 1px solid #dee2e6;
+        border-radius: 4px;
+    }
+    .search-results .sr-item {
+        padding: 0.4rem 0.7rem;
+        font-size: 0.88rem;
+        border-bottom: 1px solid #f0f0f0;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+    }
+    .search-results .sr-item:hover { background: #f0fff4; }
+    .sr-item-clickable { cursor: pointer; }
+
+    .selected-maps {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 0.5rem;
+    }
+    .selected-map-tag {
+        background: #e8f5e9;
+        border: 1px solid #a5d6a7;
+        border-radius: 6px;
+        padding: 0.3rem 0.5rem 0.3rem 0.7rem;
+        font-size: 0.82rem;
+        display: flex;
+        align-items: center;
+        gap: 0.4rem;
+    }
+    .selected-map-tag .stars { color: #f9a825; font-weight: 600; }
+
+    .data-table {
+        width: 100%;
+        border-collapse: collapse;
+        background: white;
+        box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+        border-radius: 8px;
+        overflow: hidden;
+        font-size: 0.88rem;
+    }
+    .data-table thead { background-color: #f8f9fa; border-bottom: 2px solid #dee2e6; }
+    .data-table th { padding: 0.75rem; text-align: left; font-weight: 600; color: #333; font-size: 0.82rem; text-transform: uppercase; }
+    .data-table td { padding: 0.6rem 0.75rem; border-bottom: 1px solid #dee2e6; }
+    .data-table tbody tr:hover { background-color: #f8f9fa; }
+
+    .rank-badge { background-color: #28a745; color: white; padding: 0.15rem 0.5rem; border-radius: 12px; font-weight: 600; font-size: 0.82rem; display: inline-block; min-width: 30px; text-align: center; }
+
+    .error-message { background-color: #f8d7da; border: 1px solid #f5c6cb; color: #721c24; padding: 1rem; border-radius: 4px; margin-bottom: 1rem; }
+    .success-message { background-color: #d4edda; border: 1px solid #c3e6cb; color: #155724; padding: 1rem; border-radius: 4px; margin-bottom: 1rem; }
+</style>
+
+<div class="container-fluid mt-3">
+    <div class="runner-header">
+        <h1>Map Recommendations</h1>
+        <p>Find similar maps based on rating similarity — select source maps and a player</p>
+    </div>
+
+    @if (!string.IsNullOrEmpty(Model.ErrorMessage))
+    {
+        <div class="error-message">@Model.ErrorMessage</div>
+    }
+
+    <form id="mainForm" method="post">
+        @Html.AntiForgeryToken()
+        <input type="hidden" id="formMapId" name="mapId" value="" />
+
+        @* ===== PLAYER SELECTION ===== *@
+        <div class="form-card">
+            <h2>Player Selection</h2>
+            <div style="display:flex; gap:0.5rem; align-items:end; flex-wrap:wrap;">
+                <div class="param-group" style="flex:1; min-width:250px;">
+                    <label asp-for="PlayerIdOrName">Player ID or Name</label>
+                    <input asp-for="PlayerIdOrName" type="text" placeholder="e.g. 76561198012241978 or player name" />
+                </div>
+                <button type="button" class="btn-search" onclick="submitWithHandler('SearchPlayers')">Search</button>
+            </div>
+
+            @if (Model.PlayerSearchResults.Count > 0)
+            {
+                <div class="search-results">
+                    @foreach (var p in Model.PlayerSearchResults)
+                    {
+                        <div class="sr-item sr-item-clickable" onclick="document.getElementById('PlayerIdOrName').value='@p.Id';">
+                            <span><strong>#@p.Rank</strong> @p.Name <span style="color:#888">(@p.Id)</span></span>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+
+        @* ===== MAP SELECTION ===== *@
+        <div class="form-card">
+            <h2>Source Maps</h2>
+
+            <div style="display:flex; gap:0.5rem; align-items:end; flex-wrap:wrap;">
+                <div class="param-group" style="flex:1; min-width:250px;">
+                    <label asp-for="MapSearchQuery">Search Maps (Name, ID, or Hash)</label>
+                    <input asp-for="MapSearchQuery" type="text" placeholder="e.g. Reality Check" />
+                </div>
+                <button type="button" class="btn-search" onclick="submitWithHandler('SearchMaps')">Search Maps</button>
+            </div>
+
+            @if (Model.MapSearchResults.Count > 0)
+            {
+                <div class="search-results" style="margin-top:0.5rem;">
+                    @foreach (var m in Model.MapSearchResults)
+                    {
+                        <div class="sr-item">
+                            <span>@m.DisplayName <span style="color:#888">by @m.Mapper</span></span>
+                            <button type="button" class="btn-add" onclick="submitAddMap('@m.Id')">+ Add</button>
+                        </div>
+                    }
+                </div>
+            }
+
+            @if (Model.SelectedMaps.Count > 0)
+            {
+                <div style="margin-top:1rem;">
+                    <label style="font-weight:600; font-size:0.85rem; color:#333;">Selected Source Maps (@Model.SelectedMaps.Count):</label>
+                    <div class="selected-maps">
+                        @foreach (var m in Model.SelectedMaps)
+                        {
+                            <div class="selected-map-tag">
+                                <span>@m.Name (@m.DifficultyName)</span>
+                                <span class="stars">★@m.Stars.ToString("F1")</span>
+                                <button type="button" class="btn-remove" onclick="submitRemoveMap('@m.Id')">✕</button>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            else
+            {
+                <p style="color:#888; font-size:0.88rem; margin-top:0.5rem;">No source maps selected yet. Search and add maps above.</p>
+            }
+        </div>
+
+        @* ===== PARAMETERS & RUN ===== *@
+        <input type="hidden" asp-for="SelectedMapIds" />
+
+        <div class="form-card">
+            <h2>Parameters</h2>
+            <div class="param-grid">
+                <div class="param-group">
+                    <label asp-for="MapCount">Map Count</label>
+                    <input asp-for="MapCount" type="number" min="1" max="100" />
+                    <div class="help-text">Number of recommendations to generate (default: 20)</div>
+                </div>
+                <div class="param-group">
+                    <label>Options</label>
+                    <div class="form-check" style="margin-top:0.4rem;">
+                        <input asp-for="UnplayedOnly" class="form-check-input" type="checkbox" />
+                        <label asp-for="UnplayedOnly" class="form-check-label">Unplayed Only</label>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <button type="button" class="btn-run" onclick="submitWithHandler('Run')">Generate Recommendations</button>
+    </form>
+
+    @* ===== RESULTS ===== *@
+    @if (Model.HasRun)
+    {
+        <div style="margin-top:1.5rem;">
+            <div class="success-message">
+                Generated <strong>@Model.ResultCount</strong> recommendations for
+                <strong>@Model.ResolvedPlayerName</strong> (@Model.ResolvedPlayerId)
+                from @Model.SelectedMaps.Count source map(s).
+                <span style="font-size:0.85rem; color:#888;">Took @Model.ElapsedSeconds.ToString("F1")s</span>
+                — <a href="/PlaylistViewer">View in Playlist Viewer</a>
+            </div>
+
+            @if (Model.Recommendations.Count > 0)
+            {
+                <table class="data-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Song Name</th>
+                            <th>Mapper</th>
+                            <th>Difficulty</th>
+                            <th>Stars</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var r in Model.Recommendations)
+                        {
+                            <tr>
+                                <td><span class="rank-badge">@r.Position</span></td>
+                                <td>@r.SongName</td>
+                                <td>@r.Mapper</td>
+                                <td>@r.Difficulty (@r.Characteristic)</td>
+                                <td>@r.Stars.ToString("F2")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            }
+        </div>
+    }
+</div>
+
+<script>
+    function submitWithHandler(handlerName) {
+        var form = document.getElementById('mainForm');
+        form.action = '/MapRecommendations?handler=' + handlerName;
+        document.getElementById('formMapId').value = '';
+        form.submit();
+    }
+    function submitAddMap(mapId) {
+        var form = document.getElementById('mainForm');
+        form.action = '/MapRecommendations?handler=AddMap';
+        document.getElementById('formMapId').value = mapId;
+        form.submit();
+    }
+    function submitRemoveMap(mapId) {
+        var form = document.getElementById('mainForm');
+        form.action = '/MapRecommendations?handler=RemoveMap';
+        document.getElementById('formMapId').value = mapId;
+        form.submit();
+    }
+</script>

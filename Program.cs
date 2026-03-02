@@ -4,6 +4,7 @@ using Amazon.S3.Model;
 using Amazon.S3.Transfer;
 using Microsoft.EntityFrameworkCore;
 using portaBLe.DB;
+using portaBLe.MapRecommendation.Ranked;
 using portaBLe.Refresh;
 using System.Diagnostics;
 using System.IO.Compression;
@@ -34,6 +35,7 @@ namespace portaBLe
         public DbSet<Score> Scores { get; set; }
         public DbSet<Leaderboard> Leaderboards { get; set; }
         public DbSet<ModifiersRating> ModifiersRating { get; set; }
+        public DbSet<DB.Stats> Stats { get; set; }
     }
 
     public class Program
@@ -57,13 +59,16 @@ namespace portaBLe
             {
                 var services = scope.ServiceProvider;
                 var dbContext = services.GetRequiredService<AppContext>();
-                
+
                 var pendingMigrations = dbContext.Database.GetPendingMigrations();
                 if (pendingMigrations.Any())
                 {
-                    try {
+                    try
+                    {
                         dbContext.Database.Migrate();
-                    } catch (Exception ex) {
+                    }
+                    catch (Exception ex)
+                    {
                         Console.WriteLine($"Migration failed (this may be expected): {ex.Message}");
                     }
                 }
@@ -226,7 +231,8 @@ namespace portaBLe
             // Then, compile Parser, then Analyzer, then RatingAPI, then this project in Debug
             var builder = WebApplication.CreateBuilder(args);
 
-            try {
+            try
+            {
                 // The file current_db_name.txt in wwwroot should contain the S3 key of the current DB
                 // Uncomment to download the DB from S3 if Database.db from wwwroot is missing, this usually take 1-2 minutes
                 // await DownloadDatabaseIfNeeded(builder.Environment.WebRootPath);
@@ -239,10 +245,11 @@ namespace portaBLe
 
                 var connectionString = $"Data Source={builder.Environment.WebRootPath}/Database.db;";
                 builder.Services.AddDbContextFactory<AppContext>(options => options.UseSqlite(connectionString));
-                
+
                 var comparisonConnectionString = $"Data Source={builder.Environment.WebRootPath}/Comparison.db;";
                 builder.Services.AddDbContextFactory<ComparisonContext>(options => options.UseSqlite(comparisonConnectionString));
-                
+
+                builder.Services.AddSingleton<SongSuggestDataService>();
                 builder.Services.AddRazorPages();
 
                 var app = builder.Build();
@@ -275,31 +282,46 @@ namespace portaBLe
                     var dbContextFactory = services.GetRequiredService<IDbContextFactory<AppContext>>();
                     var env = services.GetRequiredService<IWebHostEnvironment>();
                     using var dbContext = dbContextFactory.CreateDbContext();
-                    
+
                     // Uncomment to overwrite ratings with RatingAPI
                     // await RatingsRefresh.Overwrite(dbContext);
                     // Uncomment to recalculate ratings after changing ReplayUtils.
                     // await RatingsRefresh.Refresh(dbContext);
-                    /*
+
                     // Uncomment to run the reweighter 
                     // Nerf
                     // await ScoresRefresh.Autoreweight(dbContext);
                     // Buff
                     // await ScoresRefresh.Autoreweight3(dbContext);
-
                     // Uncomment to refresh everything with current ratings
                     
-                    await ScoresRefresh.Refresh(dbContext);
-                    await PlayersRefresh.Refresh(dbContext);
-                    await LeaderboardsRefresh.RefreshStars(dbContext);
-                    */
-
+                    // await ScoresRefresh.Refresh(dbContext);
+                    // await PlayersRefresh.Refresh(dbContext);
+                    // await LeaderboardsRefresh.Refresh(dbContext);
+                    // await LeaderboardsRefresh.RefreshStars(dbContext);
+                    
                     // Uncomment to update the Megametric and Stats
                     // await UpdateStats(dbContext);
+
+                    SongSuggestData songSuggestData = new();
+                    LeaderboardSuggest.RefreshBeatLeaderLeaderBoard(dbContext, songSuggestData);
+
+                    // Cache the leaderboard data in the singleton so Razor pages can reuse it
+                    var dataService = services.GetRequiredService<SongSuggestDataService>();
+                    dataService.CachedLeaderboards = songSuggestData.leaderboards;
+
+                    // songSuggestData.playerID = "76561198012241978";
+                    
+                    // await RankedSongSuggest.SuggestedSongs(dbContext, songSuggestData, false);
+
+                    // Store in singleton so the SongSuggestAnalysis Razor page can access it
+                    dataService.Data = songSuggestData;
                 }
 
                 await app.RunAsync();
-            } catch (Exception e) {
+            }
+            catch (Exception e)
+            {
                 Console.WriteLine(e.Message + "   " + e.StackTrace);
             }
         }

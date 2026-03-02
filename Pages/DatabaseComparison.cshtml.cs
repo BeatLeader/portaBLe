@@ -27,9 +27,19 @@ namespace portaBLe.Pages
         public string CurrentJsonData { get; set; }
         public string ComparisonJsonData { get; set; }
         public ComparisonStats Stats { get; set; }
+        public StatsComparisonData StatsComparison { get; set; }
+        public List<LeaderboardMegametricComparison> LeaderboardComparisons { get; set; }
+        public int CurrentPage { get; set; } = 1;
+        public int TotalPages { get; set; }
+        public string SortBy { get; set; } = "RelativeDiff";
+        public bool SortDescending { get; set; } = true;
 
-        public async Task OnGetAsync()
+        public async Task OnGetAsync(int currentPage = 1, string sortBy = "RelativeDiff", bool sortDescending = true)
         {
+            CurrentPage = currentPage;
+            SortBy = sortBy;
+            SortDescending = sortDescending;
+
             using var currentDb = _contextFactory.CreateDbContext();
             using var comparisonDb = _comparisonContextFactory.CreateDbContext();
 
@@ -84,6 +94,125 @@ namespace portaBLe.Pages
                 PlayerCountDiff = currentPlayerCount - comparisonPlayerCount,
                 ScoreCountDiff = currentScoreCount - comparisonScoreCount
             };
+
+            // Get Stats comparison (empty string for "All" mode)
+            var currentStats = await currentDb.Stats.FirstOrDefaultAsync(s => s.ModeName == "");
+            var comparisonStats = await comparisonDb.Stats.FirstOrDefaultAsync(s => s.ModeName == "");
+
+            if (currentStats != null && comparisonStats != null)
+            {
+                StatsComparison = new StatsComparisonData
+                {
+                    CurrentTotalOutlier = currentStats.TotalOutlier,
+                    ComparisonTotalOutlier = comparisonStats.TotalOutlier,
+                    OutlierDiff = currentStats.TotalOutlier - comparisonStats.TotalOutlier,
+                    CurrentAvgOutlierPercentage = currentStats.AvgOutlierPercentage,
+                    ComparisonAvgOutlierPercentage = comparisonStats.AvgOutlierPercentage,
+                    AvgOutlierPercentageDiff = currentStats.AvgOutlierPercentage - comparisonStats.AvgOutlierPercentage,
+                    CurrentAvgMegametric = currentStats.AvgMegametric,
+                    ComparisonAvgMegametric = comparisonStats.AvgMegametric,
+                    AvgMegametricDiff = currentStats.AvgMegametric - comparisonStats.AvgMegametric,
+                    CurrentAvgMegametric40 = currentStats.AvgMegametric40,
+                    ComparisonAvgMegametric40 = comparisonStats.AvgMegametric40,
+                    AvgMegametric40Diff = currentStats.AvgMegametric40 - comparisonStats.AvgMegametric40,
+                    CurrentAvgMegametric75 = currentStats.AvgMegametric75,
+                    ComparisonAvgMegametric75 = comparisonStats.AvgMegametric75,
+                    AvgMegametric75Diff = currentStats.AvgMegametric75 - comparisonStats.AvgMegametric75,
+                    CurrentAvgMegametric125 = currentStats.AvgMegametric125,
+                    ComparisonAvgMegametric125 = comparisonStats.AvgMegametric125,
+                    AvgMegametric125Diff = currentStats.AvgMegametric125 - comparisonStats.AvgMegametric125
+                };
+            }
+
+            // Get leaderboard comparisons
+            await LoadLeaderboardComparisons(currentDb, comparisonDb);
+        }
+
+        private async Task LoadLeaderboardComparisons(AppContext currentDb, ComparisonContext comparisonDb)
+        {
+            const int pageSize = 50;
+
+            // Get all leaderboards from current DB
+            var currentLeaderboards = await currentDb.Leaderboards
+                .Select(l => new { l.Id, l.Name, l.DifficultyName, l.ModeName, l.Megametric125, l.PassRating, l.TechRating, l.AccRating, l.Count })
+                .ToDictionaryAsync(l => l.Id);
+
+            // Get all leaderboards from comparison DB
+            var comparisonLeaderboards = await comparisonDb.Leaderboards
+                .Select(l => new { l.Id, l.Name, l.DifficultyName, l.ModeName, l.Megametric125, l.PassRating, l.TechRating, l.AccRating, l.Count })
+                .ToDictionaryAsync(l => l.Id);
+
+            // Create comparison list for leaderboards in both databases
+            var comparisons = new List<LeaderboardMegametricComparison>();
+
+            foreach (var current in currentLeaderboards)
+            {
+                if (comparisonLeaderboards.TryGetValue(current.Key, out var comparison))
+                {
+                    var currentValue = current.Value.Megametric125;
+                    var comparisonValue = comparison.Megametric125;
+                    
+                    // Only include if either value is > 0.5
+                    if (currentValue <= 0.5f && comparisonValue <= 0.5f)
+                        continue;
+
+                    var absoluteDiff = currentValue - comparisonValue;
+                    var relativeDiff = comparisonValue != 0 
+                        ? ((currentValue - comparisonValue) / comparisonValue) * 100 
+                        : 0;
+
+                    // Calculate relative differences for rating types
+                    var passRelativeDiff = comparison.PassRating != 0
+                        ? ((current.Value.PassRating - comparison.PassRating) / comparison.PassRating) * 100
+                        : 0;
+                    var techRelativeDiff = comparison.TechRating != 0
+                        ? ((current.Value.TechRating - comparison.TechRating) / comparison.TechRating) * 100
+                        : 0;
+                    var accRelativeDiff = comparison.AccRating != 0
+                        ? ((current.Value.AccRating - comparison.AccRating) / comparison.AccRating) * 100
+                        : 0;
+
+                    comparisons.Add(new LeaderboardMegametricComparison
+                    {
+                        Id = current.Key,
+                        Name = current.Value.Name,
+                        DifficultyName = current.Value.DifficultyName,
+                        ModeName = current.Value.ModeName,
+                        CurrentMegametric125 = currentValue,
+                        ComparisonMegametric125 = comparisonValue,
+                        AbsoluteDiff = absoluteDiff,
+                        RelativeDiff = relativeDiff,
+                        CurrentPassRating = current.Value.PassRating,
+                        ComparisonPassRating = comparison.PassRating,
+                        PassRatingRelativeDiff = passRelativeDiff,
+                        CurrentTechRating = current.Value.TechRating,
+                        ComparisonTechRating = comparison.TechRating,
+                        TechRatingRelativeDiff = techRelativeDiff,
+                        CurrentAccRating = current.Value.AccRating,
+                        ComparisonAccRating = comparison.AccRating,
+                        AccRatingRelativeDiff = accRelativeDiff,
+                        CurrentScoreCount = current.Value.Count,
+                        ComparisonScoreCount = comparison.Count
+                    });
+                }
+            }
+
+            // Sort the comparisons
+            comparisons = SortBy switch
+            {
+                "Name" => SortDescending ? comparisons.OrderByDescending(l => l.Name).ToList() : comparisons.OrderBy(l => l.Name).ToList(),
+                "Current" => SortDescending ? comparisons.OrderByDescending(l => l.CurrentMegametric125).ToList() : comparisons.OrderBy(l => l.CurrentMegametric125).ToList(),
+                "Comparison" => SortDescending ? comparisons.OrderByDescending(l => l.ComparisonMegametric125).ToList() : comparisons.OrderBy(l => l.ComparisonMegametric125).ToList(),
+                "AbsoluteDiff" => SortDescending ? comparisons.OrderByDescending(l => l.AbsoluteDiff).ToList() : comparisons.OrderBy(l => l.AbsoluteDiff).ToList(),
+                _ => SortDescending ? comparisons.OrderByDescending(l => Math.Abs(l.RelativeDiff)).ToList() : comparisons.OrderBy(l => Math.Abs(l.RelativeDiff)).ToList(),
+            };
+
+            // Calculate pagination
+            TotalPages = (int)Math.Ceiling(comparisons.Count / (double)pageSize);
+            LeaderboardComparisons = comparisons
+                .Skip((CurrentPage - 1) * pageSize)
+                .Take(pageSize)
+                .ToList();
         }
 
         public async Task<IActionResult> OnGetPlayerComparisonAsync(string playerId)
@@ -195,6 +324,51 @@ namespace portaBLe.Pages
             public int ComparisonScoreCount { get; set; }
             public int PlayerCountDiff { get; set; }
             public int ScoreCountDiff { get; set; }
+        }
+
+        public class StatsComparisonData
+        {
+            public int CurrentTotalOutlier { get; set; }
+            public int ComparisonTotalOutlier { get; set; }
+            public int OutlierDiff { get; set; }
+            public float CurrentAvgOutlierPercentage { get; set; }
+            public float ComparisonAvgOutlierPercentage { get; set; }
+            public float AvgOutlierPercentageDiff { get; set; }
+            public float CurrentAvgMegametric { get; set; }
+            public float ComparisonAvgMegametric { get; set; }
+            public float AvgMegametricDiff { get; set; }
+            public float CurrentAvgMegametric40 { get; set; }
+            public float ComparisonAvgMegametric40 { get; set; }
+            public float AvgMegametric40Diff { get; set; }
+            public float CurrentAvgMegametric75 { get; set; }
+            public float ComparisonAvgMegametric75 { get; set; }
+            public float AvgMegametric75Diff { get; set; }
+            public float CurrentAvgMegametric125 { get; set; }
+            public float ComparisonAvgMegametric125 { get; set; }
+            public float AvgMegametric125Diff { get; set; }
+        }
+
+        public class LeaderboardMegametricComparison
+        {
+            public string Id { get; set; }
+            public string Name { get; set; }
+            public string DifficultyName { get; set; }
+            public string ModeName { get; set; }
+            public float CurrentMegametric125 { get; set; }
+            public float ComparisonMegametric125 { get; set; }
+            public float AbsoluteDiff { get; set; }
+            public float RelativeDiff { get; set; }
+            public float CurrentPassRating { get; set; }
+            public float ComparisonPassRating { get; set; }
+            public float PassRatingRelativeDiff { get; set; }
+            public float CurrentTechRating { get; set; }
+            public float ComparisonTechRating { get; set; }
+            public float TechRatingRelativeDiff { get; set; }
+            public float CurrentAccRating { get; set; }
+            public float ComparisonAccRating { get; set; }
+            public float AccRatingRelativeDiff { get; set; }
+            public int CurrentScoreCount { get; set; }
+            public int ComparisonScoreCount { get; set; }
         }
     }
 }

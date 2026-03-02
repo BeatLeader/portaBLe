@@ -29,10 +29,7 @@ namespace portaBLe.MapRecommendation.Ranked
                 foreach (Top10kScore score in player.top10kScore)
                 {
                     //Add any missing songs.
-                    if (!top10kLeaderboardMeta.ContainsKey(score.songID))
-                    {
-                        top10kLeaderboardMeta.Add(score.songID, new Top10kLeaderboardMeta { leaderboardID = score.songID });
-                    }
+                    top10kLeaderboardMeta.TryAdd(score.songID, new Top10kLeaderboardMeta { leaderboardID = score.songID });
                     Top10kLeaderboardMeta songMeta = top10kLeaderboardMeta[score.songID];
                     songMeta.count++;
                     songMeta.totalRank += score.rank;

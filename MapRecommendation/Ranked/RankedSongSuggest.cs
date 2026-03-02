@@ -1,7 +1,4 @@
-﻿using Actions;
-using System.Linq;
-
-namespace portaBLe.MapRecommendation.Ranked
+﻿namespace portaBLe.MapRecommendation.Ranked
 {
     public class  SongSuggestData
     {
@@ -19,13 +16,13 @@ namespace portaBLe.MapRecommendation.Ranked
         public float modifierStyle = 1.0f;
         public float modifierOverweight = 0.2f;
         public int originLeaderboardsCount = 50;
-        public int extraLeaderboardsCount = 15;
+        public int extraLeaderboardsCount = 25;
     }
 
     public class RankedSongSuggest
     {
         //Creates a playlist with playlist count suggested songs based on the link system.
-        public static void SuggestedSongs(AppContext appContext, SongSuggestData songSuggestData, bool unplayed)
+        public static async Task SuggestedSongs(AppContext appContext, SongSuggestData songSuggestData, bool unplayed)
         {
             Console.WriteLine($"[SuggestedSongs] Starting song suggestion process for player: {songSuggestData.playerID}");
 
@@ -77,7 +74,7 @@ namespace portaBLe.MapRecommendation.Ranked
             RemoveIgnoredSongs(songSuggestData);
 
             //Creates the playist of remaining songs
-            CreatePlaylist(appContext, songSuggestData, unplayed);
+            await CreatePlaylist(appContext, songSuggestData, unplayed);
             
             Console.WriteLine("[SuggestedSongs] Song suggestion process completed");
         }
@@ -108,7 +105,7 @@ namespace portaBLe.MapRecommendation.Ranked
         public static void CreateFilterRanks(SongSuggestData songSuggestData)
         {
             //Calculate the scores on the songs for suggestions
-            songSuggestData.targetLeaderboards.SetRelevance(songSuggestData.originLeaderboards.endPoints.Count(), 10);
+            songSuggestData.targetLeaderboards.SetRelevance(songSuggestData.originLeaderboards.endPoints.Count, 10);
             
             songSuggestData.targetLeaderboards.SetStyle(songSuggestData.originLeaderboards);
             
@@ -135,7 +132,7 @@ namespace portaBLe.MapRecommendation.Ranked
             if (modifierStyle == 0 && modifierOverweight == 0) modifierStyle = modifierOverweight = 1.0;
 
             //Get count of candidates, and remove 1, as index start as 0, so max value is songs-1
-            double totalCandidates = songSuggestData.overWeightFilterOrdered.Count() - 1;
+            double totalCandidates = songSuggestData.overWeightFilterOrdered.Count - 1;
 
             //We loop either of the 2 filters and record its ordering in a temporary dictionary for quick lookup.
             Dictionary<string, int> overweightValues = new Dictionary<string, int>();
@@ -210,7 +207,7 @@ namespace portaBLe.MapRecommendation.Ranked
         {
             //Filter out ignoreSongs before making the playlist.
             //Get the ignore lists ready (permaban, ban, and improved within X days, not improveable by X ranks)
-            List<string> ignoreSongs = CreateIgnoreLists(songSuggestData, false ? -1 : 14);
+            List<string> ignoreSongs = CreateIgnoreLists(songSuggestData, 14);
             songSuggestData.sortedSuggestions = songSuggestData.sortedSuggestions
                 .Except(ignoreSongs)
                 .ToList();
@@ -294,7 +291,7 @@ namespace portaBLe.MapRecommendation.Ranked
             Console.WriteLine($"[SelectPlayedOriginSongs] Total songs gathered: {filteredSongs.Count}");
 
             //To ensure worst songs are always removed (progression while getting enough songs) we only keep a certain percent of songs (75% default)
-            int valueSongCount = filteredSongs.Count();
+            int valueSongCount = filteredSongs.Count;
             valueSongCount = (int)(maxKeepPercentage * valueSongCount);     //Reduce the list to 75% best
             if (valueSongCount == 0) valueSongCount = 1;                    //If 1 is available, 1 should always be selected, but outside this goal is to reduce to 75% rounded down
             Console.WriteLine($"[SelectPlayedOriginSongs] Value song count (75% of total): {valueSongCount}");
@@ -352,7 +349,7 @@ namespace portaBLe.MapRecommendation.Ranked
 
             // HtmlExporter.ExportList("FillerSongs_Candidates", fillerSongCandidates.ConvertAll(x => new { LeaderboardID = x.Key, Count = x.Value.count, AverageScore = x.Value.averageScore }));
 
-            int targetCount = (int)(percentToLookIn * fillerSongCandidates.Count()) + 1;  //Int rounds down, lets keep at least 1 song. Take cannot overflow.
+            int targetCount = (int)(percentToLookIn * fillerSongCandidates.Count) + 1;  //Int rounds down, lets keep at least 1 song. Take cannot overflow.
 
             var fillerleaderboardIDs = fillerSongCandidates
                 .Take(targetCount)                                                      //Testing found this %'age to give a mix of old and new, and lower amount of horrible stuff
@@ -384,7 +381,7 @@ namespace portaBLe.MapRecommendation.Ranked
         }
 
         //Make Playlist
-        public async static void CreatePlaylist(AppContext appContext, SongSuggestData songSuggestData, bool unplayed)
+        public static async Task CreatePlaylist(AppContext appContext, SongSuggestData songSuggestData, bool unplayed)
         {
             // HtmlExporter.ExportList("FinalSortedSuggestions", songSuggestData.sortedSuggestions.ConvertAll(x => new { LeaderboardID = x }));
             

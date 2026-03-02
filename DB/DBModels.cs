@@ -98,6 +98,10 @@ namespace portaBLe.DB
         public ModifiersRating? ModifiersRating { get; set; }
         public ICollection<Score> Scores { get; set; }
 
+        public float Duration { get; set; }
+        public bool IsLinear { get; set; }
+        public bool IsFitbeat { get; set; }
+
         public int Count { get; set; }
         public int Count80 { get; set; }
         public int Count95 { get; set; }
@@ -112,6 +116,8 @@ namespace portaBLe.DB
         public float Megametric125 { get; set; }
         public float Megametric75 { get; set; }
         public float Megametric40 { get; set; }
+        public int DodgeWalls { get; set; }
+        public int CrouchWalls { get; set; }
         public float LinearPercent { get; set; }
         public float ParityErrors { get; set; }
         public float BombAvoidances { get; set; }
