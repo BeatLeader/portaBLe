@@ -23,8 +23,8 @@ namespace portaBLe.Refresh
             try
             {
                 await dbContext.Database.ExecuteSqlRawAsync(
-                    "ALTER TABLE Leaderboards ADD COLUMN MultiRating REAL DEFAULT 0");
-                Console.WriteLine("MultiRating column added successfully.");
+                    "ALTER TABLE Leaderboards ADD COLUMN MultiPercentage REAL DEFAULT 0");
+                Console.WriteLine("MultiPercentage column added successfully.");
             }
             catch
             {

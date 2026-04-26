@@ -209,12 +209,12 @@
                    asp-route-modeName="@Model.ModeName">Tech Rating</a>
             </th>
             <th>
-                <a class="sort-header @(Model.SortBy == "MultiRating" ? "active" : "") @(Model.SortBy == "MultiRating" && Model.SortDescending ? "desc" : "asc")"
+                <a class="sort-header @(Model.SortBy == "MultiPercentage" ? "active" : "") @(Model.SortBy == "MultiPercentage" && Model.SortDescending ? "desc" : "asc")"
                    asp-page="./LeaderboardStats"
-                   asp-route-sortBy="MultiRating"
-                   asp-route-sortDescending="@(Model.SortBy == "MultiRating" && Model.SortDescending ? "false" : "true")"
+                   asp-route-sortBy="MultiPercentage"
+                   asp-route-sortDescending="@(Model.SortBy == "MultiPercentage" && Model.SortDescending ? "false" : "true")"
                    asp-route-searchString="@Model.SearchString"
-                   asp-route-modeName="@Model.ModeName">Multi Rating</a>
+                   asp-route-modeName="@Model.ModeName">Multi Percentage</a>
             </th>
             <th>
                 <a class="sort-header @(Model.SortBy == "LinearPercent" ? "active" : "") @(Model.SortBy == "LinearPercent" && Model.SortDescending ? "desc" : "asc")"
@@ -266,7 +266,7 @@
                 <td>@stat.AccRating.ToString("F2")</td>
                 <td>@stat.PassRating.ToString("F2")</td>
                 <td>@stat.TechRating.ToString("F2")</td>
-                <td>@stat.MultiRating.ToString("F2")</td>
+                <td>@stat.MultiPercentage.ToString("F2")</td>
                 <td>@stat.LinearPercent.ToString("F3")</td>
                 <td>@stat.ParityErrors</td>
                 <td>@stat.BombAvoidances</td>

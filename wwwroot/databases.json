@@ -3,33 +3,18 @@
   "Databases": [
     {
       "Name": "Prod",
-      "FileName": "db-20260107045448-4571.db",
-      "Description": "Recalculated ratings with prod algo"
-    },
-    {
-      "Name": "Prod Reweighted",
-      "FileName": "db-20260101025835-6661.db",
+      "FileName": "db-20260426173107-1651.db",
       "Description": "Current production website"
     },
     {
-      "Name": "AccAi",
-      "FileName": "db-20260101025907-7122.db",
-      "Description": "0.5% acc filtering and 15.375 - 15.65 acc rebalance"
+      "Name": "New update (No autoreweight)",
+      "FileName": "db-20260426210515-1082.db",
+      "Description": "Refreshed ratings"
     },
     {
-      "Name": "AccAi Reweighted",
-      "FileName": "db-20260101025940-4636.db",
-      "Description": "0.5% acc filtering, reweighted and 15.375 - 15.65 acc rebalance"
-    },
-    {
-      "Name": "Release (RAW)",
-      "FileName": "db-20260224144843-2819.db",
-      "Description": "releaseraw"
-    },
-    {
-      "Name": "Release (Reweighted)",
-      "FileName": "db-20260224145729-5356.db",
-      "Description": "releasereweight"
+      "Name": "New update (Autoreweighted)",
+      "FileName": "db-20260427115356-3232.db",
+      "Description": "Refreshed ratings + autoreweight"
     }
   ]
 }

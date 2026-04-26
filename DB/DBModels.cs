@@ -92,7 +92,7 @@ namespace portaBLe.DB
         public float PassRating { get; set; }
         public float AccRating { get; set; }
         public float TechRating { get; set; }
-        public float MultiRating { get; set; }
+        public float MultiPercentage { get; set; }
 
         public float PredictedAcc { get; set; }
         public ModifiersRating? ModifiersRating { get; set; }

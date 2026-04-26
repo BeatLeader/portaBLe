@@ -75,7 +75,7 @@ namespace portaBLe.Pages
                 "AccRating" => SortDescending ? query.OrderByDescending(x => x.AccRating) : query.OrderBy(x => x.AccRating),
                 "PassRating" => SortDescending ? query.OrderByDescending(x => x.PassRating) : query.OrderBy(x => x.PassRating),
                 "TechRating" => SortDescending ? query.OrderByDescending(x => x.TechRating) : query.OrderBy(x => x.TechRating),
-                "MultiRating" => SortDescending ? query.OrderByDescending(x => x.MultiRating) : query.OrderBy(x => x.MultiRating),
+                "MultiPercentage" => SortDescending ? query.OrderByDescending(x => x.MultiPercentage) : query.OrderBy(x => x.MultiPercentage),
                 "LinearPercent" => SortDescending ? query.OrderByDescending(x => x.LinearPercent) : query.OrderBy(x => x.LinearPercent),
                 "ParityErrors" => SortDescending ? query.OrderByDescending(x => x.ParityErrors) : query.OrderBy(x => x.ParityErrors),
                 "BombAvoidances" => SortDescending ? query.OrderByDescending(x => x.BombAvoidances) : query.OrderBy(x => x.BombAvoidances),
