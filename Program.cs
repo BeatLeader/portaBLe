@@ -5,6 +5,7 @@ using Amazon.S3.Transfer;
 using Microsoft.EntityFrameworkCore;
 using portaBLe.DB;
 using portaBLe.Refresh;
+using ProtoBuf;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Text.Json;
@@ -38,17 +39,13 @@ namespace portaBLe
 
     public class Program
     {
-        public static RootObject ParseJson(string path)
+        public static BigExportResponse ParseProtobuf(string path)
         {
             using FileStream openStream = File.OpenRead(path);
             using ZipArchive archive = new ZipArchive(openStream, ZipArchiveMode.Read);
             ZipArchiveEntry entry = archive.Entries[0];
             using Stream entryStream = entry.Open();
-            var options = new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            };
-            return JsonSerializer.Deserialize<RootObject>(entryStream, options);
+            return Serializer.Deserialize<BigExportResponse>(entryStream);
         }
 
         public static void InitializeDatabase(IHost host)
@@ -84,9 +81,9 @@ namespace portaBLe
 
                 using var dbContext = dbContextFactory.CreateDbContext();
 
-                var dump = ParseJson(env.WebRootPath + "/dump.zip");
+                var dump = ParseProtobuf(env.WebRootPath + "/dump.zip");
 
-                DataImporter.ImportJsonData(dump, dbContext);
+                DataImporter.ImportData(dump, dbContext);
                 await ScoresRefresh.Refresh(dbContext);
                 await PlayersRefresh.Refresh(dbContext);
                 await LeaderboardsRefresh.Refresh(dbContext);
