@@ -11,7 +11,7 @@ using portaBLe;
 namespace portaBLe.Migrations
 {
     [DbContext(typeof(AppContext))]
-    [Migration("20260427111347_Init")]
+    [Migration("20260427171653_Init")]
     partial class Init
     {
         /// <inheritdoc />
@@ -120,6 +120,9 @@ namespace portaBLe.Migrations
                         .HasMaxLength(25)
                         .HasColumnType("TEXT");
 
+                    b.Property<float>("StaminaRating")
+                        .HasColumnType("REAL");
+
                     b.Property<float>("Stars")
                         .HasColumnType("REAL");
 
@@ -154,6 +157,9 @@ namespace portaBLe.Migrations
                     b.Property<float>("FSPredictedAcc")
                         .HasColumnType("REAL");
 
+                    b.Property<float>("FSStaminaRating")
+                        .HasColumnType("REAL");
+
                     b.Property<float>("FSStars")
                         .HasColumnType("REAL");
 
@@ -169,6 +175,9 @@ namespace portaBLe.Migrations
                     b.Property<float>("SFPredictedAcc")
                         .HasColumnType("REAL");
 
+                    b.Property<float>("SFStaminaRating")
+                        .HasColumnType("REAL");
+
                     b.Property<float>("SFStars")
                         .HasColumnType("REAL");
 
@@ -182,6 +191,9 @@ namespace portaBLe.Migrations
                         .HasColumnType("REAL");
 
                     b.Property<float>("SSPredictedAcc")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("SSStaminaRating")
                         .HasColumnType("REAL");
 
                     b.Property<float>("SSStars")
@@ -233,6 +245,9 @@ namespace portaBLe.Migrations
 
                     b.Property<int>("RankedPlayCount")
                         .HasColumnType("INTEGER");
+
+                    b.Property<float>("StaminaPp")
+                        .HasColumnType("REAL");
 
                     b.Property<float>("TechPp")
                         .HasColumnType("REAL");
@@ -288,6 +303,9 @@ namespace portaBLe.Migrations
 
                     b.Property<int>("Rank")
                         .HasColumnType("INTEGER");
+
+                    b.Property<float>("StaminaPP")
+                        .HasColumnType("REAL");
 
                     b.Property<float>("TechPP")
                         .HasColumnType("REAL");

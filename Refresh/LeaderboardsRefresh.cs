@@ -310,12 +310,13 @@ namespace portaBLe.Refresh
                     Id = s.Id,
                     AccRating = s.AccRating,
                     PassRating = s.PassRating,
-                    TechRating = s.TechRating
+                    TechRating = s.TechRating,
+                    StaminaRating = s.StaminaRating
                 })
                 .ToList();
             foreach (var lb in lbs)
             {
-                lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating);
+                lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.StaminaRating);
             }
 
             await dbContext.BulkUpdateAsync(lbs, options => options.ColumnInputExpression = c => new { c.Stars });
@@ -329,20 +330,23 @@ namespace portaBLe.Refresh
                     SSAccRating = s.SSAccRating,
                     SSPassRating = s.SSPassRating,
                     SSTechRating = s.SSTechRating,
+                    SSStaminaRating = s.SSStaminaRating,
                     SFAccRating = s.SFAccRating,
                     SFPassRating = s.SFPassRating,
                     SFTechRating = s.SFTechRating,
+                    SFStaminaRating = s.SFStaminaRating,
                     FSAccRating = s.FSAccRating,
                     FSPassRating = s.FSPassRating,
-                    FSTechRating = s.FSTechRating
+                    FSTechRating = s.FSTechRating,
+                    FSStaminaRating = s.SFStaminaRating
                 })
                 .ToList();
 
             foreach (var mod in mods)
             {
-                mod.SSStars = ReplayUtils.ToStars(mod.SSAccRating, mod.SSPassRating, mod.SSTechRating);
-                mod.SFStars = ReplayUtils.ToStars(mod.SFAccRating, mod.SFPassRating, mod.SFTechRating);
-                mod.FSStars = ReplayUtils.ToStars(mod.FSAccRating, mod.FSPassRating, mod.FSTechRating);
+                mod.SSStars = ReplayUtils.ToStars(mod.SSAccRating, mod.SSPassRating, mod.SSTechRating, mod.SSStaminaRating);
+                mod.SFStars = ReplayUtils.ToStars(mod.SFAccRating, mod.SFPassRating, mod.SFTechRating, mod.SFStaminaRating);
+                mod.FSStars = ReplayUtils.ToStars(mod.FSAccRating, mod.FSPassRating, mod.FSTechRating, mod.FSStaminaRating);
             }
 
             await dbContext.BulkUpdateAsync(mods, options => options.ColumnInputExpression = c => new { c.SSStars, c.SFStars, c.FSStars });

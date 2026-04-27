@@ -40,6 +40,7 @@ namespace portaBLe.Refresh
                         lb.PassRating,
                         lb.TechRating,
                         lb.ModifiersRating,
+                        lb.StaminaRating,
                         Scores = lb.Scores.Select(s => new { s.Id, s.Accuracy, s.Modifiers }).ToList()
                     })
                     .ToListAsync();
@@ -56,13 +57,14 @@ namespace portaBLe.Refresh
                         // Calculate PP for all scores
                         foreach (var s in leaderboard.Scores)
                         {
-                            (float pp, float bonuspp, float passPP, float accPP, float techPP) = ReplayUtils.PpFromScore(
+                            (float pp, float bonuspp, float passPP, float accPP, float techPP, float staminaPP) = ReplayUtils.PpFromScore(
                                 s.Accuracy,
                                 s.Modifiers,
                                 leaderboard.ModifiersRating,
                                 leaderboard.AccRating,
                                 leaderboard.PassRating,
-                                leaderboard.TechRating);
+                                leaderboard.TechRating,
+                                leaderboard.StaminaRating);
 
                             if (float.IsNaN(pp))
                             {
@@ -78,6 +80,7 @@ namespace portaBLe.Refresh
                                 PassPP = passPP,
                                 AccPP = accPP,
                                 TechPP = techPP,
+                                StaminaPP = staminaPP
                             });
                         }
 
@@ -118,7 +121,7 @@ namespace portaBLe.Refresh
                     allProcessedScores.Clear();
                     
                     await dbContext.BulkUpdateAsync(toUpdate, 
-                        options => options.ColumnInputExpression = c => new { c.Rank, c.Pp, c.BonusPp, c.PassPP, c.AccPP, c.TechPP });
+                        options => options.ColumnInputExpression = c => new { c.Rank, c.Pp, c.BonusPp, c.PassPP, c.AccPP, c.TechPP, c.StaminaPP });
                 }
             }
 
@@ -127,7 +130,7 @@ namespace portaBLe.Refresh
             {
                 var finalScores = allProcessedScores.ToList();
                 await dbContext.BulkUpdateAsync(finalScores, 
-                    options => options.ColumnInputExpression = c => new { c.Rank, c.Pp, c.BonusPp, c.PassPP, c.AccPP, c.TechPP });
+                    options => options.ColumnInputExpression = c => new { c.Rank, c.Pp, c.BonusPp, c.PassPP, c.AccPP, c.TechPP, c.StaminaPP });
                 
                 Console.WriteLine($"Updated final {finalScores.Count} scores in database");
             }

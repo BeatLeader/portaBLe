@@ -38,7 +38,7 @@ namespace portaBLe.DB
                 ModifiersRating = map.ModifiersRating?.ToDBModel(),
                 Cover = map.CoverImage,
                 Mapper = map.Mapper,
-                Stars = ReplayUtils.ToStars(map.AccRating ?? 0, map.PassRating ?? 0, map.TechRating ?? 0)
+                Stars = ReplayUtils.ToStars(map.AccRating ?? 0, map.PassRating ?? 0, map.TechRating ?? 0, 0)
             });
 
             dbContext.Leaderboards.BulkInsertOptimized(leaderboards, options => options.IncludeGraph = true);
