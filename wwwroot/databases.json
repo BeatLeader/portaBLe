@@ -7,14 +7,19 @@
       "Description": "Current production website"
     },
     {
-      "Name": "Stamina rating (No autoreweight)",
+      "Name": "Stamina rating (No additional autoreweight)",
       "FileName": "db-20260427180908-7110.db",
       "Description": "Added stamina rating and recalculated"
     },
     {
-      "Name": "Stamina rating (Autoreweighted)",
+      "Name": "Stamina rating (Additional Autoreweighted)",
       "FileName": "db-20260427181837-1186.db",
       "Description": "stamina rating + autoreweights on top"
+    },
+    {
+      "Name": "Old Stamina algo (No additional autoreweight)",
+      "FileName": "db-20260427224005-4109.db",
+      "Description": "old analyzer stamina rating"
     }
   ]
 }
