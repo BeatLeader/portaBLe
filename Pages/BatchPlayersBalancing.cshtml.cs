@@ -77,11 +77,13 @@ namespace portaBLe.Pages
                     AccRating = s.Leaderboard.AccRating,
                     PassRating = s.Leaderboard.PassRating,
                     TechRating = s.Leaderboard.TechRating,
+                    StaminaRating = s.Leaderboard.StaminaRating,
                     PredictedAcc = s.Leaderboard.PredictedAcc,
                     CurrentPP = s.Pp,
                     CurrentAccPP = s.AccPP,
                     CurrentTechPP = s.TechPP,
                     CurrentPassPP = s.PassPP,
+                    CurrentStaminaPP = s.StaminaPP,
                     Weight = s.Weight,
                     Timepost = s.Timepost
                 })
@@ -127,13 +129,14 @@ namespace portaBLe.Pages
 
                 foreach (var score in scores)
                 {
-                    var (newPP, bonusPP, newPassPP, newAccPP, newTechPP) = CalculatePP(
+                    var (newPP, bonusPP, newPassPP, newAccPP, newTechPP, newStaminaPP) = CalculatePP(
                         score.Accuracy,
                         score.Modifiers,
                         score.Leaderboard.ModifiersRating,
                         score.Leaderboard.AccRating,
                         score.Leaderboard.PassRating,
                         score.Leaderboard.TechRating,
+                        score.Leaderboard.StaminaRating,
                         score.Leaderboard.PredictedAcc,
                         request.Parameters
                     );
@@ -146,10 +149,12 @@ namespace portaBLe.Pages
                         CurrentAccPP = score.AccPP,
                         CurrentTechPP = score.TechPP,
                         CurrentPassPP = score.PassPP,
+                        CurrentStaminaPP = score.StaminaPP,
                         NewPP = newPP,
                         NewAccPP = newAccPP,
                         NewTechPP = newTechPP,
                         NewPassPP = newPassPP,
+                        NewStaminaPP = newStaminaPP,
                         Weight = score.Weight,
                         Timepost = score.Timepost
                     });
@@ -159,11 +164,13 @@ namespace portaBLe.Pages
                 var totalAccPP = CalculateWeightedTotal(recalculatedScores.Select(s => s.NewAccPP).ToList());
                 var totalTechPP = CalculateWeightedTotal(recalculatedScores.Select(s => s.NewTechPP).ToList());
                 var totalPassPP = CalculateWeightedTotal(recalculatedScores.Select(s => s.NewPassPP).ToList());
+                var totalStaminaPP = CalculateWeightedTotal(recalculatedScores.Select(s => s.NewStaminaPP).ToList());
 
                 var originalTotalPP = scores.Sum(s => s.Pp * s.Weight);
                 var originalAccPP = scores.Sum(s => s.AccPP * s.Weight);
                 var originalTechPP = scores.Sum(s => s.TechPP * s.Weight);
                 var originalPassPP = scores.Sum(s => s.PassPP * s.Weight);
+                var originalStaminaPP = scores.Sum(s => s.StaminaPP * s.Weight);
 
                 playerResults.Add(new PlayerResult
                 {
@@ -173,10 +180,12 @@ namespace portaBLe.Pages
                     TotalAccPP = totalAccPP,
                     TotalTechPP = totalTechPP,
                     TotalPassPP = totalPassPP,
+                    TotalStaminaPP = totalStaminaPP,
                     OriginalTotalPP = originalTotalPP,
                     OriginalAccPP = originalAccPP,
                     OriginalTechPP = originalTechPP,
-                    OriginalPassPP = originalPassPP
+                    OriginalPassPP = originalPassPP,
+                    OriginalStaminaPP = originalStaminaPP
                 });
             }
 
@@ -236,15 +245,15 @@ namespace portaBLe.Pages
                 labels = new[] { "#1-50", "#51-100", "#101-150", "#151-200" },
                 acc = new[] { 0.0, 0.0, 0.0, 0.0 },
                 tech = new[] { 0.0, 0.0, 0.0, 0.0 },
-                pass = new[] { 0.0, 0.0, 0.0, 0.0 }
+                pass = new[] { 0.0, 0.0, 0.0, 0.0 },
+                stamina = new[] { 0.0, 0.0, 0.0, 0.0 }
             };
 
             for (int bucket = 0; bucket < 4; bucket++)
             {
                 int start = bucket * 50;
                 int end = start + 50;
-                double totalAcc = 0, totalTech = 0, totalPass = 0, total = 0;
-                int count = 0;
+                double totalAcc = 0, totalTech = 0, totalPass = 0, totalStamina = 0, total = 0;
 
                 foreach (var player in playerResults)
                 {
@@ -254,16 +263,17 @@ namespace portaBLe.Pages
                         totalAcc += bucketScores.Sum(s => s.NewAccPP);
                         totalTech += bucketScores.Sum(s => s.NewTechPP);
                         totalPass += bucketScores.Sum(s => s.NewPassPP);
-                        count++;
+                        totalStamina += bucketScores.Sum(s => s.NewStaminaPP);
                     }
                 }
 
-                total = totalAcc + totalTech + totalPass;
+                total = totalAcc + totalTech + totalPass + totalStamina;
                 if (total > 0)
                 {
                     componentBalance.acc[bucket] = (totalAcc / total) * 100;
                     componentBalance.tech[bucket] = (totalTech / total) * 100;
                     componentBalance.pass[bucket] = (totalPass / total) * 100;
+                    componentBalance.stamina[bucket] = (totalStamina / total) * 100;
                 }
             }
 
@@ -297,11 +307,13 @@ namespace portaBLe.Pages
             var avgAccPPChange = playerResults.Average(p => p.TotalAccPP - p.OriginalAccPP);
             var avgTechPPChange = playerResults.Average(p => p.TotalTechPP - p.OriginalTechPP);
             var avgPassPPChange = playerResults.Average(p => p.TotalPassPP - p.OriginalPassPP);
+            var avgStaminaPPChange = playerResults.Average(p => p.TotalStaminaPP - p.OriginalStaminaPP);
 
             // Calculate balance metrics for each player and average them
             var avgAccPercent = 0.0;
             var avgTechPercent = 0.0;
             var avgPassPercent = 0.0;
+            var avgStaminaPercent = 0.0;
             var avgDecayCV = 0.0;
             var avgOutliers = 0.0;
             var avgOutlierPercent = 0.0;
@@ -311,13 +323,15 @@ namespace portaBLe.Pages
                 var totalAcc = player.Scores.Sum(s => s.NewAccPP);
                 var totalTech = player.Scores.Sum(s => s.NewTechPP);
                 var totalPass = player.Scores.Sum(s => s.NewPassPP);
-                var total = totalAcc + totalTech + totalPass;
+                var totalStamina = player.Scores.Sum(s => s.NewStaminaPP);
+                var total = totalAcc + totalTech + totalPass + totalStamina;
 
                 if (total > 0)
                 {
                     avgAccPercent += (totalAcc / total) * 100;
                     avgTechPercent += (totalTech / total) * 100;
                     avgPassPercent += (totalPass / total) * 100;
+                    avgStaminaPercent += (totalStamina / total) * 100;
                 }
 
                 // Decay CV
@@ -339,6 +353,7 @@ namespace portaBLe.Pages
             avgAccPercent /= playerCount;
             avgTechPercent /= playerCount;
             avgPassPercent /= playerCount;
+            avgStaminaPercent /= playerCount;
             avgDecayCV /= playerCount;
 
             return new AggregatedMetricsResult
@@ -349,6 +364,7 @@ namespace portaBLe.Pages
                     avgAccPPChange = avgAccPPChange,
                     avgTechPPChange = avgTechPPChange,
                     avgPassPPChange = avgPassPPChange,
+                    avgStaminaPPChange = avgStaminaPPChange,
                     playerCount = playerCount
                 },
                 Metrics = new
@@ -356,6 +372,7 @@ namespace portaBLe.Pages
                     avgAccPercent = avgAccPercent,
                     avgTechPercent = avgTechPercent,
                     avgPassPercent = avgPassPercent,
+                    avgStaminaPercent = avgStaminaPercent,
                     avgDecayCV = avgDecayCV,
                     avgOutliers = avgOutliers,
                     avgOutlierPercent = avgOutlierPercent
@@ -378,26 +395,29 @@ namespace portaBLe.Pages
             return total;
         }
 
-        private (float, float, float, float, float) CalculatePP(
+        private (float, float, float, float, float, float) CalculatePP(
             float accuracy,
             string modifiers,
             ModifiersRating modifiersRating,
             float accRating,
             float passRating,
             float techRating,
+            float staminaRating,
             float predictedAcc,
             PPParameters parameters)
         {
-            if (accuracy <= 0 || accuracy > 1) return (0, 0, 0, 0, 0);
+            if (accuracy <= 0 || accuracy > 1) return (0, 0, 0, 0, 0, 0);
+
+            modifiers ??= string.Empty;
 
             float mp = ModifiersMap.RankedMap().GetTotalMultiplier(modifiers, modifiersRating == null);
 
-            float rawPP = 0; float fullPP = 0; float passPP = 0; float accPP = 0; float techPP = 0; float increase = 0;
+            float rawPP = 0; float fullPP = 0; float passPP = 0; float accPP = 0; float techPP = 0; float staminaPP = 0; float increase = 0;
             if (!modifiers.Contains("NF"))
             {
-                (passPP, accPP, techPP) = GetPpCustom(accuracy, accRating, passRating, techRating, parameters);
+                (passPP, accPP, techPP, staminaPP) = GetPpCustom(accuracy, accRating, passRating, techRating, staminaRating, parameters);
 
-                rawPP = InflateCustom(passPP + accPP + techPP, parameters);
+                rawPP = InflateCustom(passPP + accPP + techPP + staminaPP, parameters);
                 if (modifiersRating != null)
                 {
                     var modifiersMap = modifiersRating.ToDictionary<float>();
@@ -408,16 +428,17 @@ namespace portaBLe.Pages
                             accRating = modifiersMap[modifier + "AccRating"];
                             passRating = modifiersMap[modifier + "PassRating"];
                             techRating = modifiersMap[modifier + "TechRating"];
+                            staminaRating = modifiersMap[modifier + "StaminaRating"];
 
                             break;
                         }
                     }
                 }
-                (passPP, accPP, techPP) = GetPpCustom(accuracy, accRating * mp, passRating * mp, techRating * mp, parameters);
-                fullPP = InflateCustom(passPP + accPP + techPP, parameters);
-                if (passPP + accPP + techPP > 0)
+                (passPP, accPP, techPP, staminaPP) = GetPpCustom(accuracy, accRating * mp, passRating * mp, techRating * mp, staminaRating * mp, parameters);
+                fullPP = InflateCustom(passPP + accPP + techPP + staminaPP, parameters);
+                if (passPP + accPP + techPP + staminaPP > 0)
                 {
-                    increase = fullPP / (passPP + accPP + techPP);
+                    increase = fullPP / (passPP + accPP + techPP + staminaPP);
                 }
             }
 
@@ -431,10 +452,10 @@ namespace portaBLe.Pages
                 fullPP = 0;
             }
 
-            return (fullPP, fullPP - rawPP, passPP * increase, accPP * increase, techPP * increase);
+            return (fullPP, fullPP - rawPP, passPP * increase, accPP * increase, techPP * increase, staminaPP * increase);
         }
 
-        private (float, float, float) GetPpCustom(float accuracy, float accRating, float passRating, float techRating, PPParameters parameters)
+        private (float, float, float, float) GetPpCustom(float accuracy, float accRating, float passRating, float techRating, float staminaRating, PPParameters parameters)
         {
             float passPP = parameters.PassMultiplier * MathF.Exp(MathF.Pow(passRating, 1 / parameters.PassExponent)) - parameters.PassOffset;
             if (float.IsInfinity(passPP) || float.IsNaN(passPP) || float.IsNegativeInfinity(passPP) || passPP < 0)
@@ -443,8 +464,14 @@ namespace portaBLe.Pages
             }
             float accPP = CurveCustom(accuracy, parameters) * accRating * parameters.AccMultiplier;
             float techPP = MathF.Exp(parameters.TechAccExponent * accuracy) * parameters.TechAccMultiplier * techRating;
+            float staminaBaselineAccuracy = parameters.StaminaBaselineAccuracy <= 0 ? 0.95f : parameters.StaminaBaselineAccuracy;
+            float staminaPP = MathF.Pow(MathF.Max(accuracy / staminaBaselineAccuracy, 0f), parameters.StaminaExponent) * staminaRating * parameters.StaminaMultiplier;
+            if (float.IsInfinity(staminaPP) || float.IsNaN(staminaPP) || float.IsNegativeInfinity(staminaPP) || staminaPP < 0)
+            {
+                staminaPP = 0;
+            }
 
-            return (passPP, accPP, techPP);
+            return (passPP, accPP, techPP, staminaPP);
         }
 
         private float InflateCustom(float peepee, PPParameters parameters)
@@ -484,11 +511,13 @@ namespace portaBLe.Pages
             public float AccRating { get; set; }
             public float PassRating { get; set; }
             public float TechRating { get; set; }
+            public float StaminaRating { get; set; }
             public float PredictedAcc { get; set; }
             public float CurrentPP { get; set; }
             public float CurrentAccPP { get; set; }
             public float CurrentTechPP { get; set; }
             public float CurrentPassPP { get; set; }
+            public float CurrentStaminaPP { get; set; }
             public float Weight { get; set; }
             public int Timepost { get; set; }
         }
@@ -501,10 +530,12 @@ namespace portaBLe.Pages
             public float CurrentAccPP { get; set; }
             public float CurrentTechPP { get; set; }
             public float CurrentPassPP { get; set; }
+            public float CurrentStaminaPP { get; set; }
             public float NewPP { get; set; }
             public float NewAccPP { get; set; }
             public float NewTechPP { get; set; }
             public float NewPassPP { get; set; }
+            public float NewStaminaPP { get; set; }
             public float Weight { get; set; }
             public int Timepost { get; set; }
         }
@@ -517,10 +548,12 @@ namespace portaBLe.Pages
             public float TotalAccPP { get; set; }
             public float TotalTechPP { get; set; }
             public float TotalPassPP { get; set; }
+            public float TotalStaminaPP { get; set; }
             public float OriginalTotalPP { get; set; }
             public float OriginalAccPP { get; set; }
             public float OriginalTechPP { get; set; }
             public float OriginalPassPP { get; set; }
+            public float OriginalStaminaPP { get; set; }
         }
 
         public class RecalculateBatchRequest
@@ -547,6 +580,9 @@ namespace portaBLe.Pages
             public float AccMultiplier { get; set; } = 34f;
             public float TechAccExponent { get; set; } = 1.9f;
             public float TechAccMultiplier { get; set; } = 1.08f;
+            public float StaminaMultiplier { get; set; } = 3.25f;
+            public float StaminaExponent { get; set; } = 8f;
+            public float StaminaBaselineAccuracy { get; set; } = 0.95f;
             public float InflateMultiplier { get; set; } = 650f;
             public float InflateExponent { get; set; } = 1.3f;
             public bool UseAlternateCurve { get; set; } = false;

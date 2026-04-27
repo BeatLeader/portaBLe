@@ -72,6 +72,7 @@ namespace portaBLe.Refresh
                         HighestAccRating REAL DEFAULT 0,
                         HighestPassRating REAL DEFAULT 0,
                         HighestTechRating REAL DEFAULT 0,
+                        HighestStaminaRating REAL DEFAULT 0,
                         Top1PP REAL DEFAULT 0,
                         Top10PP REAL DEFAULT 0,
                         Top100PP REAL DEFAULT 0,
@@ -99,12 +100,41 @@ namespace portaBLe.Refresh
                         Top1000TechPP REAL DEFAULT 0,
                         Top2000TechPP REAL DEFAULT 0,
                         Top5000TechPP REAL DEFAULT 0,
-                        Top10000TechPP REAL DEFAULT 0
+                        Top10000TechPP REAL DEFAULT 0,
+                        Top1StaminaPP REAL DEFAULT 0,
+                        Top10StaminaPP REAL DEFAULT 0,
+                        Top100StaminaPP REAL DEFAULT 0,
+                        Top1000StaminaPP REAL DEFAULT 0,
+                        Top2000StaminaPP REAL DEFAULT 0,
+                        Top5000StaminaPP REAL DEFAULT 0,
+                        Top10000StaminaPP REAL DEFAULT 0
                     )");
             }
             catch
             {
                 // Table already exists
+            }
+
+            foreach (var columnDefinition in new[]
+            {
+                "HighestStaminaRating REAL DEFAULT 0",
+                "Top1StaminaPP REAL DEFAULT 0",
+                "Top10StaminaPP REAL DEFAULT 0",
+                "Top100StaminaPP REAL DEFAULT 0",
+                "Top1000StaminaPP REAL DEFAULT 0",
+                "Top2000StaminaPP REAL DEFAULT 0",
+                "Top5000StaminaPP REAL DEFAULT 0",
+                "Top10000StaminaPP REAL DEFAULT 0"
+            })
+            {
+                try
+                {
+                    await dbContext.Database.ExecuteSqlRawAsync($"ALTER TABLE Stats ADD COLUMN {columnDefinition}");
+                }
+                catch
+                {
+                    // Column already exists
+                }
             }
 
             // Clear existing stats
@@ -185,6 +215,7 @@ namespace portaBLe.Refresh
             stats.HighestAccRating = leaderboards.Any() ? leaderboards.Max(l => l.AccRating) : 0;
             stats.HighestPassRating = leaderboards.Any() ? leaderboards.Max(l => l.PassRating) : 0;
             stats.HighestTechRating = leaderboards.Any() ? leaderboards.Max(l => l.TechRating) : 0;
+            stats.HighestStaminaRating = leaderboards.Any() ? leaderboards.Max(l => l.StaminaRating) : 0;
 
             // Player averages by rank range
             var players = await dbContext.Players
@@ -242,6 +273,19 @@ namespace portaBLe.Refresh
             stats.Top2000PassPP = GetAtOrDefault(players, 1999, p => p.PassPp);
             stats.Top5000PassPP = GetAtOrDefault(players, 4999, p => p.PassPp);
             stats.Top10000PassPP = GetAtOrDefault(players, 9999, p => p.PassPp);
+
+            // --------------------
+            // Stamina PP
+            // --------------------
+            players = players.OrderByDescending(p => p.StaminaPp).ToList();
+
+            stats.Top1StaminaPP = GetAtOrDefault(players, 0, p => p.StaminaPp);
+            stats.Top10StaminaPP = GetAtOrDefault(players, 9, p => p.StaminaPp);
+            stats.Top100StaminaPP = GetAtOrDefault(players, 99, p => p.StaminaPp);
+            stats.Top1000StaminaPP = GetAtOrDefault(players, 999, p => p.StaminaPp);
+            stats.Top2000StaminaPP = GetAtOrDefault(players, 1999, p => p.StaminaPp);
+            stats.Top5000StaminaPP = GetAtOrDefault(players, 4999, p => p.StaminaPp);
+            stats.Top10000StaminaPP = GetAtOrDefault(players, 9999, p => p.StaminaPp);
 
             return stats;
         }

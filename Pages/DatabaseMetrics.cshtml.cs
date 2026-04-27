@@ -65,6 +65,8 @@ namespace portaBLe.Pages
 
         private async Task<DatabaseMetrics> LoadMetricsFromStats(Services.DynamicDbContext context, string characteristic)
         {
+            await EnsureStatsSchemaAsync(context);
+
             // Find the stats row for the specified characteristic (empty string for "All")
             var statsQuery = context.Stats.AsQueryable();
             
@@ -81,11 +83,11 @@ namespace portaBLe.Pages
             // If stats don't exist, return empty metrics
             if (stats == null)
             {
-                return new DatabaseMetrics();
+                return await BuildFallbackMetricsAsync(context, characteristic);
             }
 
             // Map Stats entity to DatabaseMetrics
-            return new DatabaseMetrics
+            var metrics = new DatabaseMetrics
             {
                 // Outliers
                 TotalOutliers = stats.TotalOutlier,
@@ -109,12 +111,14 @@ namespace portaBLe.Pages
                 HighestAccRating = stats.HighestAccRating,
                 HighestPassRating = stats.HighestPassRating,
                 HighestTechRating = stats.HighestTechRating,
+                HighestStaminaRating = stats.HighestStaminaRating,
 
                 // Highest PP scores
                 HighestPP = stats.Top1PP,
                 HighestAccPP = stats.Top1AccPP,
                 HighestTechPP = stats.Top1TechPP,
                 HighestPassPP = stats.Top1PassPP,
+                HighestStaminaPP = stats.Top1StaminaPP,
 
                 // Total PP - using averages from Stats
                 PpTop1 = stats.Top1PP,
@@ -150,8 +154,95 @@ namespace portaBLe.Pages
                 PassPpTop1000 = stats.Top1000PassPP,
                 PassPpTop2000 = stats.Top2000PassPP,
                 PassPpTop5000 = stats.Top5000PassPP,
-                PassPpTop10000 = stats.Top10000PassPP
+                PassPpTop10000 = stats.Top10000PassPP,
+
+                // Stamina PP
+                StaminaPpTop1 = stats.Top1StaminaPP,
+                StaminaPpTop10 = stats.Top10StaminaPP,
+                StaminaPpTop100 = stats.Top100StaminaPP,
+                StaminaPpTop1000 = stats.Top1000StaminaPP,
+                StaminaPpTop2000 = stats.Top2000StaminaPP,
+                StaminaPpTop5000 = stats.Top5000StaminaPP,
+                StaminaPpTop10000 = stats.Top10000StaminaPP
             };
+
+            if (metrics.HighestStaminaRating == 0 || metrics.StaminaPpTop10000 == 0)
+            {
+                var fallback = await BuildFallbackMetricsAsync(context, characteristic);
+                metrics.HighestStaminaRating = fallback.HighestStaminaRating;
+                metrics.HighestStaminaPP = fallback.HighestStaminaPP;
+                metrics.StaminaPpTop1 = fallback.StaminaPpTop1;
+                metrics.StaminaPpTop10 = fallback.StaminaPpTop10;
+                metrics.StaminaPpTop100 = fallback.StaminaPpTop100;
+                metrics.StaminaPpTop1000 = fallback.StaminaPpTop1000;
+                metrics.StaminaPpTop2000 = fallback.StaminaPpTop2000;
+                metrics.StaminaPpTop5000 = fallback.StaminaPpTop5000;
+                metrics.StaminaPpTop10000 = fallback.StaminaPpTop10000;
+            }
+
+            return metrics;
+        }
+
+        private static async Task EnsureStatsSchemaAsync(Services.DynamicDbContext context)
+        {
+            foreach (var columnDefinition in new[]
+            {
+                "HighestStaminaRating REAL DEFAULT 0",
+                "Top1StaminaPP REAL DEFAULT 0",
+                "Top10StaminaPP REAL DEFAULT 0",
+                "Top100StaminaPP REAL DEFAULT 0",
+                "Top1000StaminaPP REAL DEFAULT 0",
+                "Top2000StaminaPP REAL DEFAULT 0",
+                "Top5000StaminaPP REAL DEFAULT 0",
+                "Top10000StaminaPP REAL DEFAULT 0"
+            })
+            {
+                try
+                {
+                    await context.Database.ExecuteSqlRawAsync($"ALTER TABLE Stats ADD COLUMN {columnDefinition}");
+                }
+                catch
+                {
+                    // Column already exists
+                }
+            }
+        }
+
+        private static async Task<DatabaseMetrics> BuildFallbackMetricsAsync(Services.DynamicDbContext context, string characteristic)
+        {
+            var metrics = new DatabaseMetrics();
+            var leaderboardQuery = context.Leaderboards.AsQueryable();
+            if (!string.IsNullOrEmpty(characteristic))
+            {
+                leaderboardQuery = leaderboardQuery.Where(l => l.ModeName == characteristic);
+            }
+
+            metrics.HighestStaminaRating = await leaderboardQuery.AnyAsync()
+                ? await leaderboardQuery.MaxAsync(l => l.StaminaRating)
+                : 0;
+
+            var staminaPpValues = await context.Players
+                .Where(p => p.Pp > 0)
+                .OrderByDescending(p => p.StaminaPp)
+                .Select(p => p.StaminaPp)
+                .Take(10000)
+                .ToListAsync();
+
+            metrics.HighestStaminaPP = GetAtOrDefault(staminaPpValues, 0);
+            metrics.StaminaPpTop1 = GetAtOrDefault(staminaPpValues, 0);
+            metrics.StaminaPpTop10 = GetAtOrDefault(staminaPpValues, 9);
+            metrics.StaminaPpTop100 = GetAtOrDefault(staminaPpValues, 99);
+            metrics.StaminaPpTop1000 = GetAtOrDefault(staminaPpValues, 999);
+            metrics.StaminaPpTop2000 = GetAtOrDefault(staminaPpValues, 1999);
+            metrics.StaminaPpTop5000 = GetAtOrDefault(staminaPpValues, 4999);
+            metrics.StaminaPpTop10000 = GetAtOrDefault(staminaPpValues, 9999);
+
+            return metrics;
+        }
+
+        private static float GetAtOrDefault(List<float> values, int index)
+        {
+            return index < values.Count ? values[index] : 0;
         }
 
         public class DatabaseMetrics
@@ -178,12 +269,14 @@ namespace portaBLe.Pages
             public float HighestAccRating { get; set; }
             public float HighestPassRating { get; set; }
             public float HighestTechRating { get; set; }
+            public float HighestStaminaRating { get; set; }
 
             // Highest PP scores
             public float HighestPP { get; set; }
             public float HighestAccPP { get; set; }
             public float HighestTechPP { get; set; }
             public float HighestPassPP { get; set; }
+            public float HighestStaminaPP { get; set; }
 
             // Total PP for Rank
             public float PpTop1 { get; set; }
@@ -220,6 +313,15 @@ namespace portaBLe.Pages
             public float PassPpTop2000 { get; set; }
             public float PassPpTop5000 { get; set; }
             public float PassPpTop10000 { get; set; }
+
+            // Stamina PP for Rank
+            public float StaminaPpTop1 { get; set; }
+            public float StaminaPpTop10 { get; set; }
+            public float StaminaPpTop100 { get; set; }
+            public float StaminaPpTop1000 { get; set; }
+            public float StaminaPpTop2000 { get; set; }
+            public float StaminaPpTop5000 { get; set; }
+            public float StaminaPpTop10000 { get; set; }
         }
     }
 }

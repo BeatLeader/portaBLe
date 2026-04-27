@@ -22,6 +22,7 @@ namespace portaBLe.Refresh
                     float accPP = 0f;
                     float techPP = 0f;
                     float passPP = 0f;
+                    float staminaPP = 0f;
 
                     float topPp = 0f;
 
@@ -36,6 +37,7 @@ namespace portaBLe.Refresh
                         accPP += s.AccPP * weight;
                         techPP += s.TechPP * weight;
                         passPP += s.PassPP * weight;
+                        staminaPP += s.StaminaPP * weight;
 
                         if (i == 0) {
                             topPp = s.Pp;
@@ -48,6 +50,7 @@ namespace portaBLe.Refresh
                     player.AccPp = accPP;
                     player.TechPp = techPP;
                     player.PassPp = passPP;
+                    player.StaminaPp = staminaPP;
                 } catch (Exception) {
                 }
             }
@@ -74,6 +77,7 @@ namespace portaBLe.Refresh
                     AccPP = s.AccPP, 
                     TechPP = s.TechPP, 
                     PassPP = s.PassPP, 
+                    StaminaPP = s.StaminaPP,
                     Weight = s.Weight, 
                     PlayerId = s.PlayerId, 
                     Country = s.Player.Country 
@@ -98,7 +102,7 @@ namespace portaBLe.Refresh
                 }
             }
             await dbContext.BulkUpdateAsync(scoreUpdates, options => options.ColumnInputExpression = c => new { c.Weight });
-            await dbContext.BulkUpdateAsync(playerUpdates, options => options.ColumnInputExpression = c => new { c.Rank, c.Pp, c.TopPp, c.RankedPlayCount, c.CountryRank, c.AccPp, c.PassPp, c.TechPp });
+            await dbContext.BulkUpdateAsync(playerUpdates, options => options.ColumnInputExpression = c => new { c.Rank, c.Pp, c.TopPp, c.RankedPlayCount, c.CountryRank, c.AccPp, c.PassPp, c.TechPp, c.StaminaPp });
         }
     }
 
@@ -110,6 +114,7 @@ namespace portaBLe.Refresh
         public float AccPP { get; set; }  
         public float TechPP { get; set; } 
         public float PassPP { get; set; } 
+        public float StaminaPP { get; set; }
         public float Weight { get; set; } 
         public string PlayerId { get; set; } 
         public string Country { get; set; } 

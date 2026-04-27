@@ -50,6 +50,7 @@ namespace portaBLe
                 "accPP" => query.OrderByDescending(p => p.AccPp),
                 "passPP" => query.OrderByDescending(p => p.PassPp),
                 "techPP" => query.OrderByDescending(p => p.TechPp),
+                "staminaPP" => query.OrderByDescending(p => p.StaminaPp),
                 "rank" or _ => query.OrderBy(p => p.Rank) // Default to rank
             };
 
@@ -72,6 +73,7 @@ namespace portaBLe
                 "accPP" => "Acc PP",
                 "passPP" => "Pass PP",
                 "techPP" => "Tech PP",
+                "staminaPP" => "Stamina PP",
                 "rank" or _ => "Total PP"
             };
         }
@@ -84,6 +86,7 @@ namespace portaBLe
                 "accPP" => player.AccPp,
                 "passPP" => player.PassPp,
                 "techPP" => player.TechPp,
+                "staminaPP" => player.StaminaPp,
                 "rank" or _ => player.Pp
             };
         }

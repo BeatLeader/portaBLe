@@ -41,6 +41,7 @@
                                     <option value="AccPP">AccPP</option>
                                     <option value="TechPP">TechPP</option>
                                     <option value="PassPP">PassPP</option>
+                                    <option value="StaminaPP">StaminaPP</option>
                                 </select>
                             </div>
                         </div>
@@ -61,7 +62,7 @@
             <div class="card">
                 <div class="card-header">
                     <h5 class="mb-0">3D Player Distribution</h5>
-                    <small class="text-muted">Interactive 3D scatter plot of AccPP, TechPP, and PassPP</small>
+                    <small class="text-muted">Interactive 3D scatter plot of AccPP, TechPP, and PassPP, with optional StaminaPP coloring</small>
                 </div>
                 <div class="card-body">
                     <div id="noDataMessage" style="display:none; text-align:center; padding:50px; color:gray; font-size:16px;">
@@ -118,6 +119,14 @@
                     colorValues = playersData.map(p => Number(p.passPP));
                     colorTitle = 'PassPP';
                     colorscale = 'Plasma';
+                } else if (colorVariable === 'StaminaPP') {
+                    colorValues = playersData.map(p => Number(p.staminaPP));
+                    colorTitle = 'StaminaPP';
+                    colorscale = 'Turbo';
+                } else {
+                    colorValues = playersData.map(p => Number(p.accPP));
+                    colorTitle = 'AccPP';
+                    colorscale = 'Viridis';
                 }
 
                 const maxColor = colorValues.length > 0 ? Math.max(...colorValues) : 1;
@@ -129,8 +138,8 @@
                     y: playersData.map(p => Number(p.techPP)),
                     z: playersData.map(p => Number(p.passPP)),
                     text: playersData.map(p => (p.player || '') + ' (' + (p.id || '') + ')'),
-                    customdata: playersData.map(p => [p.accPP, p.techPP, p.passPP]),
-                    hovertemplate: 'Player: %{text}<br>AccPP: %{customdata[0]:.2f}<br>TechPP: %{customdata[1]:.2f}<br>PassPP: %{customdata[2]:.2f}<extra></extra>',
+                    customdata: playersData.map(p => [p.accPP, p.techPP, p.passPP, p.staminaPP]),
+                    hovertemplate: 'Player: %{text}<br>AccPP: %{customdata[0]:.2f}<br>TechPP: %{customdata[1]:.2f}<br>PassPP: %{customdata[2]:.2f}<br>StaminaPP: %{customdata[3]:.2f}<extra></extra>',
                     marker: { 
                         size: 6,
                         color: colorValues,

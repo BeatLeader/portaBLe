@@ -11,7 +11,7 @@ using portaBLe;
 namespace portaBLe.Migrations
 {
     [DbContext(typeof(AppContext))]
-    [Migration("20250114225828_Init")]
+    [Migration("20260427184158_Init")]
     partial class Init
     {
         /// <inheritdoc />
@@ -20,7 +20,7 @@ namespace portaBLe.Migrations
 #pragma warning disable 612, 618
             modelBuilder.HasAnnotation("ProductVersion", "7.0.20");
 
-            modelBuilder.Entity("portaBLe.Leaderboard", b =>
+            modelBuilder.Entity("portaBLe.DB.Leaderboard", b =>
                 {
                     b.Property<string>("Id")
                         .HasMaxLength(25)
@@ -30,6 +30,9 @@ namespace portaBLe.Migrations
                         .HasColumnType("REAL");
 
                     b.Property<float>("Average")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("BombAvoidances")
                         .HasColumnType("REAL");
 
                     b.Property<int>("Count")
@@ -54,6 +57,9 @@ namespace portaBLe.Migrations
                     b.Property<string>("Hash")
                         .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<float>("LinearPercent")
+                        .HasColumnType("REAL");
 
                     b.Property<string>("Mapper")
                         .IsRequired()
@@ -80,15 +86,24 @@ namespace portaBLe.Migrations
                     b.Property<int?>("ModifiersRatingId")
                         .HasColumnType("INTEGER");
 
+                    b.Property<float>("MultiPercentage")
+                        .HasColumnType("REAL");
+
                     b.Property<string>("Name")
                         .IsRequired()
                         .HasMaxLength(150)
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("OutlierCount")
+                        .HasColumnType("INTEGER");
+
                     b.Property<float>("PPRatioFiltered")
                         .HasColumnType("REAL");
 
                     b.Property<float>("PPRatioUnfiltered")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("ParityErrors")
                         .HasColumnType("REAL");
 
                     b.Property<float>("PassRating")
@@ -104,6 +119,9 @@ namespace portaBLe.Migrations
                         .IsRequired()
                         .HasMaxLength(25)
                         .HasColumnType("TEXT");
+
+                    b.Property<float>("StaminaRating")
+                        .HasColumnType("REAL");
 
                     b.Property<float>("Stars")
                         .HasColumnType("REAL");
@@ -124,7 +142,7 @@ namespace portaBLe.Migrations
                     b.ToTable("Leaderboards");
                 });
 
-            modelBuilder.Entity("portaBLe.ModifiersRating", b =>
+            modelBuilder.Entity("portaBLe.DB.ModifiersRating", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -137,6 +155,9 @@ namespace portaBLe.Migrations
                         .HasColumnType("REAL");
 
                     b.Property<float>("FSPredictedAcc")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("FSStaminaRating")
                         .HasColumnType("REAL");
 
                     b.Property<float>("FSStars")
@@ -154,6 +175,9 @@ namespace portaBLe.Migrations
                     b.Property<float>("SFPredictedAcc")
                         .HasColumnType("REAL");
 
+                    b.Property<float>("SFStaminaRating")
+                        .HasColumnType("REAL");
+
                     b.Property<float>("SFStars")
                         .HasColumnType("REAL");
 
@@ -169,6 +193,9 @@ namespace portaBLe.Migrations
                     b.Property<float>("SSPredictedAcc")
                         .HasColumnType("REAL");
 
+                    b.Property<float>("SSStaminaRating")
+                        .HasColumnType("REAL");
+
                     b.Property<float>("SSStars")
                         .HasColumnType("REAL");
 
@@ -180,7 +207,7 @@ namespace portaBLe.Migrations
                     b.ToTable("ModifiersRating");
                 });
 
-            modelBuilder.Entity("portaBLe.Player", b =>
+            modelBuilder.Entity("portaBLe.DB.Player", b =>
                 {
                     b.Property<string>("Id")
                         .HasMaxLength(25)
@@ -219,6 +246,9 @@ namespace portaBLe.Migrations
                     b.Property<int>("RankedPlayCount")
                         .HasColumnType("INTEGER");
 
+                    b.Property<float>("StaminaPp")
+                        .HasColumnType("REAL");
+
                     b.Property<float>("TechPp")
                         .HasColumnType("REAL");
 
@@ -230,7 +260,7 @@ namespace portaBLe.Migrations
                     b.ToTable("Players");
                 });
 
-            modelBuilder.Entity("portaBLe.Score", b =>
+            modelBuilder.Entity("portaBLe.DB.Score", b =>
                 {
                     b.Property<int>("Id")
                         .ValueGeneratedOnAdd()
@@ -274,6 +304,9 @@ namespace portaBLe.Migrations
                     b.Property<int>("Rank")
                         .HasColumnType("INTEGER");
 
+                    b.Property<float>("StaminaPP")
+                        .HasColumnType("REAL");
+
                     b.Property<float>("TechPP")
                         .HasColumnType("REAL");
 
@@ -292,24 +325,168 @@ namespace portaBLe.Migrations
                     b.ToTable("Scores");
                 });
 
-            modelBuilder.Entity("portaBLe.Leaderboard", b =>
+            modelBuilder.Entity("portaBLe.DB.Stats", b =>
                 {
-                    b.HasOne("portaBLe.ModifiersRating", "ModifiersRating")
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("INTEGER");
+
+                    b.Property<float>("AvgMegametric")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("AvgMegametric125")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("AvgMegametric40")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("AvgMegametric75")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("AvgOutlierPercentage")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("HighestAccRating")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("HighestPassRating")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("HighestStarRating")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("HighestTechRating")
+                        .HasColumnType("REAL");
+
+                    b.Property<string>("ModeName")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
+                    b.Property<int>("PpCount1000")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("PpCount600")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("PpCount700")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("PpCount800")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<int>("PpCount900")
+                        .HasColumnType("INTEGER");
+
+                    b.Property<float>("Top10000AccPP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top10000PP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top10000PassPP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top10000TechPP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top1000AccPP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top1000PP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top1000PassPP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top1000TechPP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top100AccPP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top100PP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top100PassPP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top100TechPP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top10AccPP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top10PP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top10PassPP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top10TechPP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top1AccPP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top1PP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top1PassPP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top1TechPP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top2000AccPP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top2000PP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top2000PassPP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top2000TechPP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top5000AccPP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top5000PP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top5000PassPP")
+                        .HasColumnType("REAL");
+
+                    b.Property<float>("Top5000TechPP")
+                        .HasColumnType("REAL");
+
+                    b.Property<int>("TotalOutlier")
+                        .HasColumnType("INTEGER");
+
+                    b.HasKey("Id");
+
+                    b.ToTable("Stats");
+                });
+
+            modelBuilder.Entity("portaBLe.DB.Leaderboard", b =>
+                {
+                    b.HasOne("portaBLe.DB.ModifiersRating", "ModifiersRating")
                         .WithMany()
                         .HasForeignKey("ModifiersRatingId");
 
                     b.Navigation("ModifiersRating");
                 });
 
-            modelBuilder.Entity("portaBLe.Score", b =>
+            modelBuilder.Entity("portaBLe.DB.Score", b =>
                 {
-                    b.HasOne("portaBLe.Leaderboard", "Leaderboard")
+                    b.HasOne("portaBLe.DB.Leaderboard", "Leaderboard")
                         .WithMany("Scores")
                         .HasForeignKey("LeaderboardId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
-                    b.HasOne("portaBLe.Player", "Player")
+                    b.HasOne("portaBLe.DB.Player", "Player")
                         .WithMany()
                         .HasForeignKey("PlayerId")
                         .OnDelete(DeleteBehavior.Cascade)
@@ -320,7 +497,7 @@ namespace portaBLe.Migrations
                     b.Navigation("Player");
                 });
 
-            modelBuilder.Entity("portaBLe.Leaderboard", b =>
+            modelBuilder.Entity("portaBLe.DB.Leaderboard", b =>
                 {
                     b.Navigation("Scores");
                 });

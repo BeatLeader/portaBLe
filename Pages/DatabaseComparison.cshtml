@@ -140,6 +140,7 @@
                                     <th onclick="sortTable('players', 'accPpDiff')" style="cursor: pointer;">AccPP Diff <span id="sort-accPpDiff"></span></th>
                                     <th onclick="sortTable('players', 'techPpDiff')" style="cursor: pointer;">TechPP Diff <span id="sort-techPpDiff"></span></th>
                                     <th onclick="sortTable('players', 'passPpDiff')" style="cursor: pointer;">PassPP Diff <span id="sort-passPpDiff"></span></th>
+                                    <th onclick="sortTable('players', 'staminaPpDiff')" style="cursor: pointer;">StaminaPP Diff <span id="sort-staminaPpDiff"></span></th>
                                 </tr>
                             </thead>
                             <tbody id="playersTableBody">
@@ -159,6 +160,7 @@
                                             <option value="accRating">Acc Rating</option>
                                             <option value="passRating">Pass Rating</option>
                                             <option value="techRating">Tech Rating</option>
+                                            <option value="staminaRating">Stamina Rating</option>
                                         </select>
                                     </div>
                                     <div class="form-check form-switch mb-0">
@@ -196,6 +198,7 @@
                                         <th onclick="sortTable('maps', 'accRatingDiff')" style="cursor: pointer;">Acc Rating Diff <span id="sort-map-accRatingDiff"></span></th>
                                         <th onclick="sortTable('maps', 'passRatingDiff')" style="cursor: pointer;">Pass Rating Diff <span id="sort-map-passRatingDiff"></span></th>
                                         <th onclick="sortTable('maps', 'techRatingDiff')" style="cursor: pointer;">Tech Rating Diff <span id="sort-map-techRatingDiff"></span></th>
+                                        <th onclick="sortTable('maps', 'staminaRatingDiff')" style="cursor: pointer;">Stamina Rating Diff <span id="sort-map-staminaRatingDiff"></span></th>
                                         <th onclick="sortTable('maps', 'currentStars')" style="cursor: pointer;">Current Stars <span id="sort-map-currentStars"></span></th>
                                         <th onclick="sortTable('maps', 'comparisonStars')" style="cursor: pointer;">Comparison Stars <span id="sort-map-comparisonStars"></span></th>
                                     </tr>
@@ -400,6 +403,7 @@
                     <td class="${player.accPpDiff > 0 ? 'text-success' : player.accPpDiff < 0 ? 'text-danger' : ''}">${player.accPpDiff > 0 ? '+' : ''}${player.accPpDiff.toFixed(2)}</td>
                     <td class="${player.techPpDiff > 0 ? 'text-success' : player.techPpDiff < 0 ? 'text-danger' : ''}">${player.techPpDiff > 0 ? '+' : ''}${player.techPpDiff.toFixed(2)}</td>
                     <td class="${player.passPpDiff > 0 ? 'text-success' : player.passPpDiff < 0 ? 'text-danger' : ''}">${player.passPpDiff > 0 ? '+' : ''}${player.passPpDiff.toFixed(2)}</td>
+                    <td class="${player.staminaPpDiff > 0 ? 'text-success' : player.staminaPpDiff < 0 ? 'text-danger' : ''}">${player.staminaPpDiff > 0 ? '+' : ''}${player.staminaPpDiff.toFixed(2)}</td>
                 `;
             });
 
@@ -427,6 +431,7 @@
                     <td class="${map.accRatingDiff > 0 ? 'text-success' : map.accRatingDiff < 0 ? 'text-danger' : ''}">${map.accRatingDiff > 0 ? '+' : ''}${map.accRatingDiff.toFixed(2)}</td>
                     <td class="${map.passRatingDiff > 0 ? 'text-success' : map.passRatingDiff < 0 ? 'text-danger' : ''}">${map.passRatingDiff > 0 ? '+' : ''}${map.passRatingDiff.toFixed(2)}</td>
                     <td class="${map.techRatingDiff > 0 ? 'text-success' : map.techRatingDiff < 0 ? 'text-danger' : ''}">${map.techRatingDiff > 0 ? '+' : ''}${map.techRatingDiff.toFixed(2)}</td>
+                    <td class="${map.staminaRatingDiff > 0 ? 'text-success' : map.staminaRatingDiff < 0 ? 'text-danger' : ''}">${map.staminaRatingDiff > 0 ? '+' : ''}${map.staminaRatingDiff.toFixed(2)}</td>
                     <td>${map.currentStars.toFixed(2)}</td>
                     <td>${map.comparisonStars.toFixed(2)}</td>
                 `;
@@ -534,6 +539,7 @@
                     'accRatingDiff': 'accRatingDiff',
                     'passRatingDiff': 'passRatingDiff',
                     'techRatingDiff': 'techRatingDiff',
+                    'staminaRatingDiff': 'staminaRatingDiff',
                     'currentStars': 'currentStars',
                     'comparisonStars': 'comparisonStars'
                 };
@@ -578,12 +584,12 @@
 
         function clearSortIndicators(view) {
             if (view === 'players') {
-                ['comparisonRank', 'rankDiff', 'ppDiff', 'accPpDiff', 'techPpDiff', 'passPpDiff'].forEach(col => {
+                ['comparisonRank', 'rankDiff', 'ppDiff', 'accPpDiff', 'techPpDiff', 'passPpDiff', 'staminaPpDiff'].forEach(col => {
                     const element = document.getElementById(`sort-${col}`);
                     if (element) element.textContent = '';
                 });
             } else if (view === 'maps') {
-                ['name', 'starsDiff', 'accRatingDiff', 'passRatingDiff', 'techRatingDiff', 'currentStars', 'comparisonStars'].forEach(col => {
+                ['name', 'starsDiff', 'accRatingDiff', 'passRatingDiff', 'techRatingDiff', 'staminaRatingDiff', 'currentStars', 'comparisonStars'].forEach(col => {
                     const element = document.getElementById(`sort-map-${col}`);
                     if (element) element.textContent = '';
                 });
@@ -635,7 +641,8 @@
                 'stars': { current: 'currentStars', comparison: 'comparisonStars', label: 'Stars' },
                 'accRating': { current: 'currentAccRating', comparison: 'comparisonAccRating', label: 'Acc Rating' },
                 'passRating': { current: 'currentPassRating', comparison: 'comparisonPassRating', label: 'Pass Rating' },
-                'techRating': { current: 'currentTechRating', comparison: 'comparisonTechRating', label: 'Tech Rating' }
+                'techRating': { current: 'currentTechRating', comparison: 'comparisonTechRating', label: 'Tech Rating' },
+                'staminaRating': { current: 'currentStaminaRating', comparison: 'comparisonStaminaRating', label: 'Stamina Rating' }
             };
             
             const fields = ratingFieldMap[selectedRating];

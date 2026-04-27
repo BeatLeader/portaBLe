@@ -29,6 +29,7 @@ namespace portaBLe.Pages
             public double accPP { get; set; }
             public double passPP { get; set; }
             public double techPP { get; set; }
+            public double staminaPP { get; set; }
         }
 
         public async Task OnGetAsync(string db = null)
@@ -62,7 +63,7 @@ namespace portaBLe.Pages
 
             var result = players.Select(s =>
             {
-                if (s.AccPp + s.TechPp + s.PassPp == 0)
+                if (s.AccPp + s.TechPp + s.PassPp + s.StaminaPp == 0)
                     return null;
 
                 return new PlayerPoint
@@ -72,6 +73,7 @@ namespace portaBLe.Pages
                     accPP = s.AccPp,
                     techPP = s.TechPp,
                     passPP = s.PassPp,
+                    staminaPP = s.StaminaPp
                 };
             })
             .Where(x => x != null)

@@ -14,6 +14,7 @@ namespace portaBLe.Refresh
                     lb.AccRating,
                     lb.PassRating,
                     lb.TechRating,
+                    lb.StaminaRating,
                     lb.ModifiersRating,
                     Scores = lb.Scores.Select(s => new {s.Id, s.LeaderboardId, s.Accuracy, s.Modifiers })
                 }).ToAsyncEnumerable();
@@ -24,13 +25,14 @@ namespace portaBLe.Refresh
             {
                 foreach (var s in leaderboard.Scores)
                 {
-                    (float pp, float bonuspp, float passPP, float accPP, float techPP) = ReplayUtils.PpFromScore(
+                    (float pp, float bonuspp, float passPP, float accPP, float techPP, float staminaPP) = ReplayUtils.PpFromScore(
                         s.Accuracy,
                         s.Modifiers,
                         leaderboard.ModifiersRating,
                         leaderboard.AccRating,
                         leaderboard.PassRating,
-                        leaderboard.TechRating);
+                        leaderboard.TechRating,
+                        leaderboard.StaminaRating);
 
                     if (float.IsNaN(pp))
                     {
@@ -44,6 +46,7 @@ namespace portaBLe.Refresh
                         PassPP = passPP,
                         AccPP = accPP,
                         TechPP = techPP,
+                        StaminaPP = staminaPP
                     });
                 }
 
@@ -56,7 +59,7 @@ namespace portaBLe.Refresh
                 newScores.Clear();
             };
 
-            await dbContext.BulkUpdateAsync(newTotalScores, options => options.ColumnInputExpression = c => new { c.Rank, c.Pp, c.BonusPp, c.PassPP, c.AccPP, c.TechPP });
+            await dbContext.BulkUpdateAsync(newTotalScores, options => options.ColumnInputExpression = c => new { c.Rank, c.Pp, c.BonusPp, c.PassPP, c.AccPP, c.TechPP, c.StaminaPP });
             dbContext.ChangeTracker.AutoDetectChangesEnabled = true;
         }
 

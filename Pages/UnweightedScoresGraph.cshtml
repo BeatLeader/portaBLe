@@ -55,6 +55,7 @@
                                     <option value="accPP">Unweighted Acc PP</option>
                                     <option value="passPP">Unweighted Pass PP</option>
                                     <option value="techPP">Unweighted Tech PP</option>
+                                    <option value="staminaPP">Unweighted Stamina PP</option>
                                 </select>
                             </div>
                         </div>
@@ -66,6 +67,7 @@
                                     <option value="passRating">Pass Rating</option>
                                     <option value="techRating">Tech Rating</option>
                                     <option value="accRating">Acc Rating</option>
+                                    <option value="staminaRating">Stamina Rating</option>
                                 </select>
                             </div>
                         </div>
@@ -134,9 +136,11 @@
                 case 'accPP': return 'Unweighted Acc PP';
                 case 'passPP': return 'Unweighted Pass PP';
                 case 'techPP': return 'Unweighted Tech PP';
+                case 'staminaPP': return 'Unweighted Stamina PP';
                 case 'accRating': return 'Acc Rating';
                 case 'passRating': return 'Pass Rating';
                 case 'techRating': return 'Tech Rating';
+                case 'staminaRating': return 'Stamina Rating';
                 default: return field;
             }
         }

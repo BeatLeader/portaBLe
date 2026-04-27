@@ -81,9 +81,11 @@ namespace portaBLe.Pages
                     accPP = (double)s.AccPP,
                     passPP = (double)s.PassPP,
                     techPP = (double)s.TechPP,
+                    staminaPP = (double)s.StaminaPP,
                     accRating = (double)s.Leaderboard.AccRating,
                     passRating = (double)s.Leaderboard.PassRating,
-                    techRating = (double)s.Leaderboard.TechRating
+                    techRating = (double)s.Leaderboard.TechRating,
+                    staminaRating = (double)s.Leaderboard.StaminaRating
                 })
                 .ToListAsync();
 

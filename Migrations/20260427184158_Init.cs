@@ -20,16 +20,19 @@ namespace portaBLe.Migrations
                     FSPassRating = table.Column<float>(type: "REAL", nullable: false),
                     FSAccRating = table.Column<float>(type: "REAL", nullable: false),
                     FSTechRating = table.Column<float>(type: "REAL", nullable: false),
+                    FSStaminaRating = table.Column<float>(type: "REAL", nullable: false),
                     FSStars = table.Column<float>(type: "REAL", nullable: false),
                     SSPredictedAcc = table.Column<float>(type: "REAL", nullable: false),
                     SSPassRating = table.Column<float>(type: "REAL", nullable: false),
                     SSAccRating = table.Column<float>(type: "REAL", nullable: false),
                     SSTechRating = table.Column<float>(type: "REAL", nullable: false),
+                    SSStaminaRating = table.Column<float>(type: "REAL", nullable: false),
                     SSStars = table.Column<float>(type: "REAL", nullable: false),
                     SFPredictedAcc = table.Column<float>(type: "REAL", nullable: false),
                     SFPassRating = table.Column<float>(type: "REAL", nullable: false),
                     SFAccRating = table.Column<float>(type: "REAL", nullable: false),
                     SFTechRating = table.Column<float>(type: "REAL", nullable: false),
+                    SFStaminaRating = table.Column<float>(type: "REAL", nullable: false),
                     SFStars = table.Column<float>(type: "REAL", nullable: false)
                 },
                 constraints: table =>
@@ -46,6 +49,7 @@ namespace portaBLe.Migrations
                     AccPp = table.Column<float>(type: "REAL", nullable: false),
                     TechPp = table.Column<float>(type: "REAL", nullable: false),
                     PassPp = table.Column<float>(type: "REAL", nullable: false),
+                    StaminaPp = table.Column<float>(type: "REAL", nullable: false),
                     Rank = table.Column<int>(type: "INTEGER", nullable: false),
                     Name = table.Column<string>(type: "TEXT", maxLength: 50, nullable: false),
                     Country = table.Column<string>(type: "TEXT", maxLength: 5, nullable: false),
@@ -57,6 +61,62 @@ namespace portaBLe.Migrations
                 constraints: table =>
                 {
                     table.PrimaryKey("PK_Players", x => x.Id);
+                });
+
+            migrationBuilder.CreateTable(
+                name: "Stats",
+                columns: table => new
+                {
+                    Id = table.Column<int>(type: "INTEGER", nullable: false)
+                        .Annotation("Sqlite:Autoincrement", true),
+                    ModeName = table.Column<string>(type: "TEXT", nullable: false),
+                    TotalOutlier = table.Column<int>(type: "INTEGER", nullable: false),
+                    AvgOutlierPercentage = table.Column<float>(type: "REAL", nullable: false),
+                    AvgMegametric = table.Column<float>(type: "REAL", nullable: false),
+                    AvgMegametric40 = table.Column<float>(type: "REAL", nullable: false),
+                    AvgMegametric75 = table.Column<float>(type: "REAL", nullable: false),
+                    AvgMegametric125 = table.Column<float>(type: "REAL", nullable: false),
+                    PpCount600 = table.Column<int>(type: "INTEGER", nullable: false),
+                    PpCount700 = table.Column<int>(type: "INTEGER", nullable: false),
+                    PpCount800 = table.Column<int>(type: "INTEGER", nullable: false),
+                    PpCount900 = table.Column<int>(type: "INTEGER", nullable: false),
+                    PpCount1000 = table.Column<int>(type: "INTEGER", nullable: false),
+                    HighestStarRating = table.Column<float>(type: "REAL", nullable: false),
+                    HighestAccRating = table.Column<float>(type: "REAL", nullable: false),
+                    HighestPassRating = table.Column<float>(type: "REAL", nullable: false),
+                    HighestTechRating = table.Column<float>(type: "REAL", nullable: false),
+                    Top1PP = table.Column<float>(type: "REAL", nullable: false),
+                    Top10PP = table.Column<float>(type: "REAL", nullable: false),
+                    Top100PP = table.Column<float>(type: "REAL", nullable: false),
+                    Top1000PP = table.Column<float>(type: "REAL", nullable: false),
+                    Top2000PP = table.Column<float>(type: "REAL", nullable: false),
+                    Top5000PP = table.Column<float>(type: "REAL", nullable: false),
+                    Top10000PP = table.Column<float>(type: "REAL", nullable: false),
+                    Top1AccPP = table.Column<float>(type: "REAL", nullable: false),
+                    Top10AccPP = table.Column<float>(type: "REAL", nullable: false),
+                    Top100AccPP = table.Column<float>(type: "REAL", nullable: false),
+                    Top1000AccPP = table.Column<float>(type: "REAL", nullable: false),
+                    Top2000AccPP = table.Column<float>(type: "REAL", nullable: false),
+                    Top5000AccPP = table.Column<float>(type: "REAL", nullable: false),
+                    Top10000AccPP = table.Column<float>(type: "REAL", nullable: false),
+                    Top1PassPP = table.Column<float>(type: "REAL", nullable: false),
+                    Top10PassPP = table.Column<float>(type: "REAL", nullable: false),
+                    Top100PassPP = table.Column<float>(type: "REAL", nullable: false),
+                    Top1000PassPP = table.Column<float>(type: "REAL", nullable: false),
+                    Top2000PassPP = table.Column<float>(type: "REAL", nullable: false),
+                    Top5000PassPP = table.Column<float>(type: "REAL", nullable: false),
+                    Top10000PassPP = table.Column<float>(type: "REAL", nullable: false),
+                    Top1TechPP = table.Column<float>(type: "REAL", nullable: false),
+                    Top10TechPP = table.Column<float>(type: "REAL", nullable: false),
+                    Top100TechPP = table.Column<float>(type: "REAL", nullable: false),
+                    Top1000TechPP = table.Column<float>(type: "REAL", nullable: false),
+                    Top2000TechPP = table.Column<float>(type: "REAL", nullable: false),
+                    Top5000TechPP = table.Column<float>(type: "REAL", nullable: false),
+                    Top10000TechPP = table.Column<float>(type: "REAL", nullable: false)
+                },
+                constraints: table =>
+                {
+                    table.PrimaryKey("PK_Stats", x => x.Id);
                 });
 
             migrationBuilder.CreateTable(
@@ -75,11 +135,14 @@ namespace portaBLe.Migrations
                     PassRating = table.Column<float>(type: "REAL", nullable: false),
                     AccRating = table.Column<float>(type: "REAL", nullable: false),
                     TechRating = table.Column<float>(type: "REAL", nullable: false),
+                    MultiPercentage = table.Column<float>(type: "REAL", nullable: false),
+                    StaminaRating = table.Column<float>(type: "REAL", nullable: false),
                     PredictedAcc = table.Column<float>(type: "REAL", nullable: false),
                     ModifiersRatingId = table.Column<int>(type: "INTEGER", nullable: true),
                     Count = table.Column<int>(type: "INTEGER", nullable: false),
                     Count80 = table.Column<int>(type: "INTEGER", nullable: false),
                     Count95 = table.Column<int>(type: "INTEGER", nullable: false),
+                    OutlierCount = table.Column<int>(type: "INTEGER", nullable: false),
                     Average = table.Column<float>(type: "REAL", nullable: false),
                     Top250 = table.Column<float>(type: "REAL", nullable: false),
                     TotalPP = table.Column<float>(type: "REAL", nullable: false),
@@ -89,7 +152,10 @@ namespace portaBLe.Migrations
                     Megametric = table.Column<float>(type: "REAL", nullable: false),
                     Megametric125 = table.Column<float>(type: "REAL", nullable: false),
                     Megametric75 = table.Column<float>(type: "REAL", nullable: false),
-                    Megametric40 = table.Column<float>(type: "REAL", nullable: false)
+                    Megametric40 = table.Column<float>(type: "REAL", nullable: false),
+                    LinearPercent = table.Column<float>(type: "REAL", nullable: false),
+                    ParityErrors = table.Column<float>(type: "REAL", nullable: false),
+                    BombAvoidances = table.Column<float>(type: "REAL", nullable: false)
                 },
                 constraints: table =>
                 {
@@ -112,6 +178,7 @@ namespace portaBLe.Migrations
                     AccPP = table.Column<float>(type: "REAL", nullable: false),
                     TechPP = table.Column<float>(type: "REAL", nullable: false),
                     PassPP = table.Column<float>(type: "REAL", nullable: false),
+                    StaminaPP = table.Column<float>(type: "REAL", nullable: false),
                     BonusPp = table.Column<float>(type: "REAL", nullable: false),
                     Weight = table.Column<float>(type: "REAL", nullable: false),
                     PlayerId = table.Column<string>(type: "TEXT", maxLength: 25, nullable: false),
@@ -160,6 +227,9 @@ namespace portaBLe.Migrations
         {
             migrationBuilder.DropTable(
                 name: "Scores");
+
+            migrationBuilder.DropTable(
+                name: "Stats");
 
             migrationBuilder.DropTable(
                 name: "Leaderboards");

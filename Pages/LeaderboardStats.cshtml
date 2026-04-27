@@ -240,6 +240,13 @@
                    asp-route-searchString="@Model.SearchString"
                    asp-route-modeName="@Model.ModeName">Bomb Avoidances</a>
             </th>
+            <th>
+                <a class="sort-header @(Model.SortBy == "StaminaRating" ? "active" : "") @(Model.SortBy == "StaminaRating" && Model.SortDescending ? "desc" : "asc")"
+                   asp-page="./LeaderboardStats" 
+                   asp-route-sortBy="StaminaRating" 
+                   asp-route-sortDescending="@(Model.SortBy == "StaminaRating" && Model.SortDescending ? "false" : "true")" 
+                   asp-route-searchString="@Model.SearchString">Stamina Rating</a>
+            </th>
         </tr>
     </thead>
     <tbody>
@@ -270,6 +277,7 @@
                 <td>@stat.LinearPercent.ToString("F3")</td>
                 <td>@stat.ParityErrors</td>
                 <td>@stat.BombAvoidances</td>
+                <td>@stat.StaminaRating.ToString("F2")</td>
             </tr>
         }
     </tbody>

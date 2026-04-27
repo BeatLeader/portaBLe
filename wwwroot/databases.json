@@ -3,18 +3,18 @@
   "Databases": [
     {
       "Name": "Prod",
-      "FileName": "db-20260426173107-1651.db",
+      "FileName": "db-20260427185214-9951.db",
       "Description": "Current production website"
     },
     {
-      "Name": "New update (No autoreweight)",
-      "FileName": "db-20260426210515-1082.db",
-      "Description": "Refreshed ratings"
+      "Name": "Stamina rating (No autoreweight)",
+      "FileName": "db-20260427180908-7110.db",
+      "Description": "Added stamina rating and recalculated"
     },
     {
-      "Name": "New update (Autoreweighted)",
-      "FileName": "db-20260427115356-3232.db",
-      "Description": "Refreshed ratings + autoreweight"
+      "Name": "Stamina rating (Autoreweighted)",
+      "FileName": "db-20260427181837-1186.db",
+      "Description": "stamina rating + autoreweights on top"
     }
   ]
 }

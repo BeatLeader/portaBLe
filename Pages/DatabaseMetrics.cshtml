@@ -197,6 +197,12 @@
                         <td class="@GetCellClass(Model.Db2Metrics.HighestTechRating, Model.Db1Metrics.HighestTechRating)">@Model.Db2Metrics.HighestTechRating.ToString("F2")</td>
                         <td>@GetWinner(Model.Db1Metrics.HighestTechRating, Model.Db2Metrics.HighestTechRating)</td>
                     </tr>
+                    <tr>
+                        <td>Highest Stamina Rating</td>
+                        <td class="@GetCellClass(Model.Db1Metrics.HighestStaminaRating, Model.Db2Metrics.HighestStaminaRating)">@Model.Db1Metrics.HighestStaminaRating.ToString("F2")</td>
+                        <td class="@GetCellClass(Model.Db2Metrics.HighestStaminaRating, Model.Db1Metrics.HighestStaminaRating)">@Model.Db2Metrics.HighestStaminaRating.ToString("F2")</td>
+                        <td>@GetWinner(Model.Db1Metrics.HighestStaminaRating, Model.Db2Metrics.HighestStaminaRating)</td>
+                    </tr>
                 </tbody>
             </table>
         </div>
@@ -237,6 +243,12 @@
                         <td class="@GetCellClass(Model.Db1Metrics.HighestPassPP, Model.Db2Metrics.HighestPassPP)">@Model.Db1Metrics.HighestPassPP.ToString("F2")</td>
                         <td class="@GetCellClass(Model.Db2Metrics.HighestPassPP, Model.Db1Metrics.HighestPassPP)">@Model.Db2Metrics.HighestPassPP.ToString("F2")</td>
                         <td>@GetWinner(Model.Db1Metrics.HighestPassPP, Model.Db2Metrics.HighestPassPP)</td>
+                    </tr>
+                    <tr>
+                        <td>Highest Stamina PP</td>
+                        <td class="@GetCellClass(Model.Db1Metrics.HighestStaminaPP, Model.Db2Metrics.HighestStaminaPP)">@Model.Db1Metrics.HighestStaminaPP.ToString("F2")</td>
+                        <td class="@GetCellClass(Model.Db2Metrics.HighestStaminaPP, Model.Db1Metrics.HighestStaminaPP)">@Model.Db2Metrics.HighestStaminaPP.ToString("F2")</td>
+                        <td>@GetWinner(Model.Db1Metrics.HighestStaminaPP, Model.Db2Metrics.HighestStaminaPP)</td>
                     </tr>
                 </tbody>
             </table>
@@ -316,9 +328,9 @@
                 <tbody>
                     <tr>
                         <td>Top 1</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.AccPpTop10, Model.Db2Metrics.AccPpTop10)">@Model.Db1Metrics.AccPpTop10.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.AccPpTop10, Model.Db1Metrics.AccPpTop10)">@Model.Db2Metrics.AccPpTop10.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.AccPpTop10, Model.Db2Metrics.AccPpTop10)</td>
+                        <td class="@GetCellClass(Model.Db1Metrics.AccPpTop1, Model.Db2Metrics.AccPpTop1)">@Model.Db1Metrics.AccPpTop1.ToString("F2")</td>
+                        <td class="@GetCellClass(Model.Db2Metrics.AccPpTop1, Model.Db1Metrics.AccPpTop1)">@Model.Db2Metrics.AccPpTop1.ToString("F2")</td>
+                        <td>@GetWinner(Model.Db1Metrics.AccPpTop1, Model.Db2Metrics.AccPpTop1)</td>
                     </tr>
                     <tr>
                         <td>Top 10</td>
@@ -375,9 +387,9 @@
                 <tbody>
                     <tr>
                         <td>Top 1</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.TechPpTop10, Model.Db2Metrics.TechPpTop10)">@Model.Db1Metrics.TechPpTop10.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.TechPpTop10, Model.Db1Metrics.TechPpTop10)">@Model.Db2Metrics.TechPpTop10.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.TechPpTop10, Model.Db2Metrics.TechPpTop10)</td>
+                        <td class="@GetCellClass(Model.Db1Metrics.TechPpTop1, Model.Db2Metrics.TechPpTop1)">@Model.Db1Metrics.TechPpTop1.ToString("F2")</td>
+                        <td class="@GetCellClass(Model.Db2Metrics.TechPpTop1, Model.Db1Metrics.TechPpTop1)">@Model.Db2Metrics.TechPpTop1.ToString("F2")</td>
+                        <td>@GetWinner(Model.Db1Metrics.TechPpTop1, Model.Db2Metrics.TechPpTop1)</td>
                     </tr>
                     <tr>
                         <td>Top 10</td>
@@ -473,6 +485,64 @@
                         <td class="@GetCellClass(Model.Db1Metrics.PassPpTop10000, Model.Db2Metrics.PassPpTop10000)">@Model.Db1Metrics.PassPpTop10000.ToString("F2")</td>
                         <td class="@GetCellClass(Model.Db2Metrics.PassPpTop10000, Model.Db1Metrics.PassPpTop10000)">@Model.Db2Metrics.PassPpTop10000.ToString("F2")</td>
                         <td>@GetWinner(Model.Db1Metrics.PassPpTop10000, Model.Db2Metrics.PassPpTop10000)</td>
+                    </tr>
+                </tbody>
+            </table>
+        </div>
+
+        <div class="metric-section">
+            <h3>Stamina PP for Rank</h3>
+            <table class="table table-bordered comparison-table">
+                <thead>
+                    <tr>
+                        <th>Rank Range</th>
+                        <th>Database 1</th>
+                        <th>Database 2</th>
+                        <th>Winner</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <tr>
+                        <td>Top 1</td>
+                        <td class="@GetCellClass(Model.Db1Metrics.StaminaPpTop1, Model.Db2Metrics.StaminaPpTop1)">@Model.Db1Metrics.StaminaPpTop1.ToString("F2")</td>
+                        <td class="@GetCellClass(Model.Db2Metrics.StaminaPpTop1, Model.Db1Metrics.StaminaPpTop1)">@Model.Db2Metrics.StaminaPpTop1.ToString("F2")</td>
+                        <td>@GetWinner(Model.Db1Metrics.StaminaPpTop1, Model.Db2Metrics.StaminaPpTop1)</td>
+                    </tr>
+                    <tr>
+                        <td>Top 10</td>
+                        <td class="@GetCellClass(Model.Db1Metrics.StaminaPpTop10, Model.Db2Metrics.StaminaPpTop10)">@Model.Db1Metrics.StaminaPpTop10.ToString("F2")</td>
+                        <td class="@GetCellClass(Model.Db2Metrics.StaminaPpTop10, Model.Db1Metrics.StaminaPpTop10)">@Model.Db2Metrics.StaminaPpTop10.ToString("F2")</td>
+                        <td>@GetWinner(Model.Db1Metrics.StaminaPpTop10, Model.Db2Metrics.StaminaPpTop10)</td>
+                    </tr>
+                    <tr>
+                        <td>Top 100</td>
+                        <td class="@GetCellClass(Model.Db1Metrics.StaminaPpTop100, Model.Db2Metrics.StaminaPpTop100)">@Model.Db1Metrics.StaminaPpTop100.ToString("F2")</td>
+                        <td class="@GetCellClass(Model.Db2Metrics.StaminaPpTop100, Model.Db1Metrics.StaminaPpTop100)">@Model.Db2Metrics.StaminaPpTop100.ToString("F2")</td>
+                        <td>@GetWinner(Model.Db1Metrics.StaminaPpTop100, Model.Db2Metrics.StaminaPpTop100)</td>
+                    </tr>
+                    <tr>
+                        <td>Top 1000</td>
+                        <td class="@GetCellClass(Model.Db1Metrics.StaminaPpTop1000, Model.Db2Metrics.StaminaPpTop1000)">@Model.Db1Metrics.StaminaPpTop1000.ToString("F2")</td>
+                        <td class="@GetCellClass(Model.Db2Metrics.StaminaPpTop1000, Model.Db1Metrics.StaminaPpTop1000)">@Model.Db2Metrics.StaminaPpTop1000.ToString("F2")</td>
+                        <td>@GetWinner(Model.Db1Metrics.StaminaPpTop1000, Model.Db2Metrics.StaminaPpTop1000)</td>
+                    </tr>
+                    <tr>
+                        <td>Top 2000</td>
+                        <td class="@GetCellClass(Model.Db1Metrics.StaminaPpTop2000, Model.Db2Metrics.StaminaPpTop2000)">@Model.Db1Metrics.StaminaPpTop2000.ToString("F2")</td>
+                        <td class="@GetCellClass(Model.Db2Metrics.StaminaPpTop2000, Model.Db1Metrics.StaminaPpTop2000)">@Model.Db2Metrics.StaminaPpTop2000.ToString("F2")</td>
+                        <td>@GetWinner(Model.Db1Metrics.StaminaPpTop2000, Model.Db2Metrics.StaminaPpTop2000)</td>
+                    </tr>
+                    <tr>
+                        <td>Top 5000</td>
+                        <td class="@GetCellClass(Model.Db1Metrics.StaminaPpTop5000, Model.Db2Metrics.StaminaPpTop5000)">@Model.Db1Metrics.StaminaPpTop5000.ToString("F2")</td>
+                        <td class="@GetCellClass(Model.Db2Metrics.StaminaPpTop5000, Model.Db1Metrics.StaminaPpTop5000)">@Model.Db2Metrics.StaminaPpTop5000.ToString("F2")</td>
+                        <td>@GetWinner(Model.Db1Metrics.StaminaPpTop5000, Model.Db2Metrics.StaminaPpTop5000)</td>
+                    </tr>
+                    <tr>
+                        <td>Top 10000</td>
+                        <td class="@GetCellClass(Model.Db1Metrics.StaminaPpTop10000, Model.Db2Metrics.StaminaPpTop10000)">@Model.Db1Metrics.StaminaPpTop10000.ToString("F2")</td>
+                        <td class="@GetCellClass(Model.Db2Metrics.StaminaPpTop10000, Model.Db1Metrics.StaminaPpTop10000)">@Model.Db2Metrics.StaminaPpTop10000.ToString("F2")</td>
+                        <td>@GetWinner(Model.Db1Metrics.StaminaPpTop10000, Model.Db2Metrics.StaminaPpTop10000)</td>
                     </tr>
                 </tbody>
             </table>

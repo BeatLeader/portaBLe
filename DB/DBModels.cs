@@ -11,6 +11,7 @@ namespace portaBLe.DB
         public float AccPp { get; set; }
         public float TechPp { get; set; }
         public float PassPp { get; set; }
+        public float StaminaPp { get; set; }
         public int Rank { get; set; }
         [StringLength(50, MinimumLength = 0)]
         public string Name { get; set; }
@@ -33,6 +34,7 @@ namespace portaBLe.DB
         public float AccPP { get; set; }
         public float TechPP { get; set; }
         public float PassPP { get; set; }
+        public float StaminaPP { get; set; }
         public float BonusPp { get; set; }
         public float Weight { get; set; }
         [StringLength(25, MinimumLength = 0)]
@@ -55,18 +57,21 @@ namespace portaBLe.DB
         public float FSPassRating { get; set; }
         public float FSAccRating { get; set; }
         public float FSTechRating { get; set; }
+        public float FSStaminaRating { get; set; }
         public float FSStars { get; set; }
 
         public float SSPredictedAcc { get; set; }
         public float SSPassRating { get; set; }
         public float SSAccRating { get; set; }
         public float SSTechRating { get; set; }
+        public float SSStaminaRating { get; set; }
         public float SSStars { get; set; }
 
         public float SFPredictedAcc { get; set; }
         public float SFPassRating { get; set; }
         public float SFAccRating { get; set; }
         public float SFTechRating { get; set; }
+        public float SFStaminaRating { get; set; }
         public float SFStars { get; set; }
     }
 
@@ -93,6 +98,7 @@ namespace portaBLe.DB
         public float AccRating { get; set; }
         public float TechRating { get; set; }
         public float MultiPercentage { get; set; }
+        public float StaminaRating { get; set; }
 
         public float PredictedAcc { get; set; }
         public ModifiersRating? ModifiersRating { get; set; }
@@ -143,6 +149,7 @@ namespace portaBLe.DB
         public float HighestAccRating { get; set; }
         public float HighestPassRating { get; set; }
         public float HighestTechRating { get; set; }
+        public float HighestStaminaRating { get; set; }
         public float Top1PP { get; set; }
         public float Top10PP { get; set; }
         public float Top100PP { get; set; }
@@ -171,5 +178,12 @@ namespace portaBLe.DB
         public float Top2000TechPP { get; set; }
         public float Top5000TechPP { get; set; }
         public float Top10000TechPP { get; set; }
+        public float Top1StaminaPP { get; set; }
+        public float Top10StaminaPP { get; set; }
+        public float Top100StaminaPP { get; set; }
+        public float Top1000StaminaPP { get; set; }
+        public float Top2000StaminaPP { get; set; }
+        public float Top5000StaminaPP { get; set; }
+        public float Top10000StaminaPP { get; set; }
     }
 }

@@ -41,6 +41,7 @@
                                     | <strong>Acc PP:</strong> @Model.Player.AccPp.ToString("F2")
                                     | <strong>Tech PP:</strong> @Model.Player.TechPp.ToString("F2")
                                     | <strong>Pass PP:</strong> @Model.Player.PassPp.ToString("F2")
+                                    | <strong>Stamina PP:</strong> @Model.Player.StaminaPp.ToString("F2")
                                 </p>
                                 <p class="mb-0">
                                     <strong>Rank:</strong> #@Model.Player.Rank 
@@ -95,6 +96,22 @@
                                 <div class="mb-2">
                                     <label for="techAccMultiplier">Acc Multiplier:</label>
                                     <input type="number" class="form-control" id="techAccMultiplier" value="1.08" step="0.01" />
+                                </div>
+                            </div>
+
+                            <div class="form-group">
+                                <label class="font-weight-bold">Stamina PP</label>
+                                <div class="mb-2">
+                                    <label for="staminaMultiplier">Multiplier:</label>
+                                    <input type="number" class="form-control" id="staminaMultiplier" value="3.25" step="0.05" />
+                                </div>
+                                <div class="mb-2">
+                                    <label for="staminaExponent">Exponent:</label>
+                                    <input type="number" class="form-control" id="staminaExponent" value="8" step="0.1" />
+                                </div>
+                                <div class="mb-2">
+                                    <label for="staminaBaselineAccuracy">Baseline Accuracy:</label>
+                                    <input type="number" class="form-control" id="staminaBaselineAccuracy" value="0.95" step="0.01" min="0.01" max="1" />
                                 </div>
                             </div>
 
@@ -155,7 +172,7 @@
                         <div class="card mb-3">
                             <div class="card-header">
                                 <h5>Component Balance</h5>
-                                <small class="text-muted">% contribution of Acc, Tech, Pass across score ranges</small>
+                                <small class="text-muted">% contribution of Acc, Tech, Pass, and Stamina across score ranges</small>
                             </div>
                             <div class="card-body">
                                 <canvas id="componentContributionChart" style="height: 300px;"></canvas>
@@ -247,6 +264,9 @@
                 accMultiplier: parseFloat(document.getElementById('accMultiplier').value),
                 techAccExponent: parseFloat(document.getElementById('techAccExponent').value),
                 techAccMultiplier: parseFloat(document.getElementById('techAccMultiplier').value),
+                staminaMultiplier: parseFloat(document.getElementById('staminaMultiplier').value),
+                staminaExponent: parseFloat(document.getElementById('staminaExponent').value),
+                staminaBaselineAccuracy: parseFloat(document.getElementById('staminaBaselineAccuracy').value),
                 inflateMultiplier: parseFloat(document.getElementById('inflateMultiplier').value),
                 inflateExponent: parseFloat(document.getElementById('inflateExponent').value)
             };
@@ -264,6 +284,9 @@
                     document.getElementById('accMultiplier').value = params.accMultiplier || 34;
                     document.getElementById('techAccExponent').value = params.techAccExponent || 1.9;
                     document.getElementById('techAccMultiplier').value = params.techAccMultiplier || 1.08;
+                    document.getElementById('staminaMultiplier').value = params.staminaMultiplier || 3.25;
+                    document.getElementById('staminaExponent').value = params.staminaExponent || 8;
+                    document.getElementById('staminaBaselineAccuracy').value = params.staminaBaselineAccuracy || 0.95;
                     document.getElementById('inflateMultiplier').value = params.inflateMultiplier || 650;
                     document.getElementById('inflateExponent').value = params.inflateExponent || 1.3;
                 } catch (e) {
@@ -280,6 +303,9 @@
                 accMultiplier: parseFloat(document.getElementById('accMultiplier').value),
                 techAccExponent: parseFloat(document.getElementById('techAccExponent').value),
                 techAccMultiplier: parseFloat(document.getElementById('techAccMultiplier').value),
+                staminaMultiplier: parseFloat(document.getElementById('staminaMultiplier').value),
+                staminaExponent: parseFloat(document.getElementById('staminaExponent').value),
+                staminaBaselineAccuracy: parseFloat(document.getElementById('staminaBaselineAccuracy').value),
                 inflateMultiplier: parseFloat(document.getElementById('inflateMultiplier').value),
                 inflateExponent: parseFloat(document.getElementById('inflateExponent').value),
                 useAlternateCurve: true
@@ -293,6 +319,9 @@
             document.getElementById('accMultiplier').value = 34;
             document.getElementById('techAccExponent').value = 1.9;
             document.getElementById('techAccMultiplier').value = 1.08;
+            document.getElementById('staminaMultiplier').value = 3.25;
+            document.getElementById('staminaExponent').value = 8;
+            document.getElementById('staminaBaselineAccuracy').value = 0.95;
             document.getElementById('inflateMultiplier').value = 650;
             document.getElementById('inflateExponent').value = 1.3;
             saveParameters();
@@ -362,7 +391,8 @@
                     <small>
                         Acc: ${metrics.componentBalance.acc}%<br>
                         Tech: ${metrics.componentBalance.tech}%<br>
-                        Pass: ${metrics.componentBalance.pass}%
+                        Pass: ${metrics.componentBalance.pass}%<br>
+                        Stamina: ${metrics.componentBalance.stamina}%
                     </small>
                 </div>
                 <div class="mb-2">
@@ -386,6 +416,7 @@
             const accPPChange = totals.accPP - totals.originalAccPP;
             const techPPChange = totals.techPP - totals.originalTechPP;
             const passPPChange = totals.passPP - totals.originalPassPP;
+            const staminaPPChange = totals.staminaPP - totals.originalStaminaPP;
 
             const html = `
                 <table class="table table-sm">
@@ -427,6 +458,14 @@
                             ${passPPChange >= 0 ? '+' : ''}${passPPChange.toFixed(2)}
                         </td>
                     </tr>
+                    <tr>
+                        <td>Stamina PP</td>
+                        <td>${totals.originalStaminaPP.toFixed(2)}</td>
+                        <td>${totals.staminaPP.toFixed(2)}</td>
+                        <td class="${staminaPPChange >= 0 ? 'text-success' : 'text-danger'}">
+                            ${staminaPPChange >= 0 ? '+' : ''}${staminaPPChange.toFixed(2)}
+                        </td>
+                    </tr>
                 </table>
             `;
 
@@ -449,7 +488,8 @@
             const totalAcc = scores.reduce((sum, s) => sum + s.newAccPP, 0);
             const totalTech = scores.reduce((sum, s) => sum + s.newTechPP, 0);
             const totalPass = scores.reduce((sum, s) => sum + s.newPassPP, 0);
-            const total = totalAcc + totalTech + totalPass;
+            const totalStamina = scores.reduce((sum, s) => sum + s.newStaminaPP, 0);
+            const total = totalAcc + totalTech + totalPass + totalStamina;
             
             const ppDrops = [];
             for (let i = 1; i < Math.min(100, weightedPPs.length); i++) {
@@ -467,9 +507,10 @@
             
             return {
                 componentBalance: {
-                    acc: ((totalAcc / total) * 100).toFixed(1),
-                    tech: ((totalTech / total) * 100).toFixed(1),
-                    pass: ((totalPass / total) * 100).toFixed(1)
+                    acc: (total > 0 ? (totalAcc / total) * 100 : 0).toFixed(1),
+                    tech: (total > 0 ? (totalTech / total) * 100 : 0).toFixed(1),
+                    pass: (total > 0 ? (totalPass / total) * 100 : 0).toFixed(1),
+                    stamina: (total > 0 ? (totalStamina / total) * 100 : 0).toFixed(1)
                 },
                 decayCV: cvDrop.toFixed(1),
                 outliers: outliers,
@@ -570,13 +611,15 @@
                 const totalAcc = bucket.reduce((sum, s) => sum + s.newAccPP, 0);
                 const totalTech = bucket.reduce((sum, s) => sum + s.newTechPP, 0);
                 const totalPass = bucket.reduce((sum, s) => sum + s.newPassPP, 0);
-                const total = totalAcc + totalTech + totalPass;
+                const totalStamina = bucket.reduce((sum, s) => sum + s.newStaminaPP, 0);
+                const total = totalAcc + totalTech + totalPass + totalStamina;
                 
                 buckets.push({
                     label: `#${i+1}-${i+bucketSize}`,
-                    acc: (totalAcc / total) * 100,
-                    tech: (totalTech / total) * 100,
-                    pass: (totalPass / total) * 100
+                    acc: total > 0 ? (totalAcc / total) * 100 : 0,
+                    tech: total > 0 ? (totalTech / total) * 100 : 0,
+                    pass: total > 0 ? (totalPass / total) * 100 : 0,
+                    stamina: total > 0 ? (totalStamina / total) * 100 : 0
                 });
             }
             
@@ -599,6 +642,11 @@
                             label: 'Pass PP %',
                             data: buckets.map(b => b.pass),
                             backgroundColor: 'rgba(75, 192, 192, 0.7)'
+                        },
+                        {
+                            label: 'Stamina PP %',
+                            data: buckets.map(b => b.stamina),
+                            backgroundColor: 'rgba(255, 159, 64, 0.7)'
                         }
                     ]
                 },
@@ -835,6 +883,14 @@
                             data: scores.map(s => s.newPassPP),
                             borderColor: 'rgba(75, 192, 192, 1)',
                             backgroundColor: 'rgba(75, 192, 192, 0.1)',
+                            borderWidth: 2,
+                            fill: false
+                        },
+                        {
+                            label: 'Stamina PP',
+                            data: scores.map(s => s.newStaminaPP),
+                            borderColor: 'rgba(255, 159, 64, 1)',
+                            backgroundColor: 'rgba(255, 159, 64, 0.1)',
                             borderWidth: 2,
                             fill: false
                         }

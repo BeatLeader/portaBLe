@@ -26,6 +26,7 @@
                 <option value="PassRating" selected="@(Model.SortBy == "PassRating")">Pass Rating</option>
                 <option value="TechRating" selected="@(Model.SortBy == "TechRating")">Tech Rating</option>
                 <option value="AccRating" selected="@(Model.SortBy == "AccRating")">Acc Rating</option>
+                <option value="StaminaRating" selected="@(Model.SortBy == "StaminaRating")">Stamina Rating</option>
             </select>
         </div>
         @if (!string.IsNullOrEmpty(Model.SearchString) || !string.IsNullOrEmpty(Model.ModeName))
@@ -65,6 +66,9 @@
                             break;
                         case "AccRating":
                             @Math.Round(leaderboard.AccRating, 2)
+                            break;
+                        case "StaminaRating":
+                            @Math.Round(leaderboard.StaminaRating, 2)
                             break;
                         default:
                             @Math.Round(leaderboard.Stars, 2)

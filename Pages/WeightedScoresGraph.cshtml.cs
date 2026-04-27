@@ -89,9 +89,11 @@ namespace portaBLe.Pages
                     accPP = (double)s.AccPP * s.Weight,
                     passPP = (double)s.PassPP * s.Weight,
                     techPP = (double)s.TechPP * s.Weight,
+                    staminaPP = (double)s.StaminaPP * s.Weight,
                     accRating = (double)s.Leaderboard.AccRating,
                     passRating = (double)s.Leaderboard.PassRating,
                     techRating = (double)s.Leaderboard.TechRating,
+                    staminaRating = (double)s.Leaderboard.StaminaRating,
                     weight = (double)s.Weight
                 })
                 .ToListAsync();

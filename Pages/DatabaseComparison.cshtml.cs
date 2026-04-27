@@ -69,7 +69,8 @@ namespace portaBLe.Pages
                     Pp = p.Pp,
                     AccPp = p.AccPp,
                     TechPp = p.TechPp,
-                    PassPp = p.PassPp
+                    PassPp = p.PassPp,
+                    StaminaPp = p.StaminaPp
                 })
                 .ToListAsync();
 
@@ -85,7 +86,8 @@ namespace portaBLe.Pages
                     Pp = p.Pp,
                     AccPp = p.AccPp,
                     TechPp = p.TechPp,
-                    PassPp = p.PassPp
+                    PassPp = p.PassPp,
+                    StaminaPp = p.StaminaPp
                 })
                 .ToListAsync();
 
@@ -142,6 +144,7 @@ namespace portaBLe.Pages
                         AccPP = s.AccPP,
                         TechPP = s.TechPP,
                         PassPP = s.PassPP,
+                        StaminaPp = s.StaminaPP,
                         Accuracy = s.Accuracy,
                         Weight = s.Weight
                     })
@@ -161,6 +164,7 @@ namespace portaBLe.Pages
                         AccPP = s.AccPP,
                         TechPP = s.TechPP,
                         PassPP = s.PassPP,
+                        StaminaPp = s.StaminaPP,
                         Accuracy = s.Accuracy,
                         Weight = s.Weight
                     })
@@ -177,7 +181,9 @@ namespace portaBLe.Pages
                     Pp = currentPlayer.Pp,
                     AccPp = currentPlayer.AccPp,
                     TechPp = currentPlayer.TechPp,
-                    PassPp = currentPlayer.PassPp
+                    PassPp = currentPlayer.PassPp,
+                    StaminaPp = currentPlayer.StaminaPp
+                    
                 } : null,
                 comparisonPlayer = comparisonPlayer != null ? new PlayerComparisonData
                 {
@@ -187,7 +193,8 @@ namespace portaBLe.Pages
                     Pp = comparisonPlayer.Pp,
                     AccPp = comparisonPlayer.AccPp,
                     TechPp = comparisonPlayer.TechPp,
-                    PassPp = comparisonPlayer.PassPp
+                    PassPp = comparisonPlayer.PassPp,
+                    StaminaPp = comparisonPlayer.StaminaPp
                 } : null,
                 currentScores = currentScores,
                 comparisonScores = comparisonScores
@@ -234,7 +241,8 @@ namespace portaBLe.Pages
                     PpDiff = current != null ? comparison.Pp - current.Pp : 0,
                     AccPpDiff = current != null ? comparison.AccPp - current.AccPp : 0,
                     TechPpDiff = current != null ? comparison.TechPp - current.TechPp : 0,
-                    PassPpDiff = current != null ? comparison.PassPp - current.PassPp : 0
+                    PassPpDiff = current != null ? comparison.PassPp - current.PassPp : 0,
+                    StaminaPpDiff = current != null ? comparison.StaminaPp - current.StaminaPp : 0,
                 };
             }).ToList();
 
@@ -281,7 +289,10 @@ namespace portaBLe.Pages
                     PassRatingDiff = comparison != null ? comparison.PassRating - current.PassRating : 0,
                     CurrentTechRating = current.TechRating,
                     ComparisonTechRating = comparison?.TechRating ?? 0,
-                    TechRatingDiff = comparison != null ? comparison.TechRating - current.TechRating : 0
+                    TechRatingDiff = comparison != null ? comparison.TechRating - current.TechRating : 0,
+                    CurrentStaminaRating = current.StaminaRating,
+                    ComparisonStaminaRating = comparison?.StaminaRating ?? 0,
+                    StaminaRatingDiff = comparison != null ? comparison.StaminaRating - current.StaminaRating : 0
                 };
             }).ToList();
 
@@ -384,14 +395,14 @@ namespace portaBLe.Pages
                 .ToDictionaryAsync(p => p.Id, p => p);
 
             var csv = new StringBuilder();
-            csv.AppendLine("Name,Rank Difference,PP Difference,AccPP Difference,TechPP Difference,PassPP Difference");
+            csv.AppendLine("Name,Rank Difference,PP Difference,AccPP Difference,TechPP Difference,PassPP Difference,StaminaPP Difference");
 
             foreach (var comparison in comparisonPlayers)
             {
                 var current = currentPlayersDict.GetValueOrDefault(comparison.Id);
                 if (current != null)
                 {
-                    csv.AppendLine($"\"{comparison.Name}\",{current.Rank - comparison.Rank},{comparison.Pp - current.Pp:F2},{comparison.AccPp - current.AccPp:F2},{comparison.TechPp - current.TechPp:F2},{comparison.PassPp - current.PassPp:F2}");
+                    csv.AppendLine($"\"{comparison.Name}\",{current.Rank - comparison.Rank},{comparison.Pp - current.Pp:F2},{comparison.AccPp - current.AccPp:F2},{comparison.TechPp - current.TechPp:F2},{comparison.PassPp - current.PassPp:F2},{comparison.StaminaPp - current.StaminaPp:F2}");
                 }
             }
 
@@ -419,14 +430,14 @@ namespace portaBLe.Pages
                 .ToDictionaryAsync(l => l.Id, l => l);
 
             var csv = new StringBuilder();
-            csv.AppendLine("Name,Difficulty,Star Rating Difference,Acc Rating Difference,Pass Rating Difference,Tech Rating Difference,Current Star Rating,Comparison Star Rating");
+            csv.AppendLine("Name,Difficulty,Star Rating Difference,Acc Rating Difference,Pass Rating Difference,Tech Rating Difference,Stamina Rating Difference,Current Star Rating,Comparison Star Rating,Current Stamina Rating,Comparison Stamina Rating");
 
             foreach (var current in currentMaps)
             {
                 var comparison = comparisonMapsDict.GetValueOrDefault(current.Id);
                 if (comparison != null)
                 {
-                    csv.AppendLine($"\"{current.Name}\",\"{current.DifficultyName}\",{comparison.Stars - current.Stars:F2},{comparison.AccRating - current.AccRating:F2},{comparison.PassRating - current.PassRating:F2},{comparison.TechRating - current.TechRating:F2},{current.Stars:F2},{comparison.Stars:F2}");
+                    csv.AppendLine($"\"{current.Name}\",\"{current.DifficultyName}\",{comparison.Stars - current.Stars:F2},{comparison.AccRating - current.AccRating:F2},{comparison.PassRating - current.PassRating:F2},{comparison.TechRating - current.TechRating:F2},{comparison.StaminaRating - current.StaminaRating:F2},{current.Stars:F2},{comparison.Stars:F2},{current.StaminaRating:F2},{comparison.StaminaRating:F2}");
                 }
             }
 
@@ -514,6 +525,7 @@ namespace portaBLe.Pages
             public float AccPp { get; set; }
             public float TechPp { get; set; }
             public float PassPp { get; set; }
+            public float StaminaPp { get; set; }
         }
 
         public class ScoreComparisonData
@@ -524,6 +536,7 @@ namespace portaBLe.Pages
             public float AccPP { get; set; }
             public float TechPP { get; set; }
             public float PassPP { get; set; }
+            public float StaminaPp { get; set; }
             public float Accuracy { get; set; }
             public float Weight { get; set; }
         }
@@ -551,6 +564,7 @@ namespace portaBLe.Pages
             public float AccPpDiff { get; set; }
             public float TechPpDiff { get; set; }
             public float PassPpDiff { get; set; }
+            public float StaminaPpDiff { get; set; }
         }
 
         public class MapComparisonResult
@@ -571,6 +585,9 @@ namespace portaBLe.Pages
             public float CurrentTechRating { get; set; }
             public float ComparisonTechRating { get; set; }
             public float TechRatingDiff { get; set; }
+            public float CurrentStaminaRating { get; set; }
+            public float ComparisonStaminaRating { get; set; }
+            public float StaminaRatingDiff { get; set; }
         }
 
         public class MegametricComparisonResult
