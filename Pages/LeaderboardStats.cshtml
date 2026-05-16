@@ -247,7 +247,7 @@
         {
             <tr>
                 <td>@stat.TotalPP.ToString("F2")</td>
-                <td class="lb-name"><a asp-page="/Leaderboard" asp-route-id="@stat.Id">@stat.Name</a></td>
+                <td class="lb-name"><a asp-page="/Leaderboard" asp-route-id="@stat.Id" asp-route-db="@Model.SelectedDatabase">@stat.Name</a></td>
                 <td>@stat.Count</td>
                 <td>@stat.Count80</td>
                 <td>@stat.Count95</td>

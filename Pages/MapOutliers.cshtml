@@ -92,7 +92,7 @@
                 <tr>
                     <td><strong>@outlier.OutlierCount</strong></td>
                     <td class="map-name">
-                        <a asp-page="/Leaderboard" asp-route-id="@outlier.Id">@outlier.Name</a>
+                        <a asp-page="/Leaderboard" asp-route-id="@outlier.Id" asp-route-db="@Model.SelectedDatabase">@outlier.Name</a>
                     </td>
                     <td>@outlier.ModeName</td>
                     <td>@outlier.Count</td>

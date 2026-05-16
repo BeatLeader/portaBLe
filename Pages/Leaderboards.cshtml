@@ -71,7 +71,7 @@
                             break;
                     }
                 </td>
-                <td><a asp-page="/Leaderboard" asp-route-id="@leaderboard.Id">@leaderboard.Name</a></td>
+                <td><a asp-page="/Leaderboard" asp-route-id="@leaderboard.Id" asp-route-db="@Model.SelectedDatabase">@leaderboard.Name</a></td>
                 <td>@leaderboard.DifficultyName</td>
                 <td>@leaderboard.Mapper</td>
             </tr>

@@ -422,7 +422,7 @@
                 const modeDisplay = map.modeName ? ` (${map.modeName}` : '';
                 const diffDisplay = map.difficultyName ? (modeDisplay ? ` - ${map.difficultyName})` : ` (${map.difficultyName})`) : (modeDisplay ? ')' : '');
                 row.innerHTML = `
-                    <td><a href="/leaderboard/${map.id}" class="text-decoration-none">${map.name}${modeDisplay}${diffDisplay}</a></td>
+                    <td><a href="/leaderboard/${map.id}?db=${encodeURIComponent(getMainDb())}" class="text-decoration-none">${map.name}${modeDisplay}${diffDisplay}</a></td>
                     <td class="${map.starsDiff > 0 ? 'text-success' : map.starsDiff < 0 ? 'text-danger' : ''}">${map.starsDiff > 0 ? '+' : ''}${map.starsDiff.toFixed(2)}</td>
                     <td class="${map.accRatingDiff > 0 ? 'text-success' : map.accRatingDiff < 0 ? 'text-danger' : ''}">${map.accRatingDiff > 0 ? '+' : ''}${map.accRatingDiff.toFixed(2)}</td>
                     <td class="${map.passRatingDiff > 0 ? 'text-success' : map.passRatingDiff < 0 ? 'text-danger' : ''}">${map.passRatingDiff > 0 ? '+' : ''}${map.passRatingDiff.toFixed(2)}</td>
@@ -451,7 +451,7 @@
                 const modeDisplay = map.modeName ? ` (${map.modeName}` : '';
                 const diffDisplay = map.difficultyName ? (modeDisplay ? ` - ${map.difficultyName})` : ` (${map.difficultyName})`) : (modeDisplay ? ')' : '');
                 row.innerHTML = `
-                    <td><a href="/leaderboard/${map.id}" class="text-decoration-none">${map.name}${modeDisplay}${diffDisplay}</a></td>
+                    <td><a href="/leaderboard/${map.id}?db=${encodeURIComponent(getMainDb())}" class="text-decoration-none">${map.name}${modeDisplay}${diffDisplay}</a></td>
                     <td class="${map.megametric125Diff > 0 ? 'text-success' : map.megametric125Diff < 0 ? 'text-danger' : ''}">${map.megametric125Diff > 0 ? '+' : ''}${map.megametric125Diff.toFixed(4)}</td>
                     <td class="${map.megametric75Diff > 0 ? 'text-success' : map.megametric75Diff < 0 ? 'text-danger' : ''}">${map.megametric75Diff > 0 ? '+' : ''}${map.megametric75Diff.toFixed(4)}</td>
                     <td class="${map.megametric40Diff > 0 ? 'text-success' : map.megametric40Diff < 0 ? 'text-danger' : ''}">${map.megametric40Diff > 0 ? '+' : ''}${map.megametric40Diff.toFixed(4)}</td>
