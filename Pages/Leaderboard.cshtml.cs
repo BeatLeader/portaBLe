@@ -41,7 +41,9 @@ namespace portaBLe.Pages
 
             using var context = (Services.DynamicDbContext)GetDbContext();
 
-            Leaderboard = await context.Leaderboards.FirstOrDefaultAsync(l => l.Id == id);
+            Leaderboard = await context.Leaderboards
+                .Include(l => l.ModifiersRating)
+                .FirstOrDefaultAsync(l => l.Id == id);
 
             if (Leaderboard == null)
             {
@@ -86,7 +88,9 @@ namespace portaBLe.Pages
             // Handle comparison leaderboard if compareId is provided
             if (!string.IsNullOrEmpty(compareId))
             {
-                CompareLeaderboard = await context.Leaderboards.FirstOrDefaultAsync(l => l.Id == compareId);
+                CompareLeaderboard = await context.Leaderboards
+                    .Include(l => l.ModifiersRating)
+                    .FirstOrDefaultAsync(l => l.Id == compareId);
                 
                 if (CompareLeaderboard != null)
                 {

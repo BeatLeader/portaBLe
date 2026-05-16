@@ -1,6 +1,7 @@
 ﻿@page "/leaderboard/{id}/{compareId?}"
 @model LeaderboardModel
 @using System.Text.Json
+@using portaBLe.DB
 
 @{
     ViewData["Title"] = "Leaderboard Details";
@@ -21,6 +22,15 @@
     // Slider bounds for the rating editor; generous headroom above the current values.
     double sliderMax = Math.Max(20, Math.Ceiling(maxRatingValue * 1.5));
     Func<double, string> inv = v => v.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    // Per-modifier rating overrides serialized for the PP curve component.
+    Func<ModifiersRating?, string> modRatingJson = mr => mr == null ? "" :
+        JsonSerializer.Serialize(new Dictionary<string, float>
+        {
+            ["fsAccRating"] = mr.FSAccRating, ["fsPassRating"] = mr.FSPassRating, ["fsTechRating"] = mr.FSTechRating,
+            ["ssAccRating"] = mr.SSAccRating, ["ssPassRating"] = mr.SSPassRating, ["ssTechRating"] = mr.SSTechRating,
+            ["sfAccRating"] = mr.SFAccRating, ["sfPassRating"] = mr.SFPassRating, ["sfTechRating"] = mr.SFTechRating,
+        });
 
     // First leaderboard corners
     var corner1 = new
@@ -69,92 +79,101 @@
     <div class="leaderboard-container">
         <h2>@Model.Leaderboard.Name - @Model.Leaderboard.DifficultyName - @Model.Leaderboard.ModeName</h2>
 
-        <div class="triangle-container">
-            <div class="tech-and-acc">
-                <span>Tech: @(Math.Round(Model.Leaderboard.TechRating, 2)) ★</span>
-                <span>Acc: @(Math.Round(Model.Leaderboard.AccRating, 2)) ★</span>
-            </div>
-            <div class="stars">
-                <span>@(Math.Round(Model.Leaderboard.Stars, 1)) ★</span>
+        <div class="leaderboard-info">
+            <div class="leaderboard-info-left">
+            <div class="triangle-container">
+                <div class="tech-and-acc">
+                    <span>Tech: @(Math.Round(Model.Leaderboard.TechRating, 2)) ★</span>
+                    <span>Acc: @(Math.Round(Model.Leaderboard.AccRating, 2)) ★</span>
+                </div>
+                <div class="stars">
+                    <span>@(Math.Round(Model.Leaderboard.Stars, 1)) ★</span>
+                </div>
+
+                <svg style="width: 6em; height: 6em;"
+                    xmlns="http://www.w3.org/2000/svg"
+                    version="1.200000"
+                    width="100%"
+                    height="100%"
+                    viewBox="0 0 100.000000 86.600000"
+                    xmlns:xlink="http://www.w3.org/1999/xlink">
+                    <g transform="matrix(1 0 0 -1 0 86.600000)">
+                        <defs>
+                            <linearGradient id="fadeA-1"
+                                        gradientUnits="userSpaceOnUse"
+                                        x1=@corner1.x
+                                        y1=@corner1.y
+                                        x2=@((corner2.x + corner3.x) / 2)
+                                        y2=@((corner2.y + corner3.y) / 2)>
+                                <stop offset="0%" stop-color="rgb(255 0 0 / @((Model.Leaderboard.TechRating / maxRating) * 100)%)" />
+                                <stop offset="100%" stop-color="rgb(255 0 0 / @((Model.Leaderboard.TechRating / maxRating) * 25)%)" />
+                            </linearGradient>
+                            <linearGradient id="fadeB-1"
+                                        gradientUnits="userSpaceOnUse"
+                                        x1=@(corner3.x)
+                                        y1=@(corner3.y)
+                                        x2=@((corner1.x + corner2.x) / 2)
+                                        y2=@((corner1.y + corner2.y) / 2)>
+                                <stop offset="0%" stop-color="rgb(0 255 0 / @((Model.Leaderboard.PassRating / maxRating) * 100)%)" />
+                                <stop offset="100%" stop-color="rgb(0 255 0 / @((Model.Leaderboard.PassRating / maxRating) * 25)%)" />
+                            </linearGradient>
+                            <linearGradient id="fadeC-1"
+                                        gradientUnits="userSpaceOnUse"
+                                        x1=@(corner2.x)
+                                        y1=@(corner2.y)
+                                        x2=@((corner3.x + corner1.x) / 2)
+                                        y2=@((corner1.y + corner3.y) / 2)>
+                                <stop offset="0%" stop-color="rgb(128 0 128 / @((Model.Leaderboard.AccRating / maxRating) * 100)%)" />
+                                <stop offset="100%" stop-color="rgb(128 0 128 / @((Model.Leaderboard.AccRating / maxRating) * 25)%)" />
+                            </linearGradient>
+                        </defs>
+                        <g stroke="#FFF" stroke-width="0.5">
+                            <path d="M @corner3.x,@corner3.y L @corner1.x,@corner1.y @corner2.x,@corner2.y Z" fill="url(#fadeA-1)" />
+                            <path d="M @corner3.x,@corner3.y L @corner1.x,@corner1.y @corner2.x,@corner2.y Z" fill="url(#fadeB-1)" />
+                            <path d="M @corner3.x,@corner3.y L @corner1.x,@corner1.y @corner2.x,@corner2.y Z" fill="url(#fadeC-1)" />
+                        </g>
+                        <g stroke="#FFF" fill="none" stroke-width="2" stroke-dasharray="4">
+                            <path d="M 50.000000,0.00000 L 0.000000,86.600000 100.000000,86.600000 Z" />
+                        </g>
+                    </g>
+                </svg>
+                <div class="pass">
+                    <span>Pass: @(Math.Round(Model.Leaderboard.PassRating, 2)) ★</span>
+                </div>
             </div>
 
-            <svg style="width: 6em; height: 6em;"
-                xmlns="http://www.w3.org/2000/svg"
-                version="1.200000"
-                width="100%"
-                height="100%"
-                viewBox="0 0 100.000000 86.600000"
-                xmlns:xlink="http://www.w3.org/1999/xlink">
-                <g transform="matrix(1 0 0 -1 0 86.600000)">
-                    <defs>
-                        <linearGradient id="fadeA-1"
-                                    gradientUnits="userSpaceOnUse"
-                                    x1=@corner1.x
-                                    y1=@corner1.y
-                                    x2=@((corner2.x + corner3.x) / 2)
-                                    y2=@((corner2.y + corner3.y) / 2)>
-                            <stop offset="0%" stop-color="rgb(255 0 0 / @((Model.Leaderboard.TechRating / maxRating) * 100)%)" />
-                            <stop offset="100%" stop-color="rgb(255 0 0 / @((Model.Leaderboard.TechRating / maxRating) * 25)%)" />
-                        </linearGradient>
-                        <linearGradient id="fadeB-1"
-                                    gradientUnits="userSpaceOnUse"
-                                    x1=@(corner3.x)
-                                    y1=@(corner3.y)
-                                    x2=@((corner1.x + corner2.x) / 2)
-                                    y2=@((corner1.y + corner2.y) / 2)>
-                            <stop offset="0%" stop-color="rgb(0 255 0 / @((Model.Leaderboard.PassRating / maxRating) * 100)%)" />
-                            <stop offset="100%" stop-color="rgb(0 255 0 / @((Model.Leaderboard.PassRating / maxRating) * 25)%)" />
-                        </linearGradient>
-                        <linearGradient id="fadeC-1"
-                                    gradientUnits="userSpaceOnUse"
-                                    x1=@(corner2.x)
-                                    y1=@(corner2.y)
-                                    x2=@((corner3.x + corner1.x) / 2)
-                                    y2=@((corner1.y + corner3.y) / 2)>
-                            <stop offset="0%" stop-color="rgb(128 0 128 / @((Model.Leaderboard.AccRating / maxRating) * 100)%)" />
-                            <stop offset="100%" stop-color="rgb(128 0 128 / @((Model.Leaderboard.AccRating / maxRating) * 25)%)" />
-                        </linearGradient>
-                    </defs>
-                    <g stroke="#FFF" stroke-width="0.5">
-                        <path d="M @corner3.x,@corner3.y L @corner1.x,@corner1.y @corner2.x,@corner2.y Z" fill="url(#fadeA-1)" />
-                        <path d="M @corner3.x,@corner3.y L @corner1.x,@corner1.y @corner2.x,@corner2.y Z" fill="url(#fadeB-1)" />
-                        <path d="M @corner3.x,@corner3.y L @corner1.x,@corner1.y @corner2.x,@corner2.y Z" fill="url(#fadeC-1)" />
-                    </g>
-                    <g stroke="#FFF" fill="none" stroke-width="2" stroke-dasharray="4">
-                        <path d="M 50.000000,0.00000 L 0.000000,86.600000 100.000000,86.600000 Z" />
-                    </g>
-                </g>
-            </svg>
-            <div class="pass">
-                <span>Pass: @(Math.Round(Model.Leaderboard.PassRating, 2)) ★</span>
+            <div class="rating-sliders"
+                data-leaderboard-id="@Model.Leaderboard.Id"
+                data-orig-acc="@inv(Model.Leaderboard.AccRating)"
+                data-orig-pass="@inv(Model.Leaderboard.PassRating)"
+                data-orig-tech="@inv(Model.Leaderboard.TechRating)">
+                <div class="rating-sliders-title">Adjust Ratings</div>
+                <div class="rating-slider-row">
+                    <label>Acc</label>
+                    <input type="range" data-rating="acc" min="0" max="@inv(sliderMax)" step="0.01" value="@inv(Model.Leaderboard.AccRating)" />
+                    <input type="number" data-rating="acc" min="0" step="0.01" value="@inv(Model.Leaderboard.AccRating)" />
+                </div>
+                <div class="rating-slider-row">
+                    <label>Pass</label>
+                    <input type="range" data-rating="pass" min="0" max="@inv(sliderMax)" step="0.01" value="@inv(Model.Leaderboard.PassRating)" />
+                    <input type="number" data-rating="pass" min="0" step="0.01" value="@inv(Model.Leaderboard.PassRating)" />
+                </div>
+                <div class="rating-slider-row">
+                    <label>Tech</label>
+                    <input type="range" data-rating="tech" min="0" max="@inv(sliderMax)" step="0.01" value="@inv(Model.Leaderboard.TechRating)" />
+                    <input type="number" data-rating="tech" min="0" step="0.01" value="@inv(Model.Leaderboard.TechRating)" />
+                </div>
+                <div class="rating-apply-row">
+                    <button type="button" class="apply-ratings-btn" style="display:none;">Apply</button>
+                    <span class="apply-ratings-status"></span>
+                </div>
             </div>
-        </div>
+            </div>
 
-        <div class="rating-sliders"
-             data-leaderboard-id="@Model.Leaderboard.Id"
-             data-orig-acc="@inv(Model.Leaderboard.AccRating)"
-             data-orig-pass="@inv(Model.Leaderboard.PassRating)"
-             data-orig-tech="@inv(Model.Leaderboard.TechRating)">
-            <div class="rating-sliders-title">Adjust Ratings</div>
-            <div class="rating-slider-row">
-                <label>Acc</label>
-                <input type="range" data-rating="acc" min="0" max="@inv(sliderMax)" step="0.01" value="@inv(Model.Leaderboard.AccRating)" />
-                <input type="number" data-rating="acc" min="0" step="0.01" value="@inv(Model.Leaderboard.AccRating)" />
-            </div>
-            <div class="rating-slider-row">
-                <label>Pass</label>
-                <input type="range" data-rating="pass" min="0" max="@inv(sliderMax)" step="0.01" value="@inv(Model.Leaderboard.PassRating)" />
-                <input type="number" data-rating="pass" min="0" step="0.01" value="@inv(Model.Leaderboard.PassRating)" />
-            </div>
-            <div class="rating-slider-row">
-                <label>Tech</label>
-                <input type="range" data-rating="tech" min="0" max="@inv(sliderMax)" step="0.01" value="@inv(Model.Leaderboard.TechRating)" />
-                <input type="number" data-rating="tech" min="0" step="0.01" value="@inv(Model.Leaderboard.TechRating)" />
-            </div>
-            <div class="rating-apply-row">
-                <button type="button" class="apply-ratings-btn" style="display:none;">Apply</button>
-                <span class="apply-ratings-status"></span>
-            </div>
+            <div class="pp-curve-component"
+                data-leaderboard-id="@Model.Leaderboard.Id"
+                data-mode="@(Model.Leaderboard.ModeName?.ToLowerInvariant())"
+                data-modifiers-rating="@modRatingJson(Model.Leaderboard.ModifiersRating)"></div>
         </div>
     </div>
 
@@ -250,6 +269,11 @@
                     <span class="apply-ratings-status"></span>
                 </div>
             </div>
+
+            <div class="pp-curve-component"
+                 data-leaderboard-id="@Model.CompareLeaderboard.Id"
+                 data-mode="@(Model.CompareLeaderboard.ModeName?.ToLowerInvariant())"
+                 data-modifiers-rating="@modRatingJson(Model.CompareLeaderboard.ModifiersRating)"></div>
         </div>
     }
 </div>
@@ -380,6 +404,13 @@
         flex: 1;
         min-width: 300px;
         max-width: 500px;
+    }
+
+    .leaderboard-info {
+        display: flex;
+        gap: 2em;
+        justify-content: center;
+        flex-wrap: wrap;
     }
 
     .tables-container {
@@ -525,6 +556,7 @@
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
+    <script src="~/js/pp-curve.js" asp-append-version="true"></script>
     <script>
         let chart = null;
         const leaderboardId = '@Model.Leaderboard.Id';
@@ -892,17 +924,22 @@
                 applyBtn.style.display = isChanged() ? 'inline-block' : 'none';
             }
 
+            function handleSliderChange() {
+                refreshApplyButton();
+                container.dispatchEvent(new CustomEvent('ratingschange'));
+            }
+
             RATING_KEYS.forEach(key => {
                 ranges[key].addEventListener('input', () => {
                     numbers[key].value = ranges[key].value;
-                    refreshApplyButton();
+                    handleSliderChange();
                 });
                 numbers[key].addEventListener('input', () => {
                     const value = parseFloat(numbers[key].value);
                     if (!isNaN(value)) {
                         ranges[key].value = value;
                     }
-                    refreshApplyButton();
+                    handleSliderChange();
                 });
             });
 
