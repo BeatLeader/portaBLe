@@ -17,7 +17,11 @@
         );
     }
     double maxRating = maxRatingValue > defaultMaxRating ? Math.Ceiling(maxRatingValue) : defaultMaxRating;
-    
+
+    // Slider bounds for the rating editor; generous headroom above the current values.
+    double sliderMax = Math.Max(20, Math.Ceiling(maxRatingValue * 1.5));
+    Func<double, string> inv = v => v.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
     // First leaderboard corners
     var corner1 = new
     {
@@ -58,6 +62,8 @@
         };
     }
 }
+
+@Html.AntiForgeryToken()
 
 <div class="leaderboard-comparison">
     <div class="leaderboard-container">
@@ -121,6 +127,33 @@
             </svg>
             <div class="pass">
                 <span>Pass: @(Math.Round(Model.Leaderboard.PassRating, 2)) ★</span>
+            </div>
+        </div>
+
+        <div class="rating-sliders"
+             data-leaderboard-id="@Model.Leaderboard.Id"
+             data-orig-acc="@inv(Model.Leaderboard.AccRating)"
+             data-orig-pass="@inv(Model.Leaderboard.PassRating)"
+             data-orig-tech="@inv(Model.Leaderboard.TechRating)">
+            <div class="rating-sliders-title">Adjust Ratings</div>
+            <div class="rating-slider-row">
+                <label>Acc</label>
+                <input type="range" data-rating="acc" min="0" max="@inv(sliderMax)" step="0.01" value="@inv(Model.Leaderboard.AccRating)" />
+                <input type="number" data-rating="acc" min="0" step="0.01" value="@inv(Model.Leaderboard.AccRating)" />
+            </div>
+            <div class="rating-slider-row">
+                <label>Pass</label>
+                <input type="range" data-rating="pass" min="0" max="@inv(sliderMax)" step="0.01" value="@inv(Model.Leaderboard.PassRating)" />
+                <input type="number" data-rating="pass" min="0" step="0.01" value="@inv(Model.Leaderboard.PassRating)" />
+            </div>
+            <div class="rating-slider-row">
+                <label>Tech</label>
+                <input type="range" data-rating="tech" min="0" max="@inv(sliderMax)" step="0.01" value="@inv(Model.Leaderboard.TechRating)" />
+                <input type="number" data-rating="tech" min="0" step="0.01" value="@inv(Model.Leaderboard.TechRating)" />
+            </div>
+            <div class="rating-apply-row">
+                <button type="button" class="apply-ratings-btn" style="display:none;">Apply</button>
+                <span class="apply-ratings-status"></span>
             </div>
         </div>
     </div>
@@ -188,6 +221,33 @@
                 </svg>
                 <div class="pass">
                     <span>Pass: @(Math.Round(Model.CompareLeaderboard.PassRating, 2)) ★</span>
+                </div>
+            </div>
+
+            <div class="rating-sliders"
+                 data-leaderboard-id="@Model.CompareLeaderboard.Id"
+                 data-orig-acc="@inv(Model.CompareLeaderboard.AccRating)"
+                 data-orig-pass="@inv(Model.CompareLeaderboard.PassRating)"
+                 data-orig-tech="@inv(Model.CompareLeaderboard.TechRating)">
+                <div class="rating-sliders-title">Adjust Ratings</div>
+                <div class="rating-slider-row">
+                    <label>Acc</label>
+                    <input type="range" data-rating="acc" min="0" max="@inv(sliderMax)" step="0.01" value="@inv(Model.CompareLeaderboard.AccRating)" />
+                    <input type="number" data-rating="acc" min="0" step="0.01" value="@inv(Model.CompareLeaderboard.AccRating)" />
+                </div>
+                <div class="rating-slider-row">
+                    <label>Pass</label>
+                    <input type="range" data-rating="pass" min="0" max="@inv(sliderMax)" step="0.01" value="@inv(Model.CompareLeaderboard.PassRating)" />
+                    <input type="number" data-rating="pass" min="0" step="0.01" value="@inv(Model.CompareLeaderboard.PassRating)" />
+                </div>
+                <div class="rating-slider-row">
+                    <label>Tech</label>
+                    <input type="range" data-rating="tech" min="0" max="@inv(sliderMax)" step="0.01" value="@inv(Model.CompareLeaderboard.TechRating)" />
+                    <input type="number" data-rating="tech" min="0" step="0.01" value="@inv(Model.CompareLeaderboard.TechRating)" />
+                </div>
+                <div class="rating-apply-row">
+                    <button type="button" class="apply-ratings-btn" style="display:none;">Apply</button>
+                    <span class="apply-ratings-status"></span>
                 </div>
             </div>
         </div>
@@ -394,6 +454,71 @@
         top: 50%;
         left: 50%;
         transform: translate(-50%, -50%);
+    }
+
+    .rating-sliders {
+        width: 15em;
+        box-sizing: border-box;
+        margin: 0.5em auto 0;
+        padding: 1em;
+        background-color: #323232;
+        color: white;
+    }
+
+    .rating-sliders-title {
+        font-size: 0.85em;
+        font-weight: bold;
+        margin-bottom: 0.6em;
+    }
+
+    .rating-slider-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5em;
+        margin-bottom: 0.5em;
+        font-size: 0.8em;
+    }
+
+    .rating-slider-row label {
+        width: 2.5em;
+        flex-shrink: 0;
+    }
+
+    .rating-slider-row input[type="range"] {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .rating-slider-row input[type="number"] {
+        width: 4.5em;
+        flex-shrink: 0;
+    }
+
+    .rating-apply-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5em;
+        margin-top: 0.6em;
+        min-height: 2em;
+    }
+
+    .apply-ratings-btn {
+        background-color: #f54278;
+        color: white;
+        border: none;
+        padding: 0.4em 1.2em;
+        border-radius: 3px;
+        cursor: pointer;
+    }
+
+    .apply-ratings-btn:disabled {
+        opacity: 0.6;
+        cursor: default;
+    }
+
+    .apply-ratings-status {
+        font-size: 0.75em;
+        color: #ddd;
     }
 </style>
 
@@ -726,5 +851,114 @@
 
         // Initial load
         setupChart(leaderboardScores, compareLeaderboardScores);
+
+        // --- Rating sliders ---
+        const selectedDatabase = @Html.Raw(JsonSerializer.Serialize(Model.SelectedDatabase));
+        const RATING_KEYS = ['acc', 'pass', 'tech'];
+
+        function setupRatingSliders(container) {
+            const leaderboardId = container.dataset.leaderboardId;
+            const original = {
+                acc: parseFloat(container.dataset.origAcc),
+                pass: parseFloat(container.dataset.origPass),
+                tech: parseFloat(container.dataset.origTech)
+            };
+
+            const ranges = {};
+            const numbers = {};
+            RATING_KEYS.forEach(key => {
+                ranges[key] = container.querySelector(`input[type="range"][data-rating="${key}"]`);
+                numbers[key] = container.querySelector(`input[type="number"][data-rating="${key}"]`);
+            });
+
+            const applyBtn = container.querySelector('.apply-ratings-btn');
+            const statusEl = container.querySelector('.apply-ratings-status');
+
+            function currentValues() {
+                return {
+                    acc: parseFloat(numbers.acc.value),
+                    pass: parseFloat(numbers.pass.value),
+                    tech: parseFloat(numbers.tech.value)
+                };
+            }
+
+            function isChanged() {
+                const values = currentValues();
+                return RATING_KEYS.some(key =>
+                    isNaN(values[key]) || Math.abs(values[key] - original[key]) > 1e-6);
+            }
+
+            function refreshApplyButton() {
+                applyBtn.style.display = isChanged() ? 'inline-block' : 'none';
+            }
+
+            RATING_KEYS.forEach(key => {
+                ranges[key].addEventListener('input', () => {
+                    numbers[key].value = ranges[key].value;
+                    refreshApplyButton();
+                });
+                numbers[key].addEventListener('input', () => {
+                    const value = parseFloat(numbers[key].value);
+                    if (!isNaN(value)) {
+                        ranges[key].value = value;
+                    }
+                    refreshApplyButton();
+                });
+            });
+
+            applyBtn.addEventListener('click', async () => {
+                const values = currentValues();
+                if (RATING_KEYS.some(key => isNaN(values[key]))) {
+                    statusEl.textContent = 'Please enter valid numbers.';
+                    return;
+                }
+
+                const tokenElement = document.querySelector('input[name="__RequestVerificationToken"]');
+                if (!tokenElement) {
+                    statusEl.textContent = 'Security token not found. Please refresh the page.';
+                    return;
+                }
+
+                applyBtn.disabled = true;
+                statusEl.textContent = 'Applying… this may take a couple of minutes.';
+
+                let url = window.location.pathname + '?handler=ApplyRatings';
+                if (selectedDatabase) {
+                    url += '&db=' + encodeURIComponent(selectedDatabase);
+                }
+
+                try {
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'RequestVerificationToken': tokenElement.value
+                        },
+                        body: JSON.stringify({
+                            leaderboardId: leaderboardId,
+                            accRating: values.acc,
+                            passRating: values.pass,
+                            techRating: values.tech
+                        })
+                    });
+
+                    const result = await response.json().catch(() => ({}));
+                    if (!response.ok || !result.success) {
+                        throw new Error(result.error || 'Request failed.');
+                    }
+
+                    statusEl.textContent = 'Done. Reloading…';
+                    window.location.reload();
+                } catch (error) {
+                    console.error('Error applying ratings:', error);
+                    statusEl.textContent = 'Error: ' + error.message;
+                    applyBtn.disabled = false;
+                }
+            });
+
+            refreshApplyButton();
+        }
+
+        document.querySelectorAll('.rating-sliders').forEach(setupRatingSliders);
     </script>
 }

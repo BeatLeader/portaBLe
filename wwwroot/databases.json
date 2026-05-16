@@ -2,19 +2,14 @@
   "MainDB": 0,
   "Databases": [
     {
-      "Name": "Prod",
-      "FileName": "db-20260426173107-1651.db",
-      "Description": "Current production website"
+      "Name": "Poodles",
+      "FileName": "db-20260516004416-3634.db",
+      "Description": "Poodle diffs"
     },
     {
-      "Name": "New update (No autoreweight)",
-      "FileName": "db-20260426210515-1082.db",
-      "Description": "Refreshed ratings"
-    },
-    {
-      "Name": "New update (Autoreweighted)",
-      "FileName": "db-20260427115356-3232.db",
-      "Description": "Refreshed ratings + autoreweight"
+      "Name": "Bloqs",
+      "FileName": "db-20260516005140-1223.db",
+      "Description": "Bloq Diffs"
     }
   ]
 }

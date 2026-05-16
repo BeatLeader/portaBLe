@@ -1,8 +1,11 @@
 ﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using portaBLe.DB;
+using portaBLe.Refresh;
 using portaBLe.Services;
+using System;
 using System.Collections.Generic;
+using System.IO;
 using System.Linq;
 using System.Threading.Tasks;
 
@@ -25,8 +28,11 @@ namespace portaBLe.Pages
         public ICollection<ScoreGraphEntry> ScoreGraphEntries { get; set; }
         public ICollection<ScoreGraphEntry>? CompareScoreGraphEntries { get; set; }
 
-        public LeaderboardModel(IDynamicDbContextService dbService) : base(dbService)
+        private readonly IWebHostEnvironment _env;
+
+        public LeaderboardModel(IDynamicDbContextService dbService, IWebHostEnvironment env) : base(dbService)
         {
+            _env = env;
         }
 
         public async Task<IActionResult> OnGetAsync(string id, string compareId = null, int currentPage = 1, int compareCurrentPage = 1, string db = null)
@@ -118,6 +124,56 @@ namespace portaBLe.Pages
             }
 
             return Page();
+        }
+
+        // Persists new Acc/Pass/Tech ratings for a leaderboard, then recalculates
+        // everything (scores, players, stars and leaderboard metrics) for the selected database.
+        public async Task<IActionResult> OnPostApplyRatingsAsync([FromBody] ApplyRatingsRequest request, string db = null)
+        {
+            if (request == null || string.IsNullOrEmpty(request.LeaderboardId))
+            {
+                return BadRequest(new { success = false, error = "Invalid request." });
+            }
+
+            await InitializeDatabaseSelectionAsync(db);
+
+            try
+            {
+                var connectionString = $"Data Source={Path.Combine(_env.WebRootPath, SelectedDatabase)};";
+                var optionsBuilder = new DbContextOptionsBuilder<portaBLe.AppContext>();
+                optionsBuilder.UseSqlite(connectionString);
+
+                using var dbContext = new portaBLe.AppContext(optionsBuilder.Options);
+
+                var leaderboard = await dbContext.Leaderboards.FirstOrDefaultAsync(l => l.Id == request.LeaderboardId);
+                if (leaderboard == null)
+                {
+                    return NotFound(new { success = false, error = "Leaderboard not found." });
+                }
+
+                leaderboard.AccRating = Math.Max(0f, request.AccRating);
+                leaderboard.PassRating = Math.Max(0f, request.PassRating);
+                leaderboard.TechRating = Math.Max(0f, request.TechRating);
+                await dbContext.SaveChangesAsync();
+
+                await ScoresRefresh.Refresh(dbContext);
+                await PlayersRefresh.Refresh(dbContext);
+                await LeaderboardsRefresh.RefreshStars(dbContext);
+
+                return new JsonResult(new { success = true });
+            }
+            catch (Exception ex)
+            {
+                return new JsonResult(new { success = false, error = ex.Message }) { StatusCode = 500 };
+            }
+        }
+
+        public class ApplyRatingsRequest
+        {
+            public string LeaderboardId { get; set; }
+            public float AccRating { get; set; }
+            public float PassRating { get; set; }
+            public float TechRating { get; set; }
         }
 
         public class ScoreGraphEntry
