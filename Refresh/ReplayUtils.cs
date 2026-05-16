@@ -169,19 +169,19 @@ namespace portaBLe.Refresh
                 (passPP, accPP, techPP) = GetPp(accuracy, accRating, passRating, techRating);
                         
                 rawPP = Inflate(passPP + accPP + techPP);
-                if (modifiersRating != null) {
-                    var modifiersMap = modifiersRating.ToDictionary<float>();
-                    foreach (var modifier in modifiers.ToUpper().Split(","))
-                    {
-                        if (modifiersMap.ContainsKey(modifier + "AccRating")) { 
-                            accRating = modifiersMap[modifier + "AccRating"]; 
-                            passRating = modifiersMap[modifier + "PassRating"]; 
-                            techRating = modifiersMap[modifier + "TechRating"]; 
+                //if (modifiersRating != null) {
+                //    var modifiersMap = modifiersRating.ToDictionary<float>();
+                //    foreach (var modifier in modifiers.ToUpper().Split(","))
+                //    {
+                //        if (modifiersMap.ContainsKey(modifier + "AccRating")) { 
+                //            accRating = modifiersMap[modifier + "AccRating"]; 
+                //            passRating = modifiersMap[modifier + "PassRating"]; 
+                //            techRating = modifiersMap[modifier + "TechRating"]; 
 
-                            break;
-                        }
-                    }
-                }
+                //            break;
+                //        }
+                //    }
+                //}
                 (passPP, accPP, techPP) = GetPp(accuracy, accRating * mp, passRating * mp, techRating * mp);
                 fullPP = Inflate(passPP + accPP + techPP);
                 if (passPP + accPP + techPP > 0) {
