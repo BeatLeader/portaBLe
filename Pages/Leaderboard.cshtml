@@ -10,14 +10,15 @@
         Model.Leaderboard.TechRating,
         Math.Max(Model.Leaderboard.PassRating, Model.Leaderboard.AccRating)
     );
-    if (Model.CompareLeaderboard != null) {
+    if (Model.CompareLeaderboard != null)
+    {
         maxRatingValue = Math.Max(maxRatingValue,
             Math.Max(Model.CompareLeaderboard.TechRating,
             Math.Max(Model.CompareLeaderboard.PassRating, Model.CompareLeaderboard.AccRating))
         );
     }
     double maxRating = maxRatingValue > defaultMaxRating ? Math.Ceiling(maxRatingValue) : defaultMaxRating;
-    
+
     // First leaderboard corners
     var corner1 = new
     {
@@ -39,8 +40,9 @@
     var corner1Compare = new { x = 0.0, y = 0.0 };
     var corner2Compare = new { x = 0.0, y = 0.0 };
     var corner3Compare = new { x = 0.0, y = 0.0 };
-    
-    if (Model.CompareLeaderboard != null) {
+
+    if (Model.CompareLeaderboard != null)
+    {
         corner1Compare = new
         {
             x = (gypL - (Model.CompareLeaderboard.TechRating / maxRating) * gypL) * 0.866,
@@ -60,20 +62,8 @@
 }
 
 <div class="leaderboard-comparison">
-<div class="leaderboard-container">
-    <div class="leaderboard-header">
+    <div class="leaderboard-container">
         <h2>@Model.Leaderboard.Name - @Model.Leaderboard.DifficultyName - @Model.Leaderboard.ModeName</h2>
-        <div class="leaderboard-tags">
-            @if (Model.Leaderboard.IsLinear)
-            {
-                <span class="tag linear-tag">Linear</span>
-            }
-            @if (Model.Leaderboard.IsFitbeat)
-            {
-                <span class="tag fitbeat-tag">Fitbeat</span>
-            }
-        </div>
-    </div>
 
         <div class="triangle-container">
             <div class="tech-and-acc">
@@ -85,38 +75,38 @@
             </div>
 
             <svg style="width: 6em; height: 6em;"
-                xmlns="http://www.w3.org/2000/svg"
-                version="1.200000"
-                width="100%"
-                height="100%"
-                viewBox="0 0 100.000000 86.600000"
-                xmlns:xlink="http://www.w3.org/1999/xlink">
+                 xmlns="http://www.w3.org/2000/svg"
+                 version="1.200000"
+                 width="100%"
+                 height="100%"
+                 viewBox="0 0 100.000000 86.600000"
+                 xmlns:xlink="http://www.w3.org/1999/xlink">
                 <g transform="matrix(1 0 0 -1 0 86.600000)">
                     <defs>
                         <linearGradient id="fadeA-1"
-                                    gradientUnits="userSpaceOnUse"
-                                    x1=@corner1.x
-                                    y1=@corner1.y
-                                    x2=@((corner2.x + corner3.x) / 2)
-                                    y2=@((corner2.y + corner3.y) / 2)>
+                                        gradientUnits="userSpaceOnUse"
+                                        x1=@corner1.x
+                                        y1=@corner1.y
+                                        x2=@((corner2.x + corner3.x) / 2)
+                                        y2=@((corner2.y + corner3.y) / 2)>
                             <stop offset="0%" stop-color="rgb(255 0 0 / @((Model.Leaderboard.TechRating / maxRating) * 100)%)" />
                             <stop offset="100%" stop-color="rgb(255 0 0 / @((Model.Leaderboard.TechRating / maxRating) * 25)%)" />
                         </linearGradient>
                         <linearGradient id="fadeB-1"
-                                    gradientUnits="userSpaceOnUse"
-                                    x1=@(corner3.x)
-                                    y1=@(corner3.y)
-                                    x2=@((corner1.x + corner2.x) / 2)
-                                    y2=@((corner1.y + corner2.y) / 2)>
+                                        gradientUnits="userSpaceOnUse"
+                                        x1=@(corner3.x)
+                                        y1=@(corner3.y)
+                                        x2=@((corner1.x + corner2.x) / 2)
+                                        y2=@((corner1.y + corner2.y) / 2)>
                             <stop offset="0%" stop-color="rgb(0 255 0 / @((Model.Leaderboard.PassRating / maxRating) * 100)%)" />
                             <stop offset="100%" stop-color="rgb(0 255 0 / @((Model.Leaderboard.PassRating / maxRating) * 25)%)" />
                         </linearGradient>
                         <linearGradient id="fadeC-1"
-                                    gradientUnits="userSpaceOnUse"
-                                    x1=@(corner2.x)
-                                    y1=@(corner2.y)
-                                    x2=@((corner3.x + corner1.x) / 2)
-                                    y2=@((corner1.y + corner3.y) / 2)>
+                                        gradientUnits="userSpaceOnUse"
+                                        x1=@(corner2.x)
+                                        y1=@(corner2.y)
+                                        x2=@((corner3.x + corner1.x) / 2)
+                                        y2=@((corner1.y + corner3.y) / 2)>
                             <stop offset="0%" stop-color="rgb(128 0 128 / @((Model.Leaderboard.AccRating / maxRating) * 100)%)" />
                             <stop offset="100%" stop-color="rgb(128 0 128 / @((Model.Leaderboard.AccRating / maxRating) * 25)%)" />
                         </linearGradient>
@@ -140,19 +130,7 @@
     @if (Model.CompareLeaderboard != null)
     {
         <div class="leaderboard-container">
-            <div class="leaderboard-header">
-                <h2>@Model.CompareLeaderboard.Name - @Model.CompareLeaderboard.DifficultyName - @Model.CompareLeaderboard.ModeName</h2>
-                <div class="leaderboard-tags">
-                    @if (Model.CompareLeaderboard.IsLinear)
-                    {
-                        <span class="tag linear-tag">Linear</span>
-                    }
-                    @if (Model.CompareLeaderboard.IsFitbeat)
-                    {
-                        <span class="tag fitbeat-tag">Fitbeat</span>
-                    }
-                </div>
-            </div>
+            <h2>@Model.CompareLeaderboard.Name - @Model.CompareLeaderboard.DifficultyName - @Model.CompareLeaderboard.ModeName</h2>
 
             <div class="triangle-container">
                 <div class="tech-and-acc">
@@ -164,38 +142,38 @@
                 </div>
 
                 <svg style="width: 6em; height: 6em;"
-                    xmlns="http://www.w3.org/2000/svg"
-                    version="1.200000"
-                    width="100%"
-                    height="100%"
-                    viewBox="0 0 100.000000 86.600000"
-                    xmlns:xlink="http://www.w3.org/1999/xlink">
+                     xmlns="http://www.w3.org/2000/svg"
+                     version="1.200000"
+                     width="100%"
+                     height="100%"
+                     viewBox="0 0 100.000000 86.600000"
+                     xmlns:xlink="http://www.w3.org/1999/xlink">
                     <g transform="matrix(1 0 0 -1 0 86.600000)">
                         <defs>
                             <linearGradient id="fadeA-2"
-                                        gradientUnits="userSpaceOnUse"
-                                        x1=@corner1Compare.x
-                                        y1=@corner1Compare.y
-                                        x2=@((corner2Compare.x + corner3Compare.x) / 2)
-                                        y2=@((corner2Compare.y + corner3Compare.y) / 2)>
+                                            gradientUnits="userSpaceOnUse"
+                                            x1=@corner1Compare.x
+                                            y1=@corner1Compare.y
+                                            x2=@((corner2Compare.x + corner3Compare.x) / 2)
+                                            y2=@((corner2Compare.y + corner3Compare.y) / 2)>
                                 <stop offset="0%" stop-color="rgb(0 0 255 / @((Model.CompareLeaderboard.TechRating / maxRating) * 100)%)" />
                                 <stop offset="100%" stop-color="rgb(0 0 255 / @((Model.CompareLeaderboard.TechRating / maxRating) * 25)%)" />
                             </linearGradient>
                             <linearGradient id="fadeB-2"
-                                        gradientUnits="userSpaceOnUse"
-                                        x1=@(corner3Compare.x)
-                                        y1=@(corner3Compare.y)
-                                        x2=@((corner1Compare.x + corner2Compare.x) / 2)
-                                        y2=@((corner1Compare.y + corner2Compare.y) / 2)>
+                                            gradientUnits="userSpaceOnUse"
+                                            x1=@(corner3Compare.x)
+                                            y1=@(corner3Compare.y)
+                                            x2=@((corner1Compare.x + corner2Compare.x) / 2)
+                                            y2=@((corner1Compare.y + corner2Compare.y) / 2)>
                                 <stop offset="0%" stop-color="rgb(0 255 255 / @((Model.CompareLeaderboard.PassRating / maxRating) * 100)%)" />
                                 <stop offset="100%" stop-color="rgb(0 255 255 / @((Model.CompareLeaderboard.PassRating / maxRating) * 25)%)" />
                             </linearGradient>
                             <linearGradient id="fadeC-2"
-                                        gradientUnits="userSpaceOnUse"
-                                        x1=@(corner2Compare.x)
-                                        y1=@(corner2Compare.y)
-                                        x2=@((corner3Compare.x + corner1Compare.x) / 2)
-                                        y2=@((corner1Compare.y + corner3Compare.y) / 2)>
+                                            gradientUnits="userSpaceOnUse"
+                                            x1=@(corner2Compare.x)
+                                            y1=@(corner2Compare.y)
+                                            x2=@((corner3Compare.x + corner1Compare.x) / 2)
+                                            y2=@((corner1Compare.y + corner3Compare.y) / 2)>
                                 <stop offset="0%" stop-color="rgb(128 128 255 / @((Model.CompareLeaderboard.AccRating / maxRating) * 100)%)" />
                                 <stop offset="100%" stop-color="rgb(128 128 255 / @((Model.CompareLeaderboard.AccRating / maxRating) * 25)%)" />
                             </linearGradient>
@@ -236,7 +214,7 @@
     </div>
     <div class="y-selector">
         <select id="yAxisSelect" onchange="updateAxes()">
-        <option value="weight">PP Weight</option>
+            <option value="weight">PP Weight</option>
             <option value="playerRank">Player Rank</option>
             <option value="date">Date</option>
             <option value="pp">PP</option>
@@ -333,53 +311,18 @@
 </div>
 
 <style>
-.leaderboard-comparison {
-    display: flex;
-    gap: 2em;
-    justify-content: center;
-    flex-wrap: wrap;
-}
+    .leaderboard-comparison {
+        display: flex;
+        gap: 2em;
+        justify-content: center;
+        flex-wrap: wrap;
+    }
 
-.leaderboard-container {
-    flex: 1;
-    min-width: 300px;
-    max-width: 500px;
-}
-
-.leaderboard-header {
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-}
-
-.leaderboard-header h2 {
-    margin-bottom: 0.5em;
-}
-
-.leaderboard-tags {
-    display: flex;
-    gap: 0.5em;
-    justify-content: center;
-    margin-bottom: 1em;
-}
-
-.tag {
-    display: inline-block;
-    padding: 0.25em 0.75em;
-    border-radius: 12px;
-    font-size: 0.85em;
-    font-weight: 500;
-}
-
-.linear-tag {
-    background-color: #e3f2fd;
-    color: #1565c0;
-}
-
-.fitbeat-tag {
-    background-color: #fce4ec;
-    color: #c2185b;
-}
+    .leaderboard-container {
+        flex: 1;
+        min-width: 300px;
+        max-width: 500px;
+    }
 
     .tables-container {
         display: flex;
@@ -546,7 +489,7 @@
             switch (sortBy) {
                 case 'date':
                 case 'pp':
-                case 'acc': 
+                case 'acc':
                 case 'rank':
                 case 'weight':
                 case 'weightedPp':
@@ -730,7 +673,7 @@
             const datasets = [{
                 label: 'Leaderboard 1',
                 data: chartData,
-                borderColor: function (context) {
+                borderColor: function(context) {
                     const item = context.raw;
                     return item.fc
                         ? 'yellow'
@@ -738,7 +681,7 @@
                 },
                 backgroundColor: '#f54278',
                 pointRadius: 4,
-                borderWidth: function (context) {
+                borderWidth: function(context) {
                     const item = context.raw;
                     return item.fc
                         ? 2
@@ -754,12 +697,12 @@
                     borderColor: function(context) {
                         const item = context.raw;
                         return item.fc
-                        ? 'yellow'
-                        : getTimeStringColor(new Date(item.timepost * 1000));
+                            ? 'yellow'
+                            : getTimeStringColor(new Date(item.timepost * 1000));
                     },
                     backgroundColor: '#0000ff',
                     pointRadius: 4,
-                    borderWidth: function (context) {
+                    borderWidth: function(context) {
                         const item = context.raw;
                         return item.fc
                             ? 2

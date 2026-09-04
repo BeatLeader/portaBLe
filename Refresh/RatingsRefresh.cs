@@ -160,7 +160,7 @@ namespace portaBLe.Refresh
                     lb.DodgeWalls = (int)response["none"].LackMapCalculation.Statistics.DodgeWalls;
                     lb.CrouchWalls = (int)response["none"].LackMapCalculation.Statistics.CrouchWalls;
                     lb.LinearPercent = (float)response["none"].LackMapCalculation.LinearPercentage;
-                    lb.MultiRating = (float)response["none"].LackMapCalculation.MultiRating;
+                    lb.MultiPercentage = (float)response["none"].LackMapCalculation.MultiPercentage;
                     lb.ParityErrors = (float)response["none"].LackMapCalculation.Statistics.ParityErrors;
                     lb.BombAvoidances = (float)response["none"].LackMapCalculation.Statistics.BombAvoidances;
                     lb.Duration = (float)response["none"].Length;

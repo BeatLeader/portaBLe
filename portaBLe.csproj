@@ -65,4 +65,10 @@
     </Content>
   </ItemGroup>
 
+  <ItemGroup>
+    <Content Update="SongRec\Assets\playlist-cover.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+    </Content>
+  </ItemGroup>
+
 </Project>

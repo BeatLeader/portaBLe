@@ -11,7 +11,11 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-body">
-                    <form method="post">
+                    <form method="get">
+                        @if (!string.IsNullOrEmpty(Model.SelectedDatabase))
+                        {
+                            <input type="hidden" name="db" value="@Model.SelectedDatabase" />
+                        }
                         <div class="row">
                             <div class="col-md-4">
                                 <div class="form-group">
@@ -49,7 +53,7 @@
     @if (Model.Players != null && Model.Players.Any())
     {
         @Html.AntiForgeryToken()
-        
+
         <div class="alert alert-info">
             Loaded @Model.Players.Count players (Rank @Model.MinRank - @Model.MaxRank) with @Model.TotalScores total scores
         </div>
@@ -212,6 +216,14 @@
         // Load saved parameters on page load
         window.addEventListener('DOMContentLoaded', function() {
             loadSavedParameters();
+
+            // Auto-load graphs if players are loaded and scores exist
+            if (playerIds && playerIds.length > 0 && allScores && allScores.length > 0) {
+                // Give a small delay to ensure DOM is fully ready
+                setTimeout(function() {
+                    recalculateBatch();
+                }, 100);
+            }
         });
 
         function saveParameters() {
@@ -282,14 +294,27 @@
             const parameters = getParameters();
             saveParameters(); // Save parameters when recalculating
             const tokenElement = document.querySelector('input[name="__RequestVerificationToken"]');
-            
+
             if (!tokenElement) {
                 alert('Security token not found. Please refresh the page.');
                 return;
             }
 
+            // Get the current database selection from URL or localStorage
+            const urlParams = new URLSearchParams(window.location.search);
+            let dbParam = urlParams.get('db');
+            if (!dbParam) {
+                dbParam = localStorage.getItem('portaBLe_selectedDatabase');
+            }
+
+            // Build URL with db parameter if present
+            let url = '/BatchPlayersBalancing?handler=RecalculateBatch';
+            if (dbParam) {
+                url += '&db=' + encodeURIComponent(dbParam);
+            }
+
             try {
-                const response = await fetch('/BatchPlayersBalancing?handler=RecalculateBatch', {
+                const response = await fetch(url, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -325,68 +350,68 @@
             const avgPassChange = totals.avgPassPPChange;
 
             const html = `
-                <table class="table table-sm">
-                    <tr>
-                        <th>Metric</th>
-                        <th>Avg Change</th>
-                    </tr>
-                    <tr>
-                        <td><strong>Total PP</strong></td>
-                        <td class="${avgChange >= 0 ? 'text-success' : 'text-danger'}">
-                            ${avgChange >= 0 ? '+' : ''}${avgChange.toFixed(2)}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>Acc PP</td>
-                        <td class="${avgAccChange >= 0 ? 'text-success' : 'text-danger'}">
-                            ${avgAccChange >= 0 ? '+' : ''}${avgAccChange.toFixed(2)}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>Tech PP</td>
-                        <td class="${avgTechChange >= 0 ? 'text-success' : 'text-danger'}">
-                            ${avgTechChange >= 0 ? '+' : ''}${avgTechChange.toFixed(2)}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>Pass PP</td>
-                        <td class="${avgPassChange >= 0 ? 'text-success' : 'text-danger'}">
-                            ${avgPassChange >= 0 ? '+' : ''}${avgPassChange.toFixed(2)}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td colspan="2"><small class="text-muted">Players affected: ${totals.playerCount}</small></td>
-                    </tr>
-                </table>
-            `;
+                        <table class="table table-sm">
+                            <tr>
+                                <th>Metric</th>
+                                <th>Avg Change</th>
+                            </tr>
+                            <tr>
+                                <td><strong>Total PP</strong></td>
+                                <td class="${avgChange >= 0 ? 'text-success' : 'text-danger'}">
+                                    ${avgChange >= 0 ? '+' : ''}${avgChange.toFixed(2)}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Acc PP</td>
+                                <td class="${avgAccChange >= 0 ? 'text-success' : 'text-danger'}">
+                                    ${avgAccChange >= 0 ? '+' : ''}${avgAccChange.toFixed(2)}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Tech PP</td>
+                                <td class="${avgTechChange >= 0 ? 'text-success' : 'text-danger'}">
+                                    ${avgTechChange >= 0 ? '+' : ''}${avgTechChange.toFixed(2)}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Pass PP</td>
+                                <td class="${avgPassChange >= 0 ? 'text-success' : 'text-danger'}">
+                                    ${avgPassChange >= 0 ? '+' : ''}${avgPassChange.toFixed(2)}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td colspan="2"><small class="text-muted">Players affected: ${totals.playerCount}</small></td>
+                            </tr>
+                        </table>
+                    `;
 
             document.getElementById('aggregatedResults').innerHTML = html;
         }
 
         function updateBalanceMetrics() {
             if (!recalculatedData) return;
-            
+
             const metrics = recalculatedData.metrics;
-            
+
             const html = `
-                <div class="mb-2">
-                    <strong>Avg Component Balance:</strong><br>
-                    <small>
-                        Acc: ${metrics.avgAccPercent.toFixed(1)}%<br>
-                        Tech: ${metrics.avgTechPercent.toFixed(1)}%<br>
-                        Pass: ${metrics.avgPassPercent.toFixed(1)}%
-                    </small>
-                </div>
-                <div class="mb-2">
-                    <strong>Avg Decay CV:</strong> ${metrics.avgDecayCV.toFixed(1)}%<br>
-                    <small class="text-muted">(Lower = smoother)</small>
-                </div>
-                <div>
-                    <strong>Avg Outliers:</strong> ${metrics.avgOutliers.toFixed(1)} (${metrics.avgOutlierPercent.toFixed(1)}%)<br>
-                    <small class="text-muted">(>2σ from avg)</small>
-                </div>
-            `;
-            
+                        <div class="mb-2">
+                            <strong>Avg Component Balance:</strong><br>
+                            <small>
+                                Acc: ${metrics.avgAccPercent.toFixed(1)}%<br>
+                                Tech: ${metrics.avgTechPercent.toFixed(1)}%<br>
+                                Pass: ${metrics.avgPassPercent.toFixed(1)}%
+                            </small>
+                        </div>
+                        <div class="mb-2">
+                            <strong>Avg Decay CV:</strong> ${metrics.avgDecayCV.toFixed(1)}%<br>
+                            <small class="text-muted">(Lower = smoother)</small>
+                        </div>
+                        <div>
+                            <strong>Avg Outliers:</strong> ${metrics.avgOutliers.toFixed(1)} (${metrics.avgOutlierPercent.toFixed(1)}%)<br>
+                            <small class="text-muted">(>2σ from avg)</small>
+                        </div>
+                    `;
+
             document.getElementById('balanceMetrics').innerHTML = html;
         }
 
@@ -400,13 +425,13 @@
 
         function updateWeightedDecayChart() {
             const ctx = document.getElementById('weightedDecayChart').getContext('2d');
-            
+
             if (charts.weightedDecay) {
                 charts.weightedDecay.destroy();
             }
 
             const data = recalculatedData.aggregatedDecay;
-            
+
             charts.weightedDecay = new Chart(ctx, {
                 type: 'line',
                 data: {
@@ -461,13 +486,13 @@
 
         function updateComponentContributionChart() {
             const ctx = document.getElementById('componentContributionChart').getContext('2d');
-            
+
             if (charts.componentContribution) {
                 charts.componentContribution.destroy();
             }
 
             const data = recalculatedData.componentBalance;
-            
+
             charts.componentContribution = new Chart(ctx, {
                 type: 'bar',
                 data: {
@@ -512,13 +537,13 @@
 
         function updateAccuracyRewardChart() {
             const ctx = document.getElementById('accuracyRewardChart').getContext('2d');
-            
+
             if (charts.accuracyReward) {
                 charts.accuracyReward.destroy();
             }
 
             const data = recalculatedData.accuracyReward;
-            
+
             charts.accuracyReward = new Chart(ctx, {
                 type: 'scatter',
                 data: {
@@ -557,13 +582,13 @@
 
         function updatePlayerChangesChart() {
             const ctx = document.getElementById('playerChangesChart').getContext('2d');
-            
+
             if (charts.playerChanges) {
                 charts.playerChanges.destroy();
             }
 
             const data = recalculatedData.playerChanges;
-            
+
             charts.playerChanges = new Chart(ctx, {
                 type: 'bar',
                 data: {

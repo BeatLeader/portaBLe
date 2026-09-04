@@ -1,25 +1,22 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using portaBLe.DB;
 using portaBLe.Refresh;
+using portaBLe.Services;
 using System.Text.Json;
 
 namespace portaBLe.Pages
 {
-    public class BatchPlayersBalancingModel : PageModel
+    public class BatchPlayersBalancingModel : BasePageModel
     {
-        private readonly AppContext _context;
-
-        public BatchPlayersBalancingModel(AppContext context)
+        public BatchPlayersBalancingModel(IDynamicDbContextService dbService) : base(dbService)
         {
-            _context = context;
         }
 
-        [BindProperty]
+        [BindProperty(SupportsGet = true)]
         public int? MinRank { get; set; }
 
-        [BindProperty]
+        [BindProperty(SupportsGet = true)]
         public int? MaxRank { get; set; }
 
         public List<string> PlayerIds { get; set; }
@@ -27,27 +24,32 @@ namespace portaBLe.Pages
         public int TotalScores { get; set; }
         public List<ScoreData> AllScores { get; set; }
 
-        public async Task<IActionResult> OnGetAsync()
+        public async Task<IActionResult> OnGetAsync(string db = null)
         {
+            await InitializeDatabaseSelectionAsync(db);
+
+            // Auto-load players if rank parameters are present (e.g., when switching databases)
+            if (MinRank.HasValue && MaxRank.HasValue)
+            {
+                return await LoadPlayersAsync();
+            }
+
             // Just show the empty form on GET
             return Page();
         }
 
-        public async Task<IActionResult> OnPostAsync()
+        private async Task<IActionResult> LoadPlayersAsync()
         {
-            if (!MinRank.HasValue || !MaxRank.HasValue)
-            {
-                return Page();
-            }
-
             if (MinRank.Value < 1 || MaxRank.Value < MinRank.Value)
             {
                 ModelState.AddModelError(string.Empty, "Invalid rank range");
                 return Page();
             }
 
+            using var context = (Services.DynamicDbContext)GetDbContext();
+
             // Load players by rank range
-            Players = await _context.Players
+            Players = await context.Players
                 .Where(p => p.Rank >= MinRank.Value && p.Rank <= MaxRank.Value && p.Pp > 0)
                 .OrderBy(p => p.Rank)
                 .ToListAsync();
@@ -60,7 +62,7 @@ namespace portaBLe.Pages
             PlayerIds = Players.Select(p => p.Id).ToList();
 
             // Load all scores for these players
-            AllScores = await _context.Scores
+            AllScores = await context.Scores
                 .Include(s => s.Leaderboard)
                 .ThenInclude(l => l.ModifiersRating)
                 .Where(s => PlayerIds.Contains(s.PlayerId))
@@ -90,13 +92,29 @@ namespace portaBLe.Pages
             return Page();
         }
 
-        public async Task<IActionResult> OnPostRecalculateBatchAsync([FromBody] RecalculateBatchRequest request)
+        public async Task<IActionResult> OnPostAsync(string db = null)
         {
+            await InitializeDatabaseSelectionAsync(db);
+
+            if (!MinRank.HasValue || !MaxRank.HasValue)
+            {
+                return Page();
+            }
+
+            return await LoadPlayersAsync();
+        }
+
+        public async Task<IActionResult> OnPostRecalculateBatchAsync([FromBody] RecalculateBatchRequest request, string db = null)
+        {
+            await InitializeDatabaseSelectionAsync(db);
+
+            using var context = (Services.DynamicDbContext)GetDbContext();
+
             var playerResults = new List<PlayerResult>();
 
             foreach (var playerId in request.PlayerIds)
             {
-                var scores = await _context.Scores
+                var scores = await context.Scores
                     .Include(s => s.Leaderboard)
                     .ThenInclude(l => l.ModifiersRating)
                     .Where(s => s.PlayerId == playerId)
@@ -190,12 +208,12 @@ namespace portaBLe.Pages
                 {
                     var weighted = scores[i];
                     var weightFactor = Math.Pow(0.965, i);
-                    
+
                     if (!decayData.ContainsKey(i))
                     {
                         decayData[i] = (0, 0, 0);
                     }
-                    
+
                     var current = decayData[i];
                     decayData[i] = (
                         current.sumOriginal + weighted.CurrentPP * weightFactor,

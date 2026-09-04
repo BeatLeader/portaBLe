@@ -1,14 +1,13 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using portaBLe.Services;
 using System.Text.Json;
 using static portaBLe.Pages.LeaderboardModel;
 
 namespace portaBLe.Pages
 {
-    public class WeightedScoresGraphModel : PageModel
+    public class WeightedScoresGraphModel : BasePageModel
     {
-        private readonly AppContext _context;
         public string WeightedJsonData { get; set; }
 
         // Min weight expressed as percentage 0..100 for easier UI. Will be converted to 0..1 fraction.
@@ -34,18 +33,19 @@ namespace portaBLe.Pages
         [BindProperty(SupportsGet = true)]
         public string PlayerId { get; set; } = string.Empty;
 
-        public WeightedScoresGraphModel(AppContext context)
+        public WeightedScoresGraphModel(IDynamicDbContextService dbService) : base(dbService)
         {
-            _context = context;
         }
 
-        public async Task OnGetAsync()
+        public async Task OnGetAsync(string db = null)
         {
+            await InitializeDatabaseSelectionAsync(db);
             WeightedJsonData = "[]";
         }
 
-        public async Task<IActionResult> OnGetDataAsync(float minWeightPercent = 0, int minYear = 0, int minMonth = 0, int minDay = 0, int maxPlayerRank = 0, int minRankedPlayCount = 0, string playerId = "")
+        public async Task<IActionResult> OnGetDataAsync(float minWeightPercent = 0, int minYear = 0, int minMonth = 0, int minDay = 0, int maxPlayerRank = 0, int minRankedPlayCount = 0, string playerId = "", string db = null)
         {
+            await InitializeDatabaseSelectionAsync(db);
             int minTimepost = ConvertDateToUnix(minYear, minMonth, minDay);
             var filteredPoints = await GetFilteredPointsAsync(minWeightPercent / 100f, minTimepost, maxPlayerRank, minRankedPlayCount, playerId);
             return new JsonResult(filteredPoints);
@@ -70,7 +70,9 @@ namespace portaBLe.Pages
 
         private async Task<List<object>> GetFilteredPointsAsync(float minWeightFraction, int minTimepost, int maxPlayerRank, int minRankedPlayCount, string playerId)
         {
-            var points = await _context.Scores
+            using var context = (Services.DynamicDbContext)GetDbContext();
+
+            var points = await context.Scores
                 .Include(s => s.Player)
                 .Include(s => s.Leaderboard)
                 .Where(s => s.Weight >= minWeightFraction

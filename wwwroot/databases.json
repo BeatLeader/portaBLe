@@ -1,0 +1,10 @@
+{
+  "MainDB": 0,
+  "Databases": [
+    {
+      "Name": "Current Database",
+      "FileName": "Database.db",
+      "Description": "Current production database"
+    }
+  ]
+}

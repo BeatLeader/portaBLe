@@ -10,6 +10,10 @@
     <div class="row mb-3">
         <div class="col-md-12">
             <form method="get" class="form-inline">
+                @if (!string.IsNullOrEmpty(Model.SelectedDatabase))
+                {
+                    <input type="hidden" name="db" value="@Model.SelectedDatabase" />
+                }
                 <div class="form-group mr-2">
                     <label for="playerId" class="mr-2">Player ID:</label>
                     <input type="text" class="form-control" id="playerId" name="playerId" value="@Model.PlayerId" placeholder="Enter player ID" />
@@ -23,7 +27,7 @@
     @if (Model.Player != null)
     {
         @Html.AntiForgeryToken()
-        
+
         <div class="row mb-3">
             <div class="col-md-12">
                 <div class="card">
@@ -33,13 +37,13 @@
                             <div>
                                 <h4>@Model.Player.Name</h4>
                                 <p class="mb-1">
-                                    <strong>Total PP:</strong> @Model.Player.Pp.ToString("F2") 
+                                    <strong>Total PP:</strong> @Model.Player.Pp.ToString("F2")
                                     | <strong>Acc PP:</strong> @Model.Player.AccPp.ToString("F2")
                                     | <strong>Tech PP:</strong> @Model.Player.TechPp.ToString("F2")
                                     | <strong>Pass PP:</strong> @Model.Player.PassPp.ToString("F2")
                                 </p>
                                 <p class="mb-0">
-                                    <strong>Rank:</strong> #@Model.Player.Rank 
+                                    <strong>Rank:</strong> #@Model.Player.Rank
                                     | <strong>Country Rank:</strong> #@Model.Player.CountryRank (@Model.Player.Country)
                                     | <strong>Ranked Plays:</strong> @Model.Player.RankedPlayCount
                                 </p>
@@ -225,6 +229,14 @@
         // Load saved parameters on page load
         window.addEventListener('DOMContentLoaded', function() {
             loadSavedParameters();
+
+            // Auto-load graphs if player is loaded and scores exist
+            if (originalScores && originalScores.length > 0) {
+                // Give a small delay to ensure DOM is fully ready
+                setTimeout(function() {
+                    recalculatePP();
+                }, 100);
+            }
         });
 
         function saveParameters() {
@@ -296,14 +308,24 @@
             const parameters = getParameters();
             saveParameters(); // Save parameters when recalculating
             const tokenElement = document.querySelector('input[name="__RequestVerificationToken"]');
-            
+
             if (!tokenElement) {
                 alert('Security token not found. Please refresh the page.');
                 return;
             }
 
+            // Get the current database selection from URL
+            const urlParams = new URLSearchParams(window.location.search);
+            const dbParam = urlParams.get('db');
+
+            // Build URL with db parameter if present
+            let url = '/PlayersBalancingGraphs?handler=Recalculate';
+            if (dbParam) {
+                url += '&db=' + encodeURIComponent(dbParam);
+            }
+
             try {
-                const response = await fetch('/PlayersBalancingGraphs?handler=Recalculate', {
+                const response = await fetch(url, {
                     method: 'POST',
                     headers: {
                         'Content-Type': 'application/json',
@@ -331,28 +353,28 @@
 
         function updateBalanceMetrics() {
             if (!recalculatedData) return;
-            
+
             const metrics = calculateBalanceMetrics(recalculatedData.scores);
-            
+
             const html = `
-                <div class="mb-2">
-                    <strong>Component Balance:</strong><br>
-                    <small>
-                        Acc: ${metrics.componentBalance.acc}%<br>
-                        Tech: ${metrics.componentBalance.tech}%<br>
-                        Pass: ${metrics.componentBalance.pass}%
-                    </small>
-                </div>
-                <div class="mb-2">
-                    <strong>Decay CV:</strong> ${metrics.decayCV}%<br>
-                    <small class="text-muted">(Lower = smoother)</small>
-                </div>
-                <div>
-                    <strong>Outliers:</strong> ${metrics.outliers} (${metrics.outlierPercent}%)<br>
-                    <small class="text-muted">(>2σ from avg)</small>
-                </div>
-            `;
-            
+                        <div class="mb-2">
+                            <strong>Component Balance:</strong><br>
+                            <small>
+                                Acc: ${metrics.componentBalance.acc}%<br>
+                                Tech: ${metrics.componentBalance.tech}%<br>
+                                Pass: ${metrics.componentBalance.pass}%
+                            </small>
+                        </div>
+                        <div class="mb-2">
+                            <strong>Decay CV:</strong> ${metrics.decayCV}%<br>
+                            <small class="text-muted">(Lower = smoother)</small>
+                        </div>
+                        <div>
+                            <strong>Outliers:</strong> ${metrics.outliers} (${metrics.outlierPercent}%)<br>
+                            <small class="text-muted">(>2σ from avg)</small>
+                        </div>
+                    `;
+
             document.getElementById('balanceMetrics').innerHTML = html;
         }
 
@@ -366,47 +388,47 @@
             const passPPChange = totals.passPP - totals.originalPassPP;
 
             const html = `
-                <table class="table table-sm">
-                    <tr>
-                        <th>Metric</th>
-                        <th>Original</th>
-                        <th>New</th>
-                        <th>Change</th>
-                    </tr>
-                    <tr>
-                        <td><strong>Total PP</strong></td>
-                        <td>${totals.originalPP.toFixed(2)}</td>
-                        <td>${totals.pp.toFixed(2)}</td>
-                        <td class="${ppChange >= 0 ? 'text-success' : 'text-danger'}">
-                            ${ppChange >= 0 ? '+' : ''}${ppChange.toFixed(2)}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>Acc PP</td>
-                        <td>${totals.originalAccPP.toFixed(2)}</td>
-                        <td>${totals.accPP.toFixed(2)}</td>
-                        <td class="${accPPChange >= 0 ? 'text-success' : 'text-danger'}">
-                            ${accPPChange >= 0 ? '+' : ''}${accPPChange.toFixed(2)}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>Tech PP</td>
-                        <td>${totals.originalTechPP.toFixed(2)}</td>
-                        <td>${totals.techPP.toFixed(2)}</td>
-                        <td class="${techPPChange >= 0 ? 'text-success' : 'text-danger'}">
-                            ${techPPChange >= 0 ? '+' : ''}${techPPChange.toFixed(2)}
-                        </td>
-                    </tr>
-                    <tr>
-                        <td>Pass PP</td>
-                        <td>${totals.originalPassPP.toFixed(2)}</td>
-                        <td>${totals.passPP.toFixed(2)}</td>
-                        <td class="${passPPChange >= 0 ? 'text-success' : 'text-danger'}">
-                            ${passPPChange >= 0 ? '+' : ''}${passPPChange.toFixed(2)}
-                        </td>
-                    </tr>
-                </table>
-            `;
+                        <table class="table table-sm">
+                            <tr>
+                                <th>Metric</th>
+                                <th>Original</th>
+                                <th>New</th>
+                                <th>Change</th>
+                            </tr>
+                            <tr>
+                                <td><strong>Total PP</strong></td>
+                                <td>${totals.originalPP.toFixed(2)}</td>
+                                <td>${totals.pp.toFixed(2)}</td>
+                                <td class="${ppChange >= 0 ? 'text-success' : 'text-danger'}">
+                                    ${ppChange >= 0 ? '+' : ''}${ppChange.toFixed(2)}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Acc PP</td>
+                                <td>${totals.originalAccPP.toFixed(2)}</td>
+                                <td>${totals.accPP.toFixed(2)}</td>
+                                <td class="${accPPChange >= 0 ? 'text-success' : 'text-danger'}">
+                                    ${accPPChange >= 0 ? '+' : ''}${accPPChange.toFixed(2)}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Tech PP</td>
+                                <td>${totals.originalTechPP.toFixed(2)}</td>
+                                <td>${totals.techPP.toFixed(2)}</td>
+                                <td class="${techPPChange >= 0 ? 'text-success' : 'text-danger'}">
+                                    ${techPPChange >= 0 ? '+' : ''}${techPPChange.toFixed(2)}
+                                </td>
+                            </tr>
+                            <tr>
+                                <td>Pass PP</td>
+                                <td>${totals.originalPassPP.toFixed(2)}</td>
+                                <td>${totals.passPP.toFixed(2)}</td>
+                                <td class="${passPPChange >= 0 ? 'text-success' : 'text-danger'}">
+                                    ${passPPChange >= 0 ? '+' : ''}${passPPChange.toFixed(2)}
+                                </td>
+                            </tr>
+                        </table>
+                    `;
 
             document.getElementById('comparisonResults').innerHTML = html;
         }
@@ -423,26 +445,26 @@
 
         function calculateBalanceMetrics(scores) {
             const weightedPPs = scores.map((s, i) => s.newPP * Math.pow(0.965, i));
-            
+
             const totalAcc = scores.reduce((sum, s) => sum + s.newAccPP, 0);
             const totalTech = scores.reduce((sum, s) => sum + s.newTechPP, 0);
             const totalPass = scores.reduce((sum, s) => sum + s.newPassPP, 0);
             const total = totalAcc + totalTech + totalPass;
-            
+
             const ppDrops = [];
             for (let i = 1; i < Math.min(100, weightedPPs.length); i++) {
-                ppDrops.push(weightedPPs[i-1] - weightedPPs[i]);
+                ppDrops.push(weightedPPs[i - 1] - weightedPPs[i]);
             }
             const avgDrop = ppDrops.reduce((a, b) => a + b, 0) / ppDrops.length;
             const stdDrop = Math.sqrt(ppDrops.reduce((sum, x) => sum + Math.pow(x - avgDrop, 2), 0) / ppDrops.length);
             const cvDrop = (stdDrop / avgDrop) * 100;
-            
+
             const rollingAvg = calculateRollingAverage(scores.map(s => s.newPP), 20);
             const diffs = scores.map((s, i) => Math.abs(s.newPP - rollingAvg[i]));
             const meanDiff = diffs.reduce((a, b) => a + b, 0) / diffs.length;
             const stdDiff = Math.sqrt(diffs.reduce((sum, x) => sum + Math.pow(x - meanDiff, 2), 0) / diffs.length);
             const outliers = diffs.filter(d => d > meanDiff + 2 * stdDiff).length;
-            
+
             return {
                 componentBalance: {
                     acc: ((totalAcc / total) * 100).toFixed(1),
@@ -468,7 +490,7 @@
 
         function updateWeightedDecayChart() {
             const ctx = document.getElementById('weightedDecayChart').getContext('2d');
-            
+
             if (charts.weightedDecay) {
                 charts.weightedDecay.destroy();
             }
@@ -477,7 +499,7 @@
             const weightedOriginal = scores.map((s, i) => s.currentPP * Math.pow(0.965, i));
             const weightedNew = scores.map((s, i) => s.newPP * Math.pow(0.965, i));
             const labels = scores.map((_, i) => i + 1);
-            
+
             charts.weightedDecay = new Chart(ctx, {
                 type: 'line',
                 data: {
@@ -534,7 +556,7 @@
 
         function updateComponentContributionChart() {
             const ctx = document.getElementById('componentContributionChart').getContext('2d');
-            
+
             if (charts.componentContribution) {
                 charts.componentContribution.destroy();
             }
@@ -542,22 +564,22 @@
             const bucketSize = 50;
             const buckets = [];
             const scores = recalculatedData.scores;
-            
+
             for (let i = 0; i < Math.min(200, scores.length); i += bucketSize) {
                 const bucket = scores.slice(i, i + bucketSize);
                 const totalAcc = bucket.reduce((sum, s) => sum + s.newAccPP, 0);
                 const totalTech = bucket.reduce((sum, s) => sum + s.newTechPP, 0);
                 const totalPass = bucket.reduce((sum, s) => sum + s.newPassPP, 0);
                 const total = totalAcc + totalTech + totalPass;
-                
+
                 buckets.push({
-                    label: `#${i+1}-${i+bucketSize}`,
+                    label: `#${i + 1}-${i + bucketSize}`,
                     acc: (totalAcc / total) * 100,
                     tech: (totalTech / total) * 100,
                     pass: (totalPass / total) * 100
                 });
             }
-            
+
             charts.componentContribution = new Chart(ctx, {
                 type: 'bar',
                 data: {
@@ -602,7 +624,7 @@
 
         function updateAccuracyRewardChart() {
             const ctx = document.getElementById('accuracyRewardChart').getContext('2d');
-            
+
             if (charts.accuracyReward) {
                 charts.accuracyReward.destroy();
             }
@@ -616,7 +638,7 @@
                 accBuckets[accPercent].total += s.newPP;
                 accBuckets[accPercent].count++;
             });
-            
+
             const accData = Object.keys(accBuckets)
                 .map(k => parseInt(k))
                 .sort((a, b) => a - b)
@@ -624,7 +646,7 @@
                     x: acc,
                     y: accBuckets[acc].total / accBuckets[acc].count
                 }));
-            
+
             charts.accuracyReward = new Chart(ctx, {
                 type: 'scatter',
                 data: {
@@ -663,7 +685,7 @@
 
         function updateRollingAverageChart() {
             const ctx = document.getElementById('rollingAverageChart').getContext('2d');
-            
+
             if (charts.rollingAverage) {
                 charts.rollingAverage.destroy();
             }
@@ -672,12 +694,12 @@
             const windowSize = 50;
             const originalPPs = scores.map(s => s.currentPP);
             const newPPs = scores.map(s => s.newPP);
-            
+
             const originalRolling = calculateRollingAverage(originalPPs, windowSize);
             const newRolling = calculateRollingAverage(newPPs, windowSize);
-            
+
             const labels = scores.map((_, i) => i + 1);
-            
+
             charts.rollingAverage = new Chart(ctx, {
                 type: 'line',
                 data: {
@@ -736,14 +758,14 @@
 
         function updateTotalPPChart() {
             const ctx = document.getElementById('totalPPChart').getContext('2d');
-            
+
             if (charts.totalPP) {
                 charts.totalPP.destroy();
             }
 
             const scores = recalculatedData.scores.slice(0, 100);
             const labels = scores.map((_, i) => `#${i + 1}`);
-            
+
             charts.totalPP = new Chart(ctx, {
                 type: 'bar',
                 data: {
@@ -779,14 +801,14 @@
 
         function updateComponentsChart() {
             const ctx = document.getElementById('componentsChart').getContext('2d');
-            
+
             if (charts.components) {
                 charts.components.destroy();
             }
 
             const scores = recalculatedData.scores.slice(0, 50);
             const labels = scores.map((_, i) => `#${i + 1}`);
-            
+
             charts.components = new Chart(ctx, {
                 type: 'line',
                 data: {

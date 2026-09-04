@@ -1,0 +1,101 @@
+@page
+@model portaBLe.Pages.SongRecommendationsModel
+
+<h2>Song Recommendations</h2>
+<p class="text-muted">
+    Generates personalized song recommendations for a player, based on the top plays of other
+    players who share songs with them (a SmartSongSuggest-style "linked player" model), using
+    portaBLe's local database instead of the BeatLeader API.
+</p>
+
+@if (!string.IsNullOrEmpty(Model.ErrorMessage))
+{
+    <div class="alert alert-danger">@Model.ErrorMessage</div>
+}
+
+<form method="post" class="mb-4">
+    @if (!string.IsNullOrEmpty(Model.SelectedDatabase))
+    {
+        <input type="hidden" name="db" value="@Model.SelectedDatabase" />
+    }
+    <div class="row g-3 align-items-end">
+        <div class="col-auto">
+            <label for="PlayerId" class="form-label">Player Id:</label>
+            <input type="text" asp-for="PlayerId" class="form-control" placeholder="e.g. 76561198000000000" />
+        </div>
+        <div class="col-auto">
+            <label for="SeedCount" class="form-label">Seed count:</label>
+            <input type="number" asp-for="SeedCount" class="form-control" min="1" max="200" />
+        </div>
+        <div class="col-auto">
+            <label for="TopK" class="form-label">Top-K:</label>
+            <input type="number" asp-for="TopK" class="form-control" min="1" max="200" />
+        </div>
+        <div class="col-auto">
+            <label for="StyleWeight" class="form-label">Style weight:</label>
+            <input type="number" asp-for="StyleWeight" class="form-control" min="0" max="100" />
+        </div>
+        <div class="col-auto">
+            <label for="OverweightWeight" class="form-label">Overweight weight:</label>
+            <input type="number" asp-for="OverweightWeight" class="form-control" min="0" max="100" />
+        </div>
+        <div class="col-auto">
+            <label for="LinkKeepPercent" class="form-label">Link keep %:</label>
+            <input type="number" asp-for="LinkKeepPercent" class="form-control" min="0" max="1" step="0.05" />
+        </div>
+        <div class="col-auto form-check mb-2">
+            <input type="checkbox" asp-for="ExcludeAlreadyPlayed" class="form-check-input" />
+            <label for="ExcludeAlreadyPlayed" class="form-check-label">Exclude already played</label>
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-primary">Recommend</button>
+            <button type="submit" asp-page-handler="Download" class="btn btn-secondary">Download .bplist</button>
+        </div>
+    </div>
+</form>
+
+@if (Model.Results.Count > 0)
+{
+    <p>@Model.Results.Count recommended song(s) for player <strong>@Model.PlayerId</strong>.</p>
+
+    <table class="table table-striped">
+        <thead>
+            <tr>
+                <th>#</th>
+                <th>Song</th>
+                <th>Difficulty</th>
+                <th>Stars</th>
+                <th>Score</th>
+                <th>Style</th>
+                <th>Overweight</th>
+                <th>Linked players</th>
+                <th>Avg PP</th>
+                <th>Avg rank</th>
+            </tr>
+        </thead>
+        <tbody>
+            @for (var i = 0; i < Model.Results.Count; i++)
+            {
+                var song = Model.Results[i];
+                <tr>
+                    <td>@(i + 1)</td>
+                    <td>
+                        @song.Song.Name
+                        @if (song.Song.Modifier != beatleader_songrec.Models.SpeedModifier.None)
+                        {
+                            <em>(@song.Song.Modifier)</em>
+                        }
+                    </td>
+                    <td>@song.Song.DifficultyName @song.Song.ModeName</td>
+                    <td>@(song.Song.Stars.HasValue ? $"{song.Song.Stars.Value:0.00}★" : "-")</td>
+                    <td>@song.Score.ToString("0.00")</td>
+                    <td>@song.StyleScore.ToString("0.00")</td>
+                    <td>@song.OverweightScore.ToString("0.00")</td>
+                    <td>@song.LinkedPlayerCount</td>
+                    <td>@song.AveragePp.ToString("0.0")</td>
+                    <td>@song.AverageRank.ToString("0.0")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}

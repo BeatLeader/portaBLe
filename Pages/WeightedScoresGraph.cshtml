@@ -1,7 +1,7 @@
 ﻿@page
-@model portaBLe.Pages.WeightedScoresGraphModel
+@model portaBLe.Pages.UnweightedScoresGraphModel
 @{
-    ViewData["Title"] = "Weighted Scores Graph";
+    ViewData["Title"] = "Unweighted Scores Graph";
 }
 
 <h2>@ViewData["Title"]</h2>
@@ -15,13 +15,6 @@
                 </div>
                 <div class="card-body">
                     <div class="row">
-                        <div class="col-md-3">
-                            <div class="form-group">
-                                <label for="minWeight">Min Score Weight (%)</label>
-                                <input id="minWeight" type="number" class="form-control" step="0.1" min="0" max="100" value="@Model.MinWeightPercent" />
-                                <small class="form-text text-muted">0-100%</small>
-                            </div>
-                        </div>
                         <div class="col-md-3">
                             <div class="form-group">
                                 <label>From Date (Y / M / D)</label>
@@ -45,27 +38,27 @@
                                 <input id="minRankedPlayCount" type="number" class="form-control" value="@Model.MinRankedPlayCount" />
                             </div>
                         </div>
-                    </div>
-                    <div class="row">
                         <div class="col-md-3">
                             <div class="form-group">
                                 <label for="playerId">Player ID (optional)</label>
                                 <input id="playerId" type="text" class="form-control" value="@Model.PlayerId" placeholder="Enter player ID" />
                             </div>
                         </div>
+                    </div>
+                    <div class="row">
                         <div class="col-md-3">
                             <div class="form-group">
                                 <label for="ySelect">Y-axis</label>
                                 <select id="ySelect" class="form-control">
-                                    <option value="pp">Weighted PP</option>
+                                    <option value="pp">Unweighted PP</option>
                                     <option value="acc">Score Accuracy</option>
-                                    <option value="accPP">Weighted Acc PP</option>
-                                    <option value="passPP">Weighted Pass PP</option>
-                                    <option value="techPP">Weighted Tech PP</option>
+                                    <option value="accPP">Unweighted Acc PP</option>
+                                    <option value="passPP">Unweighted Pass PP</option>
+                                    <option value="techPP">Unweighted Tech PP</option>
                                 </select>
                             </div>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-md-3">
                             <div class="form-group">
                                 <label for="xSelect">X-axis</label>
                                 <select id="xSelect" class="form-control">
@@ -73,17 +66,16 @@
                                     <option value="passRating">Pass Rating</option>
                                     <option value="techRating">Tech Rating</option>
                                     <option value="accRating">Acc Rating</option>
-                                    <option value="weight">Weight</option>
                                 </select>
                             </div>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-md-3">
                             <div class="form-group">
                                 <label for="rollingWindow">Rolling window smoothing (points)</label>
                                 <input id="rollingWindow" type="number" class="form-control" min="1" step="1" value="50" />
                             </div>
                         </div>
-                        <div class="col-md-2">
+                        <div class="col-md-3">
                             <div class="form-group">
                                 <label>&nbsp;</label>
                                 <div class="d-flex align-items-center">
@@ -118,8 +110,8 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-header">
-                    <h5 class="mb-0">Weighted Scores Scatter Plot</h5>
-                    <small class="text-muted">Score distribution with weight filtering and rolling average overlay</small>
+                    <h5 class="mb-0">Unweighted Scores Scatter Plot</h5>
+                    <small class="text-muted">Score distribution with rolling average overlay</small>
                 </div>
                 <div class="card-body">
                     <div id="myPlot" style="width:100%;height:500px;"></div>
@@ -137,15 +129,14 @@
         function getAxisLabel(field) {
             switch (field) {
                 case 'x': return 'Stars';
-                case 'pp': return 'Weighted PP';
+                case 'pp': return 'Unweighted PP';
                 case 'acc': return 'Score Accuracy';
-                case 'accPP': return 'Weighted Acc PP';
-                case 'passPP': return 'Weighted Pass PP';
-                case 'techPP': return 'Weighted Tech PP';
+                case 'accPP': return 'Unweighted Acc PP';
+                case 'passPP': return 'Unweighted Pass PP';
+                case 'techPP': return 'Unweighted Tech PP';
                 case 'accRating': return 'Acc Rating';
                 case 'passRating': return 'Pass Rating';
                 case 'techRating': return 'Tech Rating';
-                case 'weight': return 'Weight %';
                 default: return field;
             }
         }
@@ -282,21 +273,21 @@
         const defaultWindow = parseInt(document.getElementById('rollingWindow').value || '50');
         renderPlot(data, 'x', 'pp', defaultWindow);
 
-        document.getElementById('xSelect').addEventListener('change', function () {
+        document.getElementById('xSelect').addEventListener('change', function() {
             const x = this.value;
             const y = document.getElementById('ySelect').value;
             const w = parseInt(document.getElementById('rollingWindow').value || '50');
             renderPlot(data, x, y, w);
         });
 
-        document.getElementById('ySelect').addEventListener('change', function () {
+        document.getElementById('ySelect').addEventListener('change', function() {
             const x = document.getElementById('xSelect').value;
             const y = this.value;
             const w = parseInt(document.getElementById('rollingWindow').value || '50');
             renderPlot(data, x, y, w);
         });
 
-        document.getElementById('rollingWindow').addEventListener('change', function () {
+        document.getElementById('rollingWindow').addEventListener('change', function() {
             const x = document.getElementById('xSelect').value;
             const y = document.getElementById('ySelect').value;
             const w = parseInt(this.value || '50');
@@ -308,7 +299,6 @@
         }
 
         async function fetchFiltered() {
-            const minWeight = parseFloat(document.getElementById('minWeight').value) || 0;
             const minYear = parseInt(document.getElementById('minYear').value) || 0;
             const minMonth = parseInt(document.getElementById('minMonth').value) || 0;
             const minDay = parseInt(document.getElementById('minDay').value) || 0;
@@ -319,9 +309,28 @@
             const y = document.getElementById('ySelect').value;
             const windowSize = parseInt(document.getElementById('rollingWindow').value) || 50;
 
+            // Update the browser URL with filter parameters so they persist when switching databases
+            const pageUrl = new URL(window.location.href);
+            pageUrl.searchParams.set('minYear', minYear);
+            pageUrl.searchParams.set('minMonth', minMonth);
+            pageUrl.searchParams.set('minDay', minDay);
+            pageUrl.searchParams.set('maxPlayerRank', maxPlayerRank);
+            pageUrl.searchParams.set('minRankedPlayCount', minRankedPlayCount);
+            pageUrl.searchParams.set('playerId', playerId);
+            window.history.replaceState({}, '', pageUrl);
+
             const url = new URL(window.location.href);
             url.pathname = url.pathname.replace(/\/$/, '');
-            url.search = `?handler=Data&minWeightPercent=${encodeURIComponent(minWeight)}&minYear=${encodeURIComponent(minYear)}&minMonth=${encodeURIComponent(minMonth)}&minDay=${encodeURIComponent(minDay)}&maxPlayerRank=${encodeURIComponent(maxPlayerRank)}&minRankedPlayCount=${encodeURIComponent(minRankedPlayCount)}&playerId=${encodeURIComponent(playerId)}`;
+            const dbParam = url.searchParams.get('db');
+            url.search = '';
+            url.searchParams.set('handler', 'Data');
+            url.searchParams.set('minYear', minYear);
+            url.searchParams.set('minMonth', minMonth);
+            url.searchParams.set('minDay', minDay);
+            url.searchParams.set('maxPlayerRank', maxPlayerRank);
+            url.searchParams.set('minRankedPlayCount', minRankedPlayCount);
+            url.searchParams.set('playerId', playerId);
+            if (dbParam) url.searchParams.set('db', dbParam);
 
             showSpinner(true);
             try {
@@ -338,8 +347,22 @@
             }
         }
 
-        document.getElementById('applyFilters').addEventListener('click', function () {
+        document.getElementById('applyFilters').addEventListener('click', function() {
             fetchFiltered();
         });
+
+        // Auto-load data on page load if filter parameters are present in URL
+        function shouldAutoLoad() {
+            const urlParams = new URLSearchParams(window.location.search);
+            // Check if any filter parameter is set (excluding just 'db')
+            const filterParams = ['minYear', 'minMonth', 'minDay', 'maxPlayerRank', 'minRankedPlayCount', 'playerId'];
+            return filterParams.some(param => urlParams.has(param) && urlParams.get(param) !== '' && urlParams.get(param) !== '0');
+        }
+
+        // Auto-load on page load if filters are present
+        if (shouldAutoLoad()) {
+            fetchFiltered();
+        }
     </script>
+}
 }

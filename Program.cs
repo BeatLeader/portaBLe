@@ -4,7 +4,7 @@ using Amazon.S3.Model;
 using Amazon.S3.Transfer;
 using Microsoft.EntityFrameworkCore;
 using portaBLe.DB;
-using portaBLe.MapRecommendation.Ranked;
+using portaBLe.Services;
 using portaBLe.Refresh;
 using System.Diagnostics;
 using System.IO.Compression;
@@ -123,7 +123,11 @@ namespace portaBLe
             return new AmazonS3Client(accessKey, secretKey, RegionEndpoint.USEast1);
         }
 
-        public static async Task<string> UploadDatabaseAsync(string filePath)
+        public static async Task<string> UploadDatabaseAsync(
+            string filePath,
+            string? name = null,
+            string? description = null,
+            bool isMain = false)
         {
             var client = GetS3Client();
 
@@ -134,10 +138,45 @@ namespace portaBLe
             var key = $"{dbName}";
 
             await fileTransferUtility.UploadAsync(filePath, "portabledbs", key);
-            Console.WriteLine("Uploading DB: " + dbName);
-            // Save the database name to a file in wwwroot
-            File.WriteAllText(Path.Combine("wwwroot", "current_db_name.txt"), dbName);
-            Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
+
+            // Update databases.json with the new database entry
+            var configPath = Path.Combine("wwwroot", "databases.json");
+            DatabasesConfig config;
+
+            if (File.Exists(configPath))
+            {
+                var json = File.ReadAllText(configPath);
+                config = JsonSerializer.Deserialize<DatabasesConfig>(json, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+            }
+            else
+            {
+                config = new DatabasesConfig
+                {
+                    MainDB = 0,
+                    Databases = new List<DatabaseConfig>()
+                };
+            }
+
+            // Add new database to the config
+            config.Databases.Add(new DatabaseConfig
+            {
+                Name = name ?? $"Database {DateTime.UtcNow:yyyy-MM-dd HH:mm}",
+                FileName = dbName,
+                Description = description ?? "Uploaded database"
+            });
+
+            if (isMain)
+            {
+                config.MainDB = config.Databases.Count - 1;
+            }
+
+            // Save updated config
+            var updatedJson = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(configPath, updatedJson);
+
             return dbName;
         }
 
@@ -228,7 +267,7 @@ namespace portaBLe
             // RatingAPI: portaBLe
             // Analyzer: portaBLe
             // Parser: System.Text.Json
-            // Then, compile Parser, then Analyzer, then RatingAPI, then this project in Debug
+            // Then, compile Parser, then Analyzer, then RatingAPI, then this project in Debug (or Release).
             var builder = WebApplication.CreateBuilder(args);
 
             try
@@ -240,8 +279,18 @@ namespace portaBLe
                 // Uncomment to upload the local Database.db to S3
                 // await UploadDatabaseAsync($"{builder.Environment.WebRootPath}/Database.db");
 
+                // Uncomment to upload all local databases to S3 and update databases.json
+                // await UploadAllDatabasesAsync(builder.Environment.WebRootPath);
+
                 // Uncomment to set the current .db file as comparison target
                 // SetComparisonDBTarget();
+
+                // Register the dynamic DB context service
+                builder.Services.AddSingleton<IDynamicDbContextService, DynamicDbContextService>();
+
+                // Uncomment to download all databases from S3 based on databases.json
+                var tempDbService = new DynamicDbContextService(builder.Environment);
+                await tempDbService.DownloadAllDatabasesAsync(builder.Environment.WebRootPath);
 
                 var connectionString = $"Data Source={builder.Environment.WebRootPath}/Database.db;";
                 builder.Services.AddDbContextFactory<AppContext>(options => options.UseSqlite(connectionString));
@@ -249,7 +298,6 @@ namespace portaBLe
                 var comparisonConnectionString = $"Data Source={builder.Environment.WebRootPath}/Comparison.db;";
                 builder.Services.AddDbContextFactory<ComparisonContext>(options => options.UseSqlite(comparisonConnectionString));
 
-                builder.Services.AddSingleton<SongSuggestDataService>();
                 builder.Services.AddRazorPages();
 
                 var app = builder.Build();
@@ -285,6 +333,7 @@ namespace portaBLe
 
                     // Uncomment to overwrite ratings with RatingAPI
                     // await RatingsRefresh.Overwrite(dbContext);
+
                     // Uncomment to recalculate ratings after changing ReplayUtils.
                     // await RatingsRefresh.Refresh(dbContext);
 
@@ -296,6 +345,12 @@ namespace portaBLe
 
                     // Uncomment to refresh everything with current ratings
                     // await RefreshEverything(dbContext);
+
+                    // Uncomment to refresh leaderboards (Megametrics) for ALL databases
+                    // await RefreshLeaderboardsForAllDatabases(tempDbService, builder.Environment.WebRootPath);
+
+                    // Uncomment to calculate and store database statistics for ALL databases
+                    // await RefreshStatsForAllDatabases(tempDbService, builder.Environment.WebRootPath);
                 }
 
                 await app.RunAsync();
@@ -322,6 +377,164 @@ namespace portaBLe
             await LeaderboardsRefresh.Refresh(dbContext);
             await LeaderboardsRefresh.Outliers(dbContext);
             await StatsRefresh.Refresh(dbContext);
+        }
+
+        // Helper method to refresh stats for all databases
+        private static async Task RefreshStatsForAllDatabases(IDynamicDbContextService dbService, string webRootPath)
+        {
+            var databases = await dbService.GetAvailableDatabasesAsync();
+
+            Console.WriteLine($"Refreshing statistics for {databases.Count} databases...");
+
+            foreach (var db in databases)
+            {
+                Console.WriteLine($"\n========================================");
+                Console.WriteLine($"Processing: {db.Name} ({db.FileName})");
+                Console.WriteLine($"========================================");
+
+                try
+                {
+                    var connectionString = $"Data Source={Path.Combine(webRootPath, db.FileName)};";
+                    var optionsBuilder = new DbContextOptionsBuilder<AppContext>();
+                    optionsBuilder.UseSqlite(connectionString);
+
+                    using var dbContext = new AppContext(optionsBuilder.Options);
+                    await StatsRefresh.Refresh(dbContext);
+
+                    Console.WriteLine($"✓ Successfully refreshed stats for {db.Name}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"✗ Error refreshing stats for {db.Name}: {ex.Message}");
+                }
+            }
+
+            Console.WriteLine($"\n========================================");
+            Console.WriteLine($"Completed refreshing stats for all databases");
+            Console.WriteLine($"========================================");
+        }
+
+        // Helper method to refresh leaderboards (Megametrics) for all databases
+        private static async Task RefreshLeaderboardsForAllDatabases(IDynamicDbContextService dbService, string webRootPath)
+        {
+            var databases = await dbService.GetAvailableDatabasesAsync();
+
+            Console.WriteLine($"Refreshing leaderboards (Megametrics) for {databases.Count} databases...");
+
+            foreach (var db in databases)
+            {
+                Console.WriteLine($"\n========================================");
+                Console.WriteLine($"Processing: {db.Name} ({db.FileName})");
+                Console.WriteLine($"========================================");
+
+                try
+                {
+                    var connectionString = $"Data Source={Path.Combine(webRootPath, db.FileName)};";
+                    var optionsBuilder = new DbContextOptionsBuilder<AppContext>();
+                    optionsBuilder.UseSqlite(connectionString);
+
+                    using var dbContext = new AppContext(optionsBuilder.Options);
+                    await LeaderboardsRefresh.Refresh(dbContext);
+
+                    Console.WriteLine($"✓ Successfully refreshed leaderboards for {db.Name}");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"✗ Error refreshing leaderboards for {db.Name}: {ex.Message}");
+                }
+            }
+
+            Console.WriteLine($"\n========================================");
+            Console.WriteLine($"Completed refreshing leaderboards for all databases");
+            Console.WriteLine($"========================================");
+        }
+
+        // Helper method to upload all databases to S3 and update databases.json
+        private static async Task UploadAllDatabasesAsync(string webRootPath)
+        {
+            // Read current databases.json to get existing database info
+            var configPath = Path.Combine(webRootPath, "databases.json");
+            DatabasesConfig config;
+
+            if (File.Exists(configPath))
+            {
+                var json = File.ReadAllText(configPath);
+                config = JsonSerializer.Deserialize<DatabasesConfig>(json, new JsonSerializerOptions
+                {
+                    PropertyNameCaseInsensitive = true
+                });
+            }
+            else
+            {
+                Console.WriteLine("Error: databases.json not found!");
+                return;
+            }
+
+            Console.WriteLine($"Uploading {config.Databases.Count} databases to S3...");
+
+            // Create new config with uploaded databases
+            var newConfig = new DatabasesConfig
+            {
+                MainDB = config.MainDB,
+                Databases = new List<DatabaseConfig>()
+            };
+
+            for (int i = 0; i < config.Databases.Count; i++)
+            {
+                var db = config.Databases[i];
+                var localPath = Path.Combine(webRootPath, db.FileName);
+
+                Console.WriteLine($"\n========================================");
+                Console.WriteLine($"[{i + 1}/{config.Databases.Count}] Uploading: {db.Name}");
+                Console.WriteLine($"========================================");
+
+                if (!File.Exists(localPath))
+                {
+                    Console.WriteLine($"⚠ Warning: File not found locally: {db.FileName}");
+                    Console.WriteLine($"  Keeping existing entry in databases.json");
+                    newConfig.Databases.Add(db);
+                    continue;
+                }
+
+                try
+                {
+                    // Upload to S3 and get new filename
+                    var client = GetS3Client();
+                    var fileTransferUtility = new TransferUtility(client);
+
+                    // Create a unique name for the database file
+                    var newDbName = $"db-{DateTime.UtcNow:yyyyMMddHHmmss}-{new Random().Next(1000, 9999)}.db";
+
+                    Console.WriteLine($"  Uploading as: {newDbName}");
+                    await fileTransferUtility.UploadAsync(localPath, "portabledbs", newDbName);
+                    Console.WriteLine($"  ✓ Upload successful");
+
+                    // Add to new config with updated filename
+                    newConfig.Databases.Add(new DatabaseConfig
+                    {
+                        Name = db.Name,
+                        FileName = newDbName,
+                        Description = db.Description
+                    });
+
+                    Console.WriteLine($"  ✓ Updated entry in databases.json");
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"  ✗ Error uploading {db.Name}: {ex.Message}");
+                    Console.WriteLine($"  Keeping existing entry in databases.json");
+                    newConfig.Databases.Add(db);
+                }
+            }
+
+            // Save updated config
+            var updatedJson = JsonSerializer.Serialize(newConfig, new JsonSerializerOptions { WriteIndented = true });
+            File.WriteAllText(configPath, updatedJson);
+
+            Console.WriteLine($"\n========================================");
+            Console.WriteLine($"Completed uploading databases");
+            Console.WriteLine($"Updated databases.json with new S3 filenames");
+            Console.WriteLine($"========================================");
         }
     }
 }

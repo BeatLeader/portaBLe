@@ -41,7 +41,7 @@
                             }
                         </p>
                         <div class="mt-auto">
-                            <a asp-page="@link.Url" class="btn btn-primary btn-block">Open</a>
+                            <a asp-page="@link.Url" class="btn btn-primary btn-block db-aware-link">Open</a>
                         </div>
                     </div>
                 </div>
@@ -54,9 +54,9 @@
     .card {
         transition: transform 0.2s, box-shadow 0.2s;
     }
-    
-    .card:hover {
-        transform: translateY(-5px);
-        box-shadow: 0 4px 8px rgba(0,0,0,0.2);
-    }
+
+        .card:hover {
+            transform: translateY(-5px);
+            box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+        }
 </style>
