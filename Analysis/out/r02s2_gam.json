@@ -1,0 +1,12 @@
+{
+ "GAM swing feats + skill": {
+  "r2_replay_note": 0.2867027857433867,
+  "r2_top8_note": 0.4258929549857213,
+  "within_map_corr": 0.5207401130352571
+ },
+ "GAM ML + skill": {
+  "r2_replay_note": 0.29595430650785215,
+  "r2_top8_note": 0.5191649686265193,
+  "within_map_corr": 0.6155645774808571
+ }
+}

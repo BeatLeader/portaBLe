@@ -1,0 +1,19 @@
+.stage/
+data/
+__pycache__/
+*.pyc
+# large intermediates (small result tables/JSON in out/ are kept)
+out/*.parquet
+out/*_notes_top.csv.gz
+out/*_log.txt
+# per-map / per-player tables (reproducible from the scripts; fit_acc_model_maps.csv is kept for fairness_options.py)
+out/a0*_maps_*.csv
+out/a01_map_effects_*.csv
+out/a01_player_skill_*.csv
+out/a02_slopes_*.csv
+out/a03_resid_*.csv
+out/a04_map_pp_bias_*.csv
+out/a09_*_prod.csv
+out/a11_attempt_maps_*.csv
+out/*_loss_decomposition.csv
+out/*.log

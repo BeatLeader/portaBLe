@@ -1,0 +1,32 @@
+{
+ "ML raw (1-pred)": {
+  "r2_replay_note": -0.08899687305737158,
+  "r2_top8_note": 0.5032314037842358,
+  "within_map_corr": 0.6174674942181868
+ },
+ "skill only": {
+  "r2_replay_note": 0.20977500608664634,
+  "r2_top8_note": 0.01763170117279886,
+  "within_map_corr": -0.0015736017307786607
+ },
+ "ML + skill": {
+  "r2_replay_note": 0.2904841803734006,
+  "r2_top8_note": 0.5285286952920375,
+  "within_map_corr": 0.6161271676209292
+ },
+ "swing feats + skill": {
+  "r2_replay_note": 0.29414192248563087,
+  "r2_top8_note": 0.5169858414976798,
+  "within_map_corr": 0.6036282908728555
+ },
+ "swing feats + ML + skill": {
+  "r2_replay_note": 0.29923311691273113,
+  "r2_top8_note": 0.5553478619799669,
+  "within_map_corr": 0.6289833273523359
+ },
+ "small swing + skill": {
+  "r2_replay_note": 0.25909925596268013,
+  "r2_top8_note": 0.3212997446535846,
+  "within_map_corr": 0.35141981118240934
+ }
+}

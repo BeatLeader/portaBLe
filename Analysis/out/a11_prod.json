@@ -1,0 +1,20 @@
+{
+ "r2": {
+  "pass": 0.711963741176304,
+  "pass+tech": 0.7455020825368079,
+  "stars": 0.7433859447693876,
+  "pass+tech+ln notes": 0.765165342624361,
+  "pass+tech+ln notes+ln length": 0.7863216214450874,
+  "score-implied acc difficulty d": 0.7550479180139532,
+  "d + pass + length": 0.8219589046073192
+ },
+ "within_r2": 0.1920268044345843,
+ "within_coef": {
+  "lsd_w": 0.7117,
+  "t_frac_w": -1.255,
+  "tech_mean_w": 0.8283,
+  "density_w": 0.213
+ },
+ "per_map_sp_lsd": 0.4138453394319835,
+ "per_map_sp_time": 0.11732174298987282
+}

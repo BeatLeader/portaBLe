@@ -1,0 +1,9 @@
+{
+ "sd_skill_dependence": {
+  "ML (production)": 0.0960620778135931,
+  "oracle (data d_j)": 0.09606207781359312,
+  "algo 8-feat linear": 0.0960620778135931,
+  "algo all-feat linear": 0.09606207781359312,
+  "ML + 8 swing feats": 0.0960620778135931
+ }
+}

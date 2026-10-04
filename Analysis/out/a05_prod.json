@@ -1,0 +1,19 @@
+{
+ "distill|analyzer outputs only (pass,tech,...)|lin": 0.9402527080996452,
+ "distill|analyzer outputs only (pass,tech,...)|gbm": 0.9564592522892575,
+ "distill|swing aggregates|lin": 0.9714383970059641,
+ "distill|swing aggregates|gbm": 0.9748304872049625,
+ "distill|swing aggregates + outputs|lin": 0.9728677641579868,
+ "distill|swing aggregates + outputs|gbm": 0.9752220458399681,
+ "d|ML linear": 0.8844038238779884,
+ "d|ML + pass,tech,stats|lin": 0.9551422740756657,
+ "d|ML + pass,tech,stats|gbm": 0.9611545143986864,
+ "d|analyzer outputs only|lin": 0.9379449714842495,
+ "d|analyzer outputs only|gbm": 0.9444306128955077,
+ "d|swing aggregates (NO ML)|lin": 0.9596226900351372,
+ "d|swing aggregates (NO ML)|gbm": 0.9598904398386875,
+ "d|swing aggregates + outputs (NO ML)|lin": 0.9593920396640069,
+ "d|swing aggregates + outputs (NO ML)|gbm": 0.95928048729522,
+ "d|swing aggregates + outputs + ML|lin": 0.9636757552585269,
+ "d|swing aggregates + outputs + ML|gbm": 0.9660158006723073
+}

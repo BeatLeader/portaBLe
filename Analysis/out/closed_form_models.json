@@ -1,0 +1,25 @@
+{
+ "a_ref": 3.991475034460208,
+ "models": {
+  "F: pass, tech, ln(swings)": {
+   "const": -1.23697,
+   "pass": 0.08851,
+   "tech": 0.08443,
+   "lsw": 0.06784
+  },
+  "F2: pass, tech, ln(notes)": {
+   "const": -1.28553,
+   "pass": 0.08647,
+   "tech": 0.08397,
+   "lnotes": 0.07603
+  },
+  "G: F + low_note_nerf + njs_mean": {
+   "const": -1.26329,
+   "pass": 0.06319,
+   "tech": 0.08759,
+   "lsw": 0.03839,
+   "low_note_nerf": -0.26486,
+   "njs_mean": 0.03469
+  }
+ }
+}

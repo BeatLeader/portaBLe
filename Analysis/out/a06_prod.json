@@ -1,0 +1,14 @@
+{
+ "ML_linear": 0.8844038238779884,
+ "ML_nonlinear_gbm": 0.9166567019745658,
+ "TINY: log mean swing_diff + tech + log notes|lin": 0.8699210113421855,
+ "TINY: log mean swing_diff + tech + log notes|gbm": 0.932976349090322,
+ "COMPACT (8 features)|lin": 0.9295816567373585,
+ "COMPACT (8 features)|gbm": 0.944772646097463,
+ "all swing aggregates + base|lin": 0.9595943893251581,
+ "compact + ML predAcc|lin": 0.9451712155806989,
+ "compact + ML predAcc|gbm": 0.9567843753550787,
+ "distill_ML|TINY": 0.8729386544681689,
+ "distill_ML|COMPACT": 0.9240302131472223,
+ "distill_ML|ALL": 0.9705414312797624
+}

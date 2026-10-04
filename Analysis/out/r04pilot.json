@@ -1,0 +1,6 @@
+{
+ "T1_flagged_reset_rate": 0.30857142857142855,
+ "T1_unflagged_reset_rate": 0.0006276725118669334,
+ "T1_corpus_repeat_precision": 0.7209302325581395,
+ "T1_corpus_nonrepeat_repeat_rate": 0.001294703840954728,
+ "T2_tip_ratio_reset": {

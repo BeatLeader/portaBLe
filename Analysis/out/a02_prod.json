@@ -1,0 +1,14 @@
+{
+ "global_mean": -5.323425704695239e-07,
+ "player_only": 0.5988824291593372,
+ "map_only": 0.17167502501045206,
+ "additive": 0.7962223683450604,
+ "additive+rank1": 0.8050890262931953,
+ "additive+rank2": 0.8095920905810168,
+ "additive+rank3": 0.8166290106502518,
+ "per_map_slope": 0.7986744579145686,
+ "slope_sd_obs": 0.07422956395134765,
+ "slope_sd_true": 0.06753536966389523,
+ "slope_cv_explained_true_var": 0.3420149795635995,
+ "band_corr_low_high": 0.9600211944742205
+}

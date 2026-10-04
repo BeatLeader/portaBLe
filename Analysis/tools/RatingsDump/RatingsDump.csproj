@@ -1,0 +1,56 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <!--
+    RatingsDump: recomputes per-map ratings (pass/tech/AI acc/acc rating) and a per-swing
+    feature table with ONE analyzer variant, so variants can be diffed offline.
+
+    Built by Analysis/scripts/build_tools.sh, which stages the analyzer + parser sources and sets:
+      AnalyzerDir  - folder with Analyzer.csproj
+      ParserDir    - folder with Parser.csproj
+      ControllersDir - production RatingAPI/Controllers (InferPublish, DataProcessing, AccRating, Curve)
+      ModelsDir    - folder with the *.onnx models
+      Variant      - "prod" or "corpus" (corpus defines CORPUS for the static Analyze API + extra swing fields)
+  -->
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>disable</Nullable>
+    <LangVersion>preview</LangVersion>
+    <InvariantGlobalization>true</InvariantGlobalization>
+    <RootNamespace>RatingsDump</RootNamespace>
+    <NoWarn>$(NoWarn);CS8632;CS0618;CS8600;CS8601;CS8602;CS8603;CS8604;CS8618;CS8625;CS0168;CS0219</NoWarn>
+    <DefineConstants Condition="'$(Variant)' == 'corpus' Or '$(Variant)' == 'corpusadj'">$(DefineConstants);CORPUS</DefineConstants>
+    <EnableDefaultCompileItems>false</EnableDefaultCompileItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="Program.cs" />
+    <Compile Include="$(ControllersDir)\InferPublish.cs" />
+    <Compile Include="$(ControllersDir)\DataProcessing.cs" />
+    <Compile Include="$(ControllersDir)\AccRating.cs" />
+    <Compile Include="$(ControllersDir)\Curve.cs" />
+    <Compile Include="$(ControllersDir)\AccDifficultyModel.cs" />
+    <Compile Include="ControllerShims.cs" />
+    <Compile Include="$(CorpusUtilsDir)\DotDirectionOnnx.cs" Condition="'$(Variant)' == 'corpus' Or '$(Variant)' == 'corpusadj'" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <PackageReference Include="MathNet.Numerics" Version="6.0.0-beta1" />
+    <PackageReference Include="Microsoft.ML.OnnxRuntime" Version="1.23.2" />
+    <PackageReference Include="Newtonsoft.Json" Version="13.0.4" />
+    <ProjectReference Include="$(AnalyzerDir)\Analyzer.csproj" />
+    <ProjectReference Include="$(ParserDir)\Parser.csproj" />
+  </ItemGroup>
+
+  <!-- InferPublish loads these via GetManifestResourceStream("RatingAPI.<name>") -->
+  <ItemGroup>
+    <EmbeddedResource Include="$(ModelsDir)\model_sleep_bl.onnx" LogicalName="RatingAPI.model_sleep_bl.onnx" />
+    <EmbeddedResource Include="$(ModelsDir)\model_sleep_4LSTM_acc.onnx" LogicalName="RatingAPI.model_sleep_4LSTM_acc.onnx" />
+    <EmbeddedResource Include="$(ModelsDir)\model_sleep_4LSTM_speed.onnx" LogicalName="RatingAPI.model_sleep_4LSTM_speed.onnx" />
+    <EmbeddedResource Include="$(ModelsDir)\tagging_model.onnx" LogicalName="RatingAPI.tagging_model.onnx" />
+    <EmbeddedResource Include="$(ControllersDir)\..\acc_model.json" Condition="Exists('$(ControllersDir)\..\acc_model.json')" LogicalName="RatingAPI.acc_model.json" />
+    <None Include="$(ModelsDir)\dot_direction.onnx" Condition="Exists('$(ModelsDir)\dot_direction.onnx')" CopyToOutputDirectory="PreserveNewest" Link="dot_direction.onnx" />
+  </ItemGroup>
+
+</Project>

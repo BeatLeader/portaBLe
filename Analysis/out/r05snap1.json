@@ -1,0 +1,224 @@
+{
+ "all": {
+  "R2_skill_only": {
+   "centre loss (pts/note of 15)": 0.542,
+   "pre-swing loss (of 70)": 0.6727,
+   "post-swing loss (of 30)": 0.4794,
+   "miss+bad-cut rate": 0.5345
+  },
+  "R2_full": {
+   "centre loss (pts/note of 15)": 0.9009,
+   "pre-swing loss (of 70)": 0.7442,
+   "post-swing loss (of 30)": 0.6069,
+   "miss+bad-cut rate": 0.6147
+  },
+  "b_skill": {
+   "centre loss (pts/note of 15)": -0.48,
+   "pre-swing loss (of 70)": -1.1589,
+   "post-swing loss (of 30)": -0.9266,
+   "miss+bad-cut rate": -0.6251
+  },
+  "b_ml_lerr": {
+   "centre loss (pts/note of 15)": 0.2781,
+   "pre-swing loss (of 70)": 0.1136,
+   "post-swing loss (of 30)": 0.0415,
+   "miss+bad-cut rate": 0.0986
+  },
+  "b_pass": {
+   "centre loss (pts/note of 15)": 0.0463,
+   "pre-swing loss (of 70)": 0.1657,
+   "post-swing loss (of 30)": 0.4101,
+   "miss+bad-cut rate": 0.0511
+  },
+  "b_tech": {
+   "centre loss (pts/note of 15)": 0.034,
+   "pre-swing loss (of 70)": 0.1267,
+   "post-swing loss (of 30)": -0.0409,
+   "miss+bad-cut rate": 0.0706
+  },
+  "b_lnotes": {
+   "centre loss (pts/note of 15)": 0.0277,
+   "pre-swing loss (of 70)": 0.0125,
+   "post-swing loss (of 30)": 0.033,
+   "miss+bad-cut rate": 0.0484
+  },
+  "t_skill": {
+   "centre loss (pts/note of 15)": -249.714,
+   "pre-swing loss (of 70)": -165.4614,
+   "post-swing loss (of 30)": -116.4114,
+   "miss+bad-cut rate": -120.643
+  },
+  "t_ml_lerr": {
+   "centre loss (pts/note of 15)": 62.582,
+   "pre-swing loss (of 70)": 7.0158,
+   "post-swing loss (of 30)": 2.2558,
+   "miss+bad-cut rate": 8.2277
+  },
+  "t_pass": {
+   "centre loss (pts/note of 15)": 12.3797,
+   "pre-swing loss (of 70)": 12.1545,
+   "post-swing loss (of 30)": 26.463,
+   "miss+bad-cut rate": 5.0647
+  },
+  "t_tech": {
+   "centre loss (pts/note of 15)": 12.4073,
+   "pre-swing loss (of 70)": 12.6793,
+   "post-swing loss (of 30)": -3.6043,
+   "miss+bad-cut rate": 9.5492
+  },
+  "t_lnotes": {
+   "centre loss (pts/note of 15)": 8.9502,
+   "pre-swing loss (of 70)": 1.1072,
+   "post-swing loss (of 30)": 2.5755,
+   "miss+bad-cut rate": 5.806
+  }
+ },
+ "mid": {
+  "R2_skill_only": {
+   "centre loss (pts/note of 15)": 0.261,
+   "pre-swing loss (of 70)": 0.4038,
+   "post-swing loss (of 30)": 0.1976,
+   "miss+bad-cut rate": 0.2081
+  },
+  "R2_full": {
+   "centre loss (pts/note of 15)": 0.7462,
+   "pre-swing loss (of 70)": 0.5611,
+   "post-swing loss (of 30)": 0.4903,
+   "miss+bad-cut rate": 0.5191
+  },
+  "b_skill": {
+   "centre loss (pts/note of 15)": -0.241,
+   "pre-swing loss (of 70)": -1.0383,
+   "post-swing loss (of 30)": -0.9211,
+   "miss+bad-cut rate": -0.5858
+  },
+  "b_ml_lerr": {
+   "centre loss (pts/note of 15)": 0.1849,
+   "pre-swing loss (of 70)": 0.0364,
+   "post-swing loss (of 30)": 0.1353,
+   "miss+bad-cut rate": 0.2251
+  },
+  "b_pass": {
+   "centre loss (pts/note of 15)": 0.0297,
+   "pre-swing loss (of 70)": 0.3213,
+   "post-swing loss (of 30)": 0.6613,
+   "miss+bad-cut rate": 0.1437
+  },
+  "b_tech": {
+   "centre loss (pts/note of 15)": 0.0277,
+   "pre-swing loss (of 70)": 0.2984,
+   "post-swing loss (of 30)": -0.0393,
+   "miss+bad-cut rate": 0.1888
+  },
+  "b_lnotes": {
+   "centre loss (pts/note of 15)": 0.0304,
+   "pre-swing loss (of 70)": 0.0141,
+   "post-swing loss (of 30)": 0.1091,
+   "miss+bad-cut rate": 0.0942
+  },
+  "t_skill": {
+   "centre loss (pts/note of 15)": -76.934,
+   "pre-swing loss (of 70)": -63.1964,
+   "post-swing loss (of 30)": -49.4134,
+   "miss+bad-cut rate": -48.5231
+  },
+  "t_ml_lerr": {
+   "centre loss (pts/note of 15)": 27.2457,
+   "pre-swing loss (of 70)": 1.0216,
+   "post-swing loss (of 30)": 3.3494,
+   "miss+bad-cut rate": 8.6083
+  },
+  "t_pass": {
+   "centre loss (pts/note of 15)": 5.0199,
+   "pre-swing loss (of 70)": 10.346,
+   "post-swing loss (of 30)": 18.7707,
+   "miss+bad-cut rate": 6.297
+  },
+  "t_tech": {
+   "centre loss (pts/note of 15)": 6.5586,
+   "pre-swing loss (of 70)": 13.464,
+   "post-swing loss (of 30)": -1.562,
+   "miss+bad-cut rate": 11.5955
+  },
+  "t_lnotes": {
+   "centre loss (pts/note of 15)": 6.3106,
+   "pre-swing loss (of 70)": 0.5568,
+   "post-swing loss (of 30)": 3.8089,
+   "miss+bad-cut rate": 5.0762
+  }
+ },
+ "top": {
+  "R2_skill_only": {
+   "centre loss (pts/note of 15)": 0.0033,
+   "pre-swing loss (of 70)": 0.0094,
+   "post-swing loss (of 30)": 0.0003,
+   "miss+bad-cut rate": 0.0003
+  },
+  "R2_full": {
+   "centre loss (pts/note of 15)": 0.8977,
+   "pre-swing loss (of 70)": 0.2926,
+   "post-swing loss (of 30)": 0.2715,
+   "miss+bad-cut rate": 0.0769
+  },
+  "b_skill": {
+   "centre loss (pts/note of 15)": -0.0991,
+   "pre-swing loss (of 70)": -0.0812,
+   "post-swing loss (of 30)": -0.0383,
+   "miss+bad-cut rate": -0.0045
+  },
+  "b_ml_lerr": {
+   "centre loss (pts/note of 15)": 0.3271,
+   "pre-swing loss (of 70)": 0.1156,
+   "post-swing loss (of 30)": -0.0586,
+   "miss+bad-cut rate": -0.01
+  },
+  "b_pass": {
+   "centre loss (pts/note of 15)": 0.0118,
+   "pre-swing loss (of 70)": 0.0738,
+   "post-swing loss (of 30)": 0.2968,
+   "miss+bad-cut rate": 0.0089
+  },
+  "b_tech": {
+   "centre loss (pts/note of 15)": 0.0457,
+   "pre-swing loss (of 70)": 0.0473,
+   "post-swing loss (of 30)": -0.0252,
+   "miss+bad-cut rate": 0.0178
+  },
+  "b_lnotes": {
+   "centre loss (pts/note of 15)": 0.0349,
+   "pre-swing loss (of 70)": 0.0016,
+   "post-swing loss (of 30)": -0.0312,
+   "miss+bad-cut rate": 0.0099
+  },
+  "t_skill": {
+   "centre loss (pts/note of 15)": -58.1633,
+   "pre-swing loss (of 70)": -18.7076,
+   "post-swing loss (of 30)": -8.3839,
+   "miss+bad-cut rate": -4.5493
+  },
+  "t_ml_lerr": {
+   "centre loss (pts/note of 15)": 83.5582,
+   "pre-swing loss (of 70)": 11.5984,
+   "post-swing loss (of 30)": -5.5831,
+   "miss+bad-cut rate": -4.4365
+  },
+  "t_pass": {
+   "centre loss (pts/note of 15)": 3.6019,
+   "pre-swing loss (of 70)": 8.8666,
+   "post-swing loss (of 30)": 33.8183,
+   "miss+bad-cut rate": 4.7184
+  },
+  "t_tech": {
+   "centre loss (pts/note of 15)": 19.0029,
+   "pre-swing loss (of 70)": 7.7206,
+   "post-swing loss (of 30)": -3.8985,
+   "miss+bad-cut rate": 12.7887
+  },
+  "t_lnotes": {
+   "centre loss (pts/note of 15)": 12.9752,
+   "pre-swing loss (of 70)": 0.2318,
+   "post-swing loss (of 30)": -4.3277,
+   "miss+bad-cut rate": 6.3661
+  }
+ }
+}
