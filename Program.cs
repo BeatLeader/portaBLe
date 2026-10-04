@@ -6,6 +6,7 @@ using Microsoft.EntityFrameworkCore;
 using portaBLe.DB;
 using portaBLe.Refresh;
 using ProtoBuf;
+using RatingAPI.Controllers;
 using System.Diagnostics;
 using System.IO.Compression;
 using System.Text.Json;
@@ -234,10 +235,11 @@ namespace portaBLe
                 // Uncomment to set the current .db file as comparison target
                 // SetComparisonDBTarget();
 
-                var connectionString = $"Data Source={builder.Environment.WebRootPath}/Database.db;";
+                var cli = PipelineOptions.Parse(args);
+                var connectionString = $"Data Source={cli.Db ?? builder.Environment.WebRootPath + "/Database.db"};";
                 builder.Services.AddDbContextFactory<AppContext>(options => options.UseSqlite(connectionString));
                 
-                var comparisonConnectionString = $"Data Source={builder.Environment.WebRootPath}/Comparison.db;";
+                var comparisonConnectionString = $"Data Source={cli.Comparison ?? builder.Environment.WebRootPath + "/Comparison.db"};";
                 builder.Services.AddDbContextFactory<ComparisonContext>(options => options.UseSqlite(comparisonConnectionString));
                 
                 builder.Services.AddRazorPages();
@@ -245,6 +247,14 @@ namespace portaBLe
                 var app = builder.Build();
 
                 InitializeDatabase(app);
+
+                // Scripted experiments, e.g. (see Analysis/scripts/build_test_dbs.sh):
+                //   dotnet run -- --db wwwroot/test-algo.db --steps import,rerate,scores,stats --acc-source Algorithm --curve PowerLaw --exit
+                if (cli.Steps.Count > 0)
+                {
+                    await RunPipeline(app, cli);
+                    if (cli.Exit) return;
+                }
 
                 // Configure the HTTP request pipeline.
                 if (!app.Environment.IsDevelopment())
@@ -299,6 +309,73 @@ namespace portaBLe
             } catch (Exception e) {
                 Console.WriteLine(e.Message + "   " + e.StackTrace);
             }
+        }
+
+        /// <summary>Command-line options for scripted DB builds (unknown arguments are left to ASP.NET).</summary>
+        public class PipelineOptions
+        {
+            public string? Db, Comparison, Dump, AccModel;
+            public List<string> Steps = new();
+            public AccSource AccSource = AccSource.ML;
+            public CurveMode Curve = CurveMode.Classic;
+            public bool Exit;
+
+            public static PipelineOptions Parse(string[] args)
+            {
+                var o = new PipelineOptions();
+                for (int i = 0; i < args.Length; i++)
+                {
+                    switch (args[i])
+                    {
+                        case "--db": o.Db = args[++i]; break;
+                        case "--comparison": o.Comparison = args[++i]; break;
+                        case "--dump": o.Dump = args[++i]; break;
+                        case "--steps": o.Steps = args[++i].Split(',', StringSplitOptions.RemoveEmptyEntries).ToList(); break;
+                        case "--acc-source": o.AccSource = Enum.Parse<AccSource>(args[++i], true); break;
+                        case "--curve": o.Curve = Enum.Parse<CurveMode>(args[++i], true); break;
+                        case "--acc-model": o.AccModel = args[++i]; break;
+                        case "--gamma": PpCurve.Gamma = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                        case "--acc-scale": PpCurve.AccScale = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                        case "--exit": o.Exit = true; break;
+                    }
+                }
+                return o;
+            }
+        }
+
+        /// <summary>
+        /// Steps: import (dump -> empty DB), rerate (RatingAPI, --acc-source), stars (stars from stored ratings),
+        /// scores (score PP + player totals), stats (Megametric, outliers, Stats table). The curve applies to every step.
+        /// </summary>
+        public static async Task RunPipeline(IHost host, PipelineOptions cli)
+        {
+            PpCurve.Mode = cli.Curve;
+            Console.WriteLine($"Pipeline: {string.Join(",", cli.Steps)} | acc source {cli.AccSource} {cli.AccModel ?? "(embedded model)"} | curve {cli.Curve}"
+                + (cli.Curve == CurveMode.PowerLaw ? $" (gamma {PpCurve.Gamma}, acc scale {PpCurve.AccScale})" : ""));
+            using var scope = host.Services.CreateScope();
+            var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppContext>>();
+            var env = scope.ServiceProvider.GetRequiredService<IWebHostEnvironment>();
+            foreach (var step in cli.Steps)
+            {
+                Console.WriteLine($"== {step} ({Stopwatch.ElapsedMilliseconds / 1000}s)");
+                using var dbContext = factory.CreateDbContext();
+                switch (step)
+                {
+                    case "import":
+                        if (await dbContext.Leaderboards.AnyAsync()) throw new InvalidOperationException("import needs an empty database (use a new --db path)");
+                        DataImporter.ImportData(ParseProtobuf(cli.Dump ?? env.WebRootPath + "/dump.zip"), dbContext);
+                        break;
+                    case "rerate": await RatingsRefresh.Overwrite(dbContext, cli.AccSource, cli.AccModel); break;
+                    case "stars": await LeaderboardsRefresh.RefreshStars(dbContext); break;
+                    case "scores":
+                        await ScoresRefresh.Refresh(dbContext);
+                        await PlayersRefresh.Refresh(dbContext);
+                        break;
+                    case "stats": await UpdateStats(dbContext); break;
+                    default: throw new ArgumentException($"unknown step '{step}'");
+                }
+            }
+            Console.WriteLine($"Pipeline done ({Stopwatch.ElapsedMilliseconds / 1000}s)");
         }
 
         public static async Task UpdateStats(AppContext dbContext)

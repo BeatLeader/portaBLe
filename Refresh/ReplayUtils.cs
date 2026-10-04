@@ -4,6 +4,29 @@ using System.Reflection;
 
 namespace portaBLe.Refresh
 {
+    public enum CurveMode
+    {
+        /// <summary>Production point lists (Curve for ratings, Curve2 for PP).</summary>
+        Classic,
+        /// <summary>Constant-exponent curve in error rate: ((1 - acc + Epsilon) / (0.05 + Epsilon))^-Gamma (= 1 at 95 %).</summary>
+        PowerLaw,
+    }
+
+    /// <summary>
+    /// Accuracy curve used for acc ratings and acc PP. PowerLaw makes acc PP skill-consistent across maps (skill acts
+    /// multiplicatively on error rate, see Analysis/REPORT.md section 5); Gamma/Epsilon are the best constant-exponent
+    /// fit to Curve2, AccScale keeps the top-1000 players' PP level unchanged.
+    /// </summary>
+    public static class PpCurve
+    {
+        public static CurveMode Mode = CurveMode.Classic;
+        public static float Gamma = 0.601f;
+        public static float Epsilon = 0.0016f;
+        public static float AccScale = 1.052f;
+
+        public static float PowerLaw(float acc) => MathF.Pow(MathF.Max(1f - acc + Epsilon, 1e-6f) / (0.05f + Epsilon), -Gamma);
+    }
+
     static class ReplayUtils
     {
         static List<(double, double)> pointList = new List<(double, double)> { 
@@ -76,6 +99,7 @@ namespace portaBLe.Refresh
 
         public static float Curve(float acc)
         {
+            if (PpCurve.Mode == CurveMode.PowerLaw) return PpCurve.PowerLaw(acc);
             int i = 0;
             for (; i < pointList.Count; i++)
             {
@@ -94,6 +118,7 @@ namespace portaBLe.Refresh
 
         public static float Curve2(float acc)
         {
+            if (PpCurve.Mode == CurveMode.PowerLaw) return PpCurve.PowerLaw(acc);
             int i = 0;
             for (; i < pointList2.Count; i++)
             {
@@ -114,6 +139,7 @@ namespace portaBLe.Refresh
             float difficulty_to_acc;
             if (predictedAcc > 0) {
                 difficulty_to_acc = 15.5f / Curve((predictedAcc ?? 0) + 0.0022f);
+                if (PpCurve.Mode == CurveMode.PowerLaw) difficulty_to_acc *= PpCurve.AccScale;
             } else {
                 float tiny_tech = 0.0208f * (techRating ?? 0) + 1.1284f;
                 difficulty_to_acc = (-MathF.Pow(tiny_tech, -(passRating ?? 0)) + 1) * 8 + 2 + 0.01f * (techRating ?? 0) * (passRating ?? 0);

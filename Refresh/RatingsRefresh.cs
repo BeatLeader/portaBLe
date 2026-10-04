@@ -19,7 +19,13 @@ namespace portaBLe.Refresh
             }
         }
 
-        public static async Task Overwrite(AppContext dbContext)
+        /// <summary>
+        /// Re-rates every leaderboard through RatingAPI. <paramref name="accSource"/> picks the predicted accuracy behind
+        /// AccRating (ONNX model or the algorithmic AccDifficultyModel); with <see cref="CurveMode.PowerLaw"/> the acc
+        /// ratings are recomputed from the predicted accuracy with the active curve. <paramref name="accModelPath"/> optionally
+        /// replaces the embedded acc_model.json (e.g. an alternative calibration).
+        /// </summary>
+        public static async Task Overwrite(AppContext dbContext, AccSource accSource = AccSource.ML, string? accModelPath = null)
         {
             try
             {
@@ -66,6 +72,8 @@ namespace portaBLe.Refresh
             var configDictionary = new Dictionary<string, string>
             {
                 { "MapsPath", "maps" },
+                { "AccSource", accSource.ToString() },
+                { "AccModelPath", accModelPath ?? "" },
             };
 
             var configuration = new ConfigurationBuilder()
@@ -73,7 +81,7 @@ namespace portaBLe.Refresh
                 .Build();
 
             var lbs = dbContext.Leaderboards.Include(lb => lb.ModifiersRating).ToList();
-            Console.WriteLine($"Recalculating from RatingAPI for {lbs.Count} leaderboards");
+            Console.WriteLine($"Recalculating from RatingAPI for {lbs.Count} leaderboards (acc source: {accSource}, curve: {PpCurve.Mode})");
             
             int processedCount = 0;
             int totalCount = lbs.Count;
@@ -106,23 +114,23 @@ namespace portaBLe.Refresh
                     lb.PassRating = (float)response["none"].LackMapCalculation.PassRating;
                     lb.TechRating = (float)response["none"].LackMapCalculation.TechRating;
                     lb.PredictedAcc = (float)response["none"].PredictedAcc;
-                    lb.AccRating = (float)response["none"].AccRating;
+                    lb.AccRating = AccRatingFor(response["none"]);
                     lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating);
 
                     lb.ModifiersRating.SSPassRating = (float)response["SS"].LackMapCalculation.PassRating;
                     lb.ModifiersRating.SSTechRating = (float)response["SS"].LackMapCalculation.TechRating;
                     lb.ModifiersRating.SSPredictedAcc = (float)response["SS"].PredictedAcc;
-                    lb.ModifiersRating.SSAccRating = (float)response["SS"].AccRating;
+                    lb.ModifiersRating.SSAccRating = AccRatingFor(response["SS"]);
 
                     lb.ModifiersRating.FSPassRating = (float)response["FS"].LackMapCalculation.PassRating;
                     lb.ModifiersRating.FSTechRating = (float)response["FS"].LackMapCalculation.TechRating;
                     lb.ModifiersRating.FSPredictedAcc = (float)response["FS"].PredictedAcc;
-                    lb.ModifiersRating.FSAccRating = (float)response["FS"].AccRating;
+                    lb.ModifiersRating.FSAccRating = AccRatingFor(response["FS"]);
 
                     lb.ModifiersRating.SFPassRating = (float)response["SFS"].LackMapCalculation.PassRating;
                     lb.ModifiersRating.SFTechRating = (float)response["SFS"].LackMapCalculation.TechRating;
                     lb.ModifiersRating.SFPredictedAcc = (float)response["SFS"].PredictedAcc;
-                    lb.ModifiersRating.SFAccRating = (float)response["SFS"].AccRating;
+                    lb.ModifiersRating.SFAccRating = AccRatingFor(response["SFS"]);
 
                     lb.ModifiersRating.SFStars = ReplayUtils.ToStars(lb.ModifiersRating.SFAccRating, lb.ModifiersRating.SFPassRating, lb.ModifiersRating.SFTechRating);
                     lb.ModifiersRating.FSStars = ReplayUtils.ToStars(lb.ModifiersRating.FSAccRating, lb.ModifiersRating.FSPassRating, lb.ModifiersRating.FSTechRating);
@@ -156,6 +164,14 @@ namespace portaBLe.Refresh
             Console.WriteLine($"\nCompleted: {processedCount - errorCount} successful, {errorCount} errors");
             dbContext.BulkSaveChanges();
             Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
+        }
+
+        /// <summary>RatingAPI's AccRating, or the same quantity re-derived with the active (power-law) curve.</summary>
+        private static float AccRatingFor(RatingResult r)
+        {
+            if (PpCurve.Mode == CurveMode.Classic) return (float)r.AccRating;
+            return ReplayUtils.AccRating((float)r.PredictedAcc, (float)r.LackMapCalculation.PassRating, (float)r.LackMapCalculation.TechRating)
+                * (float)r.LackMapCalculation.LowNoteNerf;
         }
 
         public static async Task Refresh(AppContext dbContext)
