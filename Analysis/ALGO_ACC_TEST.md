@@ -223,6 +223,37 @@ Directions: make pass PP fade when passing is clearly not the limit (e.g. by the
 accuracy), or pay pass PP from a sustained-difficulty pass rating (longer window) while the peak keeps classifying passability.
 Attempts data will show directly how hard bursts are to *pass* for each skill level.
 
+### B + pass fade (test deployment `algo-b-fade`)
+
+Pass PP rewards getting through a map; when a score's accuracy shows that passing was not the limit, that reward fades.
+`h = log((1 − predictedAcc) / (1 − acc))` measures how much lower the score's error rate is than the acc model's prediction for
+the reference player (speed modifiers use their own prediction, so SF scores are judged against SF difficulty). Pass PP is kept in
+full for `h ≤ −2` and falls as `0.3 + 0.7·exp(−(h + 2))` above it (`PassFade`, `--pass-fade 1,0.3,-2`). Top-100 players keep about 40 %
+of their pass PP, so harder maps still pay more. The curve is re-solved as for B (median PP of ranks 1–1000 and 10 001–50 000
+unchanged): γ 0.592, acc scale 1.245. The accuracy reward is back near today's (γ 0.601 vs B's 0.500), because the profile no longer
+has to be flattened through the curve.
+
+Moving top players' PP from pass to accuracy exposed near-perfect scores on short Easy maps (*let you* Easy 99.92 %: 1 265 PP, the
+top score of the whole DB; ML 770). `AccCap` (`--acc-cap 0.6`) stops acc/tech PP growing once a score's error rate is more than
+e^0.6 = 1.8× below the prediction. Every score above h = 0.75 is on an Easy/Normal map; the best hard-map plays (*Speedcore
+Paradise*, *Gravisphere Crisis*) reach 0.52–0.58. 98 scores are affected and the rank bands do not move.
+
+| | B-v2 | **B + pass fade + cap** | ML |
+|---|---|---|---|
+| burst overpay: Megametric per SD of burstiness at equal stars | 0.0355 | **0.0291** | 0.0290 |
+| FS/SF share of the top 1 000 scores | 33.3 % | **14.4 %** | 16.4 % |
+| FS/SF share of top-100 players' PP | 22 % | **10.7 %** | 21 % |
+| pass share of top-100 players' PP | 24.7 % | 7.5 % | 23.6 % |
+| median PP change, ranks 1–100 / 1 001–10 000 / 50 001+ (vs ML) | +2.3 / −4.4 / +9.6 % | +4.6 / −5.7 / +5.7 % | — |
+| Spearman of player PP vs ML | 0.9977 | 0.9985 | — |
+| highest score | 1 026 | 1 150 (*Speedcore Paradise*; top 8 all E+ feats) | 929 |
+
+The fade parameters were chosen on a simulation of B-v2's stored PP components (`passfade_sim`, reproduces the DB's PP and
+Megametric exactly) over a grid of centers −2 … −1, strengths 1–2, floors 0–0.3; a milder fade (−1.5, 1, 0.3) leaves the burst
+overpay at 0.031, a stronger one (−2, 2, 0) removes nearly all pass PP for top players (0.022, γ 0.64).
+
+Top-10 / top-100 mean PP +7.3 % / +6.2 % vs the ML (the pass-to-accuracy shift favours the best accuracy players).
+
 ## Known limitations
 
 * Weights are fitted on today's ranked Standard pool; maps far outside it (gimmicks, extreme speeds, other characteristics) rely
