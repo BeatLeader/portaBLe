@@ -58,7 +58,7 @@ else
   else
     sudo -u portable -H git clone -q --depth 1 --branch "$HUB_BRANCH" "$REPO" "$SRC"
   fi
-  git -C "$SRC" log -1 --format='%h %s'
+  sudo -u portable -H git -C "$SRC" log -1 --format='%h %s'
 fi
 DEPLOY="$SRC/Hub/deploy"
 
