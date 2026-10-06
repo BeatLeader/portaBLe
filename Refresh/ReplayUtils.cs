@@ -49,6 +49,24 @@ namespace portaBLe.Refresh
         }
     }
 
+    /// <summary>
+    /// Caps how much skill one score can show on one map: accuracy beyond an error rate MaxAdvantage (log units) below the
+    /// map's predicted error rate earns no further acc/tech PP. Without it, near-perfect scores on short easy maps (best of many
+    /// tries, few notes) outscore the hardest plays: h > 0.75 occurs only on Easy/Normal maps, while the best hard-map top
+    /// plays reach about 0.58. Off unless enabled.
+    /// </summary>
+    public static class AccCap
+    {
+        public static bool Enabled = false;
+        public static float MaxAdvantage = 0.6f;
+
+        public static float Apply(float accuracy, float predictedAcc)
+        {
+            if (!Enabled || predictedAcc <= 0) return accuracy;
+            return MathF.Min(accuracy, 1f - (1f - predictedAcc) * MathF.Exp(-MaxAdvantage));
+        }
+    }
+
     static class ReplayUtils
     {
         static List<(double, double)> pointList = new List<(double, double)> { 
@@ -216,7 +234,7 @@ namespace portaBLe.Refresh
             float rawPP = 0; float fullPP = 0; float passPP = 0; float accPP = 0; float techPP = 0; float increase = 0; 
             if (!modifiers.Contains("NF"))
             {
-                (passPP, accPP, techPP) = GetPp(accuracy, accRating, passRating, techRating);
+                (passPP, accPP, techPP) = GetPp(AccCap.Apply(accuracy, predictedAcc), accRating, passRating, techRating);
                 passPP *= PassFade.Weight(accuracy, predictedAcc);
 
                 rawPP = Inflate(passPP + accPP + techPP);
@@ -236,7 +254,7 @@ namespace portaBLe.Refresh
                         }
                     }
                 }
-                (passPP, accPP, techPP) = GetPp(accuracy, accRating * mp, passRating * mp, techRating * mp);
+                (passPP, accPP, techPP) = GetPp(AccCap.Apply(accuracy, predictedAcc), accRating * mp, passRating * mp, techRating * mp);
                 passPP *= PassFade.Weight(accuracy, predictedAcc);
                 fullPP = Inflate(passPP + accPP + techPP);
                 if (passPP + accPP + techPP > 0) {
