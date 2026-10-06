@@ -201,6 +201,28 @@ maps towards the middle. C is not a viable option.
 easier than they are. On `dda51`, 24 top-player scores beat the expectation by 0.09 (≈ 5 % PP). The effort question is still
 open and needs the attempts data.
 
+**"Maps with short speedy parts get the benefit of a high pass rating and of the acc/tech rating."** Checked on B-v2 with
+burstiness = log(hardest 32 swings / median swing difficulty) (analyzer `SwingDiff`; the 8-swing and swing-speed versions agree,
+r 0.92–0.93), maps with ≥ 100 scores, effects per SD of burstiness (peak/median ×1.32):
+
+| | effect | reading |
+|---|---|---|
+| pass success rate at equal pass rating | +0.012 logit (t 1.4) | pass rating is *not* inflated by bursts |
+| score-implied acc difficulty − B, all players / top 2 % | −0.0003 / −0.004 | acc rating is *not* inflated (≈ 0.2 % PP for top players) |
+| Megametric at equal stars, B / ML | **+0.036 / +0.029** (t 19 / 14) | burst maps *are* top plays far more often |
+| … at equal pass, acc and tech ratings, B | +0.010 (t 6) | 70 % of it is the rating mix |
+
+So the claim holds for the payout, in ML and slightly more in B, but not as a rating error. A burst map has more pass rating and less
+acc difficulty per star than a smooth map. With a fair acc curve a player earns about the same acc PP on any map, so what separates
+maps for a strong player is pass (and tech) PP, which is paid in full although passing is not the challenge for them; the burst map
+lets them keep high accuracy *and* collect the pass bonus. From the smoothest to the burstiest fifth of maps, at equal stars,
+Megametric rises by ~0.10 (≈ +50 %) and top-play scores are worth ~6 % more of the player's best score. The remaining 30 % (at equal
+ratings) is mostly acc PP among top plays, i.e. selection/grinding. B adds per-map misses on top: *I Gotchu*, *Made In Love*,
+*Truth Or Dare*, *Go Insane* have Megametric 0.6–0.9 in B vs 0.3–0.6 in the ML (two of them are on the over-rated list).
+Directions: make pass PP fade when passing is clearly not the limit (e.g. by the score's accuracy relative to the map's predicted
+accuracy), or pay pass PP from a sustained-difficulty pass rating (longer window) while the peak keeps classifying passability.
+Attempts data will show directly how hard bursts are to *pass* for each skill level.
+
 ## Known limitations
 
 * Weights are fitted on today's ranked Standard pool; maps far outside it (gimmicks, extreme speeds, other characteristics) rely
