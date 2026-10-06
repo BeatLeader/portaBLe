@@ -10,6 +10,9 @@ public sealed class Poller(HubConfig config, StateStore state, GitService git, D
     private readonly SemaphoreSlim _trigger = new(0, 1);
     private bool _hubDnsChecked;
 
+    /// <summary>Last correctly signed GitHub webhook delivery (any event, including GitHub's ping).</summary>
+    public DateTimeOffset? LastWebhook { get; set; }
+
     public void Trigger()
     {
         try { _trigger.Release(); } catch (SemaphoreFullException) { }

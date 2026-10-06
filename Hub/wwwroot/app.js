@@ -74,7 +74,7 @@ function renderChips() {
     cf.configured ? chip(cf.status === 'ok' || cf.status === 'not checked' ? 'ok' : 'bad', `Cloudflare: ${cf.status === 'ok' ? 'ok' : cf.status}`, cf.status)
       : chip('warn', 'Cloudflare: no token', 'DNS records are not created automatically'),
     h.lastFetchError ? chip('bad', 'GitHub: fetch failed', h.lastFetchError) : chip('ok', `branches fetched ${ago(h.lastFetch)}`),
-    h.webhook ? chip('ok', 'push webhook on') : chip('', `polling every ${h.pollSeconds}s`),
+    h.lastWebhook ? chip('ok', `GitHub webhook ${ago(h.lastWebhook)}`, 'last signed delivery') : chip('', `polling every ${h.pollSeconds}s`),
     chip(h.diskFreeGb < 5 ? 'bad' : h.diskFreeGb < 12 ? 'warn' : 'ok', `${h.diskFreeGb} GB disk free`, `of ${h.diskTotalGb} GB`),
     chip(h.memAvailableMb < 400 ? 'bad' : h.memAvailableMb < 900 ? 'warn' : 'ok', `${h.memAvailableMb} MB RAM free`, `of ${h.memTotalMb} MB; ${h.swapFreeMb} MB swap free`),
   ].join('');
@@ -171,6 +171,8 @@ function renderSetup() {
     items.push(`No Cloudflare token: DNS records for new deployments are not created. Put a token with <i>Zone · DNS · Edit</i> for <b>${esc(h.zone)}</b> into <code>/etc/portable-hub/cloudflare.token</code> (owned by <code>portable</code>, mode 600) — no restart needed.`);
   if (!h.webhook)
     items.push(`Pushes are picked up by polling every ${h.pollSeconds}s. For instant redeploys set <code>GitHubWebhookSecret</code> in <code>/etc/portable-hub/hub.json</code>, restart the hub and add a GitHub webhook: <code>${esc(h.webhookUrl)}</code>, content type <i>application/json</i>, push events.`);
+  else if (!h.lastWebhook)
+    items.push(`Pushes are picked up by polling every ${h.pollSeconds}s. For instant redeploys add a GitHub webhook (repository → Settings → Webhooks): payload URL <code>${esc(h.webhookUrl)}</code>, content type <i>application/json</i>, secret from <code>jq -r .GitHubWebhookSecret /etc/portable-hub/hub.json</code>, just the push event.`);
   $('#setup-notes').hidden = !items.length;
   $('#setup-body').innerHTML = `<ul>${items.map(i => `<li>${i}</li>`).join('')}</ul>`;
 }

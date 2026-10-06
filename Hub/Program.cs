@@ -46,7 +46,7 @@ app.Use(async (ctx, next) =>
 app.UseDefaultFiles();
 app.UseStaticFiles();
 
-app.MapGet("/api/overview", async (StateStore state, GitService git, HostingService hosting, CloudflareService cloudflare, Deployer deployer) =>
+app.MapGet("/api/overview", async (StateStore state, GitService git, HostingService hosting, CloudflareService cloudflare, Poller poller) =>
 {
     var deployments = new JsonArray();
     var all = state.All();
@@ -81,6 +81,7 @@ app.MapGet("/api/overview", async (StateStore state, GitService git, HostingServ
         {
             config.Zone, config.HubHost, config.HostPattern, config.RepoWebUrl, config.PollSeconds, config.PublicIp,
             Webhook = !string.IsNullOrEmpty(config.GitHubWebhookSecret),
+            poller.LastWebhook,
             WebhookUrl = $"https://{config.HubHost}/api/github-webhook",
             Cloudflare = new { cloudflare.Configured, cloudflare.Status },
             git.LastFetch, git.LastFetchError,
@@ -185,6 +186,7 @@ app.MapPost("/api/github-webhook", async (HttpRequest request, Poller poller) =>
     var expected = "sha256=" + Convert.ToHexStringLower(HMACSHA256.HashData(Encoding.UTF8.GetBytes(config.GitHubWebhookSecret), body.ToArray()));
     var actual = request.Headers["X-Hub-Signature-256"].ToString();
     if (!CryptographicOperations.FixedTimeEquals(Encoding.ASCII.GetBytes(actual), Encoding.ASCII.GetBytes(expected))) return Results.Unauthorized();
+    poller.LastWebhook = DateTimeOffset.UtcNow;
     if (request.Headers["X-GitHub-Event"] == "push") poller.Trigger();
     return Results.Accepted();
 });
