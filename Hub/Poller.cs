@@ -9,6 +9,7 @@ public sealed class Poller(HubConfig config, StateStore state, GitService git, D
 {
     private readonly SemaphoreSlim _trigger = new(0, 1);
     private bool _hubDnsChecked;
+    private readonly HashSet<string> _dnsTried = new();
 
     /// <summary>Last correctly signed GitHub webhook delivery (any event, including GitHub's ping).</summary>
     public DateTimeOffset? LastWebhook { get; set; }
@@ -37,8 +38,14 @@ public sealed class Poller(HubConfig config, StateStore state, GitService git, D
     private async Task Poll(CancellationToken ct)
     {
         await git.Refresh(ct);
-        if (!_hubDnsChecked && cloudflare.Configured)
-            _hubDnsChecked = await cloudflare.EnsureRecord(config.HubHost, null, ct) || cloudflare.Status == "ok";
+        if (cloudflare.Configured)
+        {
+            if (!_hubDnsChecked)
+                _hubDnsChecked = await cloudflare.EnsureRecord(config.HubHost, null, ct) || cloudflare.Status == "ok";
+            // deployments made before the token existed (or while Cloudflare was failing) get their record now; once per hub run
+            foreach (var d in state.All().Where(d => !d.DnsManaged && d.Release != null && d.Activity == null && _dnsTried.Add(d.Name)))
+                await deployer.EnsureRouting(d.Name, null, ct);
+        }
         foreach (var d in state.All())
         {
             if (!d.AutoDeploy || d.Status is DeployStatus.Stopped || d.Activity != null || deployer.IsPending(d.Name)) continue;
