@@ -140,7 +140,7 @@ sed -e "s|__UID__|$PUID|g" -e "s|__HUB_PORT__|$HUB_PORT|g" "$DEPLOY/portable-hub
 systemctl daemon-reload
 systemctl enable -q portable-hub
 systemctl restart portable-hub
-for i in $(seq 1 30); do curl -fsS -o /dev/null "http://127.0.0.1:$HUB_PORT/" && break; sleep 1; done
+for i in $(seq 1 30); do curl -fs -o /dev/null "http://127.0.0.1:$HUB_PORT/" && break; sleep 1; done
 systemctl is-active portable-hub
 
 say "done"
