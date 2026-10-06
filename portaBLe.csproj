@@ -49,6 +49,12 @@
   <ItemGroup>
     <Content Remove="wwwroot\Comparison.db" />
     <Content Remove="wwwroot\Database.db" />
+    <!-- test databases (Analysis/scripts/build_test_dbs.sh): never served, and hashing GBs on every build fails while one is open -->
+    <Content Remove="wwwroot\*.db" />
+    <Content Remove="wwwroot\*.db.tmp" />
+    <Content Remove="wwwroot\*.db-journal" />
+    <Content Remove="wwwroot\*.db-wal" />
+    <Content Remove="wwwroot\*.db-shm" />
     <Content Remove="wwwroot\export.json" />
   </ItemGroup>
 

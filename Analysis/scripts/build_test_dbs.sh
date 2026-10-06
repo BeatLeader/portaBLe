@@ -5,7 +5,8 @@
 #   test-algo.db        re-rated with the algorithmic acc model (AccDifficultyModel), Curve2
 #   test-algo-power.db  algorithmic acc model + power-law acc curve
 #   test-ml-power.db    ONNX model + power-law acc curve (isolates the curve change)
-# A variant is name:curve:source[:acc model json[:gamma[:acc scale]]] (power-law gamma / acc scale default to PpCurve's).
+# A variant is name:curve:source[:acc model json[:gamma[:acc scale[:extra args]]]] (power-law gamma / acc scale default to PpCurve's;
+# extra args with + for spaces, e.g. "--pass-fade+1,0.3,-2").
 # Compare any two in the UI: copy one to wwwroot/Database.db and the other to wwwroot/Comparison.db, or start with
 #   dotnet bin/Release/net9.0/portaBLe.dll --db wwwroot/test-algo-power.db --comparison wwwroot/test-ml.db
 set -euo pipefail
@@ -31,12 +32,13 @@ if [ "$WITH_PROD" = 1 ] && [ ! -f "$W/test-prod.db" ]; then
   $APP --db "$W/test-prod.db" --steps stars,scores,stats --exit
 fi
 for v in $VARIANTS; do
-  IFS=: read -r name curve source model gamma accscale <<< "$v"
+  IFS=: read -r name curve source model gamma accscale extra_args <<< "$v"
   [ -f "$W/test-$name.db" ] && { echo "skip test-$name.db (exists)"; continue; }
   extra=()
   [ -n "${model:-}" ] && extra+=(--acc-model "$model")
   [ -n "${gamma:-}" ] && extra+=(--gamma "$gamma")
   [ -n "${accscale:-}" ] && extra+=(--acc-scale "$accscale")
+  [ -n "${extra_args:-}" ] && read -r -a more <<< "${extra_args//+/ }" && extra+=("${more[@]}")
   cp "$W/test-import.db" "$W/test-$name.db.tmp"
   $APP --db "$W/test-$name.db.tmp" --steps rerate,scores,stats --acc-source "$source" --curve "$curve" ${extra[@]+"${extra[@]}"} --exit
   mv "$W/test-$name.db.tmp" "$W/test-$name.db"

@@ -336,6 +336,10 @@ namespace portaBLe
                         case "--acc-model": o.AccModel = args[++i]; break;
                         case "--gamma": PpCurve.Gamma = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                         case "--acc-scale": PpCurve.AccScale = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                        case "--pass-fade": // strength,floor,center (see PassFade)
+                            var fade = args[++i].Split(',').Select(x => float.Parse(x, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
+                            (PassFade.Enabled, PassFade.Strength, PassFade.Floor, PassFade.Center) = (true, fade[0], fade[1], fade[2]);
+                            break;
                         case "--exit": o.Exit = true; break;
                     }
                 }
@@ -351,7 +355,8 @@ namespace portaBLe
         {
             PpCurve.Mode = cli.Curve;
             Console.WriteLine($"Pipeline: {string.Join(",", cli.Steps)} | acc source {cli.AccSource} {cli.AccModel ?? "(embedded model)"} | curve {cli.Curve}"
-                + (cli.Curve == CurveMode.PowerLaw ? $" (gamma {PpCurve.Gamma}, acc scale {PpCurve.AccScale})" : ""));
+                + (cli.Curve == CurveMode.PowerLaw ? $" (gamma {PpCurve.Gamma}, acc scale {PpCurve.AccScale})" : "")
+                + (PassFade.Enabled ? $" | pass fade strength {PassFade.Strength}, floor {PassFade.Floor}, center {PassFade.Center}" : ""));
             using var scope = host.Services.CreateScope();
             var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppContext>>();
             var env = scope.ServiceProvider.GetRequiredService<IWebHostEnvironment>();

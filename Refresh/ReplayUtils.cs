@@ -27,6 +27,28 @@ namespace portaBLe.Refresh
         public static float PowerLaw(float acc) => MathF.Pow(MathF.Max(1f - acc + Epsilon, 1e-6f) / (0.05f + Epsilon), -Gamma);
     }
 
+    /// <summary>
+    /// Pass PP rewards getting through a map; when a score's accuracy shows that passing was not the limit, that reward fades.
+    /// h = log((1 - predictedAcc) / (1 - accuracy)) is how much lower the score's error rate is than the map's predicted error
+    /// rate (the reference player of the acc model; speed modifiers use their own prediction). Pass PP is kept in full for
+    /// h <= Center and decays as Floor + (1 - Floor) * exp(-Strength * (h - Center)) above it. Off unless enabled.
+    /// </summary>
+    public static class PassFade
+    {
+        public static bool Enabled = false;
+        public static float Strength = 1f;
+        public static float Floor = 0f;
+        public static float Center = -1.5f;
+
+        public static float Weight(float accuracy, float predictedAcc)
+        {
+            if (!Enabled || predictedAcc <= 0 || accuracy <= 0) return 1f;
+            float h = MathF.Log(MathF.Max(1f - predictedAcc, 1e-4f) / MathF.Max(1f - accuracy, 1e-4f));
+            if (h <= Center) return 1f;
+            return Floor + (1f - Floor) * MathF.Exp(-Strength * (h - Center));
+        }
+    }
+
     static class ReplayUtils
     {
         static List<(double, double)> pointList = new List<(double, double)> { 
@@ -180,7 +202,8 @@ namespace portaBLe.Refresh
             ModifiersRating? modifiersRating,
             float accRating, 
             float passRating, 
-            float techRating)
+            float techRating,
+            float predictedAcc = 0)
         {
             if (accuracy <= 0 || accuracy > 1) return (0, 0, 0, 0, 0);
 
@@ -194,6 +217,7 @@ namespace portaBLe.Refresh
             if (!modifiers.Contains("NF"))
             {
                 (passPP, accPP, techPP) = GetPp(accuracy, accRating, passRating, techRating);
+                passPP *= PassFade.Weight(accuracy, predictedAcc);
 
                 rawPP = Inflate(passPP + accPP + techPP);
                 if (modifiersRating != null) {
@@ -204,12 +228,16 @@ namespace portaBLe.Refresh
                             accRating = modifiersMap[modifier + "AccRating"]; 
                             passRating = modifiersMap[modifier + "PassRating"]; 
                             techRating = modifiersMap[modifier + "TechRating"];
+                            if (modifiersMap.TryGetValue(modifier + "PredictedAcc", out var modPredictedAcc) && modPredictedAcc > 0) {
+                                predictedAcc = modPredictedAcc;
+                            }
 
                             break;
                         }
                     }
                 }
                 (passPP, accPP, techPP) = GetPp(accuracy, accRating * mp, passRating * mp, techRating * mp);
+                passPP *= PassFade.Weight(accuracy, predictedAcc);
                 fullPP = Inflate(passPP + accPP + techPP);
                 if (passPP + accPP + techPP > 0) {
                     increase = fullPP / (passPP + accPP + techPP);
