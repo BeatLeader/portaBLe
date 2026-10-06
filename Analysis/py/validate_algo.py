@@ -65,14 +65,17 @@ for spd, key in (("SS", "SS"), ("FS", "FS"), ("SF", "SFS")):
     b_al = np.polyfit(g.algo, g["shift"], 1)[0]
     print(f"  {spd}: {len(g)} maps | R2 of real per-map shift: ML {r_ml**2:.3f}, algorithm {r_al**2:.3f} (slope {b_al:.2f}) | mean shift real {g['shift'].mean():+.3f} ML {g.ml.mean():+.3f} algo {g.algo.mean():+.3f}")
     k = float(np.sum(g.n * g.algo * g["shift"]) / np.sum(g.n * g.algo ** 2))   # weighted regression through the origin
-    res[f"speed_{spd}"] = dict(maps=len(g), r2_ml=r_ml ** 2, r2_algo=r_al ** 2, slope_algo=b_al, mean_real=g["shift"].mean(), mean_ml=g.ml.mean(), mean_algo=g.algo.mean(), shrink=k)
-    print(f"     shrink factor (real ~ k * algorithm shift, weighted, through origin): k = {k:.3f}")
+    # range in which real scores confirm the (scaled) shift; beyond it the model only extrapolates
+    limit = float(abs((k * g.algo).quantile(0.01 if spd == "SS" else 0.99)))
+    res[f"speed_{spd}"] = dict(maps=len(g), r2_ml=r_ml ** 2, r2_algo=r_al ** 2, slope_algo=b_al, mean_real=g["shift"].mean(), mean_ml=g.ml.mean(), mean_algo=g.algo.mean(), shrink=k, limit=limit)
+    print(f"     shrink factor (real ~ k * algorithm shift, weighted, through origin): k = {k:.3f}; confirmed range |k * shift| <= {limit:.3f}")
 
 if args.write_speed_scale:
     # only meaningful when ratings_<algo-tag> were produced WITHOUT a speed_shift_scale already in the model
     spec["speed_shift_scale"] = [[0.85, res["speed_SS"]["shrink"]], [1.0, 1.0], [1.2, res["speed_FS"]["shrink"]], [1.5, res["speed_SF"]["shrink"]]]
+    spec["speed_shift_limit"] = [[0.85, res["speed_SS"]["limit"]], [1.2, res["speed_FS"]["limit"]], [1.5, res["speed_SF"]["limit"]]]
     json.dump(spec, open(args.model, "w"), indent=1)
-    print("wrote speed_shift_scale to", args.model, spec["speed_shift_scale"])
+    print("wrote speed_shift_scale / speed_shift_limit to", args.model, spec["speed_shift_scale"], spec["speed_shift_limit"])
 
 # ---- 2. acc-PP bias at equal skill (algorithm uses out-of-fold predictions)
 F = fit.copy()

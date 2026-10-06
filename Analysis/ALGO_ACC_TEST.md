@@ -172,6 +172,35 @@ joint skill fit across modes.
 Raw top-10 accuracy per map is *not* a fair judge here (it mostly reflects which players a map attracts): against it both
 correlate about equally (ML 0.911, algorithm 0.900).
 
+## Field test (portaBLe Hub, Oct 6)
+
+**Speed modifiers in A/B looked broken: they were extrapolating.** On maps that people play with speed modifiers
+(≥ 15 scores) the algorithm's shift matches real scores bin by bin (SF: predicted +0.11 … +0.47, real +0.11 … +0.57, while the ML
+predicts a flat +0.23 … +0.27). But on maps nobody plays at that speed the linear model extrapolates far beyond anything observed
+(SF shift up to +1.09 on 12–17★ maps, 169 maps beyond the largest observed value), and the power-law curve turns that
+exponentially into 25–34★ SF ratings. The shift is now limited to the range real scores confirm (`speed_shift_limit`: SS 0.241,
+FS 0.173, SF 0.585; 99th percentile over maps with speed scores; `validate_algo.py --write-speed-scale` writes it). The few maps with
+data beyond the limit show real shifts as large as predicted (SF +0.70 vs +0.66), so the limit is a safety margin, not a correction.
+
+**The worst offender is one map, not modifiers in general.** *My Album Is Out On Dance Corps…* (E+) is the algorithm's worst miss
+(+0.42 harder than its 1 619 scores imply; the next worst ranked map is +0.37), and its SF shift is also overestimated (+0.80
+predicted, +0.50 real). Both errors compound to 1 100–1 200 PP SF scores where the ML gives ~700. Across all 105 k FS/SF scores
+worth > 300 PP, the median PP change matches unmodified scores, so modifiers are not systematically overpaid.
+`out/algo_vs_scores_outliers.md` lists the 20 worst misses in each direction: 47 ranked maps (1.3 %) are off by more than 0.25,
+versus 353 for the ML. A guard such as "with ≥ 200 scores, keep the rating within ±0.25 of the score-implied difficulty" would catch
+exactly these; it is not implemented because it makes ratings depend on scores (see below).
+
+**C over-rates easy maps for top players, as expected.** Example `dda51` (*Let Mom Sleep*, Hard): Bizzy's SF 98.8 % pays 828 PP
+with the ML, 783 in A, 727 in B and 938 in C, where it becomes his #1 score. (Stars are not comparable across curves: B shows 6.1★
+against the ML's 5.0★ yet pays less.) The algorithm agrees with the scores here (predicted −0.17, score-
+implied −0.15), and A/B rate the map *easier* than the ML (predicted accuracy 0.9869 vs 0.9860). C's compressed spread pulls easy
+maps towards the middle. C is not a viable option.
+
+**Do maps nobody plays look too hard from scores?** Only weakly. Top-2 % players score as expected on the least-played maps
+(mean residual −0.002) and slightly *worse* than expected on the most-played ones (+0.046): if anything, farmed maps look a little
+easier than they are. On `dda51`, 24 top-player scores beat the expectation by 0.09 (≈ 5 % PP). The effort question is still
+open and needs the attempts data.
+
 ## Known limitations
 
 * Weights are fitted on today's ranked Standard pool; maps far outside it (gimmicks, extreme speeds, other characteristics) rely
