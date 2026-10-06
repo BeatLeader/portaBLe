@@ -7,18 +7,22 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Remove="Hub\**" />
     <Compile Remove="beatleader-analyzer\**" />
     <Compile Remove="beatleader-parser\**" />
     <Compile Remove="maps\**" />
     <Compile Remove="ppCurve\**" />
+    <Content Remove="Hub\**" />
     <Content Remove="beatleader-analyzer\**" />
     <Content Remove="beatleader-parser\**" />
     <Content Remove="maps\**" />
     <Content Remove="ppCurve\**" />
+    <EmbeddedResource Remove="Hub\**" />
     <EmbeddedResource Remove="beatleader-analyzer\**" />
     <EmbeddedResource Remove="beatleader-parser\**" />
     <EmbeddedResource Remove="maps\**" />
     <EmbeddedResource Remove="ppCurve\**" />
+    <None Remove="Hub\**" />
     <None Remove="beatleader-analyzer\**" />
     <None Remove="beatleader-parser\**" />
     <None Remove="maps\**" />

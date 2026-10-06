@@ -1,0 +1,24 @@
+# portaBLe Hub — installed by Hub/deploy/setup.sh (__UID__ = uid of the "portable" user).
+# Runs as "portable"; deployments are that user's systemd user services (lingering is enabled), hence the runtime dir.
+[Unit]
+Description=portaBLe Hub
+After=network-online.target user@__UID__.service
+Wants=network-online.target user@__UID__.service
+
+[Service]
+User=portable
+Group=portable
+WorkingDirectory=/srv/portable/hub/app
+ExecStart=/usr/bin/dotnet /srv/portable/hub/app/PortableHub.dll
+Environment=ASPNETCORE_URLS=http://127.0.0.1:__HUB_PORT__
+Environment=ASPNETCORE_ENVIRONMENT=Production
+Environment=HOME=/srv/portable
+Environment=XDG_RUNTIME_DIR=/run/user/__UID__
+Environment=DBUS_SESSION_BUS_ADDRESS=unix:path=/run/user/__UID__/bus
+Environment=DOTNET_gcServer=0
+Environment=DOTNET_CLI_TELEMETRY_OPTOUT=1
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

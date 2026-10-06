@@ -1,0 +1,47 @@
+namespace PortableHub;
+
+/// <summary>
+/// Every PollSeconds (or right away after a GitHub push webhook): fetch the branch list and queue a redeploy for every
+/// auto-deploy deployment whose branch moved. A commit that failed to deploy is skipped until the branch moves again.
+/// </summary>
+public sealed class Poller(HubConfig config, StateStore state, GitService git, Deployer deployer, CloudflareService cloudflare,
+    ILogger<Poller> logger) : BackgroundService
+{
+    private readonly SemaphoreSlim _trigger = new(0, 1);
+    private bool _hubDnsChecked;
+
+    public void Trigger()
+    {
+        try { _trigger.Release(); } catch (SemaphoreFullException) { }
+    }
+
+    protected override async Task ExecuteAsync(CancellationToken stoppingToken)
+    {
+        while (!stoppingToken.IsCancellationRequested)
+        {
+            try
+            {
+                await Poll(stoppingToken);
+            }
+            catch (Exception e) when (e is not OperationCanceledException)
+            {
+                logger.LogWarning(e, "poll failed");
+            }
+            await _trigger.WaitAsync(TimeSpan.FromSeconds(config.PollSeconds), stoppingToken);
+        }
+    }
+
+    private async Task Poll(CancellationToken ct)
+    {
+        await git.Refresh(ct);
+        if (!_hubDnsChecked && cloudflare.Configured)
+            _hubDnsChecked = await cloudflare.EnsureRecord(config.HubHost, null, ct) || cloudflare.Status == "ok";
+        foreach (var d in state.All())
+        {
+            if (!d.AutoDeploy || d.Status is DeployStatus.Stopped || d.Activity != null || deployer.IsPending(d.Name)) continue;
+            var tip = git.Branch(d.Branch)?.Sha;
+            if (tip == null || tip == d.Commit || tip == d.FailedCommit) continue;
+            deployer.Enqueue(d.Name, JobKind.Deploy, d.Commit == null ? "first deploy" : $"{d.Branch} moved to {tip[..7]}");
+        }
+    }
+}

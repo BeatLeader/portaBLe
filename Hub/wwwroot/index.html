@@ -1,0 +1,97 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>portaBLe Hub</title>
+  <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 32 32'%3E%3Crect width='32' height='32' rx='7' fill='%23e5487a'/%3E%3Cpath d='M9 22V10h7a4 4 0 0 1 0 8h-7' fill='none' stroke='white' stroke-width='3'/%3E%3C/svg%3E">
+  <link rel="stylesheet" href="app.css">
+</head>
+<body>
+  <header class="topbar">
+    <div class="brand"><span class="logo">BL</span><h1>portaBLe Hub</h1></div>
+    <div class="chips" id="chips"></div>
+    <div class="top-actions">
+      <button class="btn" id="refresh-btn" title="Fetch branches now">Fetch branches</button>
+      <button class="btn primary" id="new-btn">New deployment</button>
+    </div>
+  </header>
+
+  <main>
+    <section>
+      <div class="section-head">
+        <h2>Deployments</h2>
+        <span class="muted" id="deploy-count"></span>
+      </div>
+      <div id="deployments" class="deployments"><p class="muted">Loading…</p></div>
+    </section>
+
+    <section>
+      <div class="section-head">
+        <h2>Branches</h2>
+        <input type="search" id="branch-filter" placeholder="Filter branches" aria-label="Filter branches">
+      </div>
+      <div class="table-wrap">
+        <table class="branches">
+          <thead><tr><th>Branch</th><th>Last commit</th><th>Deployed as</th><th></th></tr></thead>
+          <tbody id="branches"></tbody>
+        </table>
+      </div>
+    </section>
+
+    <section id="setup-notes" hidden>
+      <h2>Setup notes</h2>
+      <div id="setup-body" class="notes"></div>
+    </section>
+  </main>
+
+  <dialog id="form-dialog">
+    <form id="deploy-form" method="dialog">
+      <h3 id="form-title">New deployment</h3>
+      <label>Name
+        <input name="depname" required pattern="[a-z0-9]([a-z0-9-]{0,30}[a-z0-9])?" maxlength="32" autocomplete="off" spellcheck="false">
+        <small id="host-preview" class="muted"></small>
+      </label>
+      <label>Branch
+        <select name="branch" required></select>
+      </label>
+      <label>Database <small class="muted">(S3 key)</small>
+        <select name="dbKey"></select>
+      </label>
+      <label>Comparison database <small class="muted">(for the DatabaseComparison page)</small>
+        <select name="comparisonKey"></select>
+      </label>
+      <label>Extra arguments <small class="muted">(appended to the app's command line)</small>
+        <input name="args" maxlength="500" autocomplete="off" spellcheck="false" placeholder="e.g. --curve PowerLaw">
+      </label>
+      <label>Notes
+        <input name="notes" maxlength="300" placeholder="What is this deployment for?">
+      </label>
+      <div class="checks">
+        <label class="check"><input type="checkbox" name="autoDeploy" checked> Redeploy on push</label>
+        <label class="check"><input type="checkbox" name="protected"> Require the hub login</label>
+      </div>
+      <p class="form-error" id="form-error" role="alert"></p>
+      <div class="dialog-actions">
+        <button type="button" class="btn" value="cancel" id="form-cancel">Cancel</button>
+        <button type="submit" class="btn primary" id="form-submit">Deploy</button>
+      </div>
+    </form>
+  </dialog>
+
+  <dialog id="log-dialog" class="wide">
+    <div class="log-head">
+      <h3 id="log-title">Logs</h3>
+      <div class="tabs" role="tablist">
+        <button class="tab active" data-kind="deploy" role="tab">Deploy</button>
+        <button class="tab" data-kind="app" role="tab">App</button>
+      </div>
+      <button class="btn" id="log-close">Close</button>
+    </div>
+    <pre id="log-body" class="log"></pre>
+  </dialog>
+
+  <div id="toast" class="toast" role="status" aria-live="polite"></div>
+  <script src="app.js"></script>
+</body>
+</html>
