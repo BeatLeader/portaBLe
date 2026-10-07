@@ -1,41 +1,57 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
 using portaBLe.DB;
+using portaBLe.Services;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
 
 namespace portaBLe.Pages
 {
-    public class LeaderboardStatsModel : PageModel
+    public class LeaderboardStatsModel : BasePageModel
     {
-        private readonly AppContext _context;
         public List<Leaderboard> LeaderboardStats { get; set; }
         public string SearchString { get; set; }
-        public string SortBy { get; set; } = "TotalPP";
+        public string ModeName { get; set; }
+        public List<string> ModeNames { get; set; }
+        public string SortBy { get; set; } = "Megametric125";
         public bool SortDescending { get; set; } = true;
         public int CurrentPage { get; set; } = 1;
         public int TotalPages { get; set; }
 
-        public LeaderboardStatsModel(AppContext context)
+        public LeaderboardStatsModel(IDynamicDbContextService dbService) : base(dbService)
         {
-            _context = context;
         }
 
-        public async Task<IActionResult> OnGetAsync(string searchString, string sortBy = "TotalPP", bool? sortDescending = true, int currentPage = 1)
+        public async Task<IActionResult> OnGetAsync(string searchString, string modeName, string sortBy = "Megametric125", bool? sortDescending = true, int currentPage = 1, string db = null)
         {
+            await InitializeDatabaseSelectionAsync(db);
+
+            using var context = (Services.DynamicDbContext)GetDbContext();
+
+            ModeNames = await context.Leaderboards
+                .Select(l => l.ModeName)
+                .Distinct()
+                .OrderBy(m => m)
+                .ToListAsync();
+
             SearchString = searchString;
+            ModeName = modeName;
             SortBy = sortBy;
             SortDescending = sortDescending ?? true;
             CurrentPage = currentPage;
             int pageSize = 50;
 
-            var query = _context.Leaderboards.Where(lb => true);
+            var query = context.Leaderboards.Where(lb => true);
 
             if (!string.IsNullOrEmpty(SearchString))
             {
                 query = query.Where(l => l.Name.ToLower().Contains(SearchString.ToLower()));
+            }
+
+            if (!string.IsNullOrEmpty(ModeName))
+            {
+                query = query.Where(l => l.ModeName == ModeName);
             }
 
             var totalItems = await query.CountAsync();
@@ -74,4 +90,4 @@ namespace portaBLe.Pages
             return Page();
         }
     }
-}
+} 

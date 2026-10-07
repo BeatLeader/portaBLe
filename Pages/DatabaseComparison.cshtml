@@ -11,17 +11,69 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-header">
+                    <h5 class="mb-0">Database Selection</h5>
+                </div>
+                <div class="card-body">
+                    <form method="get" id="dbSelectionForm">
+                        <div class="row">
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="mainDb">Main Database:</label>
+                                    <select class="form-control" id="mainDb" name="mainDb" onchange="document.getElementById('dbSelectionForm').submit();">
+                                        @foreach (var db in Model.AvailableDatabases)
+                                        {
+                                            <option value="@db.FileName" selected="@(db.FileName == Model.SelectedMainDb)">
+                                                @db.Name - @db.FileName
+                                            </option>
+                                        }
+                                    </select>
+                                    @if (Model.AvailableDatabases.Any(db => db.FileName == Model.SelectedMainDb && !string.IsNullOrEmpty(db.Description)))
+                                    {
+                                        var mainDbConfig = Model.AvailableDatabases.First(db => db.FileName == Model.SelectedMainDb);
+                                        <small class="form-text text-muted">@mainDbConfig.Description</small>
+                                    }
+                                </div>
+                            </div>
+                            <div class="col-md-6">
+                                <div class="form-group">
+                                    <label for="comparisonDb">Comparison Database:</label>
+                                    <select class="form-control" id="comparisonDb" name="comparisonDb" onchange="document.getElementById('dbSelectionForm').submit();">
+                                        @foreach (var db in Model.AvailableDatabases)
+                                        {
+                                            <option value="@db.FileName" selected="@(db.FileName == Model.SelectedComparisonDb)">
+                                                @db.Name - @db.FileName
+                                            </option>
+                                        }
+                                    </select>
+                                    @if (Model.AvailableDatabases.Any(db => db.FileName == Model.SelectedComparisonDb && !string.IsNullOrEmpty(db.Description)))
+                                    {
+                                        var compDbConfig = Model.AvailableDatabases.First(db => db.FileName == Model.SelectedComparisonDb);
+                                        <small class="form-text text-muted">@compDbConfig.Description</small>
+                                    }
+                                </div>
+                            </div>
+                        </div>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div class="row mb-3">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
                     <h5 class="mb-0">Database Statistics</h5>
                 </div>
                 <div class="card-body">
                     <div class="row">
                         <div class="col-md-6">
-                            <h6>Current Database (Database.db)</h6>
+                            <h6>Main Database (@Model.SelectedMainDb)</h6>
                             <p><strong>Players:</strong> @Model.Stats.CurrentPlayerCount</p>
                             <p><strong>Scores:</strong> @Model.Stats.CurrentScoreCount</p>
                         </div>
                         <div class="col-md-6">
-                            <h6>Comparison Database (Comparison.db)</h6>
+                            <h6>Comparison Database (@Model.SelectedComparisonDb)</h6>
                             <p><strong>Players:</strong> @Model.Stats.ComparisonPlayerCount</p>
                             <p><strong>Scores:</strong> @Model.Stats.ComparisonScoreCount</p>
                         </div>
@@ -42,83 +94,140 @@
         <div class="col-md-12">
             <div class="card">
                 <div class="card-header">
-                    <h5 class="mb-0">Player Comparison</h5>
+                    <h5 class="mb-0">Comparison View</h5>
                 </div>
                 <div class="card-body">
-                    <div class="form-group">
-                        <label for="playerId">Enter Player ID to Compare:</label>
-                        <div class="input-group">
-                            <input type="text" class="form-control" id="playerId" placeholder="Enter player ID" />
-                            <div class="input-group-append">
-                                <button class="btn btn-primary" onclick="loadPlayerComparison()">Compare</button>
+                    <div class="row mb-3">
+                        <div class="col-md-4">
+                            <label>Select View:</label>
+                            <div class="btn-group w-100" role="group">
+                                <button type="button" class="btn btn-primary" id="btnPlayers" onclick="showView('players')">All Players</button>
+                                <button type="button" class="btn btn-outline-primary" id="btnMaps" onclick="showView('maps')">All Maps</button>
+                                <button type="button" class="btn btn-outline-primary" id="btnMegametrics" onclick="showView('megametrics')">Megametrics</button>
                             </div>
+                        </div>
+                        <div class="col-md-4" id="rankLimitContainer">
+                            <label for="rankLimit">Rank Limit (Players Only):</label>
+                            <input type="number" class="form-control" id="rankLimit" value="1000" min="1" max="100000" onchange="loadPlayersData()">
+                        </div>
+                        <div class="col-md-4">
+                            <label for="searchBox">Search:</label>
+                            <input type="text" class="form-control" id="searchBox" placeholder="Search by name..." onkeyup="filterTable()">
                         </div>
                     </div>
 
-                    <div id="playerInfo" style="display:none;" class="mt-3">
-                        <div class="row">
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-header bg-primary text-white">
-                                        <h6 class="mb-0">Current Database</h6>
+                    <div class="mb-2">
+                        <span id="recordCount" class="ms-3 text-muted"></span>
+                    </div>
+
+                    <div id="loadingIndicator" class="text-center my-4" style="display: none;">
+                        <div class="spinner-border" role="status">
+                            <span class="visually-hidden">Loading...</span>
+                        </div>
+                        <p>Loading data...</p>
+                    </div>
+
+                    <div id="playersView" class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                        <table class="table table-striped table-hover" id="playersTable">
+                            <thead class="sticky-top bg-light">
+                                <tr>
+                                    <th onclick="sortTable('players', 'comparisonRank')" style="cursor: pointer;">Name <span id="sort-comparisonRank"></span></th>
+                                    <th onclick="sortTable('players', 'rankDiff')" style="cursor: pointer;">Rank Diff <span id="sort-rankDiff"></span></th>
+                                    <th onclick="sortTable('players', 'ppDiff')" style="cursor: pointer;">PP Diff <span id="sort-ppDiff"></span></th>
+                                    <th onclick="sortTable('players', 'accPpDiff')" style="cursor: pointer;">AccPP Diff <span id="sort-accPpDiff"></span></th>
+                                    <th onclick="sortTable('players', 'techPpDiff')" style="cursor: pointer;">TechPP Diff <span id="sort-techPpDiff"></span></th>
+                                    <th onclick="sortTable('players', 'passPpDiff')" style="cursor: pointer;">PassPP Diff <span id="sort-passPpDiff"></span></th>
+                                </tr>
+                            </thead>
+                            <tbody id="playersTableBody">
+                            </tbody>
+                        </table>
+                    </div>
+
+                    <div id="mapsView" style="display: none;">
+                        <div class="card mb-3">
+                            <div class="card-header d-flex justify-content-between align-items-center">
+                                <h6 class="mb-0">Ratings Distribution Graph</h6>
+                                <div class="d-flex align-items-center gap-3">
+                                    <div class="d-flex align-items-center">
+                                        <label for="ratingSelect" class="me-2 mb-0">Rating:</label>
+                                        <select class="form-select form-select-sm" id="ratingSelect" style="width: auto;" onchange="updateRatingsChart()">
+                                            <option value="stars">Stars</option>
+                                            <option value="accRating">Acc Rating</option>
+                                            <option value="passRating">Pass Rating</option>
+                                            <option value="techRating">Tech Rating</option>
+                                        </select>
                                     </div>
-                                    <div class="card-body" id="currentPlayerInfo">
+                                    <div class="form-check form-switch mb-0">
+                                        <input class="form-check-input" type="checkbox" id="independentSortToggle" checked onchange="updateRatingsChart()">
+                                        <label class="form-check-label" for="independentSortToggle">Sort independently</label>
                                     </div>
                                 </div>
                             </div>
-                            <div class="col-md-6">
-                                <div class="card">
-                                    <div class="card-header bg-secondary text-white">
-                                        <h6 class="mb-0">Comparison Database</h6>
+                            <div class="card-body">
+                                <div class="row mb-3">
+                                    <div class="col-md-12">
+                                        <div class="alert alert-info mb-0 d-flex justify-content-between align-items-center">
+                                            <span>
+                                                <strong>Average Difference (Main - Comparison):</strong>
+                                                <span id="avgDifference" class="ms-2">-</span>
+                                            </span>
+                                            <small class="text-muted">
+                                                <em>A value close to 0 indicates balanced databases</em>
+                                            </small>
+                                        </div>
                                     </div>
-                                    <div class="card-body" id="comparisonPlayerInfo">
-                                    </div>
+                                </div>
+                                <div style="position: relative; height: 300px; width: 100%;">
+                                    <canvas id="ratingsChart"></canvas>
                                 </div>
                             </div>
                         </div>
+                        
+                        <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                            <table class="table table-striped table-hover" id="mapsTable">
+                                <thead class="sticky-top bg-light">
+                                    <tr>
+                                        <th onclick="sortTable('maps', 'name')" style="cursor: pointer;">Name <span id="sort-map-name"></span></th>
+                                        <th onclick="sortTable('maps', 'starsDiff')" style="cursor: pointer;">Stars Diff <span id="sort-map-starsDiff"></span></th>
+                                        <th onclick="sortTable('maps', 'accRatingDiff')" style="cursor: pointer;">Acc Rating Diff <span id="sort-map-accRatingDiff"></span></th>
+                                        <th onclick="sortTable('maps', 'passRatingDiff')" style="cursor: pointer;">Pass Rating Diff <span id="sort-map-passRatingDiff"></span></th>
+                                        <th onclick="sortTable('maps', 'techRatingDiff')" style="cursor: pointer;">Tech Rating Diff <span id="sort-map-techRatingDiff"></span></th>
+                                        <th onclick="sortTable('maps', 'currentStars')" style="cursor: pointer;">Current Stars <span id="sort-map-currentStars"></span></th>
+                                        <th onclick="sortTable('maps', 'comparisonStars')" style="cursor: pointer;">Comparison Stars <span id="sort-map-comparisonStars"></span></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="mapsTableBody">
+                                </tbody>
+                            </table>
+                        </div>
                     </div>
-                </div>
-            </div>
-        </div>
-    </div>
 
-    <div class="row">
-        <div class="col-md-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Top 100 Players Comparison</h5>
-                    <small class="text-muted">PP changes across top 100 players</small>
-                </div>
-                <div class="card-body">
-                    <canvas id="top100ComparisonChart" style="height: 400px;"></canvas>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row mt-3" id="playerChartsRow" style="display:none;">
-        <div class="col-md-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">Player Scores Comparison</h5>
-                    <small class="text-muted">Top 200 scores weighted PP comparison</small>
-                </div>
-                <div class="card-body">
-                    <canvas id="playerScoresChart" style="height: 400px;"></canvas>
-                </div>
-            </div>
-        </div>
-    </div>
-
-    <div class="row mt-3" id="componentsRow" style="display:none;">
-        <div class="col-md-12">
-            <div class="card">
-                <div class="card-header">
-                    <h5 class="mb-0">PP Components Comparison</h5>
-                    <small class="text-muted">Acc, Tech, and Pass PP changes</small>
-                </div>
-                <div class="card-body">
-                    <canvas id="componentsComparisonChart" style="height: 400px;"></canvas>
+                    <div id="megametricsView" style="display: none;">
+                        <div class="alert alert-info">
+                            <strong>Note:</strong> This view only shows maps where at least one database has Megametric125 > 0.5
+                        </div>
+                        
+                        <div class="table-responsive" style="max-height: 600px; overflow-y: auto;">
+                            <table class="table table-striped table-hover" id="megametricsTable">
+                                <thead class="sticky-top bg-light">
+                                    <tr>
+                                        <th onclick="sortTable('megametrics', 'name')" style="cursor: pointer;">Name <span id="sort-mega-name"></span></th>
+                                        <th onclick="sortTable('megametrics', 'megametric125Diff')" style="cursor: pointer;">Megametric125 Diff <span id="sort-mega-megametric125Diff"></span></th>
+                                        <th onclick="sortTable('megametrics', 'megametric75Diff')" style="cursor: pointer;">Megametric75 Diff <span id="sort-mega-megametric75Diff"></span></th>
+                                        <th onclick="sortTable('megametrics', 'megametric40Diff')" style="cursor: pointer;">Megametric40 Diff <span id="sort-mega-megametric40Diff"></span></th>
+                                        <th onclick="sortTable('megametrics', 'outlierCountDiff')" style="cursor: pointer;">Outlier Count Diff <span id="sort-mega-outlierCountDiff"></span></th>
+                                        <th onclick="sortTable('megametrics', 'currentOutlierPercentage')" style="cursor: pointer;">Main Outlier % <span id="sort-mega-currentOutlierPercentage"></span></th>
+                                        <th onclick="sortTable('megametrics', 'comparisonOutlierPercentage')" style="cursor: pointer;">Comparison Outlier % <span id="sort-mega-comparisonOutlierPercentage"></span></th>
+                                        <th onclick="sortTable('megametrics', 'currentMegametric125')" style="cursor: pointer;">Main Megametric125 <span id="sort-mega-currentMegametric125"></span></th>
+                                        <th onclick="sortTable('megametrics', 'comparisonMegametric125')" style="cursor: pointer;">Comparison Megametric125 <span id="sort-mega-comparisonMegametric125"></span></th>
+                                    </tr>
+                                </thead>
+                                <tbody id="megametricsTableBody">
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -128,168 +237,446 @@
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/chart.js@3.9.1/dist/chart.min.js"></script>
     <script>
-        let currentPlayers = @Html.Raw(Model.CurrentJsonData);
-        let comparisonPlayers = @Html.Raw(Model.ComparisonJsonData);
-        let charts = {};
-        let playerData = null;
+        let currentView = 'players';
+        let playersData = [];
+        let mapsData = [];
+        let megametricsData = [];
+        let sortColumn = null;
+        let sortDirection = 'asc';
+        let isFormSubmitting = false;
+        let ratingsChart = null;
 
-        // Render top 100 comparison on load
-        renderTop100Comparison();
-
-        function renderTop100Comparison() {
-            const ctx = document.getElementById('top100ComparisonChart').getContext('2d');
-            
-            if (charts.top100) {
-                charts.top100.destroy();
-            }
-
-            // Match players by ID
-            const comparisonMap = new Map(comparisonPlayers.map(p => [p.id, p]));
-            const labels = [];
-            const ppDiffs = [];
-
-            currentPlayers.forEach((current, index) => {
-                const comparison = comparisonMap.get(current.id);
-                if (comparison) {
-                    const playerName = current.name || 'Unknown';
-                    labels.push(`#${index + 1} ${playerName.substring(0, 15)}`);
-                    ppDiffs.push(current.pp - comparison.pp);
-                }
-            });
-
-            charts.top100 = new Chart(ctx, {
-                type: 'bar',
-                data: {
-                    labels: labels,
-                    datasets: [{
-                        label: 'PP Change',
-                        data: ppDiffs,
-                        backgroundColor: ppDiffs.map(d => d >= 0 ? 'rgba(75, 192, 192, 0.7)' : 'rgba(255, 99, 132, 0.7)'),
-                        borderColor: ppDiffs.map(d => d >= 0 ? 'rgba(75, 192, 192, 1)' : 'rgba(255, 99, 132, 1)'),
-                        borderWidth: 1
-                    }]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    scales: {
-                        y: {
-                            title: {
-                                display: true,
-                                text: 'PP Difference'
-                            }
-                        },
-                        x: {
-                            ticks: {
-                                maxRotation: 90,
-                                minRotation: 45,
-                                font: {
-                                    size: 10
-                                }
-                            }
-                        }
-                    }
-                }
-            });
+        function getMainDb() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('mainDb') || document.getElementById('mainDb').value;
         }
 
-        async function loadPlayerComparison() {
-            const playerId = document.getElementById('playerId').value.trim();
-            if (!playerId) {
-                alert('Please enter a player ID');
-                return;
+        function getComparisonDb() {
+            const urlParams = new URLSearchParams(window.location.search);
+            return urlParams.get('comparisonDb') || document.getElementById('comparisonDb').value;
+        }
+
+        document.addEventListener('DOMContentLoaded', function() {
+            if (!isFormSubmitting) {
+                loadPlayersData();
+            }
+        });
+
+        document.getElementById('dbSelectionForm').addEventListener('submit', function() {
+            isFormSubmitting = true;
+        });
+
+        function showView(view) {
+            currentView = view;
+            sortColumn = null;
+            sortDirection = 'asc';
+
+            if (view === 'players') {
+                document.getElementById('btnPlayers').className = 'btn btn-primary';
+                document.getElementById('btnMaps').className = 'btn btn-outline-primary';
+                document.getElementById('btnMegametrics').className = 'btn btn-outline-primary';
+                document.getElementById('playersView').style.display = 'block';
+                document.getElementById('mapsView').style.display = 'none';
+                document.getElementById('megametricsView').style.display = 'none';
+                document.getElementById('rankLimitContainer').style.display = 'block';
+                
+                if (playersData.length === 0) {
+                    loadPlayersData();
+                } else {
+                    renderPlayersTable();
+                }
+            } else if (view === 'maps') {
+                document.getElementById('btnPlayers').className = 'btn btn-outline-primary';
+                document.getElementById('btnMaps').className = 'btn btn-primary';
+                document.getElementById('btnMegametrics').className = 'btn btn-outline-primary';
+                document.getElementById('playersView').style.display = 'none';
+                document.getElementById('mapsView').style.display = 'block';
+                document.getElementById('megametricsView').style.display = 'none';
+                document.getElementById('rankLimitContainer').style.display = 'none';
+                
+                if (mapsData.length === 0) {
+                    loadMapsData();
+                } else {
+                    renderMapsTable();
+                    updateRatingsChart();
+                }
+            } else if (view === 'megametrics') {
+                document.getElementById('btnPlayers').className = 'btn btn-outline-primary';
+                document.getElementById('btnMaps').className = 'btn btn-outline-primary';
+                document.getElementById('btnMegametrics').className = 'btn btn-primary';
+                document.getElementById('playersView').style.display = 'none';
+                document.getElementById('mapsView').style.display = 'none';
+                document.getElementById('megametricsView').style.display = 'block';
+                document.getElementById('rankLimitContainer').style.display = 'none';
+                
+                if (megametricsData.length === 0) {
+                    loadMegametricsData();
+                } else {
+                    renderMegametricsTable();
+                }
             }
 
+            document.getElementById('searchBox').value = '';
+        }
+
+        async function loadPlayersData() {
+            document.getElementById('loadingIndicator').style.display = 'block';
+            const rankLimit = document.getElementById('rankLimit').value || 1000;
+            const mainDb = getMainDb();
+            const comparisonDb = getComparisonDb();
             try {
-                const response = await fetch(`/DatabaseComparison?handler=PlayerComparison&playerId=${encodeURIComponent(playerId)}`);
-                if (!response.ok) {
-                    throw new Error('Failed to load player comparison');
-                }
-
-                playerData = await response.json();
-
-                if (playerData.error) {
-                    alert(playerData.error);
-                    return;
-                }
-
-                displayPlayerInfo(playerData);
-                renderPlayerScoresComparison(playerData);
-                renderComponentsComparison(playerData);
-
-                document.getElementById('playerInfo').style.display = 'block';
-                document.getElementById('playerChartsRow').style.display = 'block';
-                document.getElementById('componentsRow').style.display = 'block';
+                const response = await fetch(`/DatabaseComparison?handler=AllPlayersComparison&mainDb=${encodeURIComponent(mainDb)}&comparisonDb=${encodeURIComponent(comparisonDb)}&rankLimit=${rankLimit}`);
+                if (!response.ok) throw new Error('Failed to load players data');
+                
+                playersData = await response.json();
+                renderPlayersTable();
             } catch (error) {
                 console.error('Error:', error);
-                alert('Error loading player comparison');
+                if (error.name !== 'AbortError' && error.message !== 'cancelled') {
+                    // alert('Error loading players data');
+                }
+            } finally {
+                document.getElementById('loadingIndicator').style.display = 'none';
             }
         }
 
-        function displayPlayerInfo(data) {
-            const currentDiv = document.getElementById('currentPlayerInfo');
-            const comparisonDiv = document.getElementById('comparisonPlayerInfo');
-
-            if (data.currentPlayer) {
-                currentDiv.innerHTML = `
-                    <p><strong>Name:</strong> ${data.currentPlayer.name}</p>
-                    <p><strong>Rank:</strong> #${data.currentPlayer.rank}</p>
-                    <p><strong>Total PP:</strong> ${data.currentPlayer.pp.toFixed(2)}</p>
-                    <p><strong>Acc PP:</strong> ${data.currentPlayer.accPp.toFixed(2)}</p>
-                    <p><strong>Tech PP:</strong> ${data.currentPlayer.techPp.toFixed(2)}</p>
-                    <p><strong>Pass PP:</strong> ${data.currentPlayer.passPp.toFixed(2)}</p>
-                `;
-            } else {
-                currentDiv.innerHTML = '<p class="text-danger">Player not found in current database</p>';
-            }
-
-            if (data.comparisonPlayer) {
-                const ppDiff = data.currentPlayer ? (data.currentPlayer.pp - data.comparisonPlayer.pp) : 0;
-                comparisonDiv.innerHTML = `
-                    <p><strong>Name:</strong> ${data.comparisonPlayer.name}</p>
-                    <p><strong>Rank:</strong> #${data.comparisonPlayer.rank}</p>
-                    <p><strong>Total PP:</strong> ${data.comparisonPlayer.pp.toFixed(2)}</p>
-                    <p><strong>Acc PP:</strong> ${data.comparisonPlayer.accPp.toFixed(2)}</p>
-                    <p><strong>Tech PP:</strong> ${data.comparisonPlayer.techPp.toFixed(2)}</p>
-                    <p><strong>Pass PP:</strong> ${data.comparisonPlayer.passPp.toFixed(2)}</p>
-                    ${data.currentPlayer ? `<hr><p><strong>PP Difference:</strong> <span class="${ppDiff >= 0 ? 'text-success' : 'text-danger'}">${ppDiff >= 0 ? '+' : ''}${ppDiff.toFixed(2)}</span></p>` : ''}
-                `;
-            } else {
-                comparisonDiv.innerHTML = '<p class="text-danger">Player not found in comparison database</p>';
+        async function loadMapsData() {
+            document.getElementById('loadingIndicator').style.display = 'block';
+            const mainDb = getMainDb();
+            const comparisonDb = getComparisonDb();
+            try {
+                const response = await fetch(`/DatabaseComparison?handler=AllMapsComparison&mainDb=${encodeURIComponent(mainDb)}&comparisonDb=${encodeURIComponent(comparisonDb)}`);
+                if (!response.ok) throw new Error('Failed to load maps data');
+                
+                mapsData = await response.json();
+                renderMapsTable();
+                updateRatingsChart();
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error loading maps data');
+            } finally {
+                document.getElementById('loadingIndicator').style.display = 'none';
             }
         }
 
-        function renderPlayerScoresComparison(data) {
-            const ctx = document.getElementById('playerScoresChart').getContext('2d');
+        async function loadMegametricsData() {
+            document.getElementById('loadingIndicator').style.display = 'block';
+            const mainDb = getMainDb();
+            const comparisonDb = getComparisonDb();
+            try {
+                const response = await fetch(`/DatabaseComparison?handler=MegametricsComparison&mainDb=${encodeURIComponent(mainDb)}&comparisonDb=${encodeURIComponent(comparisonDb)}`);
+                if (!response.ok) throw new Error('Failed to load megametrics data');
+                
+                megametricsData = await response.json();
+                renderMegametricsTable();
+            } catch (error) {
+                console.error('Error:', error);
+                alert('Error loading megametrics data');
+            } finally {
+                document.getElementById('loadingIndicator').style.display = 'none';
+            }
+        }
+
+        function renderPlayersTable() {
+            const tbody = document.getElementById('playersTableBody');
+            tbody.innerHTML = '';
+
+            const searchTerm = document.getElementById('searchBox').value.toLowerCase();
+            let filteredData = playersData;
+
+            if (searchTerm) {
+                filteredData = playersData.filter(p => p.name.toLowerCase().includes(searchTerm));
+            }
+
+            filteredData.forEach(player => {
+                const row = tbody.insertRow();
+                row.innerHTML = `
+                    <td><a href="/player/${player.id}" class="text-decoration-none">${player.name}</a></td>
+                    <td class="${player.rankDiff < 0 ? 'text-danger' : player.rankDiff > 0 ? 'text-success' : ''}">${player.rankDiff > 0 ? '+' : ''}${player.rankDiff}</td>
+                    <td class="${player.ppDiff > 0 ? 'text-success' : player.ppDiff < 0 ? 'text-danger' : ''}">${player.ppDiff > 0 ? '+' : ''}${player.ppDiff.toFixed(2)}</td>
+                    <td class="${player.accPpDiff > 0 ? 'text-success' : player.accPpDiff < 0 ? 'text-danger' : ''}">${player.accPpDiff > 0 ? '+' : ''}${player.accPpDiff.toFixed(2)}</td>
+                    <td class="${player.techPpDiff > 0 ? 'text-success' : player.techPpDiff < 0 ? 'text-danger' : ''}">${player.techPpDiff > 0 ? '+' : ''}${player.techPpDiff.toFixed(2)}</td>
+                    <td class="${player.passPpDiff > 0 ? 'text-success' : player.passPpDiff < 0 ? 'text-danger' : ''}">${player.passPpDiff > 0 ? '+' : ''}${player.passPpDiff.toFixed(2)}</td>
+                `;
+            });
+
+            updateRecordCount(filteredData.length, playersData.length);
+        }
+
+        function renderMapsTable() {
+            const tbody = document.getElementById('mapsTableBody');
+            tbody.innerHTML = '';
+
+            const searchTerm = document.getElementById('searchBox').value.toLowerCase();
+            let filteredData = mapsData;
+
+            if (searchTerm) {
+                filteredData = mapsData.filter(m => m.name.toLowerCase().includes(searchTerm));
+            }
+
+            filteredData.forEach(map => {
+                const row = tbody.insertRow();
+                const modeDisplay = map.modeName ? ` (${map.modeName}` : '';
+                const diffDisplay = map.difficultyName ? (modeDisplay ? ` - ${map.difficultyName})` : ` (${map.difficultyName})`) : (modeDisplay ? ')' : '');
+                row.innerHTML = `
+                    <td><a href="/leaderboard/${map.id}?db=${encodeURIComponent(getMainDb())}" class="text-decoration-none">${map.name}${modeDisplay}${diffDisplay}</a></td>
+                    <td class="${map.starsDiff > 0 ? 'text-success' : map.starsDiff < 0 ? 'text-danger' : ''}">${map.starsDiff > 0 ? '+' : ''}${map.starsDiff.toFixed(2)}</td>
+                    <td class="${map.accRatingDiff > 0 ? 'text-success' : map.accRatingDiff < 0 ? 'text-danger' : ''}">${map.accRatingDiff > 0 ? '+' : ''}${map.accRatingDiff.toFixed(2)}</td>
+                    <td class="${map.passRatingDiff > 0 ? 'text-success' : map.passRatingDiff < 0 ? 'text-danger' : ''}">${map.passRatingDiff > 0 ? '+' : ''}${map.passRatingDiff.toFixed(2)}</td>
+                    <td class="${map.techRatingDiff > 0 ? 'text-success' : map.techRatingDiff < 0 ? 'text-danger' : ''}">${map.techRatingDiff > 0 ? '+' : ''}${map.techRatingDiff.toFixed(2)}</td>
+                    <td>${map.currentStars.toFixed(2)}</td>
+                    <td>${map.comparisonStars.toFixed(2)}</td>
+                `;
+            });
+
+            updateRecordCount(filteredData.length, mapsData.length);
+        }
+
+        function renderMegametricsTable() {
+            const tbody = document.getElementById('megametricsTableBody');
+            tbody.innerHTML = '';
+
+            const searchTerm = document.getElementById('searchBox').value.toLowerCase();
+            let filteredData = megametricsData;
+
+            if (searchTerm) {
+                filteredData = megametricsData.filter(m => m.name.toLowerCase().includes(searchTerm));
+            }
+
+            filteredData.forEach(map => {
+                const row = tbody.insertRow();
+                const modeDisplay = map.modeName ? ` (${map.modeName}` : '';
+                const diffDisplay = map.difficultyName ? (modeDisplay ? ` - ${map.difficultyName})` : ` (${map.difficultyName})`) : (modeDisplay ? ')' : '');
+                row.innerHTML = `
+                    <td><a href="/leaderboard/${map.id}?db=${encodeURIComponent(getMainDb())}" class="text-decoration-none">${map.name}${modeDisplay}${diffDisplay}</a></td>
+                    <td class="${map.megametric125Diff > 0 ? 'text-success' : map.megametric125Diff < 0 ? 'text-danger' : ''}">${map.megametric125Diff > 0 ? '+' : ''}${map.megametric125Diff.toFixed(4)}</td>
+                    <td class="${map.megametric75Diff > 0 ? 'text-success' : map.megametric75Diff < 0 ? 'text-danger' : ''}">${map.megametric75Diff > 0 ? '+' : ''}${map.megametric75Diff.toFixed(4)}</td>
+                    <td class="${map.megametric40Diff > 0 ? 'text-success' : map.megametric40Diff < 0 ? 'text-danger' : ''}">${map.megametric40Diff > 0 ? '+' : ''}${map.megametric40Diff.toFixed(4)}</td>
+                    <td class="${map.outlierCountDiff > 0 ? 'text-danger' : map.outlierCountDiff < 0 ? 'text-success' : ''}">${map.outlierCountDiff > 0 ? '+' : ''}${map.outlierCountDiff}</td>
+                    <td>${map.currentOutlierPercentage.toFixed(2)}%</td>
+                    <td>${map.comparisonOutlierPercentage.toFixed(2)}%</td>
+                    <td>${map.currentMegametric125.toFixed(4)}</td>
+                    <td>${map.comparisonMegametric125.toFixed(4)}</td>
+                `;
+            });
+
+            updateRecordCount(filteredData.length, megametricsData.length);
+        }
+
+        function updateRecordCount(filtered, total) {
+            const countElement = document.getElementById('recordCount');
+            if (filtered === total) {
+                countElement.textContent = `Showing ${total} records`;
+            } else {
+                countElement.textContent = `Showing ${filtered} of ${total} records`;
+            }
+        }
+
+        function filterTable() {
+            if (currentView === 'players') {
+                renderPlayersTable();
+            } else if (currentView === 'maps') {
+                renderMapsTable();
+            } else if (currentView === 'megametrics') {
+                renderMegametricsTable();
+            }
+        }
+
+        function sortTable(view, column) {
+            if (sortColumn === column) {
+                sortDirection = sortDirection === 'asc' ? 'desc' : 'asc';
+            } else {
+                sortColumn = column;
+                sortDirection = 'asc';
+            }
+
+            clearSortIndicators(view);
             
-            if (charts.playerScores) {
-                charts.playerScores.destroy();
+            const indicator = sortDirection === 'asc' ? '▲' : '▼';
+            let elementId;
+            if (view === 'players') {
+                elementId = `sort-${column}`;
+            } else if (view === 'maps') {
+                elementId = `sort-map-${column}`;
+            } else if (view === 'megametrics') {
+                elementId = `sort-mega-${column}`;
+            }
+            
+            const element = document.getElementById(elementId);
+            if (element) {
+                element.textContent = indicator;
             }
 
-            const currentScores = data.currentScores.slice(0, 200).map((s, i) => s.pp * Math.pow(0.965, i));
-            const comparisonScores = data.comparisonScores.slice(0, 200).map((s, i) => s.pp * Math.pow(0.965, i));
-            const labels = Array.from({length: Math.max(currentScores.length, comparisonScores.length)}, (_, i) => i + 1);
+            if (view === 'players') {
+                playersData.sort((a, b) => {
+                    let valA = a[column];
+                    let valB = b[column];
+                    
+                    if (typeof valA === 'string') {
+                        valA = valA.toLowerCase();
+                        valB = valB.toLowerCase();
+                    }
+                    
+                    if (sortDirection === 'asc') {
+                        return valA < valB ? -1 : valA > valB ? 1 : 0;
+                    } else {
+                        return valA > valB ? -1 : valA < valB ? 1 : 0;
+                    }
+                });
+                renderPlayersTable();
+            } else if (view === 'maps') {
+                const columnMap = {
+                    'name': 'name',
+                    'starsDiff': 'starsDiff',
+                    'accRatingDiff': 'accRatingDiff',
+                    'passRatingDiff': 'passRatingDiff',
+                    'techRatingDiff': 'techRatingDiff',
+                    'currentStars': 'currentStars',
+                    'comparisonStars': 'comparisonStars'
+                };
+                
+                const actualColumn = columnMap[column] || column;
+                
+                mapsData.sort((a, b) => {
+                    let valA = a[actualColumn];
+                    let valB = b[actualColumn];
+                    
+                    if (typeof valA === 'string') {
+                        valA = valA.toLowerCase();
+                        valB = valB.toLowerCase();
+                    }
+                    
+                    if (sortDirection === 'asc') {
+                        return valA < valB ? -1 : valA > valB ? 1 : 0;
+                    } else {
+                        return valA > valB ? -1 : valA < valB ? 1 : 0;
+                    }
+                });
+                renderMapsTable();
+            } else if (view === 'megametrics') {
+                megametricsData.sort((a, b) => {
+                    let valA = a[column];
+                    let valB = b[column];
+                    
+                    if (typeof valA === 'string') {
+                        valA = valA.toLowerCase();
+                        valB = valB.toLowerCase();
+                    }
+                    
+                    if (sortDirection === 'asc') {
+                        return valA < valB ? -1 : valA > valB ? 1 : 0;
+                    } else {
+                        return valA > valB ? -1 : valA < valB ? 1 : 0;
+                    }
+                });
+                renderMegametricsTable();
+            }
+        }
 
-            charts.playerScores = new Chart(ctx, {
+        function clearSortIndicators(view) {
+            if (view === 'players') {
+                ['comparisonRank', 'rankDiff', 'ppDiff', 'accPpDiff', 'techPpDiff', 'passPpDiff'].forEach(col => {
+                    const element = document.getElementById(`sort-${col}`);
+                    if (element) element.textContent = '';
+                });
+            } else if (view === 'maps') {
+                ['name', 'starsDiff', 'accRatingDiff', 'passRatingDiff', 'techRatingDiff', 'currentStars', 'comparisonStars'].forEach(col => {
+                    const element = document.getElementById(`sort-map-${col}`);
+                    if (element) element.textContent = '';
+                });
+            } else if (view === 'megametrics') {
+                ['name', 'megametric125Diff', 'megametric75Diff', 'megametric40Diff', 'outlierCountDiff', 'currentOutlierPercentage', 'comparisonOutlierPercentage', 'currentMegametric125', 'comparisonMegametric125'].forEach(col => {
+                    const element = document.getElementById(`sort-mega-${col}`);
+                    if (element) element.textContent = '';
+                });
+            }
+        }
+
+        function updateRatingsChart() {
+            if (!mapsData || mapsData.length === 0) return;
+
+            // Destroy existing chart if it exists
+            if (ratingsChart) {
+                ratingsChart.destroy();
+                ratingsChart = null;
+            }
+
+            // Reset canvas by replacing it
+            const oldCanvas = document.getElementById('ratingsChart');
+            const canvasContainer = oldCanvas.parentNode;
+            const newCanvas = document.createElement('canvas');
+            newCanvas.id = 'ratingsChart';
+            canvasContainer.replaceChild(newCanvas, oldCanvas);
+
+            const ctx = newCanvas.getContext('2d');
+            const selectedRating = document.getElementById('ratingSelect').value;
+            const independentSort = document.getElementById('independentSortToggle').checked;
+            
+            // Map rating type to current/comparison field names
+            const ratingFieldMap = {
+                'stars': { current: 'currentStars', comparison: 'comparisonStars', label: 'Stars' },
+                'accRating': { current: 'currentAccRating', comparison: 'comparisonAccRating', label: 'Acc Rating' },
+                'passRating': { current: 'currentPassRating', comparison: 'comparisonPassRating', label: 'Pass Rating' },
+                'techRating': { current: 'currentTechRating', comparison: 'comparisonTechRating', label: 'Tech Rating' }
+            };
+            
+            const fields = ratingFieldMap[selectedRating];
+            
+            // Calculate average difference (Main - Comparison)
+            const differences = mapsData.map(m => m[fields.current] - m[fields.comparison]);
+            const avgDifference = differences.reduce((sum, diff) => sum + diff, 0) / differences.length;
+            
+            // Update the average difference display
+            const avgDiffElement = document.getElementById('avgDifference');
+            const formattedAvg = avgDifference.toFixed(4);
+            const colorClass = Math.abs(avgDifference) < 0.01 ? 'text-success' : Math.abs(avgDifference) < 0.1 ? 'text-warning' : 'text-danger';
+            avgDiffElement.innerHTML = `<span class="${colorClass} fw-bold">${formattedAvg > 0 ? '+' : ''}${formattedAvg}</span>`;
+            
+            let currentValues, comparisonValues, labels, xAxisLabel;
+            
+            if (independentSort) {
+                // Sort each dataset independently to see global shape/distribution
+                const sortedCurrent = [...mapsData].sort((a, b) => b[fields.current] - a[fields.current]);
+                const sortedComparison = [...mapsData].sort((a, b) => b[fields.comparison] - a[fields.comparison]);
+                
+                labels = sortedCurrent.map((_, index) => index + 1);
+                currentValues = sortedCurrent.map(m => m[fields.current]);
+                comparisonValues = sortedComparison.map(m => m[fields.comparison]);
+                xAxisLabel = 'Map Index (each sorted independently)';
+            } else {
+                // Sort both by Main DB rating to compare changes at same position
+                const sortedMaps = [...mapsData].sort((a, b) => b[fields.current] - a[fields.current]);
+                
+                labels = sortedMaps.map((_, index) => index + 1);
+                currentValues = sortedMaps.map(m => m[fields.current]);
+                comparisonValues = sortedMaps.map(m => m[fields.comparison]);
+                xAxisLabel = 'Map Index (sorted by Main DB rating)';
+            }
+
+            ratingsChart = new Chart(ctx, {
                 type: 'line',
                 data: {
                     labels: labels,
                     datasets: [
                         {
-                            label: 'Current DB Weighted PP',
-                            data: currentScores,
+                            label: `Main DB - ${fields.label}`,
+                            data: currentValues,
                             borderColor: 'rgba(54, 162, 235, 1)',
                             backgroundColor: 'rgba(54, 162, 235, 0.1)',
                             borderWidth: 2,
-                            pointRadius: 0
+                            pointRadius: 0,
+                            fill: false,
+                            tension: 0.1
                         },
                         {
-                            label: 'Comparison DB Weighted PP',
-                            data: comparisonScores,
+                            label: `Comparison DB - ${fields.label}`,
+                            data: comparisonValues,
                             borderColor: 'rgba(255, 99, 132, 1)',
                             backgroundColor: 'rgba(255, 99, 132, 0.1)',
                             borderWidth: 2,
-                            pointRadius: 0
+                            pointRadius: 0,
+                            fill: false,
+                            tension: 0.1
                         }
                     ]
                 },
@@ -305,102 +692,16 @@
                             beginAtZero: true,
                             title: {
                                 display: true,
-                                text: 'Weighted PP (PP × 0.965^index)'
+                                text: fields.label
                             }
                         },
                         x: {
                             title: {
                                 display: true,
-                                text: 'Score Index'
-                            }
-                        }
-                    }
-                }
-                });
-        }
-
-        function renderComponentsComparison(data) {
-            const ctx = document.getElementById('componentsComparisonChart').getContext('2d');
-            
-            if (charts.components) {
-                charts.components.destroy();
-            }
-
-            const currentAcc = data.currentScores.slice(0, 50).map(s => s.accPP);
-            const currentTech = data.currentScores.slice(0, 50).map(s => s.techPP);
-            const currentPass = data.currentScores.slice(0, 50).map(s => s.passPP);
-            
-            const comparisonAcc = data.comparisonScores.slice(0, 50).map(s => s.accPP);
-            const comparisonTech = data.comparisonScores.slice(0, 50).map(s => s.techPP);
-            const comparisonPass = data.comparisonScores.slice(0, 50).map(s => s.passPP);
-            
-            const labels = Array.from({length: 50}, (_, i) => `#${i + 1}`);
-
-            charts.components = new Chart(ctx, {
-                type: 'line',
-                data: {
-                    labels: labels,
-                    datasets: [
-                        {
-                            label: 'Current Acc PP',
-                            data: currentAcc,
-                            borderColor: 'rgba(54, 162, 235, 1)',
-                            borderWidth: 2,
-                            pointRadius: 0,
-                            borderDash: [5, 5]
-                        },
-                        {
-                            label: 'Comparison Acc PP',
-                            data: comparisonAcc,
-                            borderColor: 'rgba(54, 162, 235, 0.5)',
-                            borderWidth: 2,
-                            pointRadius: 0
-                        },
-                        {
-                            label: 'Current Tech PP',
-                            data: currentTech,
-                            borderColor: 'rgba(255, 206, 86, 1)',
-                            borderWidth: 2,
-                            pointRadius: 0,
-                            borderDash: [5, 5]
-                        },
-                        {
-                            label: 'Comparison Tech PP',
-                            data: comparisonTech,
-                            borderColor: 'rgba(255, 206, 86, 0.5)',
-                            borderWidth: 2,
-                            pointRadius: 0
-                        },
-                        {
-                            label: 'Current Pass PP',
-                            data: currentPass,
-                            borderColor: 'rgba(75, 192, 192, 1)',
-                            borderWidth: 2,
-                            pointRadius: 0,
-                            borderDash: [5, 5]
-                        },
-                        {
-                            label: 'Comparison Pass PP',
-                            data: comparisonPass,
-                            borderColor: 'rgba(75, 192, 192, 0.5)',
-                            borderWidth: 2,
-                            pointRadius: 0
-                        }
-                    ]
-                },
-                options: {
-                    responsive: true,
-                    maintainAspectRatio: false,
-                    interaction: {
-                        mode: 'index',
-                        intersect: false
-                    },
-                    scales: {
-                        y: {
-                            beginAtZero: true,
-                            title: {
-                                display: true,
-                                text: 'PP'
+                                text: xAxisLabel
+                            },
+                            ticks: {
+                                maxTicksLimit: 20
                             }
                         }
                     }
@@ -408,4 +709,12 @@
             });
         }
     </script>
+
+    <style>
+        .sticky-top {
+            position: sticky;
+            top: 0;
+            z-index: 10;
+        }
+    </style>
 }

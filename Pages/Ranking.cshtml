@@ -3,13 +3,56 @@
 
 <h2>Player Rankings</h2>
 
+<div class="mb-3">
+    <form method="get" class="form-inline">
+        @if (!string.IsNullOrEmpty(Model.SelectedDatabase))
+        {
+            <input type="hidden" name="db" value="@Model.SelectedDatabase" />
+        }
+        <div class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label for="sortBy" class="form-label">Sort By:</label>
+                <select name="sortBy" id="sortBy" class="form-select" onchange="this.form.submit()">
+                    <option value="rank" selected="@(Model.SortBy == "rank" || string.IsNullOrEmpty(Model.SortBy))">Player Rank</option>
+                    <option value="topPP" selected="@(Model.SortBy == "topPP")">Top PP</option>
+                    <option value="accPP" selected="@(Model.SortBy == "accPP")">Total Acc PP</option>
+                    <option value="passPP" selected="@(Model.SortBy == "passPP")">Total Pass PP</option>
+                    <option value="techPP" selected="@(Model.SortBy == "techPP")">Total Tech PP</option>
+                </select>
+            </div>
+            <div class="col-auto" style="flex-grow: 1; max-width: 500px;">
+                <label for="searchString" class="form-label">Search:</label>
+                <div class="input-group">
+                    <input type="text" 
+                           name="searchString" 
+                           id="searchString"
+                           value="@Model.SearchString" 
+                           class="form-control" 
+                           placeholder="Search players by name..." 
+                           aria-label="Search players" />
+                    @if (!string.IsNullOrEmpty(Model.SearchString))
+                    {
+                        <a asp-page="./Ranking" asp-route-sortBy="@Model.SortBy" class="btn btn-secondary">Clear</a>
+                    }
+                </div>
+            </div>
+        </div>
+    </form>
+    @if (!string.IsNullOrEmpty(Model.SearchString))
+    {
+        <small class="text-muted mt-2 d-block">
+            Found @Model.Players.Count result(s) for "@Model.SearchString"
+        </small>
+    }
+</div>
+
 <table class="table">
     <thead>
         <tr>
             <th>Rank</th>
             <th>Name</th>
             <th>Country</th>
-            <th>PP</th>
+            <th>@Model.GetSortColumnHeader()</th>
         </tr>
     </thead>
     <tbody>
@@ -20,7 +63,7 @@
                 <td>@player.Rank</td>
                 <td><a asp-page="/Player" asp-route-id="@player.Id">@player.Name</a></td>
                 <td>@player.Country</td>
-                <td>@player.Pp</td>
+                <td>@Model.GetSortColumnValue(player).ToString("F2")</td>
             </tr>
         }
     </tbody>
@@ -45,9 +88,41 @@
             for (int i = firstPageToShow; i <= lastPageToShow; i++)
             {
                 <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
-                    <a class="page-link" asp-page="./Ranking" asp-route-currentPage="@i">@i</a>
+                    <a class="page-link" 
+                       asp-page="./Ranking" 
+                       asp-route-currentPage="@i"
+                       asp-route-searchString="@Model.SearchString"
+                       asp-route-sortBy="@Model.SortBy"
+                       asp-route-db="@Model.SelectedDatabase">@i</a>
                 </li>
             }
         }
     </ul>
 </nav>
+
+@section Scripts {
+    <script>
+        // Debounce function to avoid too many requests while typing
+        function debounce(func, wait) {
+            let timeout;
+            return function executedFunction(...args) {
+                const later = () => {
+                    clearTimeout(timeout);
+                    func(...args);
+                };
+                clearTimeout(timeout);
+                timeout = setTimeout(later, wait);
+            };
+        }
+
+        // Auto-submit form when search input changes (with debounce)
+        const searchInput = document.getElementById('searchString');
+        if (searchInput) {
+            const debouncedSubmit = debounce(() => {
+                searchInput.form.submit();
+            }, 500); // Wait 500ms after user stops typing
+            
+            searchInput.addEventListener('input', debouncedSubmit);
+        }
+    </script>
+}

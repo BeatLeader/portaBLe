@@ -1,14 +1,13 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
 using Microsoft.EntityFrameworkCore;
+using portaBLe.Services;
 using System.Text.Json;
 using static portaBLe.Pages.LeaderboardModel;
 
 namespace portaBLe.Pages
 {
-    public class UnweightedScoresGraphModel : PageModel
+    public class UnweightedScoresGraphModel : BasePageModel
     {
-        private readonly AppContext _context;
         public string UnweightedJsonData { get; set; }
 
         [BindProperty(SupportsGet = true)]
@@ -27,18 +26,19 @@ namespace portaBLe.Pages
         [BindProperty(SupportsGet = true)]
         public string PlayerId { get; set; } = string.Empty;
 
-        public UnweightedScoresGraphModel(AppContext context)
+        public UnweightedScoresGraphModel(IDynamicDbContextService dbService) : base(dbService)
         {
-            _context = context;
         }
 
-        public async Task OnGetAsync()
+        public async Task OnGetAsync(string db = null)
         {
+            await InitializeDatabaseSelectionAsync(db);
             UnweightedJsonData = "[]";
         }
 
-        public async Task<IActionResult> OnGetDataAsync(int minYear = 0, int minMonth = 0, int minDay = 0, int maxPlayerRank = 0, int minRankedPlayCount = 0, string playerId = "")
+        public async Task<IActionResult> OnGetDataAsync(int minYear = 0, int minMonth = 0, int minDay = 0, int maxPlayerRank = 0, int minRankedPlayCount = 0, string playerId = "", string db = null)
         {
+            await InitializeDatabaseSelectionAsync(db);
             int minTimepost = ConvertDateToUnix(minYear, minMonth, minDay);
             var filteredPoints = await GetFilteredPointsAsync(minTimepost, maxPlayerRank, minRankedPlayCount, playerId);
             return new JsonResult(filteredPoints);
@@ -63,7 +63,9 @@ namespace portaBLe.Pages
 
         private async Task<List<object>> GetFilteredPointsAsync(int minTimepost, int maxPlayerRank, int minRankedPlayCount, string playerId)
         {
-            var points = await _context.Scores
+            using var context = (Services.DynamicDbContext)GetDbContext();
+
+            var points = await context.Scores
                 .Include(s => s.Player)
                 .Include(s => s.Leaderboard)
                 .Where(s => s.Timepost >= minTimepost

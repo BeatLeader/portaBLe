@@ -242,6 +242,9 @@ namespace portaBLe
                 var comparisonConnectionString = $"Data Source={cli.Comparison ?? builder.Environment.WebRootPath + "/Comparison.db"};";
                 builder.Services.AddDbContextFactory<ComparisonContext>(options => options.UseSqlite(comparisonConnectionString));
                 
+                // databases the pages can switch between (read-only; this instance's Database.db / Comparison.db unless wwwroot/databases.json lists others)
+                builder.Services.AddSingleton<portaBLe.Services.IDynamicDbContextService>(sp =>
+                    new portaBLe.Services.DynamicDbContextService(sp.GetRequiredService<IWebHostEnvironment>(), cli.Db, cli.Comparison));
                 builder.Services.AddRazorPages();
 
                 var app = builder.Build();
@@ -332,7 +335,7 @@ namespace portaBLe
                         case "--dump": o.Dump = args[++i]; break;
                         case "--steps": o.Steps = args[++i].Split(',', StringSplitOptions.RemoveEmptyEntries).ToList(); break;
                         case "--acc-source": o.AccSource = Enum.Parse<AccSource>(args[++i], true); break;
-                        case "--curve": o.Curve = Enum.Parse<CurveMode>(args[++i], true); break;
+                        case "--curve": PpCurve.Mode = o.Curve = Enum.Parse<CurveMode>(args[++i], true); break; // also for the web pages (PP curve view)
                         case "--acc-model": o.AccModel = args[++i]; break;
                         case "--gamma": PpCurve.Gamma = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                         case "--acc-scale": PpCurve.AccScale = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;

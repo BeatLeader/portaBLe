@@ -19,7 +19,7 @@
         @foreach (var score in Model.Scores)
         {
             <tr>
-                <td><a asp-page="/Leaderboard" asp-route-id="@score.Leaderboard.Id">@score.Leaderboard.Name - @score.Leaderboard.DifficultyName</a></td>
+                <td><a asp-page="/Leaderboard" asp-route-id="@score.Leaderboard.Id" asp-route-db="@Model.SelectedDatabase">@score.Leaderboard.Name - @score.Leaderboard.DifficultyName</a></td>
                 <td>@score.Pp</td>
                 <td>@score.Accuracy</td>
                 <td>@score.Modifiers</td>

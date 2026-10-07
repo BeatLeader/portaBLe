@@ -1,6 +1,7 @@
 ﻿@page "/leaderboard/{id}/{compareId?}"
 @model LeaderboardModel
 @using System.Text.Json
+@using portaBLe.DB
 
 @{
     ViewData["Title"] = "Leaderboard Details";
@@ -17,7 +18,33 @@
         );
     }
     double maxRating = maxRatingValue > defaultMaxRating ? Math.Ceiling(maxRatingValue) : defaultMaxRating;
-    
+
+    // Slider bounds for the rating editor; generous headroom above the current values.
+    double sliderMax = Math.Max(20, Math.Ceiling(maxRatingValue * 1.5));
+    Func<double, string> inv = v => v.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    // Per-modifier rating overrides serialized for the PP curve component.
+    Func<ModifiersRating?, string> modRatingJson = mr => mr == null ? "" :
+        JsonSerializer.Serialize(new Dictionary<string, float>
+        {
+            ["fsAccRating"] = mr.FSAccRating, ["fsPassRating"] = mr.FSPassRating, ["fsTechRating"] = mr.FSTechRating,
+            ["ssAccRating"] = mr.SSAccRating, ["ssPassRating"] = mr.SSPassRating, ["ssTechRating"] = mr.SSTechRating,
+            ["sfAccRating"] = mr.SFAccRating, ["sfPassRating"] = mr.SFPassRating, ["sfTechRating"] = mr.SFTechRating,
+            ["fsPredictedAcc"] = mr.FSPredictedAcc, ["ssPredictedAcc"] = mr.SSPredictedAcc, ["sfPredictedAcc"] = mr.SFPredictedAcc,
+        });
+
+    // The PP formula this instance runs with (start-up options --curve/--gamma/--pass-fade/--acc-cap), so the curve matches the DB.
+    var ppCurveConfig = new
+    {
+        mode = portaBLe.Refresh.PpCurve.Mode == portaBLe.Refresh.CurveMode.PowerLaw ? "power" : "classic",
+        gamma = portaBLe.Refresh.PpCurve.Gamma,
+        epsilon = portaBLe.Refresh.PpCurve.Epsilon,
+        passFade = portaBLe.Refresh.PassFade.Enabled
+            ? (object)new { strength = portaBLe.Refresh.PassFade.Strength, floor = portaBLe.Refresh.PassFade.Floor, center = portaBLe.Refresh.PassFade.Center }
+            : null,
+        accCap = portaBLe.Refresh.AccCap.Enabled ? (object)new { maxAdvantage = portaBLe.Refresh.AccCap.MaxAdvantage } : null,
+    };
+
     // First leaderboard corners
     var corner1 = new
     {
@@ -59,69 +86,108 @@
     }
 }
 
+@Html.AntiForgeryToken()
+
 <div class="leaderboard-comparison">
     <div class="leaderboard-container">
         <h2>@Model.Leaderboard.Name - @Model.Leaderboard.DifficultyName - @Model.Leaderboard.ModeName</h2>
 
-        <div class="triangle-container">
-            <div class="tech-and-acc">
-                <span>Tech: @(Math.Round(Model.Leaderboard.TechRating, 2)) ★</span>
-                <span>Acc: @(Math.Round(Model.Leaderboard.AccRating, 2)) ★</span>
-            </div>
-            <div class="stars">
-                <span>@(Math.Round(Model.Leaderboard.Stars, 1)) ★</span>
+        <div class="leaderboard-info">
+            <div class="leaderboard-info-left">
+            <div class="triangle-container">
+                <div class="tech-and-acc">
+                    <span>Tech: @(Math.Round(Model.Leaderboard.TechRating, 2)) ★</span>
+                    <span>Acc: @(Math.Round(Model.Leaderboard.AccRating, 2)) ★</span>
+                </div>
+                <div class="stars">
+                    <span>@(Math.Round(Model.Leaderboard.Stars, 1)) ★</span>
+                </div>
+
+                <svg style="width: 6em; height: 6em;"
+                    xmlns="http://www.w3.org/2000/svg"
+                    version="1.200000"
+                    width="100%"
+                    height="100%"
+                    viewBox="0 0 100.000000 86.600000"
+                    xmlns:xlink="http://www.w3.org/1999/xlink">
+                    <g transform="matrix(1 0 0 -1 0 86.600000)">
+                        <defs>
+                            <linearGradient id="fadeA-1"
+                                        gradientUnits="userSpaceOnUse"
+                                        x1=@corner1.x
+                                        y1=@corner1.y
+                                        x2=@((corner2.x + corner3.x) / 2)
+                                        y2=@((corner2.y + corner3.y) / 2)>
+                                <stop offset="0%" stop-color="rgb(255 0 0 / @((Model.Leaderboard.TechRating / maxRating) * 100)%)" />
+                                <stop offset="100%" stop-color="rgb(255 0 0 / @((Model.Leaderboard.TechRating / maxRating) * 25)%)" />
+                            </linearGradient>
+                            <linearGradient id="fadeB-1"
+                                        gradientUnits="userSpaceOnUse"
+                                        x1=@(corner3.x)
+                                        y1=@(corner3.y)
+                                        x2=@((corner1.x + corner2.x) / 2)
+                                        y2=@((corner1.y + corner2.y) / 2)>
+                                <stop offset="0%" stop-color="rgb(0 255 0 / @((Model.Leaderboard.PassRating / maxRating) * 100)%)" />
+                                <stop offset="100%" stop-color="rgb(0 255 0 / @((Model.Leaderboard.PassRating / maxRating) * 25)%)" />
+                            </linearGradient>
+                            <linearGradient id="fadeC-1"
+                                        gradientUnits="userSpaceOnUse"
+                                        x1=@(corner2.x)
+                                        y1=@(corner2.y)
+                                        x2=@((corner3.x + corner1.x) / 2)
+                                        y2=@((corner1.y + corner3.y) / 2)>
+                                <stop offset="0%" stop-color="rgb(128 0 128 / @((Model.Leaderboard.AccRating / maxRating) * 100)%)" />
+                                <stop offset="100%" stop-color="rgb(128 0 128 / @((Model.Leaderboard.AccRating / maxRating) * 25)%)" />
+                            </linearGradient>
+                        </defs>
+                        <g stroke="#FFF" stroke-width="0.5">
+                            <path d="M @corner3.x,@corner3.y L @corner1.x,@corner1.y @corner2.x,@corner2.y Z" fill="url(#fadeA-1)" />
+                            <path d="M @corner3.x,@corner3.y L @corner1.x,@corner1.y @corner2.x,@corner2.y Z" fill="url(#fadeB-1)" />
+                            <path d="M @corner3.x,@corner3.y L @corner1.x,@corner1.y @corner2.x,@corner2.y Z" fill="url(#fadeC-1)" />
+                        </g>
+                        <g stroke="#FFF" fill="none" stroke-width="2" stroke-dasharray="4">
+                            <path d="M 50.000000,0.00000 L 0.000000,86.600000 100.000000,86.600000 Z" />
+                        </g>
+                    </g>
+                </svg>
+                <div class="pass">
+                    <span>Pass: @(Math.Round(Model.Leaderboard.PassRating, 2)) ★</span>
+                </div>
             </div>
 
-            <svg style="width: 6em; height: 6em;"
-                xmlns="http://www.w3.org/2000/svg"
-                version="1.200000"
-                width="100%"
-                height="100%"
-                viewBox="0 0 100.000000 86.600000"
-                xmlns:xlink="http://www.w3.org/1999/xlink">
-                <g transform="matrix(1 0 0 -1 0 86.600000)">
-                    <defs>
-                        <linearGradient id="fadeA-1"
-                                    gradientUnits="userSpaceOnUse"
-                                    x1=@corner1.x
-                                    y1=@corner1.y
-                                    x2=@((corner2.x + corner3.x) / 2)
-                                    y2=@((corner2.y + corner3.y) / 2)>
-                            <stop offset="0%" stop-color="rgb(255 0 0 / @((Model.Leaderboard.TechRating / maxRating) * 100)%)" />
-                            <stop offset="100%" stop-color="rgb(255 0 0 / @((Model.Leaderboard.TechRating / maxRating) * 25)%)" />
-                        </linearGradient>
-                        <linearGradient id="fadeB-1"
-                                    gradientUnits="userSpaceOnUse"
-                                    x1=@(corner3.x)
-                                    y1=@(corner3.y)
-                                    x2=@((corner1.x + corner2.x) / 2)
-                                    y2=@((corner1.y + corner2.y) / 2)>
-                            <stop offset="0%" stop-color="rgb(0 255 0 / @((Model.Leaderboard.PassRating / maxRating) * 100)%)" />
-                            <stop offset="100%" stop-color="rgb(0 255 0 / @((Model.Leaderboard.PassRating / maxRating) * 25)%)" />
-                        </linearGradient>
-                        <linearGradient id="fadeC-1"
-                                    gradientUnits="userSpaceOnUse"
-                                    x1=@(corner2.x)
-                                    y1=@(corner2.y)
-                                    x2=@((corner3.x + corner1.x) / 2)
-                                    y2=@((corner1.y + corner3.y) / 2)>
-                            <stop offset="0%" stop-color="rgb(128 0 128 / @((Model.Leaderboard.AccRating / maxRating) * 100)%)" />
-                            <stop offset="100%" stop-color="rgb(128 0 128 / @((Model.Leaderboard.AccRating / maxRating) * 25)%)" />
-                        </linearGradient>
-                    </defs>
-                    <g stroke="#FFF" stroke-width="0.5">
-                        <path d="M @corner3.x,@corner3.y L @corner1.x,@corner1.y @corner2.x,@corner2.y Z" fill="url(#fadeA-1)" />
-                        <path d="M @corner3.x,@corner3.y L @corner1.x,@corner1.y @corner2.x,@corner2.y Z" fill="url(#fadeB-1)" />
-                        <path d="M @corner3.x,@corner3.y L @corner1.x,@corner1.y @corner2.x,@corner2.y Z" fill="url(#fadeC-1)" />
-                    </g>
-                    <g stroke="#FFF" fill="none" stroke-width="2" stroke-dasharray="4">
-                        <path d="M 50.000000,0.00000 L 0.000000,86.600000 100.000000,86.600000 Z" />
-                    </g>
-                </g>
-            </svg>
-            <div class="pass">
-                <span>Pass: @(Math.Round(Model.Leaderboard.PassRating, 2)) ★</span>
+            <div class="rating-sliders"
+                data-leaderboard-id="@Model.Leaderboard.Id"
+                data-orig-acc="@inv(Model.Leaderboard.AccRating)"
+                data-orig-pass="@inv(Model.Leaderboard.PassRating)"
+                data-orig-tech="@inv(Model.Leaderboard.TechRating)">
+                <div class="rating-sliders-title">Preview ratings</div>
+                <div class="rating-slider-row">
+                    <label>Acc</label>
+                    <input type="range" data-rating="acc" min="0" max="@inv(sliderMax)" step="0.01" value="@inv(Model.Leaderboard.AccRating)" />
+                    <input type="number" data-rating="acc" min="0" step="0.01" value="@inv(Model.Leaderboard.AccRating)" />
+                </div>
+                <div class="rating-slider-row">
+                    <label>Pass</label>
+                    <input type="range" data-rating="pass" min="0" max="@inv(sliderMax)" step="0.01" value="@inv(Model.Leaderboard.PassRating)" />
+                    <input type="number" data-rating="pass" min="0" step="0.01" value="@inv(Model.Leaderboard.PassRating)" />
+                </div>
+                <div class="rating-slider-row">
+                    <label>Tech</label>
+                    <input type="range" data-rating="tech" min="0" max="@inv(sliderMax)" step="0.01" value="@inv(Model.Leaderboard.TechRating)" />
+                    <input type="number" data-rating="tech" min="0" step="0.01" value="@inv(Model.Leaderboard.TechRating)" />
+                </div>
+                <div class="rating-reset-row">
+                    <button type="button" class="reset-ratings-btn" style="display:none;">Reset</button>
+                    <span class="rating-preview-note">Preview only: the PP curve follows the sliders, nothing is saved.</span>
+                </div>
             </div>
+            </div>
+
+            <div class="pp-curve-component"
+                data-leaderboard-id="@Model.Leaderboard.Id"
+                data-mode="@(Model.Leaderboard.ModeName?.ToLowerInvariant())"
+                data-predicted-acc="@inv(Model.Leaderboard.PredictedAcc)"
+                data-modifiers-rating="@modRatingJson(Model.Leaderboard.ModifiersRating)"></div>
         </div>
     </div>
 
@@ -190,6 +256,39 @@
                     <span>Pass: @(Math.Round(Model.CompareLeaderboard.PassRating, 2)) ★</span>
                 </div>
             </div>
+
+            <div class="rating-sliders"
+                 data-leaderboard-id="@Model.CompareLeaderboard.Id"
+                 data-orig-acc="@inv(Model.CompareLeaderboard.AccRating)"
+                 data-orig-pass="@inv(Model.CompareLeaderboard.PassRating)"
+                 data-orig-tech="@inv(Model.CompareLeaderboard.TechRating)">
+                <div class="rating-sliders-title">Preview ratings</div>
+                <div class="rating-slider-row">
+                    <label>Acc</label>
+                    <input type="range" data-rating="acc" min="0" max="@inv(sliderMax)" step="0.01" value="@inv(Model.CompareLeaderboard.AccRating)" />
+                    <input type="number" data-rating="acc" min="0" step="0.01" value="@inv(Model.CompareLeaderboard.AccRating)" />
+                </div>
+                <div class="rating-slider-row">
+                    <label>Pass</label>
+                    <input type="range" data-rating="pass" min="0" max="@inv(sliderMax)" step="0.01" value="@inv(Model.CompareLeaderboard.PassRating)" />
+                    <input type="number" data-rating="pass" min="0" step="0.01" value="@inv(Model.CompareLeaderboard.PassRating)" />
+                </div>
+                <div class="rating-slider-row">
+                    <label>Tech</label>
+                    <input type="range" data-rating="tech" min="0" max="@inv(sliderMax)" step="0.01" value="@inv(Model.CompareLeaderboard.TechRating)" />
+                    <input type="number" data-rating="tech" min="0" step="0.01" value="@inv(Model.CompareLeaderboard.TechRating)" />
+                </div>
+                <div class="rating-reset-row">
+                    <button type="button" class="reset-ratings-btn" style="display:none;">Reset</button>
+                    <span class="rating-preview-note">Preview only: the PP curve follows the sliders, nothing is saved.</span>
+                </div>
+            </div>
+
+            <div class="pp-curve-component"
+                 data-leaderboard-id="@Model.CompareLeaderboard.Id"
+                 data-mode="@(Model.CompareLeaderboard.ModeName?.ToLowerInvariant())"
+                 data-predicted-acc="@inv(Model.CompareLeaderboard.PredictedAcc)"
+                 data-modifiers-rating="@modRatingJson(Model.CompareLeaderboard.ModifiersRating)"></div>
         </div>
     }
 </div>
@@ -272,7 +371,7 @@
                     for (int i = firstPageToShow; i <= lastPageToShow; i++)
                     {
                         <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
-                            <a class="page-link" asp-page="./Leaderboard" asp-route-id="@Model.Leaderboard.Id" asp-route-compareId="@Model.CompareLeaderboard?.Id" asp-route-currentPage="@i">@i</a>
+                            <a class="page-link" asp-page="./Leaderboard" asp-route-id="@Model.Leaderboard.Id" asp-route-compareId="@Model.CompareLeaderboard?.Id" asp-route-currentPage="@i" asp-route-db="@Model.SelectedDatabase">@i</a>
                         </li>
                     }
                 }
@@ -320,6 +419,12 @@
         flex: 1;
         min-width: 300px;
         max-width: 500px;
+    }
+
+    .leaderboard-info {
+        display: flex;
+        gap: 2em;
+        justify-content: center;
     }
 
     .tables-container {
@@ -395,11 +500,78 @@
         left: 50%;
         transform: translate(-50%, -50%);
     }
+
+    .rating-sliders {
+        width: 15em;
+        box-sizing: border-box;
+        margin: 0.5em auto 0;
+        padding: 1em;
+        background-color: #323232;
+        color: white;
+    }
+
+    .rating-sliders-title {
+        font-size: 0.85em;
+        font-weight: bold;
+        margin-bottom: 0.6em;
+    }
+
+    .rating-slider-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5em;
+        margin-bottom: 0.5em;
+        font-size: 0.8em;
+    }
+
+    .rating-slider-row label {
+        width: 2.5em;
+        flex-shrink: 0;
+    }
+
+    .rating-slider-row input[type="range"] {
+        flex: 1;
+        min-width: 0;
+    }
+
+    .rating-slider-row input[type="number"] {
+        width: 4.5em;
+        flex-shrink: 0;
+    }
+
+    .rating-reset-row {
+        display: flex;
+        align-items: center;
+        gap: 0.5em;
+        margin-top: 0.6em;
+        min-height: 2em;
+    }
+
+    .reset-ratings-btn {
+        background-color: #f54278;
+        color: white;
+        border: none;
+        padding: 0.4em 1.2em;
+        border-radius: 3px;
+        cursor: pointer;
+    }
+
+    .reset-ratings-btn:disabled {
+        opacity: 0.6;
+        cursor: default;
+    }
+
+    .rating-preview-note {
+        font-size: 0.75em;
+        color: #ddd;
+    }
 </style>
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
+    <script>window.PP_CURVE_CONFIG = @Html.Raw(JsonSerializer.Serialize(ppCurveConfig));</script>
+    <script src="~/js/pp-curve.js" asp-append-version="true"></script>
     <script>
         let chart = null;
         const leaderboardId = '@Model.Leaderboard.Id';
@@ -726,5 +898,77 @@
 
         // Initial load
         setupChart(leaderboardScores, compareLeaderboardScores);
+
+        // --- Rating sliders ---
+        const selectedDatabase = @Html.Raw(JsonSerializer.Serialize(Model.SelectedDatabase));
+        const RATING_KEYS = ['acc', 'pass', 'tech'];
+
+        function setupRatingSliders(container) {
+            const leaderboardId = container.dataset.leaderboardId;
+            const original = {
+                acc: parseFloat(container.dataset.origAcc),
+                pass: parseFloat(container.dataset.origPass),
+                tech: parseFloat(container.dataset.origTech)
+            };
+
+            const ranges = {};
+            const numbers = {};
+            RATING_KEYS.forEach(key => {
+                ranges[key] = container.querySelector(`input[type="range"][data-rating="${key}"]`);
+                numbers[key] = container.querySelector(`input[type="number"][data-rating="${key}"]`);
+            });
+
+            const resetBtn = container.querySelector('.reset-ratings-btn');
+
+            function currentValues() {
+                return {
+                    acc: parseFloat(numbers.acc.value),
+                    pass: parseFloat(numbers.pass.value),
+                    tech: parseFloat(numbers.tech.value)
+                };
+            }
+
+            function isChanged() {
+                const values = currentValues();
+                return RATING_KEYS.some(key =>
+                    isNaN(values[key]) || Math.abs(values[key] - original[key]) > 1e-6);
+            }
+
+            function refreshResetButton() {
+                resetBtn.style.display = isChanged() ? 'inline-block' : 'none';
+            }
+
+            function handleSliderChange() {
+                refreshResetButton();
+                container.dispatchEvent(new CustomEvent('ratingschange'));
+            }
+
+            RATING_KEYS.forEach(key => {
+                ranges[key].addEventListener('input', () => {
+                    numbers[key].value = ranges[key].value;
+                    handleSliderChange();
+                });
+                numbers[key].addEventListener('input', () => {
+                    const value = parseFloat(numbers[key].value);
+                    if (!isNaN(value)) {
+                        ranges[key].value = value;
+                    }
+                    handleSliderChange();
+                });
+            });
+
+            // back to the map's real ratings
+            resetBtn.addEventListener('click', () => {
+                RATING_KEYS.forEach(key => {
+                    ranges[key].value = original[key];
+                    numbers[key].value = original[key];
+                });
+                handleSliderChange();
+            });
+
+            refreshResetButton();
+        }
+
+        document.querySelectorAll('.rating-sliders').forEach(setupRatingSliders);
     </script>
 }
