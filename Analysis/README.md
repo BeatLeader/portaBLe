@@ -9,7 +9,8 @@ ALGO_ACC_TEST.md       the implemented test: algorithmic acc rating, calibration
 models/                alternative acc_model.json calibrations (option C)
 figures/               PNGs used in the report (py/figures_*.py)
 out/                   small result tables/JSON written by the analyses (large intermediates are git-ignored)
-py/                    analysis scripts (a* = score dump, r* = replays, ppmodel.py = numpy port of the C# PP model)
+py/                    analysis scripts (a* = score dump, r* = replays, ppmodel.py = numpy port of the C# PP model;
+                       decode_attempts.py + a13/a14 = attempts export from /admin/attemptsexport)
 scripts/build_tools.sh stages analyzer variants and builds the two .NET tools
 scripts/build_test_dbs.sh  builds the wwwroot/test-*.db comparison databases (py/compare_dbs.py compares two)
 tools/RatingsDump      recompute ratings + per-swing table + per-note ML predictions for a list of maps (prod or corpus analyzer)
