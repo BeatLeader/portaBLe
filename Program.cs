@@ -293,29 +293,9 @@ namespace portaBLe
                     // await ScoresRefresh.Autoreweight(dbContext);
                     // Buff
                     // await ScoresRefresh.Autoreweight3(dbContext);
+
                     // Uncomment to refresh everything with current ratings
-                    
-                    // await ScoresRefresh.Refresh(dbContext);
-                    // await PlayersRefresh.Refresh(dbContext);
-                    // await LeaderboardsRefresh.Refresh(dbContext);
-                    // await LeaderboardsRefresh.RefreshStars(dbContext);
-                    
-                    // Uncomment to update the Megametric and Stats
-                    // await UpdateStats(dbContext);
-
-                    SongSuggestData songSuggestData = new();
-                    LeaderboardSuggest.RefreshBeatLeaderLeaderBoard(dbContext, songSuggestData);
-
-                    // Cache the leaderboard data in the singleton so Razor pages can reuse it
-                    var dataService = services.GetRequiredService<SongSuggestDataService>();
-                    dataService.CachedLeaderboards = songSuggestData.leaderboards;
-
-                    // songSuggestData.playerID = "76561198012241978";
-                    
-                    // await RankedSongSuggest.SuggestedSongs(dbContext, songSuggestData, false);
-
-                    // Store in singleton so the SongSuggestAnalysis Razor page can access it
-                    dataService.Data = songSuggestData;
+                    // await RefreshEverything(dbContext);
                 }
 
                 await app.RunAsync();
@@ -324,6 +304,17 @@ namespace portaBLe
             {
                 Console.WriteLine(e.Message + "   " + e.StackTrace);
             }
+        }
+
+        public static async Task RefreshEverything(AppContext dbContext)
+        {
+            await ScoresRefresh.Refresh(dbContext);
+            await PlayersRefresh.Refresh(dbContext);
+            await LeaderboardsRefresh.Refresh(dbContext);
+            await LeaderboardsRefresh.RefreshStars(dbContext);
+
+            // Update the Megametric and Stats
+            await UpdateStats(dbContext);
         }
 
         public static async Task UpdateStats(AppContext dbContext)
