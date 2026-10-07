@@ -10,3 +10,4 @@ wwwroot/Database.*
 maps
 /wwwroot/Comparison.db
 *.db
+/wwwroot/dump.zip

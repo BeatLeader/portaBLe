@@ -5,11 +5,11 @@ using Amazon.S3.Transfer;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata;
 using portaBLe.DB;
-using portaBLe.Services;
 using portaBLe.Refresh;
+using portaBLe.Services;
+using ProtoBuf;
 using System.Diagnostics;
 using System.IO.Compression;
-using System.Text.Json;
 
 namespace portaBLe
 {
@@ -41,17 +41,13 @@ namespace portaBLe
 
     public class Program
     {
-        public static RootObject ParseJson(string path)
+        public static BigExportResponse ParseProtobuf(string path)
         {
             using FileStream openStream = File.OpenRead(path);
             using ZipArchive archive = new ZipArchive(openStream, ZipArchiveMode.Read);
             ZipArchiveEntry entry = archive.Entries[0];
             using Stream entryStream = entry.Open();
-            var options = new JsonSerializerOptions
-            {
-                PropertyNameCaseInsensitive = true
-            };
-            return JsonSerializer.Deserialize<RootObject>(entryStream, options);
+            return Serializer.Deserialize<BigExportResponse>(entryStream);
         }
 
         public static void InitializeDatabase(IHost host)
@@ -90,9 +86,9 @@ namespace portaBLe
 
                 using var dbContext = dbContextFactory.CreateDbContext();
 
-                var dump = ParseJson(env.WebRootPath + "/dump.zip");
+                var dump = ParseProtobuf(env.WebRootPath + "/dump.zip");
 
-                DataImporter.ImportJsonData(dump, dbContext);
+                DataImporter.ImportData(dump, dbContext);
                 await ScoresRefresh.Refresh(dbContext);
                 await PlayersRefresh.Refresh(dbContext);
                 await LeaderboardsRefresh.Refresh(dbContext);
@@ -124,11 +120,7 @@ namespace portaBLe
             return new AmazonS3Client(accessKey, secretKey, RegionEndpoint.USEast1);
         }
 
-        public static async Task<string> UploadDatabaseAsync(
-            string filePath,
-            string? name = null,
-            string? description = null,
-            bool isMain = false)
+        public static async Task<string> UploadDatabaseAsync(string filePath)
         {
             var client = GetS3Client();
 
@@ -140,47 +132,11 @@ namespace portaBLe
 
             await fileTransferUtility.UploadAsync(filePath, "portabledbs", key);
 
-            // Update databases.json with the new database entry
-            var configPath = Path.Combine("wwwroot", "databases.json");
-            DatabasesConfig config;
-
-            if (File.Exists(configPath))
-            {
-                var json = File.ReadAllText(configPath);
-                config = JsonSerializer.Deserialize<DatabasesConfig>(json, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
-            }
-            else
-            {
-                config = new DatabasesConfig
-                {
-                    MainDB = 0,
-                    Databases = new List<DatabaseConfig>()
-                };
-            }
-
-            // Add new database to the config
-            config.Databases.Add(new DatabaseConfig
-            {
-                Name = name ?? $"Database {DateTime.UtcNow:yyyy-MM-dd HH:mm}",
-                FileName = dbName,
-                Description = description ?? "Uploaded database"
-            });
-
-            if (isMain)
-            {
-                config.MainDB = config.Databases.Count - 1;
-            }
-
-            // Save updated config
-            var updatedJson = JsonSerializer.Serialize(config, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(configPath, updatedJson);
+            // Save the database name to a file in wwwroot
+            File.WriteAllText(Path.Combine("wwwroot", "current_db_name.txt"), dbName);
 
             return dbName;
         }
-
         public static async Task<bool> DownloadDatabaseFileAsync(string fileName, string localPath)
         {
             try
@@ -221,7 +177,6 @@ namespace portaBLe
 
                 if (!File.Exists(localDbPath))
                 {
-                    Console.WriteLine("Downloading DB");
                     bool downloaded = await DownloadDatabaseFileAsync(dbName, localDbPath);
                     if (downloaded)
                     {
@@ -237,7 +192,6 @@ namespace portaBLe
             {
                 Console.WriteLine("Database name file not found.");
             }
-            Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
         }
 
         public string GetCurrentDatabaseName()
@@ -293,9 +247,6 @@ namespace portaBLe
                 var tempDbService = new DynamicDbContextService(builder.Environment);
                 await tempDbService.DownloadAllDatabasesAsync(builder.Environment.WebRootPath);
 
-                // Verify all tables/columns from DBModels exist in every database, and add missing ones
-                await EnsureSchemaForAllDatabases(tempDbService, builder.Environment.WebRootPath);
-
                 var connectionString = $"Data Source={builder.Environment.WebRootPath}/Database.db;";
                 builder.Services.AddDbContextFactory<AppContext>(options => options.UseSqlite(connectionString));
 
@@ -307,6 +258,9 @@ namespace portaBLe
                 var app = builder.Build();
 
                 InitializeDatabase(app);
+
+                // Verify all tables/columns from DBModels exist in every database, and add missing ones (after migrations)
+                await EnsureSchemaForAllDatabases(tempDbService, builder.Environment.WebRootPath);
 
                 // Configure the HTTP request pipeline.
                 if (!app.Environment.IsDevelopment())
@@ -387,6 +341,11 @@ namespace portaBLe
         private static async Task EnsureSchemaForAllDatabases(IDynamicDbContextService dbService, string webRootPath)
         {
             var databases = await dbService.GetAvailableDatabasesAsync();
+
+            if (!databases.Any(d => string.Equals(d.FileName, "Database.db", StringComparison.OrdinalIgnoreCase)))
+            {
+                databases.Add(new DatabaseConfig { Name = "Database.db", FileName = "Database.db" });
+            }
 
             foreach (var db in databases)
             {
@@ -528,94 +487,6 @@ namespace portaBLe
 
             Console.WriteLine($"\n========================================");
             Console.WriteLine($"Completed refreshing leaderboards for all databases");
-            Console.WriteLine($"========================================");
-        }
-
-        // Helper method to upload all databases to S3 and update databases.json
-        private static async Task UploadAllDatabasesAsync(string webRootPath)
-        {
-            // Read current databases.json to get existing database info
-            var configPath = Path.Combine(webRootPath, "databases.json");
-            DatabasesConfig config;
-
-            if (File.Exists(configPath))
-            {
-                var json = File.ReadAllText(configPath);
-                config = JsonSerializer.Deserialize<DatabasesConfig>(json, new JsonSerializerOptions
-                {
-                    PropertyNameCaseInsensitive = true
-                });
-            }
-            else
-            {
-                Console.WriteLine("Error: databases.json not found!");
-                return;
-            }
-
-            Console.WriteLine($"Uploading {config.Databases.Count} databases to S3...");
-
-            // Create new config with uploaded databases
-            var newConfig = new DatabasesConfig
-            {
-                MainDB = config.MainDB,
-                Databases = new List<DatabaseConfig>()
-            };
-
-            for (int i = 0; i < config.Databases.Count; i++)
-            {
-                var db = config.Databases[i];
-                var localPath = Path.Combine(webRootPath, db.FileName);
-
-                Console.WriteLine($"\n========================================");
-                Console.WriteLine($"[{i + 1}/{config.Databases.Count}] Uploading: {db.Name}");
-                Console.WriteLine($"========================================");
-
-                if (!File.Exists(localPath))
-                {
-                    Console.WriteLine($"⚠ Warning: File not found locally: {db.FileName}");
-                    Console.WriteLine($"  Keeping existing entry in databases.json");
-                    newConfig.Databases.Add(db);
-                    continue;
-                }
-
-                try
-                {
-                    // Upload to S3 and get new filename
-                    var client = GetS3Client();
-                    var fileTransferUtility = new TransferUtility(client);
-
-                    // Create a unique name for the database file
-                    var newDbName = $"db-{DateTime.UtcNow:yyyyMMddHHmmss}-{new Random().Next(1000, 9999)}.db";
-
-                    Console.WriteLine($"  Uploading as: {newDbName}");
-                    await fileTransferUtility.UploadAsync(localPath, "portabledbs", newDbName);
-                    Console.WriteLine($"  ✓ Upload successful");
-
-                    // Add to new config with updated filename
-                    newConfig.Databases.Add(new DatabaseConfig
-                    {
-                        Name = db.Name,
-                        FileName = newDbName,
-                        Description = db.Description
-                    });
-
-                    Console.WriteLine($"  ✓ Updated entry in databases.json");
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"  ✗ Error uploading {db.Name}: {ex.Message}");
-                    Console.WriteLine($"  Keeping existing entry in databases.json");
-                    newConfig.Databases.Add(db);
-                }
-            }
-
-            // Save updated config
-            var updatedJson = JsonSerializer.Serialize(newConfig, new JsonSerializerOptions { WriteIndented = true });
-            File.WriteAllText(configPath, updatedJson);
-
-            Console.WriteLine($"\n========================================");
-            Console.WriteLine($"Completed uploading databases");
-            Console.WriteLine($"Updated databases.json with new S3 filenames");
             Console.WriteLine($"========================================");
         }
     }
