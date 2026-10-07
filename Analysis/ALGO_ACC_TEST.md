@@ -91,6 +91,8 @@ VARIANTS="ml-power:PowerLaw:ML algo-power-flat:PowerLaw:Algorithm::0.5001:1.0004
 python Analysis/py/compare_dbs.py wwwroot/test-algo-power-flat.db wwwroot/test-ml.db --md out.md   # tables below
 STEPS=rerate,correct,scores,stats VARIANTS="algo-b-permap:PowerLaw:Algorithm::0.7328:1.1307:--pass-fade+1,0.3,-2+--relative-epsilon+0.75" \
   Analysis/scripts/build_test_dbs.sh                                # B + per-map curve + score correction (algo-b-permap)
+STEPS=rerate,correct,scores,stats VARIANTS="algo-b-blend:PowerLaw:Algorithm::0.6198:1.1301:--relative-epsilon+0.75+--pass-blend+1.5" \
+  Analysis/scripts/build_test_dbs.sh                                # … with pass PP as a p-norm instead of the fade (algo-b-blend)
 
 # compare in the UI (DatabaseComparison page): current DB vs comparison DB
 dotnet bin/Release/net9.0/portaBLe.dll --db wwwroot/test-algo-power.db --comparison wwwroot/test-ml.db
@@ -317,6 +319,64 @@ maps match the prediction: the mean residual advantage is between −0.026 and +
 maps are mostly played by people who pick them on purpose. A flat Megametric across eras is a different target from equal PP for
 equal skill, and the reweighter is the tool for it. The hardest band is similar: its Megametric doubles vs the ML because those
 112 maps are now the top plays of the players who can play them, and the players' own scores agree they are harder than B rated.
+
+### Pass PP as a p-norm instead of a fade (test deployment `algo-b-blend`)
+
+Review remark: decaying pass PP by accuracy creates flat spots and can break monotonicity, and a blend or a piecewise
+construction is needed. It was right. The fade subtracts pass PP at a rate proportional to the pass PP itself, and nothing makes
+acc PP grow faster than that. The table shows the total PP a score loses while its accuracy rises, on `algo-b-permap`, every map,
+30–99.99 %:
+
+| ratings | maps where PP falls | lose > 5 PP | lose > 20 PP | worst |
+|---|---|---|---|---|
+| no modifier | 18 | 1 | 0 | 6.9 |
+| FS | 107 | 26 | 1 | 24.9 |
+| SF | 454 | 247 | 61 | 90.1 (*Extratongue* E+ SF: 687 PP at 50 %, 649 at 70 %) |
+
+The curve also kinks where the fade starts (h = −2), and on 244 maps (1 099 with SF ratings) its slope falls below a quarter
+of the unfaded slope over up to 12 (25) acc points. 26 % of clean scores lie in the first half unit after the fade start.
+
+`PassBlend` (`--pass-blend p`) combines the parts as `(pass^p + (acc + tech)^p)^(1/p)`: p = 1 is today's sum, p → ∞ the maximum.
+Pass PP dominates while acc/tech PP is small and merges into it as accuracy rises. The result is monotone by construction
+(both terms only grow) and smooth, with no trigger point and one parameter. It is still relative to the map: acc PP is a
+function of the score's error rate against the map's prediction, so the ratio of pass to acc PP says whether passing or
+accuracy was the achievement. The pass/acc/tech parts are reported as Euler shares, which add up to the total.
+Candidates compared on `algo-b-permap`'s stored components (`Analysis/py/pass_blend_sim.py`, which reproduces the built DB),
+each with γ and acc scale re-solved:
+
+| | fade | trade β 0.5 | **blend p 1.5** | blend p 2 | blend p 2.5 |
+|---|---|---|---|---|---|
+| PP falls as acc rises (worst, all maps and mods) | 90 PP | 0 | **0** | 0 | 0 |
+| burst overpay (Megametric per SD burstiness; ML 0.029) | 0.034 | 0.037 | **0.025** | 0.017 | 0.013 |
+| Megametric SD / maps ≥ 0.65 | 0.139 / 1.1 % | — | **0.117 / 0.6 %** | 0.102 / 0.3 % | 0.099 / 0.2 % |
+| top play | 926 *Unwelcome School* | 961 *let you* Easy | **887 *Unwelcome School*** | 890 (*let you* Easy 886, 2nd) | 900 *let you* Easy |
+| best play on a < 4★ map (ML 844) | 905 | 961 | **840** | 886 | 900 |
+| γ / acc scale | 0.733 / 1.131 | 0.749 / 1.174 | **0.620 / 1.130** | 0.612 / 1.183 | 0.608 / 1.199 |
+
+The piecewise "trade" variant removes at most β of the acc/tech PP gained above the fade start. It is monotone, but it keeps
+the burst overpay and lets near-perfect Easy scores top the DB. With the p-norm, p ≥ 2 balances maps further but brings the
+*let you* Easy 99.92 % score back into the top 3, so p = 1.5 it is. Pass fade and acc cap are off in this variant; the per-map
+curve and score correction are as in `algo-b-permap`.
+
+| PP at | 50 % | 70 % | 90 % | 97 % | 99 % | 99.8 % | 100 % |
+|---|---|---|---|---|---|---|---|
+| *Extratongue* E+ SF | 634 | 709 | 944 | 1 230 | 1 400 | 1 494 | 1 521 |
+| *Speedcore Paradise* E+ | 260 | 326 | 542 | 856 | 1 086 | 1 235 | 1 280 |
+| *HONESTY* Expert | 137 | 182 | 336 | 609 | 890 | 1 137 | 1 228 |
+| *let you* Easy | 24 | 36 | 86 | 205 | 402 | 730 | 945 |
+
+| | B per-map + correction (fade) | **B blend p 1.5** | ML |
+|---|---|---|---|
+| stars p50 / p90 / max | 7.51 / 11.44 / 17.29 | **7.71 / 11.37 / 16.61** | 6.96 / 11.08 / 15.76 |
+| FS/SF share of the top 1 000 scores | 11.6 % | **14.7 %** | 16.4 % |
+| FS/SF share / pass share of top-100 players' PP | 8.7 % / 7.6 % | **11.2 % / 9.5 %** | 21 % / 23.6 % |
+| Megametric by predicted error < 1 % / 1–2 % / 2–3.5 % / > 3.5 % | 0.079 / 0.178 / 0.305 / 0.461 | **0.107 / 0.185 / 0.287 / 0.439** | 0.042 / 0.179 / 0.278 / 0.217 |
+| median PP change vs ML, ranks 1–100 / 1 001–10 000 / 50 001+ | −0.6 / −3.3 / +2.9 % | **−2.0 / −3.4 / +7.3 %** | — |
+| Spearman of player PP vs ML | 0.9983 | **0.9957** | — |
+
+Easy maps gain a little relative to the fade: they have little pass PP to lose to the blend, and the re-solved acc scale lifts
+them. Their Megametric rises from 0.079 to 0.107, still the lowest band. Ranks 50 001+ gain 7 % against the ML; only two rank
+bands are pinned by the calibration.
 
 ## Known limitations
 
