@@ -93,6 +93,8 @@ STEPS=rerate,correct,scores,stats VARIANTS="algo-b-permap:PowerLaw:Algorithm::0.
   Analysis/scripts/build_test_dbs.sh                                # B + per-map curve + score correction (algo-b-permap)
 STEPS=rerate,correct,scores,stats VARIANTS="algo-b-blend:PowerLaw:Algorithm::0.6198:1.1301:--relative-epsilon+0.75+--pass-blend+1.5" \
   Analysis/scripts/build_test_dbs.sh                                # … with pass PP as a p-norm instead of the fade (algo-b-blend)
+STEPS=rerate,scores,stats VARIANTS="algo-b-v3:PowerLaw:Algorithm::0.6198:1.1301:--relative-epsilon+0.75+--pass-blend+1.5" \
+  Analysis/scripts/build_test_dbs.sh                                # 87-feature acc model, no score correction (algo-b-v3)
 
 # compare in the UI (DatabaseComparison page): current DB vs comparison DB
 dotnet bin/Release/net9.0/portaBLe.dll --db wwwroot/test-algo-power.db --comparison wwwroot/test-ml.db
@@ -377,6 +379,74 @@ curve and score correction are as in `algo-b-permap`.
 Easy maps gain a little relative to the fade: they have little pass PP to lose to the blend, and the re-solved acc scale lifts
 them. Their Megametric rises from 0.079 to 0.107, still the lowest band. Ranks 50 001+ gain 7 % against the ML; only two rank
 bands are pinned by the calibration.
+
+### Why maps disagree with their scores: a better acc model instead of the score correction (test deployment `algo-b-v3`)
+
+The score correction lets a map's own scores move its rating after ranking. That is the same family as Autoreweight, with
+the same problems: grinding feeds back into ratings, sandbagging is possible, and ratings can't be reproduced from the map.
+This variant drops it and uses the disagreement as a guide for the acc model instead.
+
+**Disagreement** `e` = score-implied difficulty minus the acc model's song-grouped out-of-fold prediction, in log error
+(`a15_disagreement.py`, maps with ≥ 100 clean scores):
+
+| question | answer |
+|---|---|
+| real or noise? | real: SD 0.094 vs sampling noise 0.015 |
+| only weaker players? | no: the top quarter's own map term gives the same SD (0.096), r 0.92 with everyone's; the population gap explains 2.5 % |
+| nonlinearity in the 76 features? | barely: gradient boosting on them gets CV R² 0.958 vs ridge 0.958 |
+| not about the map at all? | weak: popularity r −0.12, upload year −0.14 (2024+ maps 0.03 easier), retries +0.18 |
+| mapping style? | partly: other maps of the same mapper predict `e` with r 0.33, other difficulties of the same song r 0.36 |
+| how is the accuracy lost? (replays, `a15c_replay_mechanism.py`) | mid-field excess misses and post-swing losses track `e` (−0.32 → +0.34 log from the "easier" to the "harder" fifth); top players lose almost only centre-cut points |
+| analyzer vs actual play (`a15e_analyzer_vs_observed.py`) | on the easy outliers players reset / repeat directions the analyzer does not assume (*My Album* +50 % resets, *let you* Easy +40 %) |
+
+What map data explains, out-of-fold (`a15b_content_features.py`, `a15d_map_files.py`):
+
+| feature group | share of `e` explained |
+|---|---|
+| layout: horizontal cuts, crossovers, outer lanes (→ harder) | 11–12 % |
+| map file: jump distance (long JD → harder), walls, arcs | 5 % |
+| rhythm (odd snaps, tempo/BPM changes), flow (turns, travel, arcs), patterns, density over time | ≈ 0 |
+| all of the above, linear / gradient boosting | 16 % / 16 % |
+| ridge + boosted residual on the portable set (ceiling) | 27 % |
+
+About three quarters of the disagreement is not in the map data available here: song and sync, the play style players
+choose, effort.
+
+**Model change** (RatingAPI `AccDifficultyFeatures`): 11 new features (`frac_horizontal`, `frac_diagonal`, `frac_cross`,
+`frac_outer`, `frac_top_row`, `frac_bottom_row`, `jump_distance`, `reaction_time` from Info.dat NJS and offset,
+`arcs_per_note`, `wall_cover`, `walls_per_s`), refitted with `fit_acc_model.py`:
+- song-grouped CV R² 0.958 → 0.965; disagreement SD 0.094 → 0.086;
+- maps off by > 0.15: 405 → 322; maps off by > 0.25: 61 → 43;
+- speed calibration re-fitted (k 0.89 / 0.42 / 0.67).
+
+Some maps get worse, e.g. *The Glock* Expert −0.09 → −0.32. The outliers that are mostly play style stay: *My Album*
+predicted 96.95 → 97.10 % (the score correction had moved it to 97.97 %), *toromi hearts 2* Hard 98.45 → 98.51 %.
+`Analysis/out/a15_disagreement_maps.csv` lists every map's remaining disagreement for the ranking team: before and after,
+standard error, the top quarter's view, and evidence flags (hints, not proof).
+
+`algo-b-v3` = this model + per-map curve + pass blend p 1.5, **no score correction** (γ / acc scale kept: ranks 1–1000 and
+10 001–50 000 move +0.8 % / +1.4 % vs `algo-b-blend`):
+
+| | B blend (with correction) | **B v3 (no correction)** | ML |
+|---|---|---|---|
+| stars p50 / p90 / max | 7.71 / 11.37 / 16.61 | **7.73 / 11.36 / 16.50** | 6.96 / 11.08 / 15.76 |
+| FS/SF share of the top 1 000 scores | 14.7 % | **16.2 %** | 16.4 % |
+| FS/SF share / pass share of top-100 players' PP | 11.2 % / 9.5 % | **12.1 % / 9.5 %** | 21 % / 23.6 % |
+| top 3 plays | 887 *Unwelcome School*, 870 *Chrome Vox*, 862 *Break* | **881 *Unwelcome School*, 870 *Gravisphere Crisis*, 867 *let you* Easy 99.92 %** | 929, 911, 910 |
+| Megametric 2018–19 / 20–21 / 22–23 / 24–26 | 0.287 / 0.187 / 0.206 / 0.227 | **0.258 / 0.169 / 0.183 / 0.225** | 0.144 / 0.178 / 0.179 / 0.214 |
+| Spearman of player PP vs ML | 0.9957 | **0.9965** | — |
+
+**Bottom-up feasibility** (`a16_swing_loss.py`). Expected point loss per swing as a function of pattern, context and
+player skill, fitted on 21.6 M (replay, swing) observations and summed over each map, like pass rating:
+- It never sees the map's own scores (song-grouped CV), yet predicts score-implied difficulty with R² 0.93 (mid skill)
+  and 0.91 (top). The map-level ridge gets 0.966, and blending adds nothing.
+- Its misses correlate 0.54 with the ridge's: the same outliers.
+- It does not predict how much more strong players gain on a particular map (r 0.05), but the scores barely vary in that
+  respect either.
+
+So one difficulty number per map plus the playerbase's skill distribution already gives the "share of players reaching
+each accuracy" curve. A bottom-up model's value would be explanation (which sections or patterns cost accuracy), not a
+better rating, unless more replay data (full crawl, more strata) changes that.
 
 ## Known limitations
 

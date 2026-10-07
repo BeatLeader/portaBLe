@@ -15,7 +15,7 @@ using System.Text;
 // variant and dump (a) per-map ratings for each speed modifier, (b) the per-swing analyzer
 // table for the unmodified map, (c) the AI model's per-note accuracy predictions.
 //
-//   RatingsDump --lbs lbs.csv --maps-dir maps --out out --tag prod [--threads 4] [--no-ai] [--no-swings]
+//   RatingsDump --lbs lbs.csv --maps-dir maps --out out --tag prod [--threads 4] [--no-ai] [--no-swings] [--mods SS,none,FS,SFS,BFS,BSF]
 //
 // lbs.csv columns: lb_id,hash,mode,difficulty
 
@@ -23,6 +23,7 @@ string lbsPath = "", mapsDir = "maps", outDir = "out", tag = "prod";
 int threads = 4;
 bool noAi = false, noSwings = false;
 string accModelPath = "";
+string[] modNames = { "SS", "none", "FS", "SFS" };
 for (int i = 0; i < args.Length; i++)
 {
     switch (args[i])
@@ -35,6 +36,7 @@ for (int i = 0; i < args.Length; i++)
         case "--no-ai": noAi = true; break;
         case "--no-swings": noSwings = true; break;
         case "--acc-model": accModelPath = args[++i]; break;
+        case "--mods": modNames = args[++i].Split(','); break;
         default: Console.WriteLine($"unknown arg {args[i]}"); return 1;
     }
 }
@@ -48,9 +50,12 @@ var lbs = File.ReadLines(lbsPath).Skip(1)
     .ToList();
 Console.WriteLine($"{lbs.Count} leaderboards, variant tag '{tag}', {threads} threads");
 
-var mods = new (string name, double scale, double njsMult)[] {
+// BFS / BSF: FS / SF speed with only half of the NJS increase (same njsMult as RatingAPI's /ppai2)
+var allMods = new (string name, double scale, double njsMult)[] {
     ("SS", 0.85, 1.0), ("none", 1.0, 1.0), ("FS", 1.2, 1.0), ("SFS", 1.5, 1.0),
+    ("BFS", 1.2, 1.1 / 1.2), ("BSF", 1.5, 1.25 / 1.5),
 };
+var mods = modNames.Select(n => allMods.Single(m => m.name == n)).ToArray();
 
 string ratingsPath = Path.Combine(outDir, $"ratings_{tag}.csv");
 string swingsPath = Path.Combine(outDir, $"swings_{tag}.csv.gz");
@@ -146,9 +151,10 @@ Parallel.ForEach(byHash, new ParallelOptions { MaxDegreeOfParallelism = threads 
                 var ratings = H.Rate(mapdata, lb.mode, lb.diff, (float)bpm, (float)timescale, (float)njsMult);
                 long analyzeMs = t0.ElapsedMilliseconds;
                 if (ratings == null) throw new Exception($"analyzer returned null ({name}; <20 notes?)");
-                var feats = AccDifficultyFeatures.Compute(ratings, mapdata, bpm, timescale, njsMult);
+                double infoNjs = map.BeatMap?._noteJumpMovementSpeed ?? 0, jumpOffset = map.BeatMap?._noteJumpStartBeatOffset ?? 0;
+                var feats = AccDifficultyFeatures.Compute(ratings, mapdata, bpm, timescale, njsMult, infoNjs, jumpOffset);
                 var baseRatings = accModel != null && (timescale != 1 || njsMult != 1) ? H.Rate(mapdata, lb.mode, lb.diff, (float)bpm, 1, 1) : null;
-                double? algoDifficulty = accModel?.Difficulty(ratings, mapdata, bpm, timescale, njsMult, baseRatings);
+                double? algoDifficulty = accModel?.Difficulty(ratings, mapdata, bpm, timescale, njsMult, baseRatings, infoNjs, jumpOffset);
                 double? algoAcc = algoDifficulty == null ? null : accModel.PredictedAccFromDifficulty(algoDifficulty.Value);
 
                 double rawAcc = 0, predicted = 0, freePoints = 0, accRating = 0, stars = 0;

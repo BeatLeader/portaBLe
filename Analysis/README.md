@@ -16,6 +16,12 @@ scripts/build_test_dbs.sh  builds the wwwroot/test-*.db comparison databases (py
 py/score_correct.py        score-informed predicted accuracy (reference for portaBLe's ScoreCorrection / --steps correct)
 py/permap_curve_sim.py     calibrates the per-map acc curve (--relative-epsilon) on a B + pass fade DB's stored PP components
 py/pass_blend_sim.py       pass fade vs piecewise trade vs p-norm blend (--pass-blend): goals, monotonicity, re-solved curve
+py/a15_disagreement.py     maps where scores disagree with the acc model: real vs noise, non-map factors, worst maps (stage 1)
+py/a15b_content_features.py  candidate layout / rhythm / flow / pattern features from the per-swing table vs the disagreement
+py/a15c_replay_mechanism.py  which kind of accuracy loss (centre, pre/post swing, misses) the disagreeing maps have (replays)
+py/a15d_map_files.py       map-file features (jump distance, reaction time, walls, arcs) and mapper / song effects
+py/a15e_analyzer_vs_observed.py  analyzer-predicted vs actually played swings (resets, directions, speed) on disagreeing maps
+py/a16_swing_loss.py       feasibility of a bottom-up (per-swing, skill-dependent) acc model fitted on replays
 tools/RatingsDump      recompute ratings + per-swing table + per-note ML predictions for a list of maps (prod or corpus analyzer)
 tools/ReplayStudy      SwingCorpus + stratified replay sampling + per-note observation table + tip-motion metrics
 ```
