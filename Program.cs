@@ -24,6 +24,8 @@ namespace portaBLe
         public DbSet<Leaderboard> Leaderboards { get; set; }
         public DbSet<ModifiersRating> ModifiersRating { get; set; }
         public DbSet<DB.Stats> Stats { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder) => CurveModelConfig.Apply(modelBuilder);
     }
 
     public class ComparisonContext : DbContext
@@ -37,6 +39,8 @@ namespace portaBLe
         public DbSet<Leaderboard> Leaderboards { get; set; }
         public DbSet<ModifiersRating> ModifiersRating { get; set; }
         public DbSet<DB.Stats> Stats { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder) => CurveModelConfig.Apply(modelBuilder);
     }
 
     public class Program
@@ -295,6 +299,10 @@ namespace portaBLe
                     // Uncomment to recalculate ratings after changing ReplayUtils.
                     // await RatingsRefresh.Refresh(dbContext);
 
+                    // Uncomment to regenerate only the acc curves (and stars) from stored ratings after editing RatingAPI's Curve.cs
+                    // Run ScoresRefresh afterwards (e.g. RefreshEverything) to update score PP with the new curves
+                    await CurvesRefresh.Regenerate(dbContext);
+
                     // Uncomment to run the reweighter 
                     // Nerf
                     // await ScoresRefresh.Autoreweight(dbContext);
@@ -302,7 +310,7 @@ namespace portaBLe
                     // await ScoresRefresh.Autoreweight3(dbContext);
 
                     // Uncomment to refresh everything with current ratings
-                    // await RefreshEverything(dbContext);
+                    await RefreshEverything(dbContext);
 
                     // Uncomment to refresh leaderboards (Megametrics) for ALL databases
                     // await RefreshLeaderboardsForAllDatabases(tempDbService, builder.Environment.WebRootPath);
@@ -403,7 +411,7 @@ namespace portaBLe
 
                             var columnType = property.GetColumnType(storeObject);
                             var clrType = Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType;
-                            var defaultValue = clrType == typeof(string) ? "''" : "0";
+                            var defaultValue = clrType == typeof(string) || columnType.Equals("TEXT", StringComparison.OrdinalIgnoreCase) ? "''" : "0";
                             var sql = property.IsNullable
                                 ? $"ALTER TABLE \"{tableName}\" ADD COLUMN \"{columnName}\" {columnType} NULL"
                                 : $"ALTER TABLE \"{tableName}\" ADD COLUMN \"{columnName}\" {columnType} NOT NULL DEFAULT {defaultValue}";

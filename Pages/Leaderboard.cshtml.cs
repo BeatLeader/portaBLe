@@ -25,6 +25,9 @@ namespace portaBLe.Pages
         public ICollection<ScoreGraphEntry> ScoreGraphEntries { get; set; }
         public ICollection<ScoreGraphEntry>? CompareScoreGraphEntries { get; set; }
 
+        // Acc curves per speed modifier (none, SS, FS, SFS) as [accuracy, multiplier] pairs
+        public Dictionary<string, List<float[]>> Curves { get; set; } = new();
+
         public LeaderboardModel(IDynamicDbContextService dbService) : base(dbService)
         {
         }
@@ -35,12 +38,23 @@ namespace portaBLe.Pages
 
             using var context = (Services.DynamicDbContext)GetDbContext();
 
-            Leaderboard = await context.Leaderboards.FirstOrDefaultAsync(l => l.Id == id);
+            Leaderboard = await context.Leaderboards.Include(l => l.ModifiersRating).FirstOrDefaultAsync(l => l.Id == id);
 
             if (Leaderboard == null)
             {
                 return NotFound();
             }
+
+            static List<float[]> ToPoints(IEnumerable<System.Numerics.Vector2>? curve) =>
+                (curve ?? Enumerable.Empty<System.Numerics.Vector2>()).OrderBy(p => p.X).Select(p => new[] { p.X, p.Y }).ToList();
+
+            Curves = new Dictionary<string, List<float[]>>
+            {
+                ["none"] = ToPoints(Leaderboard.Curve),
+                ["SS"] = ToPoints(Leaderboard.ModifiersRating?.SSCurve),
+                ["FS"] = ToPoints(Leaderboard.ModifiersRating?.FSCurve),
+                ["SFS"] = ToPoints(Leaderboard.ModifiersRating?.SFCurve),
+            };
 
             int pageSize = 10;
             CurrentPage = currentPage;

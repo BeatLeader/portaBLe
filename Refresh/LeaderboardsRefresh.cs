@@ -354,12 +354,13 @@ namespace portaBLe.Refresh
                     Id = s.Id,
                     AccRating = s.AccRating,
                     PassRating = s.PassRating,
-                    TechRating = s.TechRating
+                    TechRating = s.TechRating,
+                    Curve = s.Curve
                 })
                 .ToList();
             foreach (var lb in lbs)
             {
-                lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating);
+                lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve);
             }
 
             await dbContext.BulkUpdateAsync(lbs, options => options.ColumnInputExpression = c => new { c.Stars });

@@ -1,5 +1,6 @@
 ﻿using portaBLe.DB;
 using System.ComponentModel;
+using System.Numerics;
 using System.Reflection;
 
 namespace portaBLe.Refresh
@@ -92,7 +93,33 @@ namespace portaBLe.Refresh
             return (float)(pointList[i-1].Item2 + middle_dis * (pointList[i].Item2 - pointList[i-1].Item2));
         }
 
-        public static float Curve2(float acc)
+        public static float Curve2(float acc, IReadOnlyList<Vector2>? curve = null)
+        {
+            if (curve == null || curve.Count < 2)
+            {
+                return StaticCurve2(acc);
+            }
+
+            int i = 0;
+            for (; i < curve.Count; i++)
+            {
+                if (curve[i].X <= acc) {
+                    break;
+                }
+            }
+
+            if (i == 0) {
+                i = 1;
+            }
+            if (i >= curve.Count) {
+                i = curve.Count - 1;
+            }
+
+            double middle_dis = (acc - curve[i - 1].X) / (double)(curve[i].X - curve[i - 1].X);
+            return (float)(curve[i - 1].Y + middle_dis * (curve[i].Y - curve[i - 1].Y));
+        }
+
+        private static float StaticCurve2(float acc)
         {
             int i = 0;
             for (; i < pointList2.Count; i++)
@@ -128,22 +155,22 @@ namespace portaBLe.Refresh
             return 650f * MathF.Pow(peepee, 1.3f) / MathF.Pow(650f, 1.3f);
         }
 
-        private static (float, float, float) GetPp(float accuracy, float accRating, float passRating, float techRating) {
+        private static (float, float, float) GetPp(float accuracy, float accRating, float passRating, float techRating, IReadOnlyList<Vector2>? curve = null) {
 
             float passPP = 15.2f * MathF.Exp(MathF.Pow(passRating, 1 / 2.62f)) - 30f;
             if (float.IsInfinity(passPP) || float.IsNaN(passPP) || float.IsNegativeInfinity(passPP) || passPP < 0)
             {
                 passPP = 0;
             }
-            float accPP = Curve2(accuracy) * accRating * 34f;
+            float accPP = Curve2(accuracy, curve) * accRating * 34f;
             // https://www.desmos.com/calculator/jdpmaozieo
             float techPP = MathF.Exp(1.9f * accuracy) * 1.08f * techRating;
             
             return (passPP, accPP, techPP);
         }
 
-        public static float ToStars(float accRating, float passRating, float techRating) {
-            (float passPP, float accPP, float techPP) = GetPp(0.96f, accRating, passRating, techRating);
+        public static float ToStars(float accRating, float passRating, float techRating, IReadOnlyList<Vector2>? curve = null) {
+            (float passPP, float accPP, float techPP) = GetPp(0.96f, accRating, passRating, techRating, curve);
 
             return Inflate(passPP + accPP + techPP) / 52f;
         }
@@ -154,7 +181,8 @@ namespace portaBLe.Refresh
             ModifiersRating? modifiersRating,
             float accRating, 
             float passRating, 
-            float techRating)
+            float techRating,
+            IReadOnlyList<Vector2>? curve = null)
         {
             if (accuracy <= 0 || accuracy > 1) return (0, 0, 0, 0, 0);
 
@@ -167,9 +195,10 @@ namespace portaBLe.Refresh
             float rawPP = 0; float fullPP = 0; float passPP = 0; float accPP = 0; float techPP = 0; float increase = 0; 
             if (!modifiers.Contains("NF"))
             {
-                (passPP, accPP, techPP) = GetPp(accuracy, accRating, passRating, techRating);
+                (passPP, accPP, techPP) = GetPp(accuracy, accRating, passRating, techRating, curve);
 
                 rawPP = Inflate(passPP + accPP + techPP);
+                var scoreCurve = curve;
                 if (modifiersRating != null) {
                     var modifiersMap = modifiersRating.ToDictionary<float>();
                     foreach (var modifier in modifiers.ToUpper().Split(","))
@@ -178,12 +207,14 @@ namespace portaBLe.Refresh
                             accRating = modifiersMap[modifier + "AccRating"]; 
                             passRating = modifiersMap[modifier + "PassRating"]; 
                             techRating = modifiersMap[modifier + "TechRating"];
+                            var modifierCurve = modifiersRating.GetCurve(modifier);
+                            if (modifierCurve != null && modifierCurve.Count >= 2) { scoreCurve = modifierCurve; }
 
                             break;
                         }
                     }
                 }
-                (passPP, accPP, techPP) = GetPp(accuracy, accRating * mp, passRating * mp, techRating * mp);
+                (passPP, accPP, techPP) = GetPp(accuracy, accRating * mp, passRating * mp, techRating * mp, scoreCurve);
                 fullPP = Inflate(passPP + accPP + techPP);
                 if (passPP + accPP + techPP > 0) {
                     increase = fullPP / (passPP + accPP + techPP);

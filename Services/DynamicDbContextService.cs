@@ -143,5 +143,7 @@ namespace portaBLe.Services
         public DbSet<Leaderboard> Leaderboards { get; set; }
         public DbSet<ModifiersRating> ModifiersRating { get; set; }
         public DbSet<DB.Stats> Stats { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder) => CurveModelConfig.Apply(modelBuilder);
     }
 }

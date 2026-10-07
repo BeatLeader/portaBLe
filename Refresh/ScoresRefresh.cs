@@ -39,6 +39,7 @@ namespace portaBLe.Refresh
                         lb.AccRating,
                         lb.PassRating,
                         lb.TechRating,
+                        lb.Curve,
                         lb.ModifiersRating,
                         Scores = lb.Scores.Select(s => new { s.Id, s.Accuracy, s.Modifiers }).ToList()
                     })
@@ -52,6 +53,7 @@ namespace portaBLe.Refresh
                     async (leaderboard, ct) =>
                     {
                         var leaderboardScores = new List<Score>(leaderboard.Scores.Count);
+                        var leaderboardCurve = leaderboard.Curve;
 
                         // Calculate PP for all scores
                         foreach (var s in leaderboard.Scores)
@@ -62,7 +64,8 @@ namespace portaBLe.Refresh
                                 leaderboard.ModifiersRating,
                                 leaderboard.AccRating,
                                 leaderboard.PassRating,
-                                leaderboard.TechRating);
+                                leaderboard.TechRating,
+                                leaderboardCurve);
 
                             if (float.IsNaN(pp))
                             {

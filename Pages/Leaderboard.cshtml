@@ -231,6 +231,20 @@
     <div id="loading" style="display: none;">Loading...</div>
 </div>
 
+<div class="chart-container">
+    <div class="x-selector">
+        <label for="curveModifierSelect">Accuracy curve modifier:</label>
+        <select id="curveModifierSelect" onchange="updateCurveChart()">
+            <option value="none">None</option>
+            <option value="SS">SS</option>
+            <option value="FS">FS</option>
+            <option value="SFS">SFS</option>
+        </select>
+    </div>
+    <canvas id="curveChart"></canvas>
+    <div id="curveEmpty" style="display: none;">No curve data for this leaderboard and modifier.</div>
+</div>
+
 <div class="tables-container">
     <div class="table-wrapper">
         <table class="table">
@@ -412,6 +426,45 @@
         let currentPlayerId = null;
         const leaderboardScores = @Html.Raw(JsonSerializer.Serialize(Model.ScoreGraphEntries));
         const compareLeaderboardScores = @Html.Raw(JsonSerializer.Serialize(Model.CompareScoreGraphEntries ?? new LeaderboardModel.ScoreGraphEntry[] { }));
+        const leaderboardCurves = @Html.Raw(JsonSerializer.Serialize(Model.Curves));
+        let curveChart = null;
+
+        function updateCurveChart() {
+            const modifier = document.getElementById('curveModifierSelect').value;
+            const points = (leaderboardCurves[modifier] || []).map(p => ({ x: p[0] * 100, y: p[1] }));
+            const canvas = document.getElementById('curveChart');
+            document.getElementById('curveEmpty').style.display = points.length ? 'none' : 'block';
+            canvas.style.display = points.length ? 'block' : 'none';
+
+            if (curveChart) {
+                curveChart.destroy();
+                curveChart = null;
+            }
+            if (!points.length) return;
+
+            curveChart = new Chart(canvas.getContext('2d'), {
+                type: 'line',
+                data: {
+                    datasets: [{
+                        label: 'Acc curve (' + (modifier === 'none' ? 'no modifier' : modifier) + ')',
+                        data: points,
+                        borderColor: 'rgb(75, 192, 192)',
+                        backgroundColor: 'rgba(75, 192, 192, 0.3)',
+                        pointRadius: 3,
+                        tension: 0,
+                    }]
+                },
+                options: {
+                    scales: {
+                        x: { type: 'linear', title: { display: true, text: 'Accuracy' }, ticks: { callback: val => formatNumber(val, 1) + '%' } },
+                        y: { title: { display: true, text: 'Multiplier' } }
+                    },
+                    plugins: {
+                        tooltip: { callbacks: { label: ctx => formatNumber(ctx.parsed.x, 2) + '% : ' + formatNumber(ctx.parsed.y, 3) } }
+                    }
+                }
+            });
+        }
 
         function formatNumber(num, decimals) {
             return Number(num).toFixed(decimals);
@@ -728,5 +781,6 @@
 
         // Initial load
         setupChart(leaderboardScores, compareLeaderboardScores);
+        updateCurveChart();
     </script>
 }

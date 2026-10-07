@@ -1,8 +1,35 @@
 ﻿using System.ComponentModel.DataAnnotations;
 using System.ComponentModel.DataAnnotations.Schema;
+using System.Globalization;
+using System.Numerics;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.ChangeTracking;
+using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace portaBLe.DB
 {
+    public static class CurveModelConfig
+    {
+        public static void Apply(ModelBuilder modelBuilder)
+        {
+            var converter = new ValueConverter<List<Vector2>, string>(
+                v => Leaderboard.SerializeCurve(v),
+                v => Leaderboard.ParseCurve(v));
+            var comparer = new ValueComparer<List<Vector2>>(
+                (a, b) => (a == null && b == null) || (a != null && b != null && a.SequenceEqual(b)),
+                v => v.Aggregate(0, (h, p) => HashCode.Combine(h, p)),
+                v => v.ToList());
+
+            void Map<T>(System.Linq.Expressions.Expression<Func<T, List<Vector2>>> property) where T : class =>
+                modelBuilder.Entity<T>().Property(property).HasConversion(converter, comparer);
+
+            Map<Leaderboard>(l => l.Curve);
+            Map<ModifiersRating>(m => m.SSCurve);
+            Map<ModifiersRating>(m => m.FSCurve);
+            Map<ModifiersRating>(m => m.SFCurve);
+        }
+    }
+
     public class Player
     {
         [StringLength(25, MinimumLength = 0)]
@@ -68,6 +95,18 @@ namespace portaBLe.DB
         public float SFAccRating { get; set; }
         public float SFTechRating { get; set; }
         public float SFStars { get; set; }
+
+        public List<Vector2> SSCurve { get; set; } = new();
+        public List<Vector2> FSCurve { get; set; } = new();
+        public List<Vector2> SFCurve { get; set; } = new();
+
+        public List<Vector2>? GetCurve(string modifier) => modifier switch
+        {
+            "SS" => SSCurve,
+            "FS" => FSCurve,
+            "SF" => SFCurve,
+            _ => null
+        };
     }
 
     public class Leaderboard
@@ -121,6 +160,33 @@ namespace portaBLe.DB
         public float LinearPercent { get; set; }
         public float ParityErrors { get; set; }
         public float BombAvoidances { get; set; }
+
+        // Per-leaderboard acc curve, stored as "x,y;x,y;..." (see CurveModelConfig)
+        public List<Vector2> Curve { get; set; } = new();
+
+        public static List<Vector2> ParseCurve(string? data)
+        {
+            var result = new List<Vector2>();
+            if (string.IsNullOrWhiteSpace(data)) return result;
+
+            foreach (var point in data.Split(';', StringSplitOptions.RemoveEmptyEntries))
+            {
+                var parts = point.Split(',');
+                if (parts.Length == 2
+                    && float.TryParse(parts[0], NumberStyles.Float, CultureInfo.InvariantCulture, out var x)
+                    && float.TryParse(parts[1], NumberStyles.Float, CultureInfo.InvariantCulture, out var y))
+                {
+                    result.Add(new Vector2(x, y));
+                }
+            }
+            return result;
+        }
+
+        public static string SerializeCurve(IEnumerable<Vector2>? curve)
+        {
+            if (curve == null) return string.Empty;
+            return string.Join(';', curve.Select(p => string.Create(CultureInfo.InvariantCulture, $"{p.X:R},{p.Y:R}")));
+        }
 
         [NotMapped]
         public float Count80Ratio => Count > 0 ? Count80 / (float)Count : 0;
