@@ -321,6 +321,7 @@ namespace portaBLe
             public List<string> Steps = new();
             public AccSource AccSource = AccSource.ML;
             public CurveMode Curve = CurveMode.Classic;
+            public float ScoreCorrectionTau = 0.09f;
             public bool Exit;
 
             public static PipelineOptions Parse(string[] args)
@@ -339,6 +340,11 @@ namespace portaBLe
                         case "--acc-model": o.AccModel = args[++i]; break;
                         case "--gamma": PpCurve.Gamma = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                         case "--acc-scale": PpCurve.AccScale = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                        case "--epsilon": PpCurve.Epsilon = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
+                        case "--relative-epsilon": // per-map curve offset k * (1 - predictedAcc) (see PpCurve)
+                            PpCurve.RelativeEpsilon = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture);
+                            break;
+                        case "--score-correction": o.ScoreCorrectionTau = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                         case "--pass-fade": // strength,floor,center (see PassFade)
                             var fade = args[++i].Split(',').Select(x => float.Parse(x, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
                             (PassFade.Enabled, PassFade.Strength, PassFade.Floor, PassFade.Center) = (true, fade[0], fade[1], fade[2]);
@@ -354,14 +360,16 @@ namespace portaBLe
         }
 
         /// <summary>
-        /// Steps: import (dump -> empty DB), rerate (RatingAPI, --acc-source), stars (stars from stored ratings),
+        /// Steps: import (dump -> empty DB), rerate (RatingAPI, --acc-source), correct (score-informed predicted accuracy,
+        /// --score-correction tau; run right after rerate with the same curve options), stars (stars from stored ratings),
         /// scores (score PP + player totals), stats (Megametric, outliers, Stats table). The curve applies to every step.
         /// </summary>
         public static async Task RunPipeline(IHost host, PipelineOptions cli)
         {
             PpCurve.Mode = cli.Curve;
             Console.WriteLine($"Pipeline: {string.Join(",", cli.Steps)} | acc source {cli.AccSource} {cli.AccModel ?? "(embedded model)"} | curve {cli.Curve}"
-                + (cli.Curve == CurveMode.PowerLaw ? $" (gamma {PpCurve.Gamma}, acc scale {PpCurve.AccScale})" : "")
+                + (cli.Curve == CurveMode.PowerLaw ? $" (gamma {PpCurve.Gamma}, acc scale {PpCurve.AccScale}, epsilon {PpCurve.Epsilon}"
+                    + (PpCurve.PerMap ? $" + {PpCurve.RelativeEpsilon} x (1 - predicted acc)" : "") + ")" : "")
                 + (PassFade.Enabled ? $" | pass fade strength {PassFade.Strength}, floor {PassFade.Floor}, center {PassFade.Center}" : "")
                 + (AccCap.Enabled ? $" | acc cap {AccCap.MaxAdvantage}" : ""));
             using var scope = host.Services.CreateScope();
@@ -378,6 +386,7 @@ namespace portaBLe
                         DataImporter.ImportData(ParseProtobuf(cli.Dump ?? env.WebRootPath + "/dump.zip"), dbContext);
                         break;
                     case "rerate": await RatingsRefresh.Overwrite(dbContext, cli.AccSource, cli.AccModel); break;
+                    case "correct": await ScoreCorrection.Apply(dbContext, cli.ScoreCorrectionTau); break;
                     case "stars": await LeaderboardsRefresh.RefreshStars(dbContext); break;
                     case "scores":
                         await ScoresRefresh.Refresh(dbContext);

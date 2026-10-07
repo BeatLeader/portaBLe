@@ -310,12 +310,13 @@ namespace portaBLe.Refresh
                     Id = s.Id,
                     AccRating = s.AccRating,
                     PassRating = s.PassRating,
-                    TechRating = s.TechRating
+                    TechRating = s.TechRating,
+                    PredictedAcc = s.PredictedAcc
                 })
                 .ToList();
             foreach (var lb in lbs)
             {
-                lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating);
+                lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.PredictedAcc);
             }
 
             await dbContext.BulkUpdateAsync(lbs, options => options.ColumnInputExpression = c => new { c.Stars });
@@ -334,15 +335,18 @@ namespace portaBLe.Refresh
                     SFTechRating = s.SFTechRating,
                     FSAccRating = s.FSAccRating,
                     FSPassRating = s.FSPassRating,
-                    FSTechRating = s.FSTechRating
+                    FSTechRating = s.FSTechRating,
+                    SSPredictedAcc = s.SSPredictedAcc,
+                    SFPredictedAcc = s.SFPredictedAcc,
+                    FSPredictedAcc = s.FSPredictedAcc
                 })
                 .ToList();
 
             foreach (var mod in mods)
             {
-                mod.SSStars = ReplayUtils.ToStars(mod.SSAccRating, mod.SSPassRating, mod.SSTechRating);
-                mod.SFStars = ReplayUtils.ToStars(mod.SFAccRating, mod.SFPassRating, mod.SFTechRating);
-                mod.FSStars = ReplayUtils.ToStars(mod.FSAccRating, mod.FSPassRating, mod.FSTechRating);
+                mod.SSStars = ReplayUtils.ToStars(mod.SSAccRating, mod.SSPassRating, mod.SSTechRating, mod.SSPredictedAcc);
+                mod.SFStars = ReplayUtils.ToStars(mod.SFAccRating, mod.SFPassRating, mod.SFTechRating, mod.SFPredictedAcc);
+                mod.FSStars = ReplayUtils.ToStars(mod.FSAccRating, mod.FSPassRating, mod.FSTechRating, mod.FSPredictedAcc);
             }
 
             await dbContext.BulkUpdateAsync(mods, options => options.ColumnInputExpression = c => new { c.SSStars, c.SFStars, c.FSStars });
