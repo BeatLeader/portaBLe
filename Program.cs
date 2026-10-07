@@ -3,6 +3,7 @@ using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Transfer;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore.Metadata;
 using portaBLe.DB;
 using portaBLe.Services;
 using portaBLe.Refresh;
@@ -292,6 +293,9 @@ namespace portaBLe
                 var tempDbService = new DynamicDbContextService(builder.Environment);
                 await tempDbService.DownloadAllDatabasesAsync(builder.Environment.WebRootPath);
 
+                // Verify all tables/columns from DBModels exist in every database, and add missing ones
+                await EnsureSchemaForAllDatabases(tempDbService, builder.Environment.WebRootPath);
+
                 var connectionString = $"Data Source={builder.Environment.WebRootPath}/Database.db;";
                 builder.Services.AddDbContextFactory<AppContext>(options => options.UseSqlite(connectionString));
 
@@ -377,6 +381,84 @@ namespace portaBLe
             await LeaderboardsRefresh.Refresh(dbContext);
             await LeaderboardsRefresh.Outliers(dbContext);
             await StatsRefresh.Refresh(dbContext);
+        }
+
+        // Ensures every table and column from DBModels exists in all databases, adding missing ones with default values
+        private static async Task EnsureSchemaForAllDatabases(IDynamicDbContextService dbService, string webRootPath)
+        {
+            var databases = await dbService.GetAvailableDatabasesAsync();
+
+            foreach (var db in databases)
+            {
+                var path = Path.Combine(webRootPath, db.FileName);
+                if (!File.Exists(path))
+                {
+                    Console.WriteLine($"Skipping schema check for {db.Name}: file not found");
+                    continue;
+                }
+
+                try
+                {
+                    var optionsBuilder = new DbContextOptionsBuilder<AppContext>();
+                    optionsBuilder.UseSqlite($"Data Source={path};");
+
+                    using var dbContext = new AppContext(optionsBuilder.Options);
+                    var connection = dbContext.Database.GetDbConnection();
+                    await connection.OpenAsync();
+
+                    foreach (var entityType in dbContext.Model.GetEntityTypes())
+                    {
+                        var tableName = entityType.GetTableName();
+                        if (tableName == null) continue;
+
+                        var existingColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                        using (var command = connection.CreateCommand())
+                        {
+                            command.CommandText = $"PRAGMA table_info(\"{tableName}\")";
+                            using var reader = await command.ExecuteReaderAsync();
+                            while (await reader.ReadAsync())
+                            {
+                                existingColumns.Add(reader.GetString(1));
+                            }
+                        }
+
+                        if (existingColumns.Count == 0)
+                        {
+                            var script = dbContext.Database.GenerateCreateScript();
+                            var createSql = script
+                                .Split(";\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                                .FirstOrDefault(s => s.StartsWith($"CREATE TABLE \"{tableName}\""));
+                            if (createSql != null)
+                            {
+                                await dbContext.Database.ExecuteSqlRawAsync(createSql);
+                                Console.WriteLine($"[{db.Name}] Created missing table {tableName}");
+                            }
+                            continue;
+                        }
+
+                        var storeObject = StoreObjectIdentifier.Table(tableName, entityType.GetSchema());
+                        foreach (var property in entityType.GetProperties())
+                        {
+                            var columnName = property.GetColumnName(storeObject);
+                            if (columnName == null || existingColumns.Contains(columnName)) continue;
+
+                            var columnType = property.GetColumnType(storeObject);
+                            var clrType = Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType;
+                            var defaultValue = clrType == typeof(string) ? "''" : "0";
+                            var sql = property.IsNullable
+                                ? $"ALTER TABLE \"{tableName}\" ADD COLUMN \"{columnName}\" {columnType} NULL"
+                                : $"ALTER TABLE \"{tableName}\" ADD COLUMN \"{columnName}\" {columnType} NOT NULL DEFAULT {defaultValue}";
+
+                            await dbContext.Database.ExecuteSqlRawAsync(sql);
+                            Console.WriteLine($"[{db.Name}] Added missing column {tableName}.{columnName}");
+                        }
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error verifying schema for {db.Name}: {ex.Message}");
+                }
+            }
         }
 
         // Helper method to refresh stats for all databases
