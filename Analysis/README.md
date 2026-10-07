@@ -13,6 +13,8 @@ py/                    analysis scripts (a* = score dump, r* = replays, ppmodel.
                        decode_attempts.py + a13/a14 = attempts export from /admin/attemptsexport)
 scripts/build_tools.sh stages analyzer variants and builds the two .NET tools
 scripts/build_test_dbs.sh  builds the wwwroot/test-*.db comparison databases (py/compare_dbs.py compares two)
+py/score_correct.py        score-informed predicted accuracy (reference for portaBLe's ScoreCorrection / --steps correct)
+py/permap_curve_sim.py     calibrates the per-map acc curve (--relative-epsilon) on a B + pass fade DB's stored PP components
 tools/RatingsDump      recompute ratings + per-swing table + per-note ML predictions for a list of maps (prod or corpus analyzer)
 tools/ReplayStudy      SwingCorpus + stratified replay sampling + per-note observation table + tip-motion metrics
 ```

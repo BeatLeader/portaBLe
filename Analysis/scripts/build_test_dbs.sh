@@ -6,7 +6,8 @@
 #   test-algo-power.db  algorithmic acc model + power-law acc curve
 #   test-ml-power.db    ONNX model + power-law acc curve (isolates the curve change)
 # A variant is name:curve:source[:acc model json[:gamma[:acc scale[:extra args]]]] (power-law gamma / acc scale default to PpCurve's;
-# extra args with + for spaces, e.g. "--pass-fade+1,0.3,-2").
+# extra args with + for spaces, e.g. "--pass-fade+1,0.3,-2"). STEPS overrides the per-variant pipeline (default rerate,scores,stats;
+# rerate,correct,scores,stats adds the score correction of predicted accuracy).
 # Compare any two in the UI: copy one to wwwroot/Database.db and the other to wwwroot/Comparison.db, or start with
 #   dotnet bin/Release/net9.0/portaBLe.dll --db wwwroot/test-algo-power.db --comparison wwwroot/test-ml.db
 set -euo pipefail
@@ -14,6 +15,7 @@ cd "$(dirname "$0")/../.."
 W=wwwroot
 VARIANTS="${VARIANTS:-ml:Classic:ML algo:Classic:Algorithm algo-power:PowerLaw:Algorithm}"   # also: ml-power:PowerLaw:ML
 WITH_PROD="${WITH_PROD:-0}"
+STEPS="${STEPS:-rerate,scores,stats}"
 # (the static web assets step hashes wwwroot/*.db: don't build while another process has a DB there open)
 dotnet build portaBLe.csproj -c Release -v:q -nologo | grep -E "error|Error\(s\)|Elapsed" | sort -u | tail -6
 # EF / bulk-extension command logging at Information level writes one log entry per updated row (GBs) -> keep it at Warning
@@ -40,7 +42,7 @@ for v in $VARIANTS; do
   [ -n "${accscale:-}" ] && extra+=(--acc-scale "$accscale")
   [ -n "${extra_args:-}" ] && read -r -a more <<< "${extra_args//+/ }" && extra+=("${more[@]}")
   cp "$W/test-import.db" "$W/test-$name.db.tmp"
-  $APP --db "$W/test-$name.db.tmp" --steps rerate,scores,stats --acc-source "$source" --curve "$curve" ${extra[@]+"${extra[@]}"} --exit
+  $APP --db "$W/test-$name.db.tmp" --steps "$STEPS" --acc-source "$source" --curve "$curve" ${extra[@]+"${extra[@]}"} --exit
   mv "$W/test-$name.db.tmp" "$W/test-$name.db"
 done
 ls -la $W/test-*.db

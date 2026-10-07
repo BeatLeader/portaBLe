@@ -89,6 +89,8 @@ Analysis/scripts/build_test_dbs.sh       # -> wwwroot/test-{ml,algo,algo-power}.
 VARIANTS="ml-power:PowerLaw:ML algo-power-flat:PowerLaw:Algorithm::0.5001:1.0004 \
   algo-cal:Classic:Algorithm:Analysis/models/acc_model_cal.json" Analysis/scripts/build_test_dbs.sh   # the other test DBs
 python Analysis/py/compare_dbs.py wwwroot/test-algo-power-flat.db wwwroot/test-ml.db --md out.md   # tables below
+STEPS=rerate,correct,scores,stats VARIANTS="algo-b-permap:PowerLaw:Algorithm::0.7328:1.1307:--pass-fade+1,0.3,-2+--relative-epsilon+0.75" \
+  Analysis/scripts/build_test_dbs.sh                                # B + per-map curve + score correction (algo-b-permap)
 
 # compare in the UI (DatabaseComparison page): current DB vs comparison DB
 dotnet bin/Release/net9.0/portaBLe.dll --db wwwroot/test-algo-power.db --comparison wwwroot/test-ml.db
@@ -254,12 +256,77 @@ overpay at 0.031, a stronger one (−2, 2, 0) removes nearly all pass PP for top
 
 Top-10 / top-100 mean PP +7.3 % / +6.2 % vs the ML (the pass-to-accuracy shift favours the best accuracy players).
 
+### B + per-map curve + score correction (test deployment `algo-b-permap`)
+
+Three changes on top of B + pass fade, from the field test (*toromi hearts 2* over-rated, *Speedcore Paradise* at 22★, a flat
+acc curve above ~98 % on most maps):
+
+**1. Per-map acc curve instead of `AccCap`** (`--relative-epsilon 0.75`). The cap made every curve flat once the error rate was
+1.8× below the prediction: *HONESTY* Expert from 98.6 %, *let you* Easy from 99.64 %. On *Speedcore Paradise* PP even fell above
+96.95 %, because the fade judged pass PP on the uncapped accuracy (fixed: fade and cap now both use the capped accuracy). The curve's
+offset is now per map, `ε_j = 0.0016 + 0.75·(1 − predictedAcc_j)`, and `AccRating` is anchored at the predicted accuracy itself (no
++0.0022). Acc PP then depends on the error ratio `(1 − acc) / (1 − predictedAcc)`, keeps rising to 100 % and saturates smoothly.
+γ 0.733 and acc scale 1.131 are re-solved as before (median PP of ranks 1–1000 and 10 001–50 000 unchanged).
+
+| PP at | 97 % | 98 % | 99 % | 99.5 % | 99.8 % | 99.92 % | 100 % |
+|---|---|---|---|---|---|---|---|
+| *Speedcore Paradise* E+, B + fade + cap | 1 161 | 1 156 | 1 151 | 1 149 | 1 147 | 1 147 | 1 146 |
+| … per-map curve | 890 | 1 010 | 1 180 | 1 293 | 1 374 | 1 410 | 1 435 |
+| *HONESTY* Expert, B + fade + cap | 680 | 871 | 1 083 | 1 080 | 1 079 | 1 078 | 1 078 |
+| … per-map curve | 616 | 739 | 949 | 1 120 | 1 263 | 1 332 | 1 384 |
+| *let you* Easy, B + fade + cap | 177 | 237 | 381 | 588 | 703 | 703 | 703 |
+| … per-map curve | 172 | 235 | 379 | 552 | 767 | 910 | 1 041 |
+
+Rejected alternatives (`Analysis/py/permap_curve_sim.py`, on B + fade's stored PP components, reproduces the built DB):
+
+- **Pure error-ratio curve** (no absolute 0.0016). Near-perfect Easy scores top the whole DB even at k = 1. Easy maps are
+  noisier: residual SD 0.42 vs 0.30 on mid maps, because one miss is a large part of the error budget. The absolute 0.0016 keeps
+  that extra damping.
+- **Soft cap** (slope 0.25 above the cap). It never saturates: 100 % on *Speedcore Paradise* would pay 2 794.
+
+**2. Score-informed predicted accuracy** (`--steps rerate,correct,…`, `ScoreCorrection`, τ 0.09; reference
+`Analysis/py/score_correct.py`). Uses clean scores of players with ≥ 15 of them, fitting
+`log(1 − acc) = log(1 − predictedAcc_j) + c_j − s_i` with the prior `c_j ~ N(0, 0.09²)`. A map moves by `n / (n + 12)` of what
+its scores say (speed-modifier predictions move by the same `c_j`).
+
+- Examples: *toromi hearts 2* Hard 98.45 → 98.70 % (7.6 → 6.9★); *My Album Is Out…* E+ 96.95 → 97.97 % (14.1 → 9.9★);
+  *Speedcore Paradise* E+ 94.44 → 95.10 %. The largest moves towards harder are *OKAY*, *Chrome Vox* and *RTX 20000*
+  (+0.34 log error).
+- The correction is not an artefact of weak players struggling on hard maps. Fitted on the top 25 % / top 10 % of players
+  only, the hardest band (predicted error > 3.5 %, 112 maps) moves by +0.092 / +0.078 vs +0.081 on everyone.
+- For the top 2 %, the newest maps' over-rating drops from +0.032 to +0.003 (mean residual advantage on 2024–26 maps).
+
+**3. Stars use the same formula as scores**: PP of a 96 % score with the map's curve, fade and cap, / 52. *Speedcore Paradise*
+E+ 22.2 → 15.4★.
+
+| | B + fade + cap | **B per-map + correction** | ML |
+|---|---|---|---|
+| stars p50 / p90 / max | 7.65 / 13.29 / 23.36 | **7.51 / 11.44 / 17.29** | 6.96 / 11.08 / 15.76 |
+| FS/SF share of the top 1 000 scores | 14.4 % | **11.6 %** | 16.4 % |
+| FS/SF share / pass share of top-100 players' PP | 10.7 % / 7.5 % | **8.7 % / 7.6 %** | 21 % / 23.6 % |
+| highest score | 1 150 (*Speedcore Paradise*) | **926** (*Unwelcome School* E+ 96.33 %) | 929 |
+| best play on a < 4★ map | 749 | **905** (*let you* Easy 99.92 %, 4th overall) | 844 |
+| Megametric by predicted error < 1 % / 1–2 % / 2–3.5 % / > 3.5 % | 0.061 / 0.166 / 0.280 / 0.359 | **0.079 / 0.178 / 0.305 / 0.461** | 0.042 / 0.179 / 0.278 / 0.217 |
+| Megametric by upload year 2018–19 / 20–21 / 22–23 / 24–26 | 0.256 / 0.163 / 0.177 / 0.220 | **0.287 / 0.184 / 0.204 / 0.223** | 0.144 / 0.178 / 0.179 / 0.214 |
+| median PP change vs ML, ranks 1–100 / 1 001–10 000 / 50 001+ | +4.6 / −5.7 / +5.7 % | **−0.6 / −3.3 / +2.9 %** | — |
+| Spearman of player PP vs ML | 0.9985 | **0.9983** | — |
+
+**Old maps.** Megametric on 2018–19 maps stays about twice the ML's, but this is not an overpay. Per skill tier, scores on those
+maps match the prediction: the mean residual advantage is between −0.026 and +0.018 for every tier, and +0.018 for the top 2 %
+(≈ 1 % acc PP). The high Megametric is selection: Megametric counts how often a map is among its players' best plays, and old
+maps are mostly played by people who pick them on purpose. A flat Megametric across eras is a different target from equal PP for
+equal skill, and the reweighter is the tool for it. The hardest band is similar: its Megametric doubles vs the ML because those
+112 maps are now the top plays of the players who can play them, and the players' own scores agree they are harder than B rated.
+
 ## Known limitations
 
 * Weights are fitted on today's ranked Standard pool; maps far outside it (gimmicks, extreme speeds, other characteristics) rely
   on extrapolation of a linear model (it held up on OneSaber, above). Predictions are clamped to 0.5 … 0.9995.
 * Calibration and validation use all clean scores. Effort is the remaining confound: a map that players grind gets a better best
   score than one they try twice. The attempts data (REPORT §7) is the way to correct for it.
+* The score correction makes ratings depend on scores. A newly ranked map starts at the algorithm's rating and moves halfway
+  towards its score-implied difficulty at ~12 clean scores. Casual play still makes a map look harder, but τ 0.09 bounds how
+  far one map can move: 90 % of maps move by less than ±0.15 log error.
 * `LowNoteNerf` is still applied on top (production policy). The score-implied target already contains the farm-ability of short maps,
   so this is a deliberate double penalty you may want to revisit.
 * The per-note graph endpoints still use the ONNX model.
