@@ -50,7 +50,14 @@ public sealed class Poller(HubConfig config, StateStore state, GitService git, D
         {
             if (!d.AutoDeploy || d.Status is DeployStatus.Stopped || d.Activity != null || deployer.IsPending(d.Name)) continue;
             var tip = git.Branch(d.Branch)?.Sha;
-            if (tip == null || tip == d.Commit || tip == d.FailedCommit) continue;
+            if (tip == null || tip == d.Commit || tip == d.FailedCommit || tip == d.SkippedCommit) continue;
+            if (d.Commit != null && await git.ChangedFiles(d.Commit, tip, ct) is { } files && files.All(config.IsIgnoredPath))
+            {
+                // e.g. a push that only touched Analysis/ or docs: the running build is still current
+                state.Update(d.Name, x => { x.SkippedCommit = tip; x.SkippedFiles = files.Count; });
+                logger.LogInformation("{Name}: {Tip} only changes ignored paths ({Count} files), not redeploying", d.Name, tip[..7], files.Count);
+                continue;
+            }
             deployer.Enqueue(d.Name, JobKind.Deploy, d.Commit == null ? "first deploy" : $"{d.Branch} moved to {tip[..7]}");
         }
     }

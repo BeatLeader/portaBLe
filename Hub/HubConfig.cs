@@ -30,12 +30,34 @@ public sealed class HubConfig
     /// <summary>systemd MemoryMax for each deployment.</summary>
     public string MemoryMax { get; set; } = "1500M";
 
+    /// <summary>
+    /// Pushes that only change files matching these globs do not trigger an automatic redeploy (`**` any depth, `*` within a
+    /// path segment). A manual redeploy always deploys.
+    /// </summary>
+    public string[] IgnorePaths { get; set; } = ["Analysis/**", "Hub/**", "**/*.md", ".gitignore", ".gitattributes", ".github/**"];
+    /// <summary>Published builds kept for reuse by deployments of the same commit (besides the ones in use).</summary>
+    public int KeepBuilds { get; set; } = 3;
+
     public S3Config S3 { get; set; } = new();
 
     public string HostFor(string name) => HostPattern.Replace("{name}", name);
     public string DeploymentsDir => Path.Combine(DataDir, "deployments");
     public string StateFile => Path.Combine(DataDir, "hub", "state.json");
     public string MirrorDir => Path.Combine(DataDir, "mirror.git");
+    public string BuildsDir => Path.Combine(DataDir, "builds");
+
+    public bool IsIgnoredPath(string path) => IgnorePaths.Any(glob => GlobRegex(glob).IsMatch(path));
+
+    private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, System.Text.RegularExpressions.Regex> _globs = new();
+    private static System.Text.RegularExpressions.Regex GlobRegex(string glob) => _globs.GetOrAdd(glob, g =>
+    {
+        var re = System.Text.RegularExpressions.Regex.Escape(g)
+            .Replace(@"\*\*/", "(?:.*/)?")     // **/ : any number of leading directories
+            .Replace(@"\*\*", ".*")            // trailing ** : anything below
+            .Replace(@"\*", "[^/]*")
+            .Replace(@"\?", "[^/]");
+        return new System.Text.RegularExpressions.Regex("^" + re + "$", System.Text.RegularExpressions.RegexOptions.CultureInvariant);
+    });
 }
 
 public sealed class S3Config

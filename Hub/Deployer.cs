@@ -75,17 +75,31 @@ public sealed class Deployer(HubConfig config, StateStore state, GitService git,
         try
         {
             Step("fetching " + d.Branch);
-            (sha, var subject) = await git.Checkout(src, d.Branch, log, ct);
-            var dbKey = string.IsNullOrWhiteSpace(d.DbKey) ? DefaultDbKey(src) : d.DbKey.Trim();
+            await git.Refresh(ct);
+            var tip = git.Branch(d.Branch);
+            string subject;
+            if (tip != null && CachedBuild(tip.Sha) is { } cached)
+            {
+                // another deployment already built this commit: reuse it (hard links, no extra space)
+                (sha, subject) = (tip.Sha, tip.Subject);
+                log.WriteLine($"reusing the build of {sha[..7]} ({cached})");
+                release = Path.Combine(releases, $"{DateTime.UtcNow:yyyyMMddHHmmss}-{sha[..7]}");
+                await Shell.Check("/usr/bin/cp", ["-al", cached, release], ct: ct);
+            }
+            else
+            {
+                (sha, subject) = await git.Checkout(src, d.Branch, log, ct);
+                Step("building " + sha[..7]);
+                release = Path.Combine(releases, $"{DateTime.UtcNow:yyyyMMddHHmmss}-{sha[..7]}");
+                await Shell.Check(config.Dotnet, ["publish", Path.Combine(src, config.ProjectFile), "-c", "Release", "-o", release,
+                    // portaBLe references RatingAPI, itself a web app: both ship appsettings*.json, so allow the clash and restore portaBLe's own
+                    "-p:ErrorOnDuplicatePublishOutputFiles=false", "-nologo", "-v:q"], cwd: src, log: log, timeout: TimeSpan.FromMinutes(25), ct: ct);
+                foreach (var f in Directory.GetFiles(src, "appsettings*.json")) File.Copy(f, Path.Combine(release, Path.GetFileName(f)), overwrite: true);
+                await CacheBuild(sha, release, log, ct);
+            }
+            var dbKey = string.IsNullOrWhiteSpace(d.DbKey) ? DefaultDbKey(release) : d.DbKey.Trim();
             if (string.IsNullOrWhiteSpace(dbKey))
                 throw new InvalidOperationException($"no database: pick one or add {config.DbKeyFile} to the branch");
-
-            Step("building " + sha[..7]);
-            release = Path.Combine(releases, $"{DateTime.UtcNow:yyyyMMddHHmmss}-{sha[..7]}");
-            await Shell.Check(config.Dotnet, ["publish", Path.Combine(src, config.ProjectFile), "-c", "Release", "-o", release,
-                // portaBLe references RatingAPI, itself a web app: both ship appsettings*.json, so allow the clash and restore portaBLe's own
-                "-p:ErrorOnDuplicatePublishOutputFiles=false", "-nologo", "-v:q"], cwd: src, log: log, timeout: TimeSpan.FromMinutes(25), ct: ct);
-            foreach (var f in Directory.GetFiles(src, "appsettings*.json")) File.Copy(f, Path.Combine(release, Path.GetFileName(f)), overwrite: true);
 
             Step("database " + dbKey);
             await EnsureDb(data, "Database.db", dbKey, log, ct);
@@ -128,6 +142,8 @@ public sealed class Deployer(HubConfig config, StateStore state, GitService git,
                 x.Commit = sha;
                 x.CommitSubject = subject;
                 x.FailedCommit = null;
+                x.SkippedCommit = null;
+                x.SkippedFiles = 0;
                 x.ActiveDbKey = dbKey;
                 x.ActiveComparisonKey = string.IsNullOrWhiteSpace(d.ComparisonKey) ? null : d.ComparisonKey.Trim();
                 x.Release = Path.GetFileName(release);
@@ -178,10 +194,47 @@ public sealed class Deployer(HubConfig config, StateStore state, GitService git,
         state.Update(name, x => x.DnsManaged = x.DnsManaged || managed);
     }
 
-    private string? DefaultDbKey(string src)
+    /// <summary>The branch's default key, read from the published release (publish copies wwwroot).</summary>
+    private string? DefaultDbKey(string release)
     {
-        var path = Path.Combine(src, config.DbKeyFile);
+        var path = Path.Combine(release, config.DbKeyFile);
         return File.Exists(path) ? File.ReadAllText(path).Trim() : null;
+    }
+
+    private string? CachedBuild(string sha)
+    {
+        var dir = Path.Combine(config.BuildsDir, sha);
+        return File.Exists(Path.Combine(dir, ".complete")) ? dir : null;
+    }
+
+    /// <summary>Keeps a hard-linked copy of a fresh publish (before any database is linked in) for other deployments of the commit.</summary>
+    private async Task CacheBuild(string sha, string release, TextWriter log, CancellationToken ct)
+    {
+        try
+        {
+            Directory.CreateDirectory(config.BuildsDir);
+            var dir = Path.Combine(config.BuildsDir, sha);
+            var tmp = dir + ".tmp";
+            TryDelete(tmp);
+            if (!Directory.Exists(dir))
+            {
+                await Shell.Check("/usr/bin/cp", ["-al", release, tmp], ct: ct);
+                await File.WriteAllTextAsync(Path.Combine(tmp, ".complete"), DateTimeOffset.UtcNow.ToString("u"), ct);
+                Directory.Move(tmp, dir);
+                log.WriteLine($"cached the build of {sha[..7]} for other deployments");
+            }
+            var inUse = state.All().Select(x => x.Commit).Where(c => c != null).ToHashSet();
+            inUse.Add(sha);
+            foreach (var old in Directory.GetDirectories(config.BuildsDir)
+                         .Where(p => !p.EndsWith(".tmp") && !inUse.Contains(Path.GetFileName(p)))
+                         .OrderByDescending(Directory.GetLastWriteTimeUtc)
+                         .Skip(config.KeepBuilds))
+                TryDelete(old);
+        }
+        catch (Exception e) when (e is not OperationCanceledException)
+        {
+            log.WriteLine($"build cache: {e.Message}");   // a cache problem never fails the deploy
+        }
     }
 
     private async Task EnsureDb(string data, string file, string key, TextWriter log, CancellationToken ct)

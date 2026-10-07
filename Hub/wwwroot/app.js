@@ -104,11 +104,14 @@ function renderDeployments() {
   }
   $('#deployments').innerHTML = list.map(d => {
     const behind = d.branchTip && d.commit && d.branchTip !== d.commit;
+    const skipped = behind && d.skippedCommit === d.branchTip;
     const commit = d.commit
       ? `<a class="mono" href="${esc(repo)}/commit/${esc(d.commit)}" target="_blank" rel="noopener">${short(d.commit)}</a> ${esc(d.commitSubject)}`
       : '<span class="muted">not deployed yet</span>';
-    const update = behind
-      ? ` <span class="badge warn" title="branch is at ${esc(d.branchTip)}">${d.autoDeploy ? 'update pending' : 'update available'} ${short(d.branchTip)}</span>` : '';
+    const update = skipped
+      ? ` <span class="badge" title="newer commits up to ${esc(d.branchTip)} only change ignored paths (${d.skippedFiles} files)">up to date with ${short(d.branchTip)}</span>`
+      : behind
+        ? ` <span class="badge warn" title="branch is at ${esc(d.branchTip)}">${d.autoDeploy ? 'update pending' : 'update available'} ${short(d.branchTip)}</span>` : '';
     const db = d.activeDbKey || d.dbKey;
     const dbText = db ? `<code>${esc(db)}</code>` : '<span class="muted">branch default</span>';
     const dbPending = d.dbKey && d.activeDbKey && d.dbKey !== d.activeDbKey ? ` → <code>${esc(d.dbKey)}</code>` : '';

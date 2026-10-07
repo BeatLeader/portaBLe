@@ -29,6 +29,9 @@ public sealed class Deployment
     public string? CommitSubject { get; set; }
     /// <summary>Commit whose deploy failed; auto-deploy skips it until a newer push.</summary>
     public string? FailedCommit { get; set; }
+    /// <summary>Newest branch commit that only changed ignored paths since the deployed commit (no redeploy needed).</summary>
+    public string? SkippedCommit { get; set; }
+    public int SkippedFiles { get; set; }
     public string? ActiveDbKey { get; set; }
     public string? ActiveComparisonKey { get; set; }
     public string? Release { get; set; }

@@ -17,6 +17,22 @@ public sealed class GitService(HubConfig config, ILogger<GitService> logger)
 
     public BranchInfo? Branch(string name) => _branches.FirstOrDefault(b => b.Name == name);
 
+    /// <summary>Files changed between two commits (from the mirror's trees; no blobs needed), or null if either is unknown.</summary>
+    public async Task<List<string>?> ChangedFiles(string fromSha, string toSha, CancellationToken ct = default)
+    {
+        await _mirrorLock.WaitAsync(ct);
+        try
+        {
+            var (code, output) = await Shell.Run(Git, ["-C", config.MirrorDir, "diff", "--name-only", "--no-renames", fromSha, toSha],
+                timeout: TimeSpan.FromMinutes(1), ct: ct);
+            return code == 0 ? output.Split('\n', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToList() : null;
+        }
+        finally
+        {
+            _mirrorLock.Release();
+        }
+    }
+
     public async Task<IReadOnlyList<BranchInfo>> Refresh(CancellationToken ct = default)
     {
         await _mirrorLock.WaitAsync(ct);
