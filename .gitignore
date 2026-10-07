@@ -10,3 +10,6 @@ wwwroot/Database.*
 maps
 /wwwroot/Comparison.db
 *.db
+
+# attempt dumps from /admin/attemptsexport
+wwwroot/attempts-*.bin.gz

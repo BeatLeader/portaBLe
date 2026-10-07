@@ -55,6 +55,8 @@
     <Content Remove="wwwroot\*.db-journal" />
     <Content Remove="wwwroot\*.db-wal" />
     <Content Remove="wwwroot\*.db-shm" />
+    <!-- attempt dumps from /admin/attemptsexport (GBs; decoded by Analysis/py/decode_attempts.py) -->
+    <Content Remove="wwwroot\attempts-*.bin.gz" />
     <Content Remove="wwwroot\export.json" />
   </ItemGroup>
 

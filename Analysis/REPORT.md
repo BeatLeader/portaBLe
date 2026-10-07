@@ -382,7 +382,30 @@ carry a replay (`otherreplays`), so both map‑level and note‑level curves are
 `Id, PlayerId, LeaderboardId, Type, Timeset, Time, StartTime, Speed, Accuracy, BaseScore, ModifiersList, Replay, AttemptsCount, MissedNotes,
 BadCuts, Pauses, Hmd, Platform` ordered by `PlayerId, LeaderboardId, Timeset`, chunked by leaderboard id with `READ UNCOMMITTED`. Then a
 replay sample (e.g. 300 maps × all attempts with replays of ~200 players each) parsed on the server with the same capped tooling as the crawl.
-I have not touched the databases; say the word and I will write and run the export (or run it yourself and drop the file next to the dump).
+
+### 7.1 Results from the attempts export (Oct 2026)
+
+Exported with `/admin/attemptsexport` (beatleader-server `StatsAdminController`; streamed per ranked leaderboard through the
+LeaderboardId index), decoded with `py/decode_attempts.py`, analysed in `py/a13_attempts_effort.py` and `py/a14_attempts_topplays.py`.
+
+* **Coverage:** 34.05 M attempts by 178 833 players on all 3 960 ranked leaderboards, Mar 2022 – Oct 2026; tracking is complete from
+  Feb 2023. 33 % quits, 23 % clears, 19 % fails, 16 % restarts, 8 % practice. 704 k player–map histories are complete (first tracked
+  attempt no later than the best score, on 1 179 maps first played after tracking began). 31 % of attempts carry a replay (5.8 M
+  clears, 4.7 M fails/restarts/quits/practice); 140 k player–map pairs have ≥ 10 replayed attempts.
+* **Effort behind a best score:** median 3 attempts, 1 clear, 6 min of play (p90: 14 attempts, 4 clears, 21 min); for half of all
+  pairs the best *is* the first clear. Doubling the clears lowers the error rate by ~13 % (β = 0.195 per log clear).
+* **Does "all scores" bias map difficulty? No.** Difficulty at fixed effort (each player's first clear) correlates 0.995 with the
+  best-score target; correcting the target for effort moves maps by SD 0.035 (map spread 0.55, ≈ ±2 % PP; correlation 0.999). The
+  algorithm explains the effort-adjusted target as well as today's (R² 0.962 vs 0.961).
+* **But top plays are grinded.** Top-100 players' top plays (weight ≥ 0.8) took a median 17 attempts / 4 clears / 30 min (p90 74 /
+  10 / 105 min) and only 13 % are first clears, against 5 attempts / 9 min / 40 % for their filler scores; ranks 101–1 000 are similar
+  (14 attempts, 23 min). Grind concentrates on farm maps: per-map grind among top-1000 players correlates 0.39 with Megametric and
+  predicts it at equal stars. Burst maps are not grinded more (−0.04), so their overpay is the PP formula (§ test notes), not effort.
+* **Pass difficulty, measured directly:** tries to the first clear rise with pass rating in every skill tier (r 0.25–0.29); burst maps
+  need ~2 % fewer tries per SD of burstiness than their pass rating says, consistently across tiers (pass rating mildly overstates
+  bursts). Top players need ~3 tries even on the easiest maps (restarts for accuracy), so fails alone are the cleaner pass measure.
+* **Per-score flags are now possible:** attempts / clears / playtime before a score and its luck (best vs the player's median clear:
+  p90 0.29–0.53 log error-rate units on top plays). Better used as review signals (farm maps, outlier scores) than as PP penalties.
 
 ## 8. What was run where (server note)
 

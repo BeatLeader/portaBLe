@@ -40,20 +40,46 @@ def _signed(v):  # protobuf-net writes negative int32 as 10-byte two's complemen
     return v - (1 << 64) if v >= (1 << 63) else v
 
 
+CHUNK = 64 << 20
+
+
+def _records(path):
+    """Yield (buffer, start, stop) for each length-prefixed record, decompressing in chunks (pages are GBs uncompressed)."""
+    with gzip.open(path, "rb") as f:
+        buf = b""
+        eof = False
+        while True:
+            i = 0
+            while True:
+                if i >= len(buf):
+                    break
+                try:
+                    key, j = _varint(buf, i)
+                    length, j = _varint(buf, j)
+                except IndexError:          # header cut by the chunk boundary
+                    break
+                if key != (1 << 3 | 2):
+                    raise ValueError(f"{path}: unexpected record key {key}")
+                if j + length > len(buf):
+                    break
+                yield buf, j, j + length
+                i = j + length
+            if eof:
+                if i < len(buf):
+                    raise ValueError(f"{path}: truncated record at the end of the file")
+                return
+            chunk = f.read(CHUNK)
+            eof = not chunk
+            buf = buf[i:] + chunk
+
+
 def decode_page(path, out_dir):
-    data = gzip.open(path, "rb").read()
     page = re.search(r"attempts-(\d+)", os.path.basename(path))
     out = os.path.join(out_dir, f"attempts-{page.group(1) if page else os.path.basename(path)}.parquet")
     writer = pq.ParquetWriter(out, SCHEMA, compression="zstd")
     cols = {name: [] for name, _ in FIELDS.values()}
-    n = i = 0
-    end = len(data)
-    while i < end:
-        key, i = _varint(data, i)
-        if key != (1 << 3 | 2):
-            raise ValueError(f"{path}: unexpected record key {key} at byte {i}")
-        length, i = _varint(data, i)
-        stop = i + length
+    n = 0
+    for data, i, stop in _records(path):
         row = {}
         while i < stop:
             k, i = _varint(data, i)
@@ -91,7 +117,8 @@ if __name__ == "__main__":
     out_dir, paths = sys.argv[1], sys.argv[2:]
     os.makedirs(out_dir, exist_ok=True)
     total = 0
-    with ProcessPoolExecutor(max_workers=min(len(paths), max(1, (os.cpu_count() or 2) // 2))) as pool:
+    workers = int(os.environ.get("DECODE_WORKERS", max(1, (os.cpu_count() or 2) // 2)))  # memory: ~1-2 GB per worker
+    with ProcessPoolExecutor(max_workers=min(len(paths), workers)) as pool:
         for path, out, n in pool.map(decode_page, paths, [out_dir] * len(paths)):
             total += n
             print(f"{os.path.basename(path)}: {n:,} attempts -> {out}", flush=True)

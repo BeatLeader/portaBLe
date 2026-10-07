@@ -1,0 +1,86 @@
+{
+ "attempts": 34051851,
+ "players": 178833,
+ "leaderboards": 3960,
+ "by_type": {
+  "quit": 11141153,
+  "clear": 7998514,
+  "fail": 6558418,
+  "restart": 5580601,
+  "practice": 2770805,
+  "unknown": 2360
+ },
+ "by_year": {
+  "2022": 147014,
+  "2023": 5414510,
+  "2024": 9249806,
+  "2025": 11249197,
+  "2026": 7991324
+ },
+ "first_attempt": "2022-03-10 07:11:13",
+ "last_attempt": "2026-10-07 11:13:24",
+ "tracking_start": "2023-02-01",
+ "pairs_with_best": 3867765,
+ "pairs_complete": 704178,
+ "maps_complete": 1179,
+ "effort": {
+  "pairs": 680913,
+  "attempts_to_best": {
+   "0.1": 1.0,
+   "0.25": 2.0,
+   "0.5": 3.0,
+   "0.75": 6.0,
+   "0.9": 14.0
+  },
+  "clears_to_best": {
+   "0.1": 1.0,
+   "0.25": 1.0,
+   "0.5": 1.0,
+   "0.75": 2.0,
+   "0.9": 4.0
+  },
+  "tries_to_first_clear": {
+   "0.1": 1.0,
+   "0.25": 1.0,
+   "0.5": 2.0,
+   "0.75": 3.0,
+   "0.9": 6.0
+  },
+  "playtime_to_best_min": {
+   "0.1": 2.525,
+   "0.25": 3.367,
+   "0.5": 5.567,
+   "0.75": 10.629,
+   "0.9": 21.486
+  },
+  "luck_log_err": {
+   "0.1": 0.0,
+   "0.25": 0.0,
+   "0.5": 0.0,
+   "0.75": 0.172,
+   "0.9": 0.365
+  },
+  "gain_first_clear_to_best_log_err": {
+   "0.1": 0.0,
+   "0.25": 0.0,
+   "0.5": 0.0,
+   "0.75": 0.314,
+   "0.9": 0.653
+  }
+ },
+ "effort_bias": {
+  "maps": 1092,
+  "beta_per_log_clear": 0.1953,
+  "corr_best_vs_first": 0.9951,
+  "corr_best_vs_effort_adj": 0.999,
+  "sd_d_best": 0.549,
+  "sd_best_minus_first": 0.066,
+  "sd_best_minus_adj": 0.035,
+  "effort_intensity_sd": 0.147,
+  "algo_r2_on_best": 0.961,
+  "algo_r2_on_first_clear": 0.953,
+  "algo_r2_on_effort_adj": 0.962,
+  "corr_burst_vs_best_minus_first": 0.109,
+  "corr_burst_vs_effort_intensity": -0.087
+ }
+}
