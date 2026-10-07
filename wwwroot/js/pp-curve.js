@@ -82,7 +82,8 @@
 	// The PP formula of this portaBLe instance (Leaderboard.cshtml sets window.PP_CURVE_CONFIG from the server's settings):
 	// classic point lists or a power-law curve (ReplayUtils PpCurve; per map when relativeEpsilon > 0), optional pass-PP fade
 	// (PassFade) and acc cap (AccCap).
-	const PP = Object.assign({mode: 'classic', gamma: 0.601, epsilon: 0.0016, relativeEpsilon: 0, passFade: null, accCap: null}, window.PP_CURVE_CONFIG || {});
+	const PP = Object.assign({mode: 'classic', gamma: 0.601, epsilon: 0.0016, relativeEpsilon: 0, passFade: null, accCap: null, passBlend: null},
+		window.PP_CURVE_CONFIG || {});
 	function powerLaw(acc, predictedAcc) {
 		const eps = PP.epsilon + (PP.relativeEpsilon > 0 && predictedAcc > 0 ? PP.relativeEpsilon * (1 - predictedAcc) : 0);
 		return Math.pow(Math.max(1 - acc + eps, 1e-6) / (0.05 + eps), -PP.gamma);
@@ -105,6 +106,15 @@
 		return Math.min(acc, 1 - (1 - predictedAcc) * Math.exp(-c.maxAdvantage));
 	}
 
+	// p-norm of pass PP and acc + tech PP, reported as Euler shares that add up to the total (ReplayUtils PassBlend)
+	function passBlend(passPP, accPP, techPP) {
+		const p = PP.passBlend, rest = accPP + techPP;
+		if (!(p > 1) || !(passPP > 0) || !(rest > 0)) return [passPP, accPP, techPP];
+		const total = Math.pow(Math.pow(passPP, p) + Math.pow(rest, p), 1 / p);
+		const restShare = Math.pow(rest / total, p - 1);
+		return [passPP * Math.pow(passPP / total, p - 1), accPP * restShare, techPP * restShare];
+	}
+
 	// `mode` is the component's {name, predictedAcc}; plain strings are accepted too
 	const modeName = mode => (mode && typeof mode === 'object' ? mode.name : mode);
 	const modePredictedAcc = mode => (mode && typeof mode === 'object' ? mode.predictedAcc : 0);
@@ -119,8 +129,9 @@
 		// fade and cap judged on the capped accuracy, as in ReplayUtils.GetPp (pass PP stops fading where acc PP stops growing)
 		const acc = accCapped(accuracy, predictedAcc);
 		passPP *= passFadeWeight(acc, predictedAcc);
-		const accPP = golf ? acc * accRating * 42 : Curve2(acc, predictedAcc) * accRating * 34;
-		const techPP = Math.exp(1.9 * acc) * 1.08 * techRating;
+		let accPP = golf ? acc * accRating * 42 : Curve2(acc, predictedAcc) * accRating * 34;
+		let techPP = Math.exp(1.9 * acc) * 1.08 * techRating;
+		[passPP, accPP, techPP] = passBlend(passPP, accPP, techPP);
 		const totalPp = Inflate(passPP + accPP + techPP);
 		const inflation = passPP + accPP + techPP > 0 ? totalPp / (passPP + accPP + techPP) : 0;
 

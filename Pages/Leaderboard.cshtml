@@ -33,7 +33,7 @@
             ["fsPredictedAcc"] = mr.FSPredictedAcc, ["ssPredictedAcc"] = mr.SSPredictedAcc, ["sfPredictedAcc"] = mr.SFPredictedAcc,
         });
 
-    // The PP formula this instance runs with (start-up options --curve/--gamma/--epsilon/--relative-epsilon/--pass-fade/--acc-cap), so the curve matches the DB.
+    // The PP formula this instance runs with (start-up options --curve/--gamma/--epsilon/--relative-epsilon/--pass-fade/--pass-blend/--acc-cap), so the curve matches the DB.
     var ppCurveConfig = new
     {
         mode = portaBLe.Refresh.PpCurve.Mode == portaBLe.Refresh.CurveMode.PowerLaw ? "power" : "classic",
@@ -44,6 +44,7 @@
             ? (object)new { strength = portaBLe.Refresh.PassFade.Strength, floor = portaBLe.Refresh.PassFade.Floor, center = portaBLe.Refresh.PassFade.Center }
             : null,
         accCap = portaBLe.Refresh.AccCap.Enabled ? (object)new { maxAdvantage = portaBLe.Refresh.AccCap.MaxAdvantage } : null,
+        passBlend = portaBLe.Refresh.PassBlend.Enabled ? (object)portaBLe.Refresh.PassBlend.P : null,
     };
 
     // First leaderboard corners

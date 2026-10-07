@@ -349,6 +349,9 @@ namespace portaBLe
                             var fade = args[++i].Split(',').Select(x => float.Parse(x, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
                             (PassFade.Enabled, PassFade.Strength, PassFade.Floor, PassFade.Center) = (true, fade[0], fade[1], fade[2]);
                             break;
+                        case "--pass-blend": // p-norm combining pass PP with acc + tech PP (see PassBlend)
+                            PassBlend.P = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture);
+                            break;
                         case "--acc-cap": // max error-rate advantage over the map's prediction (see AccCap)
                             (AccCap.Enabled, AccCap.MaxAdvantage) = (true, float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture));
                             break;
@@ -371,6 +374,7 @@ namespace portaBLe
                 + (cli.Curve == CurveMode.PowerLaw ? $" (gamma {PpCurve.Gamma}, acc scale {PpCurve.AccScale}, epsilon {PpCurve.Epsilon}"
                     + (PpCurve.PerMap ? $" + {PpCurve.RelativeEpsilon} x (1 - predicted acc)" : "") + ")" : "")
                 + (PassFade.Enabled ? $" | pass fade strength {PassFade.Strength}, floor {PassFade.Floor}, center {PassFade.Center}" : "")
+                + (PassBlend.Enabled ? $" | pass blend p {PassBlend.P}" : "")
                 + (AccCap.Enabled ? $" | acc cap {AccCap.MaxAdvantage}" : ""));
             using var scope = host.Services.CreateScope();
             var factory = scope.ServiceProvider.GetRequiredService<IDbContextFactory<AppContext>>();

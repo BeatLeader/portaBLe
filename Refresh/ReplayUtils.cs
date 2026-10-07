@@ -61,6 +61,29 @@ namespace portaBLe.Refresh
     }
 
     /// <summary>
+    /// How pass PP combines with acc + tech PP. P = 1 is the production sum. P > 1 takes the p-norm
+    /// (pass^P + (acc + tech)^P)^(1/P): pass PP dominates while acc/tech PP is small (low accuracy) and merges into it as accuracy
+    /// rises, so a score is paid mainly for what it shows instead of for passing and accuracy on top of each other. It is monotone in
+    /// accuracy by construction (both terms grow or stay) and smooth, with no trigger point. It replaces PassFade, whose subtractive decay
+    /// let PP fall as accuracy rose (up to 90 PP on SF ratings) and flattened the curve where the fade began. The parts are reported as
+    /// their Euler shares, pass^P / total^(P-1) and acc/tech * ((acc + tech) / total)^(P-1), which add up to the total. Off unless P > 1.
+    /// </summary>
+    public static class PassBlend
+    {
+        public static float P = 1f;
+        public static bool Enabled => P > 1f;
+
+        public static (float, float, float) Apply(float passPP, float accPP, float techPP)
+        {
+            float rest = accPP + techPP;
+            if (!Enabled || passPP <= 0 || rest <= 0) return (passPP, accPP, techPP);
+            float total = MathF.Pow(MathF.Pow(passPP, P) + MathF.Pow(rest, P), 1f / P);
+            float restShare = MathF.Pow(rest / total, P - 1f);
+            return (passPP * MathF.Pow(passPP / total, P - 1f), accPP * restShare, techPP * restShare);
+        }
+    }
+
+    /// <summary>
     /// Caps how much skill one score can show on one map: accuracy beyond an error rate MaxAdvantage (log units) below the
     /// map's predicted error rate earns no further acc/tech PP. Without it, near-perfect scores on short easy maps (best of many
     /// tries, few notes) outscore the hardest plays: h > 0.75 occurs only on Easy/Normal maps, while the best hard-map top
@@ -209,7 +232,7 @@ namespace portaBLe.Refresh
         /// <summary>
         /// Pass/acc/tech PP of an accuracy on a map whose acc model predicts <paramref name="predictedAcc"/> (0 = unknown):
         /// the map's curve, AccCap on acc/tech and PassFade on pass, both judged on the capped accuracy (so pass PP stops fading
-        /// where acc PP stops growing).
+        /// where acc PP stops growing), then PassBlend.
         /// </summary>
         private static (float, float, float) GetPp(float accuracy, float accRating, float passRating, float techRating, float predictedAcc = 0) {
 
@@ -224,7 +247,7 @@ namespace portaBLe.Refresh
             // https://www.desmos.com/calculator/jdpmaozieo
             float techPP = MathF.Exp(1.9f * accuracy) * 1.08f * techRating;
 
-            return (passPP, accPP, techPP);
+            return PassBlend.Apply(passPP, accPP, techPP);
         }
 
         /// <summary>PP of a 96 % score / 52, with the same curve, fade and cap as scores on this map.</summary>
