@@ -75,6 +75,28 @@ arms up), and the smallest capacity that never runs out with 4-minute regenerati
 - It carries real but small extra information (endurance). It is not part of v2 yet; a natural place would be a skill drift
   inside the energy simulation.
 
+### Fatigue inside the energy model: tested, not adopted
+
+`a24_fatigue.py` gives each hand a stamina reservoir of capacity C, the same for every map (a reference player). It drains by
+the unit-fixed stamina-dev cost of every swing and refills fully in 4 minutes. A depleted hand makes its swings count as
+harder: `ln PassDiff + φ · depletion`.
+
+On a 900-map sample, no capacity (2 000 … 40 000, i.e. 0.3 … 5.6 on the stamina-rating scale) and no strength
+(φ 0.1 … 1) improves the fit:
+- R² stays at 0.917 where depletion is nearly constant (C = 2 000, so it changes nothing);
+- it drops everywhere else, down to 0.88–0.59 for strong fatigue.
+
+The attempts agree that fatigue is not a visible driver.
+
+| map length | fail risk per tenth of the map | quit / restart risk per tenth |
+|---|---|---|
+| < 2.5 min (1 381 maps) | 0.053 → 0.022 | 0.158 → 0.033 (and 0.082 in the last tenth) |
+| > 4 min (656 maps) | 0.092 → 0.033 | 0.218 → 0.022 … 0.037 |
+
+Both are highest at the start and fall through the map, in short and long maps alike. Long maps show no late rise in fails
+or in quits. What makes long, dense maps harder to pass, longer exposure and drain, is already in the energy bar. v2 / v4 use
+no fatigue term. The stamina rating as a whole adds only ≈ 0.003 R².
+
 ## Remaining v2 outliers
 
 *Extraterrestrial* E+ (still too low), *Merry-Go-Round* Normal, *Toymatic Parade* Hard, *PISSCORD* Hard, *iLLness LiLin* Expert,

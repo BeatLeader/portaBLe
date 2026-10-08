@@ -95,6 +95,7 @@ STEPS=rerate,correct,scores,stats VARIANTS="algo-b-blend:PowerLaw:Algorithm::0.6
   Analysis/scripts/build_test_dbs.sh                                # … with pass PP as a p-norm instead of the fade (algo-b-blend)
 STEPS=rerate,scores,stats VARIANTS="algo-b-v3:PowerLaw:Algorithm::0.6198:1.1301:--relative-epsilon+0.75+--pass-blend+1.5" \
   Analysis/scripts/build_test_dbs.sh                                # 87-feature acc model, no score correction (algo-b-v3)
+STEPS=rerate,scores,stats VARIANTS="algo-b-v4:PowerLaw:Algorithm::0.6198:1.1301:--relative-epsilon+0.75+--pass-blend+1.5+--pass-model+Energy"   Analysis/scripts/build_test_dbs.sh                                # acc model v4 + pass rating v2 (algo-b-v4)
 
 # compare in the UI (DatabaseComparison page): current DB vs comparison DB
 dotnet bin/Release/net9.0/portaBLe.dll --db wwwroot/test-algo-power.db --comparison wwwroot/test-ml.db
@@ -507,6 +508,37 @@ Limitations:
   their log effects. Factors that make a swing *easier* are not shown.
 - For production it would move into RatingAPI next to the analyzer, like pass rating. The model is a JSON of bins and
   coefficients, so the port is small.
+
+### v4: everything combined (test deployment `algo-b-v4`)
+
+`algo-b-v4` combines:
+- **acc model v4:** 90 features. The 87 of v3 plus `repetition_2/4/8`, the share of 2-, 4- and 8-swing sequences already seen
+  earlier in the map, found in the attempts' learning analysis (REPORT §7.2).
+- **pass rating v2:** energy bar with re-weighted swing difficulty, see `PASS_RATING.md`; no fatigue term, which was tested and
+  did not help.
+- **the rest of v3:** per-map acc curve (k 0.75), pass PP as a p-norm (p 1.5), no score correction, and the "where accuracy is
+  lost" view.
+
+| | v3 | **v4** | ML |
+|---|---|---|---|
+| acc model CV R² (song-grouped) / disagreement SD | 0.9647 / 0.0866 | **0.9682 / 0.0821** | 0.883 |
+| pass rating R² vs pass difficulty from attempts | 0.856 | **0.917** | 0.856 |
+| stars p50 / p90 / max | 7.73 / 11.36 / 16.50 | **7.70 / 11.47 / 16.83** | 6.96 / 11.08 / 15.76 |
+| top 3 plays | 881 *Unwelcome School*, 870 *Gravisphere Crisis*, 867 *let you* Easy | **898 *Unwelcome School*, 885 *Feral*, 874 *Speedcore Paradise*** | 929, 911, 910 |
+| best play on a < 4★ map | 867 | **855** | 844 |
+| FS/SF share of the top 1 000 scores / of top-100 players' PP | 16.2 % / 12.1 % | **18.8 % / 12.0 %** | 16.4 % / 21 % |
+| median PP vs v3, ranks 1–100 / 1–1 000 / 10 001–50 000 | — | **+0.7 / +0.5 / −0.2 %** | — |
+| Spearman of player PP vs ML | 0.9965 | **0.9964** | — |
+
+The FS/SF share of single top scores rises because pass v2 raises the pass rating of some maps that players often play
+with SF. The SF/FS ratings relative to the base map are unchanged at every difficulty (within 1 %), and the share of top
+players' PP is unchanged.
+- Some of those raises are right: *toromi hearts 2* E+ goes from 2.8 to 0.6 logits under-rated, *Memento Mori* from 2.7 to
+  1.1, *The Dark Field* from 1.2 to −0.2.
+- Others overshoot: *Bookmaker* Expert goes from +1.0 to −1.5, *osu!memories* E+ from −1.4 to −2.5, *Legend of Millennium*
+  Expert from −0.7 to −1.7.
+
+The overshoots are the first candidates for a term-level fix (likely the stress weight on these tech patterns).
 
 ## Known limitations
 
