@@ -20,7 +20,7 @@ ap.add_argument("--acc-model", default=os.path.join(os.path.dirname(__file__), "
 args = ap.parse_args()
 spec = json.load(open(args.model)); COMP = spec["components"]
 S = pd.read_parquet(os.path.join(args.a17, "a17_swings.parquet"))
-UNITS = {"hand_gap": " s", "any_gap": " s", "travel": " lanes", "njs": "", "jd": " m", "density": " swings / 4 s", "minutes": " min"}
+UNITS = {"hand_gap": " s", "any_gap": " s", "speed": "", "travel": " lanes", "njs": "", "jd": " m", "density": " swings / 4 s", "minutes": " min"}
 TURN = ["same direction", "sharp turn (~45°)", "right angle", "wide turn (~135°)", "straight back"]
 
 def level_labels(f):

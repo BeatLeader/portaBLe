@@ -28,6 +28,8 @@
 
 	// ---------------------------------------------------------------- hints: what every factor means (keyed by the label before ':')
 	const HINTS = {
+		'eBPM': "Effective BPM of this hand's swings: the song BPM at which swinging every half beat would be this fast, i.e. 30 ÷ seconds since the same hand's last swing (a reset counts as two swings). 240 eBPM = 8 swings per second with one hand. How far the hand travels is the separate 'Hit distance' factor.",
+		// labels of profiles exported before the eBPM factor (older test deployments)
 		'Fast swings': "The analyzer's swing speed: how many times per second this hand swings, scaled up (at most x2) when the hand travels far between notes. 9–11 means roughly 5–11 swings per second for one hand.",
 		'Little time between swings of a hand': "Seconds since the same hand's previous swing. Under 0.1 s means more than 10 swings per second with one hand.",
 		'Dense timing (both hands)': 'Seconds since the previous note of either hand: small values mean notes follow each other quickly across both hands.',
@@ -244,7 +246,7 @@
 		}
 		const v = M.validation || {};
 		el.querySelector('.acc-loss-note').textContent =
-			"Bottom-up model: every swing's expected loss is a product of named factors (speed, timing, direction change, crossovers, " +
+			"Bottom-up model: every swing's expected loss is a product of named factors (eBPM, timing, direction change, crossovers, " +
 			'cut direction, lane/row, patterns, NJS, jump distance, density, ...) times a skill curve, fitted on replays of other songs. ' +
 			(anchored ? "The total per skill level follows this map's acc rating; the model splits it over sections and causes. " : '') +
 			(v.where_median_spearman ? `On held-out maps it ranks sections like the replays do with a median Spearman of ` +

@@ -32,9 +32,11 @@ os.makedirs(args.out, exist_ok=True)
 COMP = ["precision", "swing", "misses"]
 
 # ------------------------------------------------------------------ factors (name, label, column, bin edges or categories)
+# Speed is the hand's eBPM (30 x the analyzer's SwingFrequency: the BPM at which one swing per half beat is this fast; a reset
+# counts double), not the analyzer's swing speed (= eBPM / 30 x a hit-distance factor, which "Hit distance" covers here) and
+# without a separate time-since-last-swing factor (raw eBPM): a26_ebpm.py, same fit, a value players know.
 FACTORS = [
-    ("speed", "Fast swings", "swing_speed", [0, 1.5, 2.5, 3.5, 4.5, 5.5, 6.5, 7.5, 9, 11, 14, np.inf]),
-    ("hand_gap", "Little time between swings of a hand", "hand_gap", [0, 0.1, 0.13, 0.17, 0.21, 0.26, 0.33, 0.45, 0.7, 1.2, np.inf]),
+    ("speed", "eBPM", "ebpm", [0, 60, 90, 120, 150, 180, 210, 240, 280, 330, 400, np.inf]),
     ("any_gap", "Dense timing (both hands)", "any_gap", [0, 0.04, 0.08, 0.12, 0.17, 0.25, 0.4, 0.8, np.inf]),
     ("turn", "Direction change from the last swing", "turn", [-0.1, 22.5, 67.5, 112.5, 157.5, 180.1]),
     ("travel", "Hand movement between swings", "travel", [-0.1, 0.5, 1.2, 2.0, 3.0, np.inf]),
@@ -59,7 +61,7 @@ SKILL_EDGES = [-np.inf, 1.25, 1.75, 2.25, 2.6, 2.9, 3.2, 3.45, 3.7, 3.95, 4.2, n
 
 def swing_table(path):
     cols = ["lb_id", "swing_i", "seconds", "hand", "x", "y", "cut_direction", "n_cubes", "pattern_type", "is_chain", "njs", "direction",
-            "parity_error", "bomb_avoidance", "wall_buff", "swing_speed", "angle_strain", "reposition", "hit_distance", "swing_diff"]
+            "parity_error", "bomb_avoidance", "wall_buff", "swing_speed", "frequency", "angle_strain", "reposition", "hit_distance", "swing_diff"]
     s = pd.read_csv(path, usecols=cols, dtype={"lb_id": str, "pattern_type": "category"})
     s = s.sort_values(["lb_id", "seconds", "swing_i"], kind="stable").reset_index(drop=True)
     g = s.groupby(["lb_id", "hand"], sort=False)
@@ -79,6 +81,7 @@ def swing_table(path):
     s["pattern"] = np.select([pt == "Single", pt == "Stack", pt.str.contains("Slider"), pt.str.contains("Window"), pt == "Tower"],
                              ["single", "stack", "slider", "window", "tower"], "multi")
     s["wall"] = (s.wall_buff > 1).astype(int)
+    s["ebpm"] = 30 * s.frequency
     return s
 
 def is_cat(f): return isinstance(f[3][0], str) or list(f[3]) == [0, 1]
@@ -97,7 +100,12 @@ def codes(df, f):
 
 # ------------------------------------------------------------------ data
 cache_sw = os.path.join(args.out, "a17_swings.parquet")
-if os.path.exists(cache_sw): S = pd.read_parquet(cache_sw)
+if os.path.exists(cache_sw):
+    S = pd.read_parquet(cache_sw)
+    if "ebpm" not in S.columns:                       # cache from before the eBPM factor
+        f = pd.read_csv(args.swings, usecols=["lb_id", "swing_i", "frequency"], dtype={"lb_id": str})
+        S = S.merge(f, on=["lb_id", "swing_i"], how="left"); S["ebpm"] = 30 * S.frequency
+        S.to_parquet(cache_sw)
 else:
     S = swing_table(args.swings)
     S = S.merge(pd.read_parquet(args.mapfile)[["lb_id", "jd"]], on="lb_id", how="left"); S["jd"] = S.jd.fillna(21.0)
@@ -167,7 +175,7 @@ M = fit(TR)
 P = predict(M, TE.row.values, TE.skill.values)
 print("\nper-swing deviance explained on held-out songs (GLM):", {c: round(d2((TE[c] / TE.one).values, P[c], TE.one.values), 4) for c in COMP},
       "total", round(d2((TE[COMP].sum(axis=1) / TE.one).values, sum(P.values()), TE.one.values), 4))
-raw_cols = ["swing_speed", "hand_gap", "any_gap", "turn", "travel", "angle_strain", "reposition", "hit_distance", "x", "y", "hand", "cut_direction",
+raw_cols = ["ebpm", "any_gap", "turn", "travel", "angle_strain", "reposition", "hit_distance", "x", "y", "hand", "cut_direction",
             "n_cubes", "is_chain", "parity_error", "bomb_avoidance", "wall", "njs", "jd", "density", "minutes"]
 Xtr = np.column_stack([S[raw_cols].values[TR.row.values].astype(np.float32), TR.skill.values]); Xte = np.column_stack([S[raw_cols].values[TE.row.values].astype(np.float32), TE.skill.values])
 gb = HistGradientBoostingRegressor(loss="poisson", max_iter=400, learning_rate=0.08, max_leaf_nodes=63, min_samples_leaf=200, random_state=0)

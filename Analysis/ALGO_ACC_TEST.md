@@ -461,8 +461,8 @@ not change ratings or PP.
 
 Each component is `exp(intercept + Σ factor terms + skill term) × calibration`, a Poisson GLM on one-hot bins fitted on 21.6 M
 (replay, swing) observations. Factor terms are 0 at each factor's most common level (the "typical swing"). The factors are the
-analyzer's per-swing quantities plus context: speed, time since this hand's last swing, timing of both hands, direction
-change, hand movement, angle strain, repositioning, hit distance, cut direction, lane, row, crossover, multi-note pattern,
+analyzer's per-swing quantities plus context: the hand's eBPM (since v5; it was the analyzer's swing speed plus time since the
+hand's last swing), timing of both hands, direction change, hand movement, angle strain, repositioning, hit distance, cut direction, lane, row, crossover, multi-note pattern,
 chain, parity break, bombs, walls, NJS, jump distance, density, and minutes into the map.
 
 Validation on held-out songs:
@@ -478,9 +478,11 @@ Validation on held-out songs:
 The model ranks a map's sections like the replays do, as well as half of the replays agrees with the other half.
 
 Selected effects (multiplier vs the typical swing):
-- **misses:** crossover ×4.1, repositioning ×3.0, very fast swings ×2.9, parity break ×2.3, NJS < 10 ×0.24;
-- **swing angles:** very fast swings ×3.5, notes in the same spot as the last (tiny arcs) ×2.8, long hit distance ×2.5;
-- **precision:** dense sections, sliders ×1.2.
+- **misses:** ≥ 400 eBPM ×5.3, crossover ×4.1, 280–330 eBPM ×3.3, repositioning ×3.2, parity break ×2.2, NJS < 10 ×0.16;
+- **swing angles:** ≥ 400 eBPM ×8.8, 280–330 eBPM ×3.2, notes in the same spot as the last (tiny arcs) ×2.8, long hit distance ×2.6;
+- **precision:** ≥ 400 eBPM ×1.4, sparse sections ×0.7.
+
+The typical swing is 60–90 eBPM.
 
 **On the page.** A card shows:
 - points lost per note over time, stacked by component;
@@ -607,8 +609,12 @@ right, and the hit-distance term still adds about 0.003.
 Conclusion:
 - **Ratings:** keep swing speed. For passing, how far the hand travels to the note matters on top of how often it swings (about
   30 fewer maps off by more than 1 logit). For the acc model the choice makes no difference.
-- **"Where accuracy is lost":** eBPM fits just as well because the model has its own hit-distance factor. eBPM bands such as
-  "280–360 eBPM ×1.52" would read more naturally to players than "swing speed 11–14". This would be a presentation change only.
+- **"Where accuracy is lost": adopted.** eBPM fits just as well there because the model has its own hit-distance factor, and
+  players know the value. The view's speed factor is now eBPM in bands 60 / 90 / 120 / 150 / 180 / 210 / 240 / 280 / 330 / 400. The
+  separate "time since this hand's last swing" factor is dropped: it is raw eBPM under another name.
+  - Refit: held-out deviance 0.3832 (was 0.3830); map R² 0.900 / 0.875 at skill 2.5 / 3.8 (was 0.904 / 0.875).
+  - "Where" Spearman, best / mid-field replays: 0.731 / 0.596 (was 0.737 / 0.599).
+  - Live on `algo-b-v5`. Older deployments keep their old labels until their profiles are re-exported.
 
 ## Known limitations
 
