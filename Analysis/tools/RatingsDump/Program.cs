@@ -36,6 +36,7 @@ for (int i = 0; i < args.Length; i++)
         case "--no-ai": noAi = true; break;
         case "--no-swings": noSwings = true; break;
         case "--acc-model": accModelPath = args[++i]; break;
+        case "--pass-model": Analyzer.BeatmapScanner.Algorithm.PassEnergy.Model = Enum.Parse<Analyzer.BeatmapScanner.Algorithm.PassRatingModel>(args[++i], true); break;
         case "--mods": modNames = args[++i].Split(','); break;
         default: Console.WriteLine($"unknown arg {args[i]}"); return 1;
     }

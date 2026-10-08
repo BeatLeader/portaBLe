@@ -6,6 +6,7 @@ Study of how well the map-difficulty / PP stack models Beat Saber play, and feas
 ```
 REPORT.md              findings, feasibility verdicts, plan, server notes
 ALGO_ACC_TEST.md       the implemented test: algorithmic acc rating, calibration options A/B/C, portaBLe DB comparison
+PASS_RATING.md         pass rating v2 (energy bar + re-weighted swing difficulty), stamina, measured against attempts
 models/                alternative acc_model.json calibrations (option C)
 figures/               PNGs used in the report (py/figures_*.py)
 out/                   small result tables/JSON written by the analyses (large intermediates are git-ignored)
@@ -27,6 +28,10 @@ py/export_acc_loss_profiles.py  writes per-map loss profiles (AccLossProfiles ta
 py/a18_attempts_timing.py  per-hand timing / cut score from attempts vs the acc disagreement (music / sync)
 py/a19_pass_attempts.py   pass difficulty from fails vs clears (Rasch) vs pass rating; fail hazard along the map
 py/a20_learning.py        learning curves per map, and map repetition as an acc-model feature
+py/passlib.py             reproduction of the analyzer pass rating (peak windows) from the per-swing table
+py/a21_pass_rating.py     pass rating variants (window weights, per-swing terms) against attempts-measured pass difficulty
+py/a22_energy_pass.py     energy-bar pass rating and the stamina-dev stamina rating (as-is and unit-fixed)
+py/a23_energy_where.py    One Saber factor; predicted vs observed fail locations of the energy model
 tools/RatingsDump      recompute ratings + per-swing table + per-note ML predictions for a list of maps (prod or corpus analyzer)
 tools/ReplayStudy      SwingCorpus + stratified replay sampling + per-note observation table + tip-motion metrics
 ```

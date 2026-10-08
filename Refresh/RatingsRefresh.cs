@@ -25,7 +25,7 @@ namespace portaBLe.Refresh
         /// ratings are recomputed from the predicted accuracy with the active curve. <paramref name="accModelPath"/> optionally
         /// replaces the embedded acc_model.json (e.g. an alternative calibration).
         /// </summary>
-        public static async Task Overwrite(AppContext dbContext, AccSource accSource = AccSource.ML, string? accModelPath = null)
+        public static async Task Overwrite(AppContext dbContext, AccSource accSource = AccSource.ML, string? accModelPath = null, string? passModel = null)
         {
             try
             {
@@ -74,6 +74,7 @@ namespace portaBLe.Refresh
                 { "MapsPath", "maps" },
                 { "AccSource", accSource.ToString() },
                 { "AccModelPath", accModelPath ?? "" },
+                { "PassModel", passModel ?? "" },
             };
 
             var configuration = new ConfigurationBuilder()
@@ -81,7 +82,7 @@ namespace portaBLe.Refresh
                 .Build();
 
             var lbs = dbContext.Leaderboards.Include(lb => lb.ModifiersRating).ToList();
-            Console.WriteLine($"Recalculating from RatingAPI for {lbs.Count} leaderboards (acc source: {accSource}, curve: {PpCurve.Mode})");
+            Console.WriteLine($"Recalculating from RatingAPI for {lbs.Count} leaderboards (acc source: {accSource}, pass model: {passModel ?? "Classic"}, curve: {PpCurve.Mode})");
             
             int processedCount = 0;
             int totalCount = lbs.Count;

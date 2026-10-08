@@ -1,4 +1,4 @@
-using Amazon;
+﻿using Amazon;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Transfer;
@@ -317,7 +317,7 @@ namespace portaBLe
         /// <summary>Command-line options for scripted DB builds (unknown arguments are left to ASP.NET).</summary>
         public class PipelineOptions
         {
-            public string? Db, Comparison, Dump, AccModel;
+            public string? Db, Comparison, Dump, AccModel, PassModel;
             public List<string> Steps = new();
             public AccSource AccSource = AccSource.ML;
             public CurveMode Curve = CurveMode.Classic;
@@ -338,6 +338,7 @@ namespace portaBLe
                         case "--acc-source": o.AccSource = Enum.Parse<AccSource>(args[++i], true); break;
                         case "--curve": PpCurve.Mode = o.Curve = Enum.Parse<CurveMode>(args[++i], true); break; // also for the web pages (PP curve view)
                         case "--acc-model": o.AccModel = args[++i]; break;
+                        case "--pass-model": o.PassModel = args[++i]; break;   // Classic / Energy (analyzer PassEnergy)
                         case "--gamma": PpCurve.Gamma = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                         case "--acc-scale": PpCurve.AccScale = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                         case "--epsilon": PpCurve.Epsilon = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
@@ -389,7 +390,7 @@ namespace portaBLe
                         if (await dbContext.Leaderboards.AnyAsync()) throw new InvalidOperationException("import needs an empty database (use a new --db path)");
                         DataImporter.ImportData(ParseProtobuf(cli.Dump ?? env.WebRootPath + "/dump.zip"), dbContext);
                         break;
-                    case "rerate": await RatingsRefresh.Overwrite(dbContext, cli.AccSource, cli.AccModel); break;
+                    case "rerate": await RatingsRefresh.Overwrite(dbContext, cli.AccSource, cli.AccModel, cli.PassModel); break;
                     case "correct": await ScoreCorrection.Apply(dbContext, cli.ScoreCorrectionTau); break;
                     case "stars": await LeaderboardsRefresh.RefreshStars(dbContext); break;
                     case "scores":
