@@ -22,6 +22,8 @@ py/a15c_replay_mechanism.py  which kind of accuracy loss (centre, pre/post swing
 py/a15d_map_files.py       map-file features (jump distance, reaction time, walls, arcs) and mapper / song effects
 py/a15e_analyzer_vs_observed.py  analyzer-predicted vs actually played swings (resets, directions, speed) on disagreeing maps
 py/a16_swing_loss.py       feasibility of a bottom-up (per-swing, skill-dependent) acc model fitted on replays
+py/a17_acc_loss_model.py   interpretable bottom-up "where accuracy is lost" model (factors x skill curve, fitted on replays)
+py/export_acc_loss_profiles.py  writes per-map loss profiles (AccLossProfiles table) into a portaBLe DB for the leaderboard page
 tools/RatingsDump      recompute ratings + per-swing table + per-note ML predictions for a list of maps (prod or corpus analyzer)
 tools/ReplayStudy      SwingCorpus + stratified replay sampling + per-note observation table + tip-motion metrics
 ```

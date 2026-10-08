@@ -24,6 +24,10 @@ namespace portaBLe.Pages
         public int CompareTotalPages { get; set; }
         public int CompareTotalScores { get; set; }
     
+        /// <summary>"Where accuracy is lost" profile of this map and the shared model row (AccLossProfiles), null when the DB has none.</summary>
+        public string? AccLossJson { get; set; }
+        public string? AccLossModelJson { get; set; }
+
         // Properties to hold the chart data
         public ICollection<ScoreGraphEntry> ScoreGraphEntries { get; set; }
         public ICollection<ScoreGraphEntry>? CompareScoreGraphEntries { get; set; }
@@ -49,6 +53,8 @@ namespace portaBLe.Pages
             {
                 return NotFound();
             }
+
+            (AccLossJson, AccLossModelJson) = LoadAccLoss(context, id);
 
             int pageSize = 10;
             CurrentPage = currentPage;
@@ -128,6 +134,33 @@ namespace portaBLe.Pages
             }
 
             return Page();
+        }
+
+        /// <summary>
+        /// This map's AccLossProfiles row and the shared '__model__' row (written by Analysis/py/export_acc_loss_profiles.py).
+        /// DBs built without the export have no such table, so that case is simply "no profile".
+        /// </summary>
+        private static (string?, string?) LoadAccLoss(DbContext context, string id)
+        {
+            try
+            {
+                var conn = context.Database.GetDbConnection();
+                if (conn.State != System.Data.ConnectionState.Open) conn.Open();
+                using var cmd = conn.CreateCommand();
+                cmd.CommandText = "SELECT LeaderboardId, Json FROM AccLossProfiles WHERE LeaderboardId IN ($id, '__model__')";
+                var p = cmd.CreateParameter(); p.ParameterName = "$id"; p.Value = id; cmd.Parameters.Add(p);
+                string? map = null, model = null;
+                using var r = cmd.ExecuteReader();
+                while (r.Read())
+                {
+                    if (r.GetString(0) == "__model__") model = r.GetString(1); else map = r.GetString(1);
+                }
+                return map != null && model != null ? (map, model) : (null, null);
+            }
+            catch (Microsoft.Data.Sqlite.SqliteException)
+            {
+                return (null, null);
+            }
         }
 
         public class ScoreGraphEntry

@@ -448,6 +448,66 @@ So one difficulty number per map plus the playerbase's skill distribution alread
 each accuracy" curve. A bottom-up model's value would be explanation (which sections or patterns cost accuracy), not a
 better rating, unless more replay data (full crawl, more strata) changes that.
 
+### Where accuracy is lost (leaderboard page view, deployment `algo-b-v3`)
+
+A bottom-up, interpretable companion to the acc rating, like pass rating is for passing (`a17_acc_loss_model.py`). It does
+not change ratings or PP.
+
+**Model.** Every swing gets an expected point loss (share of its notes' 115 points) in three components:
+- precision (centre cut);
+- swing angles (pre/post);
+- misses / bad cuts.
+
+Each component is `exp(intercept + Σ factor terms + skill term) × calibration`, a Poisson GLM on one-hot bins fitted on 21.6 M
+(replay, swing) observations. Factor terms are 0 at each factor's most common level (the "typical swing"). The factors are the
+analyzer's per-swing quantities plus context: speed, time since this hand's last swing, timing of both hands, direction
+change, hand movement, angle strain, repositioning, hit distance, cut direction, lane, row, crossover, multi-note pattern,
+chain, parity break, bombs, walls, NJS, jump distance, density, and minutes into the map.
+
+Validation on held-out songs:
+
+| | result |
+|---|---|
+| per-swing deviance explained | 0.38 (black-box gradient boosting on the same inputs: 0.42) |
+| map level vs score-implied difficulty | R² 0.90 |
+| "where" (within-map Spearman over ~5 s sections, best replays / mid-field) | **0.74 / 0.60** |
+| … the analyzer's swing difficulty (a pass-style graph) | 0.59 / 0.56 |
+| … the replays' own split-half agreement | 0.71 / 0.40 |
+
+The model ranks a map's sections like the replays do, as well as half of the replays agrees with the other half.
+
+Selected effects (multiplier vs the typical swing):
+- **misses:** crossover ×4.1, repositioning ×3.0, very fast swings ×2.9, parity break ×2.3, NJS < 10 ×0.24;
+- **swing angles:** very fast swings ×3.5, notes in the same spot as the last (tiny arcs) ×2.8, long hit distance ×2.5;
+- **precision:** dense sections, sliders ×1.2.
+
+**On the page.** A card shows:
+- points lost per note over time, stacked by component;
+- a skill selector (playerbase percentiles, each with its expected accuracy);
+- the top causes of each section (tooltip) and of the whole map;
+- where the replay study covered the map, the observed loss of its best and mid-field replays.
+
+Skill scales each component by one factor, so the page recomputes any skill exactly. The **total** per skill follows the map's
+acc rating (latent model: `log(1 − acc(s)) = log(1 − predictedAcc) + reference_skill − s`), so the expected accuracies match the
+rating. The bottom-up model only splits that total over sections and causes. On maps the rating over- or under-rates (e.g.
+*My Album*, *Chrome Vox*), the replay line shows the gap. Profiles live in an `AccLossProfiles` table that
+`export_acc_loss_profiles.py` adds to a DB. Pages of DBs without it are unchanged.
+
+```bash
+python Analysis/py/a17_acc_loss_model.py --replays <snap> --swings <swings_prod.csv.gz> --skill <player_skill.parquet> \
+  --maps <map_d.parquet> --mapfile <a15_mapfile_features.parquet> --out <dir>       # -> Analysis/models/acc_loss_model.json
+python Analysis/py/export_acc_loss_profiles.py --model Analysis/models/acc_loss_model.json --a17 <dir> --skill <...> \
+  --replays <snap> --db wwwroot/test-algo-b-v3.db                                   # adds AccLossProfiles (~32 MB)
+```
+
+Limitations:
+- It is fitted on the replay study's sample: 47 % of maps, top 8 and 6 mid-field replays each.
+- Profiles are for the unmodified map only.
+- Attribution splits each swing's excess over the typical swing among its harder-than-typical factors, in proportion to
+  their log effects. Factors that make a swing *easier* are not shown.
+- For production it would move into RatingAPI next to the analyzer, like pass rating. The model is a JSON of bins and
+  coefficients, so the port is small.
+
 ## Known limitations
 
 * Weights are fitted on today's ranked Standard pool; maps far outside it (gimmicks, extreme speeds, other characteristics) rely

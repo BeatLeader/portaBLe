@@ -295,6 +295,11 @@
     }
 </div>
 
+@if (Model.AccLossJson != null)
+{
+    <div class="acc-loss-component" data-predicted-acc="@inv(Model.Leaderboard.PredictedAcc)"></div>
+}
+
 <div class="chart-container">
     <div class="x-selector">
         <select id="xAxisSelect" onchange="updateAxes()">
@@ -574,6 +579,12 @@
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
     <script>window.PP_CURVE_CONFIG = @Html.Raw(JsonSerializer.Serialize(ppCurveConfig));</script>
     <script src="~/js/pp-curve.js" asp-append-version="true"></script>
+    @if (Model.AccLossJson != null)
+    {
+        <script type="application/json" id="acc-loss-profile">@Html.Raw(Model.AccLossJson.Replace("</", "<\\/"))</script>
+        <script type="application/json" id="acc-loss-model">@Html.Raw(Model.AccLossModelJson!.Replace("</", "<\\/"))</script>
+        <script src="~/js/acc-loss.js" asp-append-version="true"></script>
+    }
     <script>
         let chart = null;
         const leaderboardId = '@Model.Leaderboard.Id';
