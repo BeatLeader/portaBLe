@@ -581,6 +581,35 @@ What v5 fixes and what it leaves:
   slopes between maps, and they predict −0.92 for *The Spoils*. Fitting each map's slope to its own scores would be a
   score-informed correction, which these ratings rule out.
 
+### eBPM instead of swing speed? Tested, not adopted (`a26_ebpm.py`)
+
+In the analyzer the two measure nearly the same thing:
+- `eBPM = 30 × SwingFrequency`, where SwingFrequency is 1 / seconds since the same hand's last swing, doubled on a reset.
+- `SwingSpeed = SwingFrequency × distanceDiff`, where `distanceDiff = 1 + hitDistance / (hitDistance + 2.668)`. Its p10 / p50 / p90
+  are 1.08 / 1.18 / 1.27.
+
+So swing speed is eBPM / 30 plus a hit-distance term, and the two correlate at 0.986 on log scale per swing. Each model that
+uses swing speed was refitted with eBPM in its place.
+
+| model | swing speed (today) | eBPM | |
+|---|---|---|---|
+| acc model, all features, CV R² | 0.9672 | 0.9671 (swing-speed features dropped) | tie; the model already has eBPM as `frequency_*` |
+| acc model, + peak sustained eBPM (analyzer, 4-swing window) | | 0.9673 | adds nothing |
+| acc model, a single speed parameter (p90) on its own / with pass, tech, ln swings | 0.727 / 0.901 | 0.684 / 0.900 | swing speed slightly better |
+| "where accuracy is lost": held-out deviance explained | 0.3829 | 0.3837 | tie |
+| … map R² at skill 2.5 / "where" Spearman, top / mid replays | 0.906 / 0.726 / 0.600 | 0.904 / 0.730 / 0.604 | tie |
+| pass v2: R² vs attempts / maps off by > 1, > 2 logits | **0.9166 / 500, 47** | 0.9125 / 532, 58 | swing speed better |
+
+More pass variants (speed part `eBPM × distanceDiff^α`): α 0.5 gives 0.9150 and α 2 gives 0.9165, so today's α 1 is at the
+optimum. Raw eBPM, counted without the reset doubling, is best with a reset term of ×2.0 (0.9134). So the analyzer's doubling is
+right, and the hit-distance term still adds about 0.003.
+
+Conclusion:
+- **Ratings:** keep swing speed. For passing, how far the hand travels to the note matters on top of how often it swings (about
+  30 fewer maps off by more than 1 logit). For the acc model the choice makes no difference.
+- **"Where accuracy is lost":** eBPM fits just as well because the model has its own hit-distance factor. eBPM bands such as
+  "280–360 eBPM ×1.52" would read more naturally to players than "swing speed 11–14". This would be a presentation change only.
+
 ## Known limitations
 
 * Weights are fitted on today's ranked Standard and (since v5) One Saber pool; maps far outside it (gimmicks, extreme speeds,

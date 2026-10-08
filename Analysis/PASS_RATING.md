@@ -126,6 +126,15 @@ Both are highest at the start and fall through the map, in short and long maps a
 or in quits. What makes long, dense maps harder to pass, longer exposure and drain, is already in the energy bar. v2 / v4 use
 no fatigue term. The stamina rating as a whole adds only ≈ 0.003 R².
 
+### eBPM instead of swing speed: tested, not adopted
+
+`a26_ebpm.py` (details in `ALGO_ACC_TEST.md`) replaced PassDiff's speed part. Swing speed is `eBPM / 30 × distanceDiff`.
+- **eBPM alone:** R² 0.9125 vs 0.9166, with 532 vs 500 maps off by more than 1 logit.
+- **eBPM × distanceDiff^α:** α 1 (today) is optimal; α 0.5 gives 0.9150 and α 2 gives 0.9165.
+- **Raw eBPM without reset doubling:** best with a reset term of ×2.0, at 0.9134.
+
+How far the hand travels to the note matters for passing on top of how often it swings.
+
 ## Remaining v2 outliers
 
 *Extraterrestrial* E+ (still too low), *Merry-Go-Round* Normal, *Toymatic Parade* Hard, *PISSCORD* Hard, *iLLness LiLin* Expert,

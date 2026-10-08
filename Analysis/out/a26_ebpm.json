@@ -1,0 +1,150 @@
+{
+ "acc_model": {
+  "all 91 features": 0.9671711001388641,
+  "without swing-speed features (eBPM only)": 0.9670581767223245,
+  "without frequency / eBPM features (swing speed only)": 0.9670245861868626,
+  "without either": 0.9659089497681715,
+  "all + peak sustained eBPM": 0.9673421072504063,
+  "single: ln swing speed p90": 0.7273316626695133,
+  "pass + tech + ln swings + ln swing speed p90": 0.901340584376919,
+  "single: ln eBPM p90": 0.683687782876238,
+  "pass + tech + ln swings + ln eBPM p90": 0.9002578698206618,
+  "single: ln swing speed peak32": 0.7571895078930753,
+  "pass + tech + ln swings + ln swing speed peak32": 0.9000427375218479,
+  "single: ln eBPM peak32": 0.7434774547151819,
+  "pass + tech + ln swings + ln eBPM peak32": 0.8998644060816455,
+  "single: ln peak sustained eBPM (analyzer)": 0.7168570996795325,
+  "pass + tech + ln swings + ln peak sustained eBPM (analyzer)": 0.8999816043393273,
+  "single: ln peak sustained raw eBPM": 0.7109183738743634,
+  "pass + tech + ln swings + ln peak sustained raw eBPM": 0.899986622934201
+ },
+ "acc_loss": {
+  "swing speed + time since last swing (today)": {
+   "deviance_explained": 0.3830376431172884,
+   "map_r2_skill2.5": 0.9041620443819984,
+   "map_r2_skill3.8": 0.8744674332839121,
+   "where_top": 0.7373151173151173,
+   "where_mid": 0.5994897959183673,
+   "speed_levels": {
+    "0-1.5": 1.008,
+    "1.5-2.5": 0.999,
+    "2.5-3.5": 1.0,
+    "3.5-4.5": 1.018,
+    "4.5-5.5": 1.056,
+    "5.5-6.5": 1.094,
+    "6.5-7.5": 1.125,
+    "7.5-9": 1.126,
+    "9-11": 1.193,
+    "11-14": 1.244,
+    "14-inf": 1.443
+   }
+  },
+  "eBPM + time since last swing": {
+   "deviance_explained": 0.3835657767169527,
+   "map_r2_skill2.5": 0.9026702673438862,
+   "map_r2_skill3.8": 0.873564124339988,
+   "where_top": 0.7361376414007993,
+   "where_mid": 0.6030008335648792,
+   "speed_levels": {
+    "0-40": 1.017,
+    "40-60": 1.003,
+    "60-90": 1.0,
+    "90-115": 1.027,
+    "115-140": 1.076,
+    "140-165": 1.101,
+    "165-190": 1.128,
+    "190-230": 1.112,
+    "230-280": 1.164,
+    "280-360": 1.264,
+    "360-inf": 1.518
+   }
+  },
+  "swing speed only": {
+   "deviance_explained": 0.38286880821065705,
+   "map_r2_skill2.5": 0.9060945015850146,
+   "map_r2_skill3.8": 0.8749409997248051,
+   "where_top": 0.7257253600000712,
+   "where_mid": 0.6001020408163265,
+   "speed_levels": {
+    "0-1.5": 1.045,
+    "1.5-2.5": 1.011,
+    "2.5-3.5": 1.0,
+    "3.5-4.5": 1.015,
+    "4.5-5.5": 1.055,
+    "5.5-6.5": 1.105,
+    "6.5-7.5": 1.166,
+    "7.5-9": 1.21,
+    "9-11": 1.338,
+    "11-14": 1.508,
+    "14-inf": 1.841
+   }
+  },
+  "eBPM only": {
+   "deviance_explained": 0.38369459960571095,
+   "map_r2_skill2.5": 0.9038991344284765,
+   "map_r2_skill3.8": 0.8755711502118041,
+   "where_top": 0.7301076203515229,
+   "where_mid": 0.6039724980901451,
+   "speed_levels": {
+    "0-40": 1.048,
+    "40-60": 1.014,
+    "60-90": 1.0,
+    "90-115": 1.021,
+    "115-140": 1.057,
+    "140-165": 1.104,
+    "165-190": 1.168,
+    "190-230": 1.209,
+    "230-280": 1.328,
+    "280-360": 1.523,
+    "360-inf": 1.913
+   }
+  },
+  "raw eBPM only (no reset doubling)": {
+   "deviance_explained": 0.3836774215572295,
+   "map_r2_skill2.5": 0.9023897169709834,
+   "map_r2_skill3.8": 0.8735373431453146,
+   "where_top": 0.7291158398843409,
+   "where_mid": 0.6066176470588236,
+   "speed_levels": {
+    "0-40": 1.038,
+    "40-60": 1.011,
+    "60-90": 1.0,
+    "90-115": 1.015,
+    "115-140": 1.05,
+    "140-165": 1.098,
+    "165-190": 1.162,
+    "190-230": 1.204,
+    "230-280": 1.326,
+    "280-360": 1.518,
+    "360-inf": 1.907
+   }
+  }
+ },
+ "pass_v2": {
+  "swing speed (today, = eBPM x distanceDiff)": {
+   "r2": 0.9165919957154641,
+   "off1": 500,
+   "off2": 47
+  },
+  "eBPM (analyzer, with reset doubling)": {
+   "r2": 0.9124562856839933,
+   "off1": 532,
+   "off2": 58
+  },
+  "eBPM x distanceDiff^0.5": {
+   "r2": 0.9150376820603363,
+   "off1": 515,
+   "off2": 55
+  },
+  "eBPM x distanceDiff^2": {
+   "r2": 0.9164961355720214,
+   "off1": 491,
+   "off2": 50
+  },
+  "raw eBPM, best reset term x2.00": {
+   "r2": 0.9134332445181734,
+   "off1": 530,
+   "off2": 54
+  }
+ }
+}
