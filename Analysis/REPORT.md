@@ -407,6 +407,68 @@ LeaderboardId index), decoded with `py/decode_attempts.py`, analysed in `py/a13_
 * **Per-score flags are now possible:** attempts / clears / playtime before a score and its luck (best vs the player's median clear:
   p90 0.29–0.53 log error-rate units on top plays). Better used as review signals (farm maps, outlier scores) than as PP penalties.
 
+### 7.2 Attempts, round 2: timing, pass difficulty, where players fail, learning (Oct 2026)
+
+Scripts `py/a18_attempts_timing.py`, `py/a19_pass_attempts.py`, `py/a20_learning.py`. The acc disagreement used here is the
+acc model's out-of-fold residual from `a15_disagreement.py`.
+
+**Timing (a18).** 4.96 M clean clears carry per-hand timing deviation and cut score (from 2024–25). Relative to the same
+player's average, timing is worse on maps that score worse than the acc model predicts:
+- r +0.14 with the disagreement, about 2 % of it;
+- −2 % to +3.5 % in log timing from the "easier" to the "harder" fifth;
+- tempo changes go with worse timing (r +0.17).
+
+Music / sync is a real but minor part of the unexplained acc disagreement. *My Album* is hit 36 % more precisely than the
+same players' average.
+
+**Pass difficulty measured from attempts (a19).** A Rasch model on 24 M clean attempts (fails vs clears; 4.7 M player–map
+pairs, 51.6 k players) gives each map a pass difficulty with reliability 0.999.
+- The analyzer's pass rating explains R² **0.856** of it. A ridge on the 87 acc-model features (pass and tech included)
+  explains **0.936** out-of-fold.
+- Map features predict 56 % of the pass rating's error. The strongest single factors:
+
+  | factor | r with the pass rating's error |
+  |---|---|
+  | crossovers | **+0.49** |
+  | tech rating | +0.35 |
+  | horizontal cuts | +0.28 |
+  | sustained / peak difficulty | +0.13 |
+  | map length | +0.10 |
+  | burstiness | **−0.21** |
+
+- Harder to pass than rated: *RTX 20000*, *HITTIT*, *Extraterrestrial*, *ANOMALY*, *Blue Zenith*, *Ashed Wings* (tech maps
+  rated 3–7 pass that most attempts fail). Easier than rated: *Metamorphose*, *DANGEROOOOUS JUNGLE*, *CHUTEN*.
+
+**Where players fail (a19).** Fail hazard per ~5 s section: fails over attempts still alive, with quits and restarts alive
+until they end.
+- On 3 302 maps with ≥ 100 clean fails, the analyzer's per-section swing difficulty ranks the deadly sections with a median
+  within-map Spearman of 0.46. The acc-loss model's misses component does worse (0.28): it was fitted on passes.
+- The worst section holds a median 20 % of a map's fails.
+- Hazard *falls* with time into the map: ×0.55 per minute at equal local difficulty. This is the energy bar (it starts at 50 %,
+  so early misses are fatal) plus survivor selection, not a lack of fatigue. Endurance can only be measured once the energy
+  mechanic is modelled.
+
+**Learning (a20).** On 630 k player–map pairs with ≥ 3 clean clears, each doubling of clears lowers the error rate by 14 %.
+- Per-map learnability is moderately stable (split-half r 0.51).
+- Learnable maps look *harder* than the acc model predicts (+0.18 at equal difficulty): players start badly and most don't
+  practise long enough.
+- **Repetition** (share of 2-, 4- and 8-swing sequences already seen earlier in the map, by hand / lane / layer / cut) is
+  map-derived, and repetitive maps look *easier* than predicted (−0.22).
+- Adding it to the acc model:
+
+  | | CV R² | disagreement SD | maps off by > 0.15 | maps off by > 0.25 |
+  |---|---|---|---|---|
+  | 87 features | 0.9647 | 0.0862 | 322 | 43 |
+  | + repetition | **0.9681** | **0.0818** | **259** | **32** |
+
+Next candidates:
+1. Repetition features in RatingAPI.
+2. An algorithmic pass rating fitted to the attempts' pass difficulty.
+3. A bottom-up pass model that simulates the energy bar with per-note miss risk.
+4. An observed "where players fail" timeline on the leaderboard page.
+5. Per-note data from attempt replays (fails and practice), to give the acc-loss model a practice axis. This needs a capped
+   replay crawl on the server.
+
 ## 8. What was run where (server note)
 
 * The replay crawl finished: 3 635/3 635 maps, 47 913 replays, 84 GB downloaded from the replay CDN over 3 h 20 min.

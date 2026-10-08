@@ -24,6 +24,9 @@ py/a15e_analyzer_vs_observed.py  analyzer-predicted vs actually played swings (r
 py/a16_swing_loss.py       feasibility of a bottom-up (per-swing, skill-dependent) acc model fitted on replays
 py/a17_acc_loss_model.py   interpretable bottom-up "where accuracy is lost" model (factors x skill curve, fitted on replays)
 py/export_acc_loss_profiles.py  writes per-map loss profiles (AccLossProfiles table) into a portaBLe DB for the leaderboard page
+py/a18_attempts_timing.py  per-hand timing / cut score from attempts vs the acc disagreement (music / sync)
+py/a19_pass_attempts.py   pass difficulty from fails vs clears (Rasch) vs pass rating; fail hazard along the map
+py/a20_learning.py        learning curves per map, and map repetition as an acc-model feature
 tools/RatingsDump      recompute ratings + per-swing table + per-note ML predictions for a list of maps (prod or corpus analyzer)
 tools/ReplayStudy      SwingCorpus + stratified replay sampling + per-note observation table + tip-motion metrics
 ```
