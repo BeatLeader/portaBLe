@@ -62,6 +62,35 @@ At each map's own pass threshold, the energy model's predicted fail positions ma
 `SwingDiff`: median within-map Spearman 0.52 vs 0.45 on 1 195 maps, better on 58 % of them (`a23_energy_where.py`). The same
 DP can draw a "where players fail" curve per map, next to the acc-loss view.
 
+## "Where players fail" tab (leaderboard page, `algo-b-v4`)
+
+It sits next to "Where accuracy is lost" in the same card. `#pass` in the URL opens it, `#pass-attempts` with the
+real-attempts overlay.
+
+`export_pass_profiles.py` stores, per map, every swing's `ln PassDiff` (one byte, step 0.03) and note count, the swings per
+~5 s section, the map's threshold skill, and the causes. The page runs the exact energy-bar DP for the chosen level (1–3 ms per
+level). It shows:
+- **Pass levels around the map's rating,** each with its chance to clear.
+- **Per section:** the chance that a player who reaches the section fails in it, plus the riskiest section and the share of
+  fails in the first minute.
+- **Causes:** the top three per section in the tooltip, and the map-wide list. Each cause is a factor's log contribution to
+  `PassDiff` above a typical swing, weighted by the swing's miss chance at the map's pass level.
+- **Hints (ⓘ and "What do these mean?")** explaining every factor, on both tabs.
+
+**Typical attempt** compares the model with the observed fail hazard of real clean attempts (3 950 maps).
+- Real attempts are a mix of players: weaker ones fail early, so later sections see only stronger ones. The chip therefore
+  models skills `~ Normal(μ, 0.3)` (9-point Gauss–Hermite), with μ set so the mix clears as often as the real attempts did.
+- The spread 0.3 is fitted on 299 maps (`a25_attempt_mix.py`):
+
+  | spread | mean squared hazard error | first-third share of fails, model − observed |
+  |---|---|---|
+  | 0 (one skill) | 0.00108 | −0.28 |
+  | 0.2 | 0.00062 | −0.14 |
+  | 0.4 | 0.00069 | +0.01 |
+
+- With it, *Speedcore Paradise* fails cluster at 0:12–0:17 as observed (93 % of fails in the first minute), and *Metamorphose*'s
+  single burst at 2:02 matches the attempts.
+
 ## Stamina (analyzer branch `stamina-dev`)
 
 `StaminaCalculator` models physical fatigue: a kinetic-energy cost per swing (swing rate², path strain, resets ×2, holding the

@@ -33,7 +33,9 @@ py/a21_pass_rating.py     pass rating variants (window weights, per-swing terms)
 py/a22_energy_pass.py     energy-bar pass rating and the stamina-dev stamina rating (as-is and unit-fixed)
 py/a23_energy_where.py    One Saber factor; predicted vs observed fail locations of the energy model
 py/energylib.py           energy-bar pass model in numpy (PassDiff, notes matrix, exact clear probability, skill50)
-py/a24_fatigue.py         stamina-dev fatigue inside the energy model (tested, not adopted) 
+py/a24_fatigue.py         stamina-dev fatigue inside the energy model (tested, not adopted)
+py/export_pass_profiles.py  adds "where players fail" data (pass v2 swings, causes, observed fail hazard) to the AccLossProfiles rows
+py/a25_attempt_mix.py     skill spread of real attempts (typical-attempt comparison of the pass tab)
 tools/RatingsDump      recompute ratings + per-swing table + per-note ML predictions for a list of maps (prod or corpus analyzer)
 tools/ReplayStudy      SwingCorpus + stratified replay sampling + per-note observation table + tip-motion metrics
 ```
