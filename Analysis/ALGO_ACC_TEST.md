@@ -540,10 +540,51 @@ players' PP is unchanged.
 
 The overshoots are the first candidates for a term-level fix (likely the stress weight on these tech patterns).
 
+### v5: One Saber as a parameter (test deployment `algo-b-v5`)
+
+A reviewer flagged *The Spoils* E+ One Saber (`3898fx92`). The difficulty at the top end was right, but the curve was not steep
+enough, so the map paid too much to lower-skill players. The scores agree:
+- Its error rate falls with player skill at slope −0.67, where Standard maps average −1 by construction. That is flatter than
+  99.9 % of maps.
+- One Saber maps in general have a median slope of −0.86 against overall skill, but −0.99 against skill measured on One Saber
+  maps only. One Saber players are specialists: they do better on these maps than their overall skill predicts, and more so
+  lower down.
+
+One Saber is now a characteristic with its own skill sensitivity β, not a separate model:
+
+- **Acc model.** The 70 One Saber maps join the fit with a `one_saber` indicator, for 91 features. Their error rates follow
+  skill as `log(1 − acc) = d − β · skill`, with β = 0.909 (pooled within-map; 95 % CI 0.882–0.936). β is stored as
+  `mode_skill_scale` in `acc_model.json`, and the predicted accuracy is `1 − exp(d − β · reference skill)`.
+  `fit_acc_model.py --one-saber` fits both. On One Saber maps the cross-validated residual SD is 0.1325, against 0.1540 when they
+  are extrapolated from the Standard-only model.
+- **PP curve.** One Saber uses the exponent γ / β (`--mode-gamma OneSaber=1.0998`). PP per unit of skill then matches Standard
+  maps. PP at the map's predicted accuracy does not change.
+- **"Where accuracy is lost"** uses the same β, from the profile export, when it anchors accuracy to skill.
+
+| | v4 | **v5** |
+|---|---|---|
+| per-map slope of log PP on player skill, median: Standard / One Saber | 0.594 / 0.537 | **0.593 / 0.578** |
+| One Saber / Standard median PP at the same stars, weaker third of players: < 4★ / 4–6★ / 6–8★ / 8–10★ / 10–13★ | 1.36 / 1.21 / 1.16 / 1.09 / 1.07 | **1.28 / 1.10 / 1.08 / 1.04 / 1.00** |
+| Megametric mean: Standard / One Saber (68 maps) | 0.189 / 0.296 | **0.190 / 0.257** |
+| *The Spoils*: stars, Megametric | 8.15, 0.905 | **7.56, 0.766** |
+| *The Spoils*: median PP of the weaker / middle / stronger third, top score | 265 / 332 / 432, 615 | **235 / 300 / 402, 596** |
+| Standard stars change: median (p1 … p99) | — | **+0.003 (−0.11 … +0.07)** |
+| top players' PP | 23 314, 22 005, 21 948 | **23 282, 22 000, 21 906** |
+
+What v5 fixes and what it leaves:
+- **One Saber as a whole is mostly fixed.** The gap in PP-vs-skill slope shrinks from 0.057 to 0.015. The rest comes from pass
+  PP, which does not depend on accuracy.
+- **Hard One Saber maps gain stars** (*Ashed Wings* 14.2 → 14.9, *lustre* 14.5 → 15.1): trained with One Saber data, the model
+  predicts lower accuracy on them. **Easy ones lose stars** (*Bad Liar* 7.7 → 7.1).
+- **The Spoils is only partly fixed.** Its Megametric drops from 0.905 to 0.766, still above the One Saber mean (0.257) and the
+  ML rating's 0.486. Its own slope is much flatter than One Saber's average. Map features explain only 23 % of the variation in
+  slopes between maps, and they predict −0.92 for *The Spoils*. Fitting each map's slope to its own scores would be a
+  score-informed correction, which these ratings rule out.
+
 ## Known limitations
 
-* Weights are fitted on today's ranked Standard pool; maps far outside it (gimmicks, extreme speeds, other characteristics) rely
-  on extrapolation of a linear model (it held up on OneSaber, above). Predictions are clamped to 0.5 … 0.9995.
+* Weights are fitted on today's ranked Standard and (since v5) One Saber pool; maps far outside it (gimmicks, extreme speeds,
+  other characteristics) rely on extrapolation of a linear model. Predictions are clamped to 0.5 … 0.9995.
 * Calibration and validation use all clean scores. Effort is the remaining confound: a map that players grind gets a better best
   score than one they try twice. The attempts data (REPORT §7) is the way to correct for it.
 * The score correction makes ratings depend on scores. A newly ranked map starts at the algorithm's rating and moves halfway

@@ -345,6 +345,13 @@ namespace portaBLe
                         case "--relative-epsilon": // per-map curve offset k * (1 - predictedAcc) (see PpCurve)
                             PpCurve.RelativeEpsilon = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture);
                             break;
+                        case "--mode-gamma": // per-characteristic curve exponent scale, e.g. OneSaber=1.1 or OneSaber=1.1,NoArrows=1 (see PpCurve)
+                            foreach (var pair in args[++i].Split(',', StringSplitOptions.RemoveEmptyEntries))
+                            {
+                                var kv = pair.Split('=');
+                                PpCurve.ModeGammaScale[kv[0]] = float.Parse(kv[1], System.Globalization.CultureInfo.InvariantCulture);
+                            }
+                            break;
                         case "--score-correction": o.ScoreCorrectionTau = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                         case "--pass-fade": // strength,floor,center (see PassFade)
                             var fade = args[++i].Split(',').Select(x => float.Parse(x, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
@@ -373,7 +380,8 @@ namespace portaBLe
             PpCurve.Mode = cli.Curve;
             Console.WriteLine($"Pipeline: {string.Join(",", cli.Steps)} | acc source {cli.AccSource} {cli.AccModel ?? "(embedded model)"} | curve {cli.Curve}"
                 + (cli.Curve == CurveMode.PowerLaw ? $" (gamma {PpCurve.Gamma}, acc scale {PpCurve.AccScale}, epsilon {PpCurve.Epsilon}"
-                    + (PpCurve.PerMap ? $" + {PpCurve.RelativeEpsilon} x (1 - predicted acc)" : "") + ")" : "")
+                    + (PpCurve.PerMap ? $" + {PpCurve.RelativeEpsilon} x (1 - predicted acc)" : "")
+                    + (PpCurve.ModeGammaScale.Count > 0 ? ", gamma x " + string.Join(", ", PpCurve.ModeGammaScale.Select(kv => $"{kv.Value} on {kv.Key}")) : "") + ")" : "")
                 + (PassFade.Enabled ? $" | pass fade strength {PassFade.Strength}, floor {PassFade.Floor}, center {PassFade.Center}" : "")
                 + (PassBlend.Enabled ? $" | pass blend p {PassBlend.P}" : "")
                 + (AccCap.Enabled ? $" | acc cap {AccCap.MaxAdvantage}" : ""));

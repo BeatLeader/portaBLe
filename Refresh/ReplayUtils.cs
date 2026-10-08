@@ -20,6 +20,9 @@ namespace portaBLe.Refresh
     /// the error ratio r = (1 - acc) / (1 - predictedAcc) alone (up to Epsilon) and saturates smoothly at ((1 + k) / k)^Gamma
     /// times the PP at the predicted accuracy, instead of being cut off by AccCap. AccRating is then anchored at the
     /// predicted accuracy itself (no +0.0022 shift, which would cost easy maps up to 15 %).
+    /// ModeGammaScale multiplies Gamma per characteristic. Error rates on One Saber maps fall more slowly with skill
+    /// (log(1 - acc) = d - beta * skill with beta 0.909 vs 1 on Standard, Analysis/ALGO_ACC_TEST.md), so a curve exponent of
+    /// Gamma / beta gives the same PP per unit of skill as Standard maps; PP at the predicted accuracy is unchanged.
     /// </summary>
     public static class PpCurve
     {
@@ -28,13 +31,17 @@ namespace portaBLe.Refresh
         public static float Epsilon = 0.0016f;
         public static float RelativeEpsilon = 0f;
         public static float AccScale = 1.052f;
+        public static Dictionary<string, float> ModeGammaScale = new(StringComparer.OrdinalIgnoreCase);
 
         public static bool PerMap => RelativeEpsilon > 0;
 
-        public static float PowerLaw(float acc, float predictedAcc = 0)
+        public static float GammaFor(string? mode) =>
+            mode != null && ModeGammaScale.TryGetValue(mode, out var scale) ? Gamma * scale : Gamma;
+
+        public static float PowerLaw(float acc, float predictedAcc = 0, string? mode = null)
         {
             float eps = Epsilon + (PerMap && predictedAcc > 0 ? RelativeEpsilon * (1f - predictedAcc) : 0f);
-            return MathF.Pow(MathF.Max(1f - acc + eps, 1e-6f) / (0.05f + eps), -Gamma);
+            return MathF.Pow(MathF.Max(1f - acc + eps, 1e-6f) / (0.05f + eps), -GammaFor(mode));
         }
     }
 
@@ -171,9 +178,9 @@ namespace portaBLe.Refresh
                 (0.6, 0.256),
                 (0.0, 0.000), };
 
-        public static float Curve(float acc, float predictedAcc = 0)
+        public static float Curve(float acc, float predictedAcc = 0, string? mode = null)
         {
-            if (PpCurve.Mode == CurveMode.PowerLaw) return PpCurve.PowerLaw(acc, predictedAcc);
+            if (PpCurve.Mode == CurveMode.PowerLaw) return PpCurve.PowerLaw(acc, predictedAcc, mode);
             int i = 0;
             for (; i < pointList.Count; i++)
             {
@@ -190,9 +197,9 @@ namespace portaBLe.Refresh
             return (float)(pointList[i-1].Item2 + middle_dis * (pointList[i].Item2 - pointList[i-1].Item2));
         }
 
-        public static float Curve2(float acc, float predictedAcc = 0)
+        public static float Curve2(float acc, float predictedAcc = 0, string? mode = null)
         {
-            if (PpCurve.Mode == CurveMode.PowerLaw) return PpCurve.PowerLaw(acc, predictedAcc);
+            if (PpCurve.Mode == CurveMode.PowerLaw) return PpCurve.PowerLaw(acc, predictedAcc, mode);
             int i = 0;
             for (; i < pointList2.Count; i++)
             {
@@ -209,11 +216,11 @@ namespace portaBLe.Refresh
             return (float)(pointList2[i-1].Item2 + middle_dis * (pointList2[i].Item2 - pointList2[i-1].Item2));
         }
 
-        public static float AccRating(float? predictedAcc, float? passRating, float? techRating) {
+        public static float AccRating(float? predictedAcc, float? passRating, float? techRating, string? mode = null) {
             float difficulty_to_acc;
             if (predictedAcc > 0) {
                 float pred = predictedAcc ?? 0;
-                difficulty_to_acc = 15.5f / Curve(pred + (PpCurve.Mode == CurveMode.PowerLaw && PpCurve.PerMap ? 0f : 0.0022f), pred);
+                difficulty_to_acc = 15.5f / Curve(pred + (PpCurve.Mode == CurveMode.PowerLaw && PpCurve.PerMap ? 0f : 0.0022f), pred, mode);
                 if (PpCurve.Mode == CurveMode.PowerLaw) difficulty_to_acc *= PpCurve.AccScale;
             } else {
                 float tiny_tech = 0.0208f * (techRating ?? 0) + 1.1284f;
@@ -234,7 +241,7 @@ namespace portaBLe.Refresh
         /// the map's curve, AccCap on acc/tech and PassFade on pass, both judged on the capped accuracy (so pass PP stops fading
         /// where acc PP stops growing), then PassBlend.
         /// </summary>
-        private static (float, float, float) GetPp(float accuracy, float accRating, float passRating, float techRating, float predictedAcc = 0) {
+        private static (float, float, float) GetPp(float accuracy, float accRating, float passRating, float techRating, float predictedAcc = 0, string? mode = null) {
 
             float passPP = 15.2f * MathF.Exp(MathF.Pow(passRating, 1 / 2.62f)) - 30f;
             if (float.IsInfinity(passPP) || float.IsNaN(passPP) || float.IsNegativeInfinity(passPP) || passPP < 0)
@@ -243,7 +250,7 @@ namespace portaBLe.Refresh
             }
             accuracy = AccCap.Apply(accuracy, predictedAcc);
             passPP *= PassFade.Weight(accuracy, predictedAcc);
-            float accPP = Curve2(accuracy, predictedAcc) * accRating * 34f;
+            float accPP = Curve2(accuracy, predictedAcc, mode) * accRating * 34f;
             // https://www.desmos.com/calculator/jdpmaozieo
             float techPP = MathF.Exp(1.9f * accuracy) * 1.08f * techRating;
 
@@ -251,8 +258,8 @@ namespace portaBLe.Refresh
         }
 
         /// <summary>PP of a 96 % score / 52, with the same curve, fade and cap as scores on this map.</summary>
-        public static float ToStars(float accRating, float passRating, float techRating, float predictedAcc = 0) {
-            (float passPP, float accPP, float techPP) = GetPp(0.96f, accRating, passRating, techRating, predictedAcc);
+        public static float ToStars(float accRating, float passRating, float techRating, float predictedAcc = 0, string? mode = null) {
+            (float passPP, float accPP, float techPP) = GetPp(0.96f, accRating, passRating, techRating, predictedAcc, mode);
 
             return Inflate(passPP + accPP + techPP) / 52f;
         }
@@ -264,7 +271,8 @@ namespace portaBLe.Refresh
             float accRating, 
             float passRating, 
             float techRating,
-            float predictedAcc = 0)
+            float predictedAcc = 0,
+            string? mode = null)
         {
             if (accuracy <= 0 || accuracy > 1) return (0, 0, 0, 0, 0);
 
@@ -277,7 +285,7 @@ namespace portaBLe.Refresh
             float rawPP = 0; float fullPP = 0; float passPP = 0; float accPP = 0; float techPP = 0; float increase = 0; 
             if (!modifiers.Contains("NF"))
             {
-                (passPP, accPP, techPP) = GetPp(accuracy, accRating, passRating, techRating, predictedAcc);
+                (passPP, accPP, techPP) = GetPp(accuracy, accRating, passRating, techRating, predictedAcc, mode);
 
                 rawPP = Inflate(passPP + accPP + techPP);
                 if (modifiersRating != null) {
@@ -296,7 +304,7 @@ namespace portaBLe.Refresh
                         }
                     }
                 }
-                (passPP, accPP, techPP) = GetPp(accuracy, accRating * mp, passRating * mp, techRating * mp, predictedAcc);
+                (passPP, accPP, techPP) = GetPp(accuracy, accRating * mp, passRating * mp, techRating * mp, predictedAcc, mode);
                 fullPP = Inflate(passPP + accPP + techPP);
                 if (passPP + accPP + techPP > 0) {
                     increase = fullPP / (passPP + accPP + techPP);

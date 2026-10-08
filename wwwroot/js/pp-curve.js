@@ -80,15 +80,16 @@
 	}
 
 	// The PP formula of this portaBLe instance (Leaderboard.cshtml sets window.PP_CURVE_CONFIG from the server's settings):
-	// classic point lists or a power-law curve (ReplayUtils PpCurve; per map when relativeEpsilon > 0), optional pass-PP fade
-	// (PassFade) and acc cap (AccCap).
-	const PP = Object.assign({mode: 'classic', gamma: 0.601, epsilon: 0.0016, relativeEpsilon: 0, passFade: null, accCap: null, passBlend: null},
+	// classic point lists or a power-law curve (ReplayUtils PpCurve; per map when relativeEpsilon > 0, exponent scaled per
+	// characteristic by modeGamma, keyed by the lowercase mode name), optional pass-PP fade (PassFade) and acc cap (AccCap).
+	const PP = Object.assign({mode: 'classic', gamma: 0.601, epsilon: 0.0016, relativeEpsilon: 0, modeGamma: {}, passFade: null, accCap: null, passBlend: null},
 		window.PP_CURVE_CONFIG || {});
-	function powerLaw(acc, predictedAcc) {
+	function powerLaw(acc, predictedAcc, name) {
 		const eps = PP.epsilon + (PP.relativeEpsilon > 0 && predictedAcc > 0 ? PP.relativeEpsilon * (1 - predictedAcc) : 0);
-		return Math.pow(Math.max(1 - acc + eps, 1e-6) / (0.05 + eps), -PP.gamma);
+		const gamma = PP.gamma * ((PP.modeGamma || {})[name] || 1);
+		return Math.pow(Math.max(1 - acc + eps, 1e-6) / (0.05 + eps), -gamma);
 	}
-	const Curve2 = (acc, predictedAcc) => (PP.mode === 'power' ? powerLaw(acc, predictedAcc) : interpolateCurve(pointList2, acc));
+	const Curve2 = (acc, predictedAcc, name) => (PP.mode === 'power' ? powerLaw(acc, predictedAcc, name) : interpolateCurve(pointList2, acc));
 
 	// how much lower the score's error rate is than the map's predicted one (log units)
 	const errorAdvantage = (acc, predictedAcc) => Math.log(Math.max(1 - predictedAcc, 1e-4) / Math.max(1 - acc, 1e-4));
@@ -123,13 +124,13 @@
 		return (650 * Math.pow(peepee, 1.3)) / Math.pow(650, 1.3);
 	}
 
-	function buildCurve(accuracy, passRating, accRating, techRating, golf, predictedAcc) {
+	function buildCurve(accuracy, passRating, accRating, techRating, golf, predictedAcc, name) {
 		let passPP = 15.2 * Math.exp(Math.pow(passRating, 1 / 2.62)) - 30;
 		if (!isFinite(passPP) || isNaN(passPP) || passPP < 0) passPP = 0;
 		// fade and cap judged on the capped accuracy, as in ReplayUtils.GetPp (pass PP stops fading where acc PP stops growing)
 		const acc = accCapped(accuracy, predictedAcc);
 		passPP *= passFadeWeight(acc, predictedAcc);
-		let accPP = golf ? acc * accRating * 42 : Curve2(acc, predictedAcc) * accRating * 34;
+		let accPP = golf ? acc * accRating * 42 : Curve2(acc, predictedAcc, name) * accRating * 34;
 		let techPP = Math.exp(1.9 * acc) * 1.08 * techRating;
 		[passPP, accPP, techPP] = passBlend(passPP, accPP, techPP);
 		const totalPp = Inflate(passPP + accPP + techPP);
@@ -144,7 +145,7 @@
 		} else if (modeName(mode) === 'rhythmgamestandard') {
 			return acc * passRating * 55;
 		}
-		return buildCurve(acc, passRating, accRating, techRating, false, modePredictedAcc(mode));
+		return buildCurve(acc, passRating, accRating, techRating, false, modePredictedAcc(mode), modeName(mode));
 	}
 
 	function computeModifiedRating(rating, ratingName, modifiersRating, mods) {
@@ -168,9 +169,9 @@
 		return rating * (1 + positiveSum + negativeSum);
 	}
 
-	function computeStarRating(passRating, accRating, techRating) {
+	function computeStarRating(passRating, accRating, techRating, mode) {
 		return Number.isFinite(passRating) && Number.isFinite(accRating) && Number.isFinite(techRating)
-			? buildCurve(0.96, passRating, accRating, techRating)[0] / 52
+			? buildCurve(0.96, passRating, accRating, techRating, false, modePredictedAcc(mode), modeName(mode))[0] / 52
 			: null;
 	}
 
@@ -1204,7 +1205,7 @@
 			const modifiedStars =
 				selectedModifiers.length &&
 				(base.pass !== modifiedPassRating || base.acc !== modifiedAccRating || base.tech !== modifiedTechRating)
-					? computeStarRating(modifiedPassRating, modifiedAccRating, modifiedTechRating)
+					? computeStarRating(modifiedPassRating, modifiedAccRating, modifiedTechRating, mode)
 					: null;
 			starsEl.textContent = modifiedStars != null ? `With modifiers: ${formatNumber(modifiedStars, 2)} ★` : '';
 

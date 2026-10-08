@@ -1,9 +1,11 @@
 {
- "ML_linear_r2": 0.8832148278437874,
- "ridge_all_cv_r2": 0.9682474756576265,
- "closed_form_3_cv_r2": 0.9005682101503688,
- "lasso_subset_cv_r2": 0.9681334551096484,
+ "ML_linear_r2": 0.8558108609230751,
+ "ridge_all_cv_r2": 0.9675350919460565,
+ "one_saber_cv_resid_sd": 0.1324815911747565,
+ "closed_form_3_cv_r2": 0.8996029570119412,
+ "lasso_subset_cv_r2": 0.967669489297645,
  "lasso_subset": [
+  "frequency_p50",
   "frequency_p90",
   "frequency_p99",
   "angle_strain_mean",
@@ -18,6 +20,7 @@
   "rotation_p99",
   "hit_distance_mean",
   "hit_distance_p99",
+  "stress_p99",
   "swing_diff_mean",
   "swing_diff_p90",
   "swing_diff_p99",
@@ -28,6 +31,7 @@
   "swing_speed_peak128",
   "swing_tech_peak8",
   "swing_tech_peak32",
+  "frac_parity",
   "frac_dot",
   "frac_chain",
   "frac_multi",
@@ -57,13 +61,13 @@
   "reaction_time",
   "arcs_per_note",
   "wall_cover",
-  "walls_per_s",
   "repetition_2",
   "repetition_4",
-  "repetition_8"
+  "repetition_8",
+  "one_saber"
  ],
- "a_ref": 4.17439937163158,
- "a_ref_mean_error": 3.9874088466840054,
- "top1000_pp": 16105.332249560966,
+ "a_ref": 4.174029338921855,
+ "a_ref_mean_error": 3.9786850833859244,
+ "top1000_pp": 16116.723829349217,
  "alpha": 1.0
 }

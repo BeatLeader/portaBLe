@@ -153,6 +153,8 @@
 		const totalNotes = W.n.reduce((a, b) => a + b, 0);
 		const predictedAcc = parseFloat(root.dataset.predictedAcc);
 		const anchored = predictedAcc > 0 && predictedAcc < 1 && M.reference_skill != null;
+		// skill sensitivity of the map's characteristic (One Saber < 1: error rates fall more slowly with skill)
+		const beta = (M.mode_skill_scale || {})[root.dataset.mode || ''] || 1;
 		const modelLost = s => {
 			const m = mult(s);
 			let lost = 0;
@@ -160,7 +162,7 @@
 			return lost / totalNotes;
 		};
 		const expectedAcc = s => anchored
-			? 1 - Math.min(1, Math.exp(Math.log(1 - predictedAcc) + M.reference_skill - s))
+			? 1 - Math.min(1, Math.exp(Math.log(1 - predictedAcc) + beta * (M.reference_skill - s)))
 			: 1 - modelLost(s);
 		const scaleAt = s => (anchored ? (1 - expectedAcc(s)) / modelLost(s) : 1);
 		const pctLabel = p => `Top ${+(100 - 100 * p).toFixed(1)}%`;

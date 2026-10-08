@@ -311,43 +311,52 @@ namespace portaBLe.Refresh
                     AccRating = s.AccRating,
                     PassRating = s.PassRating,
                     TechRating = s.TechRating,
-                    PredictedAcc = s.PredictedAcc
+                    PredictedAcc = s.PredictedAcc,
+                    ModeName = s.ModeName
                 })
                 .ToList();
             foreach (var lb in lbs)
             {
-                lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.PredictedAcc);
+                lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.PredictedAcc, lb.ModeName);
             }
 
             await dbContext.BulkUpdateAsync(lbs, options => options.ColumnInputExpression = c => new { c.Stars });
 
-            var mods = dbContext
-                .ModifiersRating
+            // through the leaderboards, for the mode (the curve exponent can differ per characteristic)
+            var modRows = dbContext
+                .Leaderboards
                 .AsNoTracking()
-                .Select(s => new ModifiersRating
+                .Where(l => l.ModifiersRating != null)
+                .Select(l => new
                 {
-                    Id = s.Id,
-                    SSAccRating = s.SSAccRating,
-                    SSPassRating = s.SSPassRating,
-                    SSTechRating = s.SSTechRating,
-                    SFAccRating = s.SFAccRating,
-                    SFPassRating = s.SFPassRating,
-                    SFTechRating = s.SFTechRating,
-                    FSAccRating = s.FSAccRating,
-                    FSPassRating = s.FSPassRating,
-                    FSTechRating = s.FSTechRating,
-                    SSPredictedAcc = s.SSPredictedAcc,
-                    SFPredictedAcc = s.SFPredictedAcc,
-                    FSPredictedAcc = s.FSPredictedAcc
+                    l.ModeName,
+                    Mod = new ModifiersRating
+                    {
+                        Id = l.ModifiersRating!.Id,
+                        SSAccRating = l.ModifiersRating.SSAccRating,
+                        SSPassRating = l.ModifiersRating.SSPassRating,
+                        SSTechRating = l.ModifiersRating.SSTechRating,
+                        SFAccRating = l.ModifiersRating.SFAccRating,
+                        SFPassRating = l.ModifiersRating.SFPassRating,
+                        SFTechRating = l.ModifiersRating.SFTechRating,
+                        FSAccRating = l.ModifiersRating.FSAccRating,
+                        FSPassRating = l.ModifiersRating.FSPassRating,
+                        FSTechRating = l.ModifiersRating.FSTechRating,
+                        SSPredictedAcc = l.ModifiersRating.SSPredictedAcc,
+                        SFPredictedAcc = l.ModifiersRating.SFPredictedAcc,
+                        FSPredictedAcc = l.ModifiersRating.FSPredictedAcc
+                    }
                 })
                 .ToList();
 
-            foreach (var mod in mods)
+            foreach (var row in modRows)
             {
-                mod.SSStars = ReplayUtils.ToStars(mod.SSAccRating, mod.SSPassRating, mod.SSTechRating, mod.SSPredictedAcc);
-                mod.SFStars = ReplayUtils.ToStars(mod.SFAccRating, mod.SFPassRating, mod.SFTechRating, mod.SFPredictedAcc);
-                mod.FSStars = ReplayUtils.ToStars(mod.FSAccRating, mod.FSPassRating, mod.FSTechRating, mod.FSPredictedAcc);
+                var mod = row.Mod;
+                mod.SSStars = ReplayUtils.ToStars(mod.SSAccRating, mod.SSPassRating, mod.SSTechRating, mod.SSPredictedAcc, row.ModeName);
+                mod.SFStars = ReplayUtils.ToStars(mod.SFAccRating, mod.SFPassRating, mod.SFTechRating, mod.SFPredictedAcc, row.ModeName);
+                mod.FSStars = ReplayUtils.ToStars(mod.FSAccRating, mod.FSPassRating, mod.FSTechRating, mod.FSPredictedAcc, row.ModeName);
             }
+            var mods = modRows.Select(r => r.Mod).ToList();
 
             await dbContext.BulkUpdateAsync(mods, options => options.ColumnInputExpression = c => new { c.SSStars, c.SFStars, c.FSStars });
             Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");

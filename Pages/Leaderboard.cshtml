@@ -33,13 +33,14 @@
             ["fsPredictedAcc"] = mr.FSPredictedAcc, ["ssPredictedAcc"] = mr.SSPredictedAcc, ["sfPredictedAcc"] = mr.SFPredictedAcc,
         });
 
-    // The PP formula this instance runs with (start-up options --curve/--gamma/--epsilon/--relative-epsilon/--pass-fade/--pass-blend/--acc-cap), so the curve matches the DB.
+    // The PP formula this instance runs with (start-up options --curve/--gamma/--epsilon/--relative-epsilon/--mode-gamma/--pass-fade/--pass-blend/--acc-cap), so the curve matches the DB.
     var ppCurveConfig = new
     {
         mode = portaBLe.Refresh.PpCurve.Mode == portaBLe.Refresh.CurveMode.PowerLaw ? "power" : "classic",
         gamma = portaBLe.Refresh.PpCurve.Gamma,
         epsilon = portaBLe.Refresh.PpCurve.Epsilon,
         relativeEpsilon = portaBLe.Refresh.PpCurve.RelativeEpsilon,
+        modeGamma = portaBLe.Refresh.PpCurve.ModeGammaScale.ToDictionary(kv => kv.Key.ToLowerInvariant(), kv => kv.Value),
         passFade = portaBLe.Refresh.PassFade.Enabled
             ? (object)new { strength = portaBLe.Refresh.PassFade.Strength, floor = portaBLe.Refresh.PassFade.Floor, center = portaBLe.Refresh.PassFade.Center }
             : null,
@@ -297,7 +298,7 @@
 
 @if (Model.AccLossJson != null)
 {
-    <div class="acc-loss-component" data-predicted-acc="@inv(Model.Leaderboard.PredictedAcc)"></div>
+    <div class="acc-loss-component" data-predicted-acc="@inv(Model.Leaderboard.PredictedAcc)" data-mode="@Model.Leaderboard.ModeName"></div>
 }
 
 <div class="chart-container">

@@ -74,16 +74,16 @@ namespace portaBLe.Refresh
             {
                 if (!mapIndex.TryGetValue(lb.Id, out var j) || c[j] == 0) continue;
                 changes.Add((lb, c[j], nm[j]));
-                (lb.PredictedAcc, lb.AccRating) = Corrected(lb.PredictedAcc, lb.AccRating, lb.PassRating, lb.TechRating, c[j]);
-                lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.PredictedAcc);
+                (lb.PredictedAcc, lb.AccRating) = Corrected(lb.PredictedAcc, lb.AccRating, lb.PassRating, lb.TechRating, c[j], lb.ModeName);
+                lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.PredictedAcc, lb.ModeName);
                 var m = lb.ModifiersRating;
                 if (m == null) continue;
-                (m.SSPredictedAcc, m.SSAccRating) = Corrected(m.SSPredictedAcc, m.SSAccRating, m.SSPassRating, m.SSTechRating, c[j]);
-                (m.FSPredictedAcc, m.FSAccRating) = Corrected(m.FSPredictedAcc, m.FSAccRating, m.FSPassRating, m.FSTechRating, c[j]);
-                (m.SFPredictedAcc, m.SFAccRating) = Corrected(m.SFPredictedAcc, m.SFAccRating, m.SFPassRating, m.SFTechRating, c[j]);
-                m.SSStars = ReplayUtils.ToStars(m.SSAccRating, m.SSPassRating, m.SSTechRating, m.SSPredictedAcc);
-                m.FSStars = ReplayUtils.ToStars(m.FSAccRating, m.FSPassRating, m.FSTechRating, m.FSPredictedAcc);
-                m.SFStars = ReplayUtils.ToStars(m.SFAccRating, m.SFPassRating, m.SFTechRating, m.SFPredictedAcc);
+                (m.SSPredictedAcc, m.SSAccRating) = Corrected(m.SSPredictedAcc, m.SSAccRating, m.SSPassRating, m.SSTechRating, c[j], lb.ModeName);
+                (m.FSPredictedAcc, m.FSAccRating) = Corrected(m.FSPredictedAcc, m.FSAccRating, m.FSPassRating, m.FSTechRating, c[j], lb.ModeName);
+                (m.SFPredictedAcc, m.SFAccRating) = Corrected(m.SFPredictedAcc, m.SFAccRating, m.SFPassRating, m.SFTechRating, c[j], lb.ModeName);
+                m.SSStars = ReplayUtils.ToStars(m.SSAccRating, m.SSPassRating, m.SSTechRating, m.SSPredictedAcc, lb.ModeName);
+                m.FSStars = ReplayUtils.ToStars(m.FSAccRating, m.FSPassRating, m.FSTechRating, m.FSPredictedAcc, lb.ModeName);
+                m.SFStars = ReplayUtils.ToStars(m.SFAccRating, m.SFPassRating, m.SFTechRating, m.SFPredictedAcc, lb.ModeName);
             }
             var sorted = changes.Select(x => x.c).OrderBy(x => x).ToList();
             double Q(double q) => sorted.Count == 0 ? 0 : sorted[(int)Math.Round(q * (sorted.Count - 1))];
@@ -97,12 +97,12 @@ namespace portaBLe.Refresh
             Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
         }
 
-        static (float, float) Corrected(float predictedAcc, float accRating, float passRating, float techRating, double c)
+        static (float, float) Corrected(float predictedAcc, float accRating, float passRating, float techRating, double c, string mode)
         {
             if (predictedAcc <= 0 || predictedAcc >= 1) return (predictedAcc, accRating);
             float corrected = (float)Math.Clamp(1 - Math.Exp(Math.Log(1 - predictedAcc) + c), 0.5, 0.9995);
-            float before = ReplayUtils.AccRating(predictedAcc, passRating, techRating);
-            float after = ReplayUtils.AccRating(corrected, passRating, techRating);
+            float before = ReplayUtils.AccRating(predictedAcc, passRating, techRating, mode);
+            float after = ReplayUtils.AccRating(corrected, passRating, techRating, mode);
             return (corrected, before > 0 ? accRating * after / before : accRating);
         }
     }

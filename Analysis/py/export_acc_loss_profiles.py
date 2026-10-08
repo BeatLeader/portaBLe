@@ -119,11 +119,13 @@ for lb, idx in S.groupby("lb_id", sort=False).indices.items():
     rows.append((lb, json.dumps({"v": 1, "windows": W, "factors": fac, "base": base, "observed": obs}, separators=(",", ":"))))
 
 pcts = spec["percentiles"]
+acc_model = json.load(open(args.acc_model))
 meta = {"v": 1, "components": COMP, "labels": {"precision": "Precision (centre cut)", "swing": "Swing angles (pre/post)", "misses": "Misses / bad cuts"},
         "base_skill": round(s0, 4), "base_pct": args.base_pct, "skill_mid": spec["skill_mid"], "skill_coef": spec["skill_coef"],
         "calibration": spec["calibration"], "percentiles": pcts, "validation": spec.get("validation"),
-        # total loss per skill follows the map's acc rating: log(1 - acc(s)) = log(1 - predictedAcc) + reference_skill - s
-        "reference_skill": json.load(open(args.acc_model))["reference_skill"]}
+        # total loss per skill follows the map's acc rating: log(1 - acc(s)) = log(1 - predictedAcc) + beta * (reference_skill - s),
+        # beta = mode_skill_scale[characteristic] (One Saber error rates fall more slowly with skill), 1 otherwise
+        "reference_skill": acc_model["reference_skill"], "mode_skill_scale": acc_model.get("mode_skill_scale") or {}}
 con = sqlite3.connect(args.db)
 con.execute("DROP TABLE IF EXISTS AccLossProfiles")
 con.execute("CREATE TABLE AccLossProfiles (LeaderboardId TEXT PRIMARY KEY, Json TEXT NOT NULL)")

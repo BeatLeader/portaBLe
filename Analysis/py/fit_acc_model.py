@@ -26,6 +26,7 @@ ap.add_argument("--ratings", default=None, help="ML ratings csv (default <data>/
 ap.add_argument("--out", default=os.path.join(os.path.dirname(__file__), "..", "..", "RatingAPI", "acc_model.json"))
 ap.add_argument("--report", default=os.path.join(os.path.dirname(__file__), "..", "out", "fit_acc_model.json"))
 ap.add_argument("--min-scores", type=int, default=40)
+ap.add_argument("--one-saber", action="store_true", help="also train on One Saber maps, with their own skill sensitivity (mode_skill_scale)")
 args = ap.parse_args()
 os.environ["ANALYSIS_DATA"] = args.data
 data.DATA = args.data
@@ -38,8 +39,21 @@ scores = scores.merge(maps[["lb_id", "mode", "hash"]], on="lb_id")
 d, players, map_ids = latent.prepare(scores, min_player_scores=15, min_map_scores=args.min_scores)
 z = latent.err_transform(d.acc.values)
 a, dj = latent.fit_additive(d.pi.values, d.mi.values, z, len(players), len(map_ids))
-target = pd.DataFrame({"lb_id": map_ids, "d": dj, "n": np.bincount(d.mi.values)})
+target = pd.DataFrame({"lb_id": map_ids, "d": dj, "n": np.bincount(d.mi.values), "mode": "Standard"})
 print(f"target: {len(d)} clean scores, {len(players)} players, {len(map_ids)} maps (Standard)")
+mode_scale = {}
+if args.one_saber:
+    # One Saber: log(1 - acc) = d_j - beta * skill_i, skill from the Standard fit; beta pooled within maps
+    sk = pd.Series(a, index=pd.Index(players).astype(str))
+    o = scores[(scores["mode"] == "OneSaber")].copy(); o["skill"] = o.player.astype(str).map(sk); o = o.dropna(subset=["skill"])
+    o = o[o.lb_id.map(o.lb_id.value_counts()) >= args.min_scores]
+    o["z"] = latent.err_transform(o.acc.values)
+    zc = o.z - o.groupby("lb_id").z.transform("mean"); sc = o.skill - o.groupby("lb_id").skill.transform("mean")
+    beta = float(-np.sum(zc * sc) / np.sum(sc * sc))
+    mode_scale["OneSaber"] = beta
+    od = (o.z + beta * o.skill).groupby(o.lb_id).agg(["mean", "size"])
+    target = pd.concat([target, pd.DataFrame({"lb_id": od.index, "d": od["mean"].values, "n": od["size"].values, "mode": "OneSaber"})], ignore_index=True)
+    print(f"One Saber: {len(od)} maps, {len(o)} clean scores; skill sensitivity beta {beta:.3f}")
 
 # ---------------- features (C#) + ML ratings
 F = pd.read_csv(args.features, dtype={"lb_id": str})
@@ -51,6 +65,7 @@ M = target.merge(Fn, on="lb_id").merge(Rn[["lb_id", "predicted_acc", "acc_rating
     columns={"pass": "pass_r", "tech": "tech_r", "low_note_nerf": "nerf_r"}), on="lb_id").merge(maps[["lb_id", "hash"]], on="lb_id")
 M = M.replace([np.inf, -np.inf], np.nan).dropna(subset=feat_names + ["predicted_acc"]).reset_index(drop=True)
 M["ml_err"] = latent.err_transform(M.predicted_acc)
+M["beta"] = M["mode"].map(lambda m: mode_scale.get(m, 1.0)).astype(float)
 groups = M["hash"].str.upper().values
 print(f"training maps: {len(M)}; features: {len(feat_names)}")
 
@@ -69,6 +84,13 @@ print(f"ML predicted acc, linear fit: R2 {r2_ml:.4f}")
 r2_all, pred_all = gcv(ridge, feat_names)
 res["ridge_all_cv_r2"] = r2_all
 print(f"ridge, all {len(feat_names)} features, song-grouped CV: R2 {r2_all:.4f}  resid SD {np.std(M.d - pred_all):.4f}")
+if args.one_saber:
+    os_ = (M["mode"] == "OneSaber").values
+    res["one_saber_cv_resid_sd"] = float(np.std((M.d - pred_all)[os_]))
+    # the same maps predicted by a model that never saw One Saber (the previous setup: extrapolation)
+    std_only = ridge().fit(M.loc[~os_, feat_names].values, M.loc[~os_, "d"].values)
+    ext = M.d[os_] - std_only.predict(M.loc[os_, feat_names].values)
+    print(f"One Saber maps: CV resid SD {res['one_saber_cv_resid_sd']:.4f} trained with them vs {ext.std():.4f} extrapolated from Standard (mean {ext.mean():+.3f})")
 small = ["pass", "tech", "log_swings"]
 r2_small, _ = gcv(ridge, small); res["closed_form_3_cv_r2"] = r2_small
 print(f"3-term closed form (pass, tech, ln swings): R2 {r2_small:.4f}")
@@ -99,8 +121,9 @@ def top_pp(acc_rating):
 
 target_pp = top_pp(Mi.loc[s.lb_id, "acc_rating"].values)
 dhat_s = Mi.loc[s.lb_id, "d_hat"].values
+beta_s = Mi.loc[s.lb_id, "beta"].values
 def algo_rating(a_ref):
-    pred = np.clip(1 - np.exp(dhat_s - a_ref), 0.5, 0.9995)
+    pred = np.clip(1 - np.exp(dhat_s - beta_s * a_ref), 0.5, 0.9995)
     return pm.acc_rating_from_predicted(pred) * nerf
 lo, hi = 2.5, 6.0
 for _ in range(40):
@@ -128,6 +151,7 @@ spec = {
     "min_predicted_acc": 0.5,
     "max_predicted_acc": 0.9995,
 }
+if mode_scale: spec["mode_skill_scale"] = mode_scale
 os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
 json.dump(spec, open(args.out, "w"), indent=1)
 print("wrote", os.path.abspath(args.out))

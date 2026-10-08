@@ -156,7 +156,7 @@ Parallel.ForEach(byHash, new ParallelOptions { MaxDegreeOfParallelism = threads 
                 var feats = AccDifficultyFeatures.Compute(ratings, mapdata, bpm, timescale, njsMult, infoNjs, jumpOffset);
                 var baseRatings = accModel != null && (timescale != 1 || njsMult != 1) ? H.Rate(mapdata, lb.mode, lb.diff, (float)bpm, 1, 1) : null;
                 double? algoDifficulty = accModel?.Difficulty(ratings, mapdata, bpm, timescale, njsMult, baseRatings, infoNjs, jumpOffset);
-                double? algoAcc = algoDifficulty == null ? null : accModel.PredictedAccFromDifficulty(algoDifficulty.Value);
+                double? algoAcc = algoDifficulty == null ? null : accModel.PredictedAccFromDifficulty(algoDifficulty.Value, ratings.Characteristic);
 
                 double rawAcc = 0, predicted = 0, freePoints = 0, accRating = 0, stars = 0;
                 int aiNotes = 0; long aiMs = 0;
