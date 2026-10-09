@@ -137,7 +137,19 @@ How far the hand travels to the note matters for passing on top of how often it 
 
 ## Remaining v2 outliers
 
-*Extraterrestrial* E+ (still too low), *Merry-Go-Round* Normal, *Toymatic Parade* Hard, *PISSCORD* Hard, *iLLness LiLin* Expert,
+At the top of the list:
+- *Calamitous Demise* E+ (v2 #1, attempts #31, 2.1 logits too high) and *Godspeed* Expert (v2 #2, attempts #46, 1.9 too high;
+  rated above its own E+, which attempts put level with it) are over-rated. They are not a diagonal-term bias: the diagonal share
+  does not predict v2's error at any speed.
+- *Superluminal* E+ is under-rated: v2 #9, hardest of all by attempts.
+- *Feral* E+ (v2 #3) is right. It is #3 by attempts too: 8 301 clean attempts, 95 % failed, and clear rates match the model at
+  every skill level. It has only 8.2 notes per second, but its swings are fast (median swing speed 9.5, twice the pool median),
+  12 % of them are crossovers (98th percentile), and many cuts are horizontal. Crossovers, tech and horizontal/diagonal cuts are
+  the terms the classic rating missed (#43). The best players clear it first try (44 of the 200 strongest attempters who tried),
+  as they do every map on the list. Players fail it late: the median fail is at 1:34 of 4:00, where the other top maps' are at
+  0:25–0:56.
+
+Elsewhere: *Extraterrestrial* E+ (still too low), *Merry-Go-Round* Normal, *Toymatic Parade* Hard, *PISSCORD* Hard, *iLLness LiLin* Expert,
 *een vliegtuig* E+ (now too low), *Romantic Homicide* E+ (rated 0.03: the analyzer finds almost no swings), and
 *Ascension to Heaven* Expert (too high). Per map: `b`, classic, v2 and both residuals are in `out/pass_v2_maps.csv`; the fitted
 variant constants are in `out/a21_pass_variants.json`.
