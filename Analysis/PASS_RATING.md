@@ -203,6 +203,47 @@ Tested fixes (`a28_fast_diagonals.py`), none adopted:
 At speed and in flow, diagonal and horizontal cuts are harder to pass on average. These maps are exceptions to that, and a
 fix will need something more specific than the cut direction.
 
+### Why they fail there: attempt replays (`a29_attempt_replays.py`)
+
+The source is the attempt replays of the 12 maps above. They sit in R2 (`otherreplays`), read with the server's keys, since the
+public API only serves them for players with public attempts. The sample is 3 843 fail and 773 clear replays, clean attempts only
+(clears are rarer because personal-best clears move to the scores bucket). ReplayStudy's `--attempts` mode matched every note event
+to the analyzer's swings, with bad-cut flags and bombs.
+
+- **Fails are energy fails from note mistakes.** Replaying the game's energy rules on the note events (start 50 %, +1 % per hit,
+  −10 % per bad cut, −15 % per miss or bomb) reaches 0 in 99 % of fail replays; walls matter only on *Dual Doom* (5 %). The final
+  drain (the mistakes after the bar last stood at 50 %) is 69–81 % misses, 13–25 % wrong-direction cuts and 3–13 % wrong-saber cuts.
+  "Too slow" never happens.
+- **Where.** On the speed maps, swings at 350 eBPM or more take 55–92 % of the fatal mistakes but are only 9–40 % of the swings
+  played. *Extratongue* dies at 0:23: its early 500-eBPM burst hits while the bar is still at 50 %, where 4 misses end the run.
+  *Godspeed* Expert and E+ both die at 0:48, in the same section:
+  - Expert: 80 % of fatal mistakes are diagonals, which are 34 % of its swings.
+  - E+: 66 % diagonals (38 % of swings), plus crossovers (14 % vs 7 %) and long reaches (22 % vs 14 %).
+
+  *Kannabis* has no fast section; its fatal mistakes are diagonals (51 % vs 27 %), horizontals and crossovers, spread from 1:30 to
+  5:48 (median 3:19).
+- **Which swings get missed** (mistakes on a swing type ÷ the same run's average, so skill and survivor selection cancel; clears
+  only, because fail runs collapse in their fatal section):
+
+  | swing type | ×, clears only | v2's term as miss odds |
+  |---|---|---|
+  | crossover | 3.05 | ≈ 3.2 (×1.59 difficulty) |
+  | long reach (distanceDiff ≥ 1.35) | 2.2 | partly in the swing speed |
+  | v2 tech factor ≥ 2 | 1.93 | |
+  | horizontal | 1.49 | ≈ 2.2 (×1.37) |
+  | diagonal | 1.18 | ≈ 1.9 (×1.29) |
+  | ≥ 450 eBPM vs < 150 | 1.33 vs 0.73 | |
+  | v2's per-swing difficulty, top vs bottom fifth within the map | 1.43 vs 0.62 | many times more |
+
+What this means for v2:
+- **The per-swing allocation is roughly right.** v2 ranks the swings where mistakes happen correctly, crossovers and the most
+  technical swings are as costly as it says, and diagonals cost less than its ×1.29.
+- **The per-swing contrast is too steep.** The slope 2.5 was fitted to map pass rates. Within a run, hard and easy swings differ
+  far less than it implies, so the energy simulation puts too much fail risk on a map's hardest section. That fits *Kannabis*,
+  whose modelled 5:47 spike is absent in real fails, and *Godspeed* Expert, whose diagonal stream gets every multiplier.
+- **Next step:** fit the per-note model (slope, swing terms, maybe a run-level skill spread) directly on attempt replays of all
+  maps, instead of on map pass rates.
+
 Elsewhere: *Extraterrestrial* E+ (still too low), *Merry-Go-Round* Normal, *Toymatic Parade* Hard, *PISSCORD* Hard, *iLLness LiLin* Expert,
 *een vliegtuig* E+ (now too low), *Romantic Homicide* E+ (rated 0.03: the analyzer finds almost no swings), and
 *Ascension to Heaven* Expert (too high). Per map: `b`, classic, v2 and both residuals are in `out/pass_v2_maps.csv`; the fitted

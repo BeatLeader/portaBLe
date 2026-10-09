@@ -36,6 +36,18 @@ var lbs = File.ReadLines(options.LbsFile).Skip(1).Select(l => l.Split(',')).Wher
     .Select(c => (id: c[0], hash: c[1], mode: c[2], diff: c[3])).ToList();
 var rng = new Random(options.Seed);
 lbs = lbs.OrderBy(_ => rng.Next()).ToList(); // seeded shuffle: any prefix is a random sample
+
+// attempts mode: the replays to study come from a CSV (lb_id,attempt_id,player_id,type,time,url), stratum = attempt type
+Dictionary<string, List<ScoreInfo>>? attemptsByLb = null;
+if (options.AttemptsFile != "")
+{
+    attemptsByLb = File.ReadLines(options.AttemptsFile).Skip(1).Select(l => l.Split(',', 6)).Where(c => c.Length == 6)
+        .Select(c => (lb: c[0], s: new ScoreInfo { Id = int.Parse(c[1]), PlayerId = c[2], Stratum = c[3], Replay = c[5].Trim('"'),
+            Timepost = (int)Math.Round(double.Parse(c[4], CultureInfo.InvariantCulture)) }))
+        .GroupBy(x => x.lb).ToDictionary(g => g.Key, g => g.Select(x => x.s).ToList());
+    lbs = lbs.Where(l => attemptsByLb.ContainsKey(l.id)).ToList();
+    Console.WriteLine($"attempts mode: {attemptsByLb.Values.Sum(v => v.Count)} replays on {lbs.Count} leaderboards");
+}
 Console.WriteLine($"{lbs.Count} leaderboards listed, {doneSet.Count} already done, top={options.TopReplays} mid={options.MidReplays}, api={options.ApiUrl}");
 
 var swingsCsv = new CsvWriter(Path.Combine(options.OutputDir, "swings.csv"), Columns.Swings);
@@ -97,7 +109,7 @@ async Task<string> ProcessLeaderboard((string id, string hash, string mode, stri
     var swings = ratings.SwingData;
 
     // 2. Pick replays: top of the leaderboard + spread over the rest (skill strata)
-    var (selected, totalScores) = await SelectScores(lb.id);
+    var (selected, totalScores) = attemptsByLb != null ? (attemptsByLb[lb.id], attemptsByLb[lb.id].Count) : await SelectScores(lb.id);
     if (selected.Count == 0) { LogError(lb.id, "no scores / no clean replays"); return "no_scores"; }
 
     // 3. Download + decode (bounded concurrency), match to swings
@@ -245,7 +257,7 @@ static void AppendNoteRow(StringBuilder sb, string lbId, int scoreId, NoteObsRow
           .Append(r.TipTurn < 0 ? "" : r.TipTurn.ToString()).Append(',').Append(F(r.Gap, "0.###"));
     }
     else sb.Append(",,,,,,,,,,,,,,");
-    sb.Append('\n');
+    sb.Append(',').Append(r.Bad).Append('\n');
 }
 
 // Each leaderboard is appended as its own gzip member (concatenated members form a valid .gz stream),

@@ -1,0 +1,55 @@
+sample,feature,level,mistakes / run average
+fails + clears,ebpm,<150,0.5
+fails + clears,ebpm,150-250,0.77
+fails + clears,ebpm,250-350,1.21
+fails + clears,ebpm,350-450,1.73
+fails + clears,ebpm,>=450,2.42
+fails + clears,tech,<1.2,1.1
+fails + clears,tech,1.2-1.5,0.82
+fails + clears,tech,1.5-2,1.03
+fails + clears,tech,>=2,1.75
+fails + clears,dist_diff,<1.15,0.83
+fails + clears,dist_diff,1.15-1.25,0.91
+fails + clears,dist_diff,1.25-1.35,1.55
+fails + clears,dist_diff,>=1.35,2.17
+fails + clears,v2q,q1,0.39
+fails + clears,v2q,q2,0.52
+fails + clears,v2q,q3,0.87
+fails + clears,v2q,q4,1.35
+fails + clears,v2q,q5,2.22
+fails + clears,cut,diagonal,1.36
+fails + clears,cut,dot,0.36
+fails + clears,cut,horizontal,1.62
+fails + clears,cut,vertical,0.93
+fails + clears,cross,False,0.95
+fails + clears,cross,True,3.1
+fails + clears,flow,angle change,0.87
+fails + clears,flow,same direction,0.73
+fails + clears,flow,straight back,1.06
+clears only,ebpm,<150,0.73
+clears only,ebpm,150-250,0.86
+clears only,ebpm,250-350,1.06
+clears only,ebpm,350-450,1.16
+clears only,ebpm,>=450,1.33
+clears only,tech,<1.2,1.0
+clears only,tech,1.2-1.5,0.91
+clears only,tech,1.5-2,1.13
+clears only,tech,>=2,1.93
+clears only,dist_diff,<1.15,0.86
+clears only,dist_diff,1.15-1.25,0.94
+clears only,dist_diff,1.25-1.35,1.37
+clears only,dist_diff,>=1.35,2.2
+clears only,v2q,q1,0.62
+clears only,v2q,q2,0.74
+clears only,v2q,q3,0.92
+clears only,v2q,q4,1.01
+clears only,v2q,q5,1.43
+clears only,cut,diagonal,1.18
+clears only,cut,dot,0.49
+clears only,cut,horizontal,1.49
+clears only,cut,vertical,0.98
+clears only,cross,False,0.96
+clears only,cross,True,3.05
+clears only,flow,angle change,0.97
+clears only,flow,same direction,0.81
+clears only,flow,straight back,1.01

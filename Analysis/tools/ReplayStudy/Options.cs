@@ -16,6 +16,9 @@ namespace ReplayStudy
         public int Concurrency = 3;
         public int Seed = 42;
         public int RequestDelayMs = 0;
+        // attempts mode: replays listed in a CSV (lb_id,attempt_id,player_id,type,time,url) instead of a leaderboard sample;
+        // url can be any GET link, e.g. a signed R2 link to an attempt replay (otherreplays bucket)
+        public string AttemptsFile = "";
 
         private static readonly string[] ExcludedModifiers =
             { "SS", "FS", "SF", "NF", "NA", "NB", "NO", "GN", "SC", "PM", "SA", "OD" };
@@ -47,6 +50,7 @@ namespace ReplayStudy
                         case "--concurrency": o.Concurrency = int.Parse(Next()); break;
                         case "--seed": o.Seed = int.Parse(Next()); break;
                         case "--delay-ms": o.RequestDelayMs = int.Parse(Next()); break;
+                        case "--attempts": o.AttemptsFile = Next(); break;
                         default: Console.WriteLine($"Unknown argument: {args[i]}"); return null;
                     }
                 }
@@ -94,7 +98,7 @@ namespace ReplayStudy
 
         public static readonly string NoteObs =
             "lb_id,score_id,spawn,color,x,y,cut_dir,scoring_type,event_type,event_time,swing_i," +
-            "pre,post,acc,before_r,after_r,dist,saber_speed,time_dev,cutdir_dev,angle,angle_z,tip_len,tip_peak,tip_turn,gap";
+            "pre,post,acc,before_r,after_r,dist,saber_speed,time_dev,cutdir_dev,angle,angle_z,tip_len,tip_peak,tip_turn,gap,bad";
     }
 
     /// <summary>Append-mode CSV writer; writes the header only when creating the file.</summary>

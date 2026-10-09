@@ -51,6 +51,7 @@ namespace ReplayStudy
         public float BeforeR, AfterR, Dist, SaberSpeed, TimeDev, CutDirDev, Angle, AngleZ;
         public float TipLen = float.NaN, TipPeak = float.NaN, Gap = float.NaN;
         public int TipTurn = -1;
+        public int Bad;   // bad cuts: 1 wrong direction, 2 wrong saber, 4 too slow, 8 cut too soon (bit mask)
     }
 
     public class ReplayMatchResult
@@ -121,7 +122,12 @@ namespace ReplayStudy
 
             foreach (var e in replay.notes)
             {
-                if (e.eventType == NoteEventType.bomb) continue;
+                if (e.eventType == NoteEventType.bomb)
+                {
+                    // kept for energy reconstruction (no swing, no colour)
+                    result.Rows.Add(new NoteObsRow { Spawn = e.spawnTime, EventTime = e.eventTime, Color = -1, EventType = (int)e.eventType });
+                    continue;
+                }
 
                 var p = new NoteParams(e.noteID, e.eventType);
                 if (p.colorType != 0 && p.colorType != 1) continue;
@@ -133,6 +139,11 @@ namespace ReplayStudy
                     Spawn = e.spawnTime, EventTime = e.eventTime, Color = p.colorType, X = p.lineIndex, Y = p.noteLineLayer,
                     CutDir = p.cutDirection, ScoringType = (int)p.scoringType, EventType = (int)e.eventType, SwingIndex = swingIndex,
                 };
+                if (e.eventType == NoteEventType.bad && e.noteCutInfo != null)
+                {
+                    var bi = e.noteCutInfo;
+                    row.Bad = (bi.directionOK ? 0 : 1) | (bi.saberTypeOK ? 0 : 2) | (bi.speedOK ? 0 : 4) | (bi.wasCutTooSoon ? 8 : 0);
+                }
                 if (e.eventType == NoteEventType.good && e.noteCutInfo != null)
                 {
                     var ci = e.noteCutInfo;
