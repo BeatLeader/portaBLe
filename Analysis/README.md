@@ -37,6 +37,7 @@ py/a24_fatigue.py         stamina-dev fatigue inside the energy model (tested, n
 py/export_pass_profiles.py  adds "where players fail" data (pass v2 swings, causes, observed fail hazard) to the AccLossProfiles rows
 py/a25_attempt_mix.py     skill spread of real attempts (typical-attempt comparison of the pass tab)
 py/a26_ebpm.py            eBPM vs swing speed as the speed parameter (acc model, "where accuracy is lost", pass v2)
+py/a27_fake_fails.py      deliberate fails (fail button / wall bail) in the attempts data and their effect on pass difficulty
 tools/RatingsDump      recompute ratings + per-swing table + per-note ML predictions for a list of maps (prod or corpus analyzer)
 tools/ReplayStudy      SwingCorpus + stratified replay sampling + per-note observation table + tip-motion metrics
 ```

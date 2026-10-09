@@ -8,7 +8,23 @@ Analyzer branch **`pass-energy`** (beatleader-analyzer 7b232d3). It is opt-in: `
 
 `Analysis/py/a19_pass_attempts.py`. A Rasch model on 24 M clean attempts (no modifiers, fails vs clears; 4.7 M player–map
 pairs, 51.6 k players): `logit P(fail) = b_map − skill_player`. `b` is how hard a map is to pass with player skill removed; its
-reliability is 0.999 on 3 732 maps. Every variant is scored the same way:
+reliability is 0.999 on 3 732 maps.
+
+**Deliberate fails do not distort it** (`a27_fake_fails.py`). A "fail button" mod, or walking into a wall to bail on a bad-acc
+run, would show up as fails the energy bar cannot produce.
+- **Impossible fails are rare.** A real fail needs at least 4 misses, bad cuts or bombs (the bar starts at 50 %; each costs at most
+  15 %) or a wall hit. Of the 5.37 M fails that have counters, 0.08 % have 3 or fewer without a wall, and 0.23 % were failed by walls
+  alone. They are spread over 7 k players (the top 20 make 14 %) and cluster on wall-gimmick maps.
+- **The old records without counters behave like real fails.** These are the 2022-03 … 2023-08 uploads without client data
+  (13.5 % of clean clears and fails, 8.1 % of fails), where every counter reads 0. Their accuracy at the fail is the same distance below the player's own clears
+  on that map as for checked fails (0.756 vs 0.850, against 0.729 vs 0.819).
+- **Refitting b without them changes almost nothing.** Without the suspect fails: correlation with today's b 0.9999, 3 maps move
+  by more than 0.5 logits. Without the counterless records as well: correlation 0.9992. Pass v2's R² goes 0.9166 → 0.9183, and
+  *Feral* E+ stays #3.
+- **What it cannot see:** a run failed on purpose by missing four or more notes looks like a real fail. A run abandoned through the
+  pause menu is a quit or restart, which b does not count.
+
+Every variant is scored the same way:
 - R² of a cubic fit of the rating to `b`;
 - the number of maps off by more than 1 or 2 logits.
 
