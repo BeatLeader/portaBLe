@@ -2,21 +2,32 @@
 @model LeaderboardModel
 @using System.Text.Json
 @using portaBLe.DB
+@functions {
+    public record RatingVariant(string Key, string Label, float Acc, float Pass, float Tech, float Stars, float Pred);
+}
 
 @{
     ViewData["Title"] = "Leaderboard Details";
     var gypL = 57.74;
     var defaultMaxRating = 15;
-    double maxRatingValue = Math.Max(
-        Model.Leaderboard.TechRating,
-        Math.Max(Model.Leaderboard.PassRating, Model.Leaderboard.AccRating)
-    );
-    if (Model.CompareLeaderboard != null) {
-        maxRatingValue = Math.Max(maxRatingValue,
-            Math.Max(Model.CompareLeaderboard.TechRating,
-            Math.Max(Model.CompareLeaderboard.PassRating, Model.CompareLeaderboard.AccRating))
-        );
-    }
+    // the map as rated without and with each speed modifier (ModifiersRating); the modifier selector switches between them
+    Func<Leaderboard, List<RatingVariant>> variantsOf = lb =>
+    {
+        var v = new List<RatingVariant> { new("none", "None", lb.AccRating, lb.PassRating, lb.TechRating, lb.Stars, lb.PredictedAcc) };
+        var m = lb.ModifiersRating;
+        if (m != null)
+        {
+            v.Add(new("SS", "Slower Song (SS, 0.85x)", m.SSAccRating, m.SSPassRating, m.SSTechRating, m.SSStars, m.SSPredictedAcc));
+            v.Add(new("FS", "Faster Song (FS, 1.2x)", m.FSAccRating, m.FSPassRating, m.FSTechRating, m.FSStars, m.FSPredictedAcc));
+            v.Add(new("SF", "Super Fast Song (SF, 1.5x)", m.SFAccRating, m.SFPassRating, m.SFTechRating, m.SFStars, m.SFPredictedAcc));
+        }
+        return v;
+    };
+    var mainVariants = variantsOf(Model.Leaderboard);
+    var compareVariants = Model.CompareLeaderboard != null ? variantsOf(Model.CompareLeaderboard) : new List<RatingVariant>();
+    double maxRatingValue = mainVariants.Concat(compareVariants).Max(v => Math.Max(v.Tech, Math.Max(v.Pass, v.Acc)));
+    Func<List<RatingVariant>, string> variantsJson = vs => JsonSerializer.Serialize(vs.ToDictionary(v => v.Key, v => new { acc = v.Acc, pass = v.Pass, tech = v.Tech }));
+    Func<List<RatingVariant>, string> predictedJson = vs => JsonSerializer.Serialize(vs.ToDictionary(v => v.Key, v => v.Pred));
     double maxRating = maxRatingValue > defaultMaxRating ? Math.Ceiling(maxRatingValue) : defaultMaxRating;
 
     // Slider bounds for the rating editor; generous headroom above the current values.
@@ -48,44 +59,52 @@
         passBlend = portaBLe.Refresh.PassBlend.Enabled ? (object)portaBLe.Refresh.PassBlend.P : null,
     };
 
-    // First leaderboard corners
-    var corner1 = new
+    // rating triangle of one variant; gid keeps the SVG gradient ids unique, rgb = tech / pass / acc colours
+    void Triangle(RatingVariant v, string gid, string techRgb, string passRgb, string accRgb, bool shown)
     {
-        x = (gypL - (Model.Leaderboard.TechRating / maxRating) * gypL) * 0.866,
-        y = 86.6 - (gypL - (Model.Leaderboard.TechRating / maxRating) * gypL) / 2
-    };
-    var corner2 = new
-    {
-        x = 100 - (gypL - (Model.Leaderboard.AccRating / maxRating) * gypL) * 0.866,
-        y = 86.6 - (gypL - (Model.Leaderboard.AccRating / maxRating) * gypL) / 2
-    };
-    var corner3 = new
-    {
-        x = 50,
-        y = (86.6 - gypL / 2) * (1 - Model.Leaderboard.PassRating / maxRating)
-    };
-
-    // Second leaderboard corners
-    var corner1Compare = new { x = 0.0, y = 0.0 };
-    var corner2Compare = new { x = 0.0, y = 0.0 };
-    var corner3Compare = new { x = 0.0, y = 0.0 };
-    
-    if (Model.CompareLeaderboard != null) {
-        corner1Compare = new
-        {
-            x = (gypL - (Model.CompareLeaderboard.TechRating / maxRating) * gypL) * 0.866,
-            y = 86.6 - (gypL - (Model.CompareLeaderboard.TechRating / maxRating) * gypL) / 2
-        };
-        corner2Compare = new
-        {
-            x = 100 - (gypL - (Model.CompareLeaderboard.AccRating / maxRating) * gypL) * 0.866,
-            y = 86.6 - (gypL - (Model.CompareLeaderboard.AccRating / maxRating) * gypL) / 2
-        };
-        corner3Compare = new
-        {
-            x = 50.0,
-            y = (86.6 - gypL / 2) * (1 - Model.CompareLeaderboard.PassRating / maxRating)
-        };
+        double ax = (gypL - (v.Tech / maxRating) * gypL) * 0.866, ay = 86.6 - (gypL - (v.Tech / maxRating) * gypL) / 2;
+        double bx = 100 - (gypL - (v.Acc / maxRating) * gypL) * 0.866, by = 86.6 - (gypL - (v.Acc / maxRating) * gypL) / 2;
+        double cx = 50, cy = (86.6 - gypL / 2) * (1 - v.Pass / maxRating);
+        var id = gid + "-" + v.Key;
+        <div class="triangle-container" data-variant="@v.Key" style="@(shown ? null : "display:none")">
+            <div class="tech-and-acc">
+                <span>Tech: @(Math.Round(v.Tech, 2)) ★</span>
+                <span>Acc: @(Math.Round(v.Acc, 2)) ★</span>
+            </div>
+            <div class="stars">
+                <span>@(Math.Round(v.Stars, 1)) ★</span>
+            </div>
+            <svg style="width: 6em; height: 6em;" xmlns="http://www.w3.org/2000/svg" version="1.200000" width="100%" height="100%"
+                 viewBox="0 0 100.000000 86.600000" xmlns:xlink="http://www.w3.org/1999/xlink">
+                <g transform="matrix(1 0 0 -1 0 86.600000)">
+                    <defs>
+                        <linearGradient id="fadeA-@id" gradientUnits="userSpaceOnUse" x1="@inv(ax)" y1="@inv(ay)" x2="@inv((bx + cx) / 2)" y2="@inv((by + cy) / 2)">
+                            <stop offset="0%" stop-color="rgb(@techRgb / @inv(v.Tech / maxRating * 100)%)" />
+                            <stop offset="100%" stop-color="rgb(@techRgb / @inv(v.Tech / maxRating * 25)%)" />
+                        </linearGradient>
+                        <linearGradient id="fadeB-@id" gradientUnits="userSpaceOnUse" x1="@inv(cx)" y1="@inv(cy)" x2="@inv((ax + bx) / 2)" y2="@inv((ay + by) / 2)">
+                            <stop offset="0%" stop-color="rgb(@passRgb / @inv(v.Pass / maxRating * 100)%)" />
+                            <stop offset="100%" stop-color="rgb(@passRgb / @inv(v.Pass / maxRating * 25)%)" />
+                        </linearGradient>
+                        <linearGradient id="fadeC-@id" gradientUnits="userSpaceOnUse" x1="@inv(bx)" y1="@inv(by)" x2="@inv((cx + ax) / 2)" y2="@inv((ay + cy) / 2)">
+                            <stop offset="0%" stop-color="rgb(@accRgb / @inv(v.Acc / maxRating * 100)%)" />
+                            <stop offset="100%" stop-color="rgb(@accRgb / @inv(v.Acc / maxRating * 25)%)" />
+                        </linearGradient>
+                    </defs>
+                    <g stroke="#FFF" stroke-width="0.5">
+                        <path d="M @inv(cx),@inv(cy) L @inv(ax),@inv(ay) @inv(bx),@inv(by) Z" fill="url(#fadeA-@id)" />
+                        <path d="M @inv(cx),@inv(cy) L @inv(ax),@inv(ay) @inv(bx),@inv(by) Z" fill="url(#fadeB-@id)" />
+                        <path d="M @inv(cx),@inv(cy) L @inv(ax),@inv(ay) @inv(bx),@inv(by) Z" fill="url(#fadeC-@id)" />
+                    </g>
+                    <g stroke="#FFF" fill="none" stroke-width="2" stroke-dasharray="4">
+                        <path d="M 50.000000,0.00000 L 0.000000,86.600000 100.000000,86.600000 Z" />
+                    </g>
+                </g>
+            </svg>
+            <div class="pass">
+                <span>Pass: @(Math.Round(v.Pass, 2)) ★</span>
+            </div>
+        </div>
     }
 }
 
@@ -94,75 +113,30 @@
 <div class="leaderboard-comparison">
     <div class="leaderboard-container">
         <h2>@Model.Leaderboard.Name - @Model.Leaderboard.DifficultyName - @Model.Leaderboard.ModeName</h2>
+        @if (mainVariants.Count > 1)
+        {
+            <div class="mod-select">
+                <label for="leaderboard-mod">Modifier</label>
+                <select id="leaderboard-mod">
+                    @foreach (var v in mainVariants)
+                    {
+                        <option value="@(v.Key == "none" ? "" : v.Key)">@v.Label</option>
+                    }
+                </select>
+                <span class="mod-select-note">ratings, PP curve and the accuracy / fail graphs follow it</span>
+            </div>
+        }
 
         <div class="leaderboard-info">
             <div class="leaderboard-info-left">
-            <div class="triangle-container">
-                <div class="tech-and-acc">
-                    <span>Tech: @(Math.Round(Model.Leaderboard.TechRating, 2)) ★</span>
-                    <span>Acc: @(Math.Round(Model.Leaderboard.AccRating, 2)) ★</span>
-                </div>
-                <div class="stars">
-                    <span>@(Math.Round(Model.Leaderboard.Stars, 1)) ★</span>
-                </div>
-
-                <svg style="width: 6em; height: 6em;"
-                    xmlns="http://www.w3.org/2000/svg"
-                    version="1.200000"
-                    width="100%"
-                    height="100%"
-                    viewBox="0 0 100.000000 86.600000"
-                    xmlns:xlink="http://www.w3.org/1999/xlink">
-                    <g transform="matrix(1 0 0 -1 0 86.600000)">
-                        <defs>
-                            <linearGradient id="fadeA-1"
-                                        gradientUnits="userSpaceOnUse"
-                                        x1=@corner1.x
-                                        y1=@corner1.y
-                                        x2=@((corner2.x + corner3.x) / 2)
-                                        y2=@((corner2.y + corner3.y) / 2)>
-                                <stop offset="0%" stop-color="rgb(255 0 0 / @((Model.Leaderboard.TechRating / maxRating) * 100)%)" />
-                                <stop offset="100%" stop-color="rgb(255 0 0 / @((Model.Leaderboard.TechRating / maxRating) * 25)%)" />
-                            </linearGradient>
-                            <linearGradient id="fadeB-1"
-                                        gradientUnits="userSpaceOnUse"
-                                        x1=@(corner3.x)
-                                        y1=@(corner3.y)
-                                        x2=@((corner1.x + corner2.x) / 2)
-                                        y2=@((corner1.y + corner2.y) / 2)>
-                                <stop offset="0%" stop-color="rgb(0 255 0 / @((Model.Leaderboard.PassRating / maxRating) * 100)%)" />
-                                <stop offset="100%" stop-color="rgb(0 255 0 / @((Model.Leaderboard.PassRating / maxRating) * 25)%)" />
-                            </linearGradient>
-                            <linearGradient id="fadeC-1"
-                                        gradientUnits="userSpaceOnUse"
-                                        x1=@(corner2.x)
-                                        y1=@(corner2.y)
-                                        x2=@((corner3.x + corner1.x) / 2)
-                                        y2=@((corner1.y + corner3.y) / 2)>
-                                <stop offset="0%" stop-color="rgb(128 0 128 / @((Model.Leaderboard.AccRating / maxRating) * 100)%)" />
-                                <stop offset="100%" stop-color="rgb(128 0 128 / @((Model.Leaderboard.AccRating / maxRating) * 25)%)" />
-                            </linearGradient>
-                        </defs>
-                        <g stroke="#FFF" stroke-width="0.5">
-                            <path d="M @corner3.x,@corner3.y L @corner1.x,@corner1.y @corner2.x,@corner2.y Z" fill="url(#fadeA-1)" />
-                            <path d="M @corner3.x,@corner3.y L @corner1.x,@corner1.y @corner2.x,@corner2.y Z" fill="url(#fadeB-1)" />
-                            <path d="M @corner3.x,@corner3.y L @corner1.x,@corner1.y @corner2.x,@corner2.y Z" fill="url(#fadeC-1)" />
-                        </g>
-                        <g stroke="#FFF" fill="none" stroke-width="2" stroke-dasharray="4">
-                            <path d="M 50.000000,0.00000 L 0.000000,86.600000 100.000000,86.600000 Z" />
-                        </g>
-                    </g>
-                </svg>
-                <div class="pass">
-                    <span>Pass: @(Math.Round(Model.Leaderboard.PassRating, 2)) ★</span>
-                </div>
-            </div>
+            @foreach (var v in mainVariants) { Triangle(v, "1", "255 0 0", "0 255 0", "128 0 128", v.Key == "none"); }
 
             <div class="rating-sliders"
                 data-leaderboard-id="@Model.Leaderboard.Id"
                 data-orig-acc="@inv(Model.Leaderboard.AccRating)"
                 data-orig-pass="@inv(Model.Leaderboard.PassRating)"
-                data-orig-tech="@inv(Model.Leaderboard.TechRating)">
+                data-orig-tech="@inv(Model.Leaderboard.TechRating)"
+                data-variants="@variantsJson(mainVariants)">
                 <div class="rating-sliders-title">Preview ratings</div>
                 <div class="rating-slider-row">
                     <label>Acc</label>
@@ -199,72 +173,14 @@
         <div class="leaderboard-container">
             <h2>@Model.CompareLeaderboard.Name - @Model.CompareLeaderboard.DifficultyName - @Model.CompareLeaderboard.ModeName</h2>
 
-            <div class="triangle-container">
-                <div class="tech-and-acc">
-                    <span>Tech: @(Math.Round(Model.CompareLeaderboard.TechRating, 2)) ★</span>
-                    <span>Acc: @(Math.Round(Model.CompareLeaderboard.AccRating, 2)) ★</span>
-                </div>
-                <div class="stars">
-                    <span>@(Math.Round(Model.CompareLeaderboard.Stars, 1)) ★</span>
-                </div>
-
-                <svg style="width: 6em; height: 6em;"
-                    xmlns="http://www.w3.org/2000/svg"
-                    version="1.200000"
-                    width="100%"
-                    height="100%"
-                    viewBox="0 0 100.000000 86.600000"
-                    xmlns:xlink="http://www.w3.org/1999/xlink">
-                    <g transform="matrix(1 0 0 -1 0 86.600000)">
-                        <defs>
-                            <linearGradient id="fadeA-2"
-                                        gradientUnits="userSpaceOnUse"
-                                        x1=@corner1Compare.x
-                                        y1=@corner1Compare.y
-                                        x2=@((corner2Compare.x + corner3Compare.x) / 2)
-                                        y2=@((corner2Compare.y + corner3Compare.y) / 2)>
-                                <stop offset="0%" stop-color="rgb(0 0 255 / @((Model.CompareLeaderboard.TechRating / maxRating) * 100)%)" />
-                                <stop offset="100%" stop-color="rgb(0 0 255 / @((Model.CompareLeaderboard.TechRating / maxRating) * 25)%)" />
-                            </linearGradient>
-                            <linearGradient id="fadeB-2"
-                                        gradientUnits="userSpaceOnUse"
-                                        x1=@(corner3Compare.x)
-                                        y1=@(corner3Compare.y)
-                                        x2=@((corner1Compare.x + corner2Compare.x) / 2)
-                                        y2=@((corner1Compare.y + corner2Compare.y) / 2)>
-                                <stop offset="0%" stop-color="rgb(0 255 255 / @((Model.CompareLeaderboard.PassRating / maxRating) * 100)%)" />
-                                <stop offset="100%" stop-color="rgb(0 255 255 / @((Model.CompareLeaderboard.PassRating / maxRating) * 25)%)" />
-                            </linearGradient>
-                            <linearGradient id="fadeC-2"
-                                        gradientUnits="userSpaceOnUse"
-                                        x1=@(corner2Compare.x)
-                                        y1=@(corner2Compare.y)
-                                        x2=@((corner3Compare.x + corner1Compare.x) / 2)
-                                        y2=@((corner1Compare.y + corner3Compare.y) / 2)>
-                                <stop offset="0%" stop-color="rgb(128 128 255 / @((Model.CompareLeaderboard.AccRating / maxRating) * 100)%)" />
-                                <stop offset="100%" stop-color="rgb(128 128 255 / @((Model.CompareLeaderboard.AccRating / maxRating) * 25)%)" />
-                            </linearGradient>
-                        </defs>
-                        <g stroke="#FFF" stroke-width="0.5">
-                            <path d="M @corner3Compare.x,@corner3Compare.y L @corner1Compare.x,@corner1Compare.y @corner2Compare.x,@corner2Compare.y Z" fill="url(#fadeA-2)" />
-                            <path d="M @corner3Compare.x,@corner3Compare.y L @corner1Compare.x,@corner1Compare.y @corner2Compare.x,@corner2Compare.y Z" fill="url(#fadeB-2)" />
-                            <path d="M @corner3Compare.x,@corner3Compare.y L @corner1Compare.x,@corner1Compare.y @corner2Compare.x,@corner2Compare.y Z" fill="url(#fadeC-2)" />
-                        </g>
-                        <g stroke="#FFF" fill="none" stroke-width="2" stroke-dasharray="4">
-                            <path d="M 50.000000,0.00000 L 0.000000,86.600000 100.000000,86.600000 Z" />
-                        </g>
-                    </g>
-                </svg>
-                <div class="pass">
-                    <span>Pass: @(Math.Round(Model.CompareLeaderboard.PassRating, 2)) ★</span>
-                </div>
-            </div>
+            @foreach (var v in compareVariants) { Triangle(v, "2", "0 0 255", "0 255 255", "128 128 255", v.Key == "none"); }
 
             <div class="rating-sliders"
                  data-leaderboard-id="@Model.CompareLeaderboard.Id"
                  data-orig-acc="@inv(Model.CompareLeaderboard.AccRating)"
                  data-orig-pass="@inv(Model.CompareLeaderboard.PassRating)"
-                 data-orig-tech="@inv(Model.CompareLeaderboard.TechRating)">
+                 data-orig-tech="@inv(Model.CompareLeaderboard.TechRating)"
+                 data-variants="@variantsJson(compareVariants)">
                 <div class="rating-sliders-title">Preview ratings</div>
                 <div class="rating-slider-row">
                     <label>Acc</label>
@@ -298,7 +214,7 @@
 
 @if (Model.AccLossJson != null)
 {
-    <div class="acc-loss-component" data-predicted-acc="@inv(Model.Leaderboard.PredictedAcc)" data-mode="@Model.Leaderboard.ModeName"></div>
+    <div class="acc-loss-component" data-predicted-acc="@inv(Model.Leaderboard.PredictedAcc)" data-predicted="@predictedJson(mainVariants)" data-mode="@Model.Leaderboard.ModeName"></div>
 }
 
 <div class="chart-container">
@@ -569,6 +485,28 @@
         cursor: default;
     }
 
+    .mod-select {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5em;
+        margin: 0 0 0.6em;
+        font-size: 0.9em;
+    }
+
+    .mod-select select {
+        background: #323232;
+        color: #fff;
+        border: 1px solid #555;
+        border-radius: 0.3em;
+        padding: 0.15em 0.4em;
+    }
+
+    .mod-select-note {
+        color: #777;
+        font-size: 0.85em;
+    }
+
     .rating-preview-note {
         font-size: 0.75em;
         color: #ddd;
@@ -582,7 +520,7 @@
     <script src="~/js/pp-curve.js" asp-append-version="true"></script>
     @if (Model.AccLossJson != null)
     {
-        <script type="application/json" id="acc-loss-profile">@Html.Raw(Model.AccLossJson.Replace("</", "<\\/"))</script>
+        <script type="application/json" id="acc-loss-profiles">@Html.Raw(Model.AccLossJson.Replace("</", "<\\/"))</script>
         <script type="application/json" id="acc-loss-model">@Html.Raw(Model.AccLossModelJson!.Replace("</", "<\\/"))</script>
         <script src="~/js/acc-loss.js" asp-append-version="true"></script>
     }
@@ -919,7 +857,9 @@
 
         function setupRatingSliders(container) {
             const leaderboardId = container.dataset.leaderboardId;
-            const original = {
+            let variants = {};
+            try { variants = JSON.parse(container.dataset.variants || '{}'); } catch (e) { variants = {}; }
+            let original = {
                 acc: parseFloat(container.dataset.origAcc),
                 pass: parseFloat(container.dataset.origPass),
                 tech: parseFloat(container.dataset.origTech)
@@ -980,9 +920,42 @@
                 handleSliderChange();
             });
 
+            // the modifier selector puts that variant's ratings into the sliders (Reset then goes back to them)
+            container.setVariant = key => {
+                const v = variants[key];
+                if (!v) return;
+                original = {acc: v.acc, pass: v.pass, tech: v.tech};
+                RATING_KEYS.forEach(k => { ranges[k].value = v[k]; numbers[k].value = v[k]; });
+                handleSliderChange();
+            };
+
             refreshResetButton();
         }
 
         document.querySelectorAll('.rating-sliders').forEach(setupRatingSliders);
+
+        // --- Modifier selector: ratings (triangle + sliders), the PP curves and the accuracy / fail card follow it (?mod=SF in the URL) ---
+        const modSelect = document.getElementById('leaderboard-mod');
+        function applyModifier(mod, updateUrl) {
+            const key = mod || 'none';
+            document.querySelectorAll('.triangle-container[data-variant]').forEach(t => { t.style.display = t.dataset.variant === key ? '' : 'none'; });
+            document.querySelectorAll('.rating-sliders').forEach(c => c.setVariant && c.setVariant(key));
+            document.dispatchEvent(new CustomEvent('leaderboardmodifier', {detail: {mod: mod || null}}));
+            if (updateUrl) {
+                const u = new URL(location.href);
+                if (mod) u.searchParams.set('mod', mod); else u.searchParams.delete('mod');
+                history.replaceState(null, '', u);
+            }
+        }
+        if (modSelect) {
+            modSelect.addEventListener('change', () => applyModifier(modSelect.value, true));
+            const initialMod = new URLSearchParams(location.search).get('mod');
+            if (initialMod && [...modSelect.options].some(o => o.value === initialMod)) {
+                modSelect.value = initialMod;
+                // the PP curves initialize on DOMContentLoaded (pp-curve.js registered its handler first)
+                if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', () => applyModifier(initialMod, false));
+                else applyModifier(initialMod, false);
+            }
+        }
     </script>
 }

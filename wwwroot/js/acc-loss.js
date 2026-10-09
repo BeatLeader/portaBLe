@@ -1,7 +1,10 @@
 /*
  * "Where accuracy is lost" / "Where players fail" views for the Leaderboard page (two tabs of one card).
  *
- * Reads the map's AccLossProfiles row (#acc-loss-profile) and the shared model row (#acc-loss-model).
+ * Reads the map's AccLossProfiles rows (#acc-loss-profiles: {none, SS, FS, SF}; older pages: #acc-loss-profile, unmodified only) and
+ * the shared model row (#acc-loss-model). The page's modifier selector dispatches 'leaderboardmodifier' ({mod: 'SS' | 'FS' | 'SF' | null});
+ * the card then shows that variant: the same swings in played time, totals anchored to the modifier's predicted accuracy, without the
+ * replay / attempts overlays (those are unmodified play).
  *
  * Accuracy tab (Analysis/py/export_acc_loss_profiles.py, model a17_acc_loss_model.py): per ~5 s section, the expected point loss of
  * every component (precision / swing angles / misses) at a base skill; skill scales each component by one factor, so any skill is
@@ -15,12 +18,16 @@
 (function () {
 	'use strict';
 	const root = document.querySelector('.acc-loss-component');
-	const profileEl = document.getElementById('acc-loss-profile');
+	const profilesEl = document.getElementById('acc-loss-profiles') || document.getElementById('acc-loss-profile');
 	const modelEl = document.getElementById('acc-loss-model');
-	if (!root || !profileEl || !modelEl || typeof Chart === 'undefined') return;
-	const P = JSON.parse(profileEl.textContent);
+	if (!root || !profilesEl || !modelEl || typeof Chart === 'undefined') return;
+	const rawProfiles = JSON.parse(profilesEl.textContent);
+	const PROFILES = profilesEl.id === 'acc-loss-profiles' ? rawProfiles : {none: rawProfiles};
 	const M = JSON.parse(modelEl.textContent);
-	const W = P.windows;
+	let PREDICTED = {};
+	try { PREDICTED = JSON.parse(root.dataset.predicted || '{}'); } catch (e) { PREDICTED = {}; }
+	if (!(PREDICTED.none > 0)) PREDICTED.none = parseFloat(root.dataset.predictedAcc);
+	const MOD_NAMES = {SS: 'Slower Song (0.85x)', FS: 'Faster Song (1.2x)', SF: 'Super Fast Song (1.5x)'};
 	const COMP = M.components;
 	const COLORS = {precision: '#4ea1ff', swing: '#ffb347', misses: '#ff5c5c'};
 	const fmtTime = t => `${Math.floor(t / 60)}:${String(Math.floor(t % 60)).padStart(2, '0')}`;
@@ -52,6 +59,8 @@
 		'Density (swings within 2 s)': 'How many swings (both hands) happen within 2 seconds before and after this one.',
 		'Minutes into the map': 'How far into the map the swing is.',
 		// pass tab
+		'Speed (eBPM and reach)': "How fast the hand has to swing: its eBPM, counted up to 2x higher when the hand travels far between hits (wide patterns like 4-wide jumps). 4-wide at 294 eBPM counts like a narrower pattern at a higher eBPM. The core of the pass rating; on a speed modifier it scales with the song speed.",
+		// label of profiles exported before the rename
 		'Swing speed': "How fast the hand has to swing: swings per second, scaled up for long movements between notes. The core of the pass rating.",
 		'Tech (angle strain, repositioning, rotation)': 'Awkward angles, long repositioning and wrist rotation. Pass rating v2 weighs these 6.5x more than the classic rating did, because players fail tech maps far more often than their old pass rating said.',
 		'Crossovers': 'A red note in the rightmost lane or a blue note in the leftmost lane: the arms cross. Each such swing counts 1.59x as hard to pass, the biggest single thing the classic rating missed.',
@@ -109,11 +118,24 @@
 		.acc-loss-glossary dl { display: grid; grid-template-columns: minmax(10em, 18em) 1fr; gap: 0.3em 0.8em; margin: 0.5em 0 0; }
 		.acc-loss-glossary dt { color: #fff; font-weight: bold; }
 		.acc-loss-glossary dd { margin: 0; }
-		.acc-loss-note { color: #999; font-size: 0.8em; margin-top: 0.6em; }`;
+		.acc-loss-note { color: #999; font-size: 0.8em; margin-top: 0.6em; }
+		.acc-loss-mod { color: #ffd27a; font-size: 0.85em; margin-bottom: 0.5em; }`;
 		document.head.appendChild(st);
 	}
+	let charts = [];
+	let currentTab = location.hash.startsWith('#pass') ? 'pass' : 'acc';
+	function mount(mod) {
+	charts.forEach(c => c.destroy()); charts = [];
+	const P = PROFILES[mod];
+	if (!P) {
+		root.innerHTML = `<div class="acc-loss-mod">No section profile for ${esc(MOD_NAMES[mod] || mod)} in this database (re-export the profiles).</div>`;
+		return;
+	}
+	const W = P.windows;
+	const predictedAcc = PREDICTED[mod] > 0 ? PREDICTED[mod] : PREDICTED.none;
 	const hasPass = !!P.pass && !!M.pass;
 	root.innerHTML = `
+		${mod !== 'none' ? `<div class="acc-loss-mod">${esc(MOD_NAMES[mod] || mod)}: the same swings at ${mod === 'SS' ? 'slower' : 'faster'} speed, times in played seconds. Model only: the replay and attempt overlays are for unmodified play.</div>` : ''}
 		<div class="acc-loss-tabs">
 			<button type="button" data-tab="acc" class="selected">Where accuracy is lost</button>
 			${hasPass ? '<button type="button" data-tab="pass">Where players fail</button>' : ''}
@@ -153,7 +175,6 @@
 		const term = (c, s) => interp(s, M.skill_mid, M.skill_coef[c]) + interp(s, M.skill_mid, M.calibration);
 		const mult = s => Object.fromEntries(COMP.map(c => [c, Math.exp(term(c, s) - term(c, M.base_skill))]));
 		const totalNotes = W.n.reduce((a, b) => a + b, 0);
-		const predictedAcc = parseFloat(root.dataset.predictedAcc);
 		const anchored = predictedAcc > 0 && predictedAcc < 1 && M.reference_skill != null;
 		// skill sensitivity of the map's characteristic (One Saber < 1: error rates fall more slowly with skill)
 		const beta = (M.mode_skill_scale || {})[root.dataset.mode || ''] || 1;
@@ -204,6 +225,7 @@
 				},
 			},
 		});
+		charts.push(chart);
 		function render() {
 			const s = current.skill, k = scaleAt(s);
 			const m = Object.fromEntries(Object.entries(mult(s)).map(([c, v]) => [c, v * k]));
@@ -353,6 +375,7 @@
 				},
 			},
 		});
+		charts.push(chart);
 		function render() {
 			const r = current.mix ? simMix(current.skill) : sim(current.skill);
 			const risk = Array.from({length: nw}, (_, i) => (r.alive0[i] > 1e-9 ? 100 * r.dead[i] / r.alive0[i] : null));
@@ -397,12 +420,19 @@
 		return {chart};
 	}
 
-	// tabs (#pass in the URL opens the pass tab, #pass-attempts with the real-attempts overlay)
+	// tabs (#pass in the URL opens the pass tab, #pass-attempts with the real-attempts overlay); the tab survives a modifier switch
 	const show = tab => {
+		currentTab = tab;
 		root.querySelectorAll('.acc-loss-tabs button').forEach(x => x.classList.toggle('selected', x.dataset.tab === tab));
 		root.querySelectorAll('.acc-loss-pane').forEach(p => p.style.display = p.dataset.pane === tab ? '' : 'none');
 		if (tab === 'pass' && !passTab) passTab = buildPassTab();
 	};
 	root.querySelectorAll('.acc-loss-tabs button').forEach(b => b.onclick = () => show(b.dataset.tab));
-	if (hasPass && location.hash.startsWith('#pass')) show('pass');
+	if (hasPass && currentTab === 'pass') show('pass');
+	}
+
+	let mounted = null;
+	const apply = mod => { mod = mod || 'none'; if (mod !== mounted) { mounted = mod; mount(mod); } };
+	document.addEventListener('leaderboardmodifier', e => apply(e.detail && e.detail.mod));
+	apply(new URLSearchParams(location.search).get('mod'));
 })();

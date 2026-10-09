@@ -6,7 +6,10 @@ threshold skill50, each section's top causes and the map-wide causes at that thr
 the observed fail hazard per section (clean attempts; quits and restarts count as alive until they end) and clear rate.
 The '__model__' row gets the energy rules. The page runs the exact energy-bar DP in the browser for any pass level.
 
-Usage: python export_pass_profiles.py --swings <swings_passv2.parquet> --db <portaBLe DB with AccLossProfiles>
+Speed-modifier rows ('<id>:SS' / ':FS' / ':SF', from export_acc_loss_profiles.py) get the same data for the modded map (see variant()),
+without the attempts overlay. They need the swings' njs column (swings_prod.csv.gz has it).
+
+Usage: python export_pass_profiles.py --swings <swings_prod.csv.gz | swings_passv2.parquet> --db <portaBLe DB with AccLossProfiles>
        [--hazard a19_hazard_windows.parquet] [--pass-maps a19_pass_maps.parquet]
 """
 import argparse, base64, json, os, sqlite3, sys
@@ -20,35 +23,51 @@ ap.add_argument("--hazard", default=None); ap.add_argument("--pass-maps", defaul
 args = ap.parse_args()
 P = el.V2
 Q0, QS = -3.0, 0.03
-S = pd.read_parquet(args.swings)
+COLS = ["lb_id", "seconds", "hand", "x", "cut_direction", "n_cubes", "parity_error", "is_stream", "swing_speed", "stress",
+        "low_speed_falloff", "njs_buff", "wall_buff", "njs"]
+if args.swings.endswith(".parquet"): S = pd.read_parquet(args.swings)
+else: S = pd.read_csv(args.swings, usecols=lambda c: c in COLS, dtype={"lb_id": str})
 S = S.sort_values(["lb_id", "seconds", "hand"], kind="stable").reset_index(drop=True)
 codes, lbs = pd.factorize(S.lb_id)
-ld = np.log(np.maximum(el.pass_diff(S, P), 1e-3))
 notes = S.n_cubes.clip(1, 4).values
-q = np.clip(np.round((ld - Q0) / QS), 0, 255).astype(np.uint8)
-ldq = q * QS + Q0                                                       # what the page will see
-LD, ACT = el.note_matrix(ldq, notes, codes)
-t50 = el.skill50(LD, ACT, P["slope"])
 one = S.groupby("lb_id", sort=False).hand.nunique().reindex(lbs).values < 2
-print(f"{len(lbs)} maps; skill50 computed on the quantized difficulties")
-
-# causes: each factor's log contribution to PassDiff above a typical swing, weighted by the swing's miss chance at the map threshold
-k = P["stress_scale"]
-smk = lambda st: 2.0 * k * st / (k * st + 2.0) + 1.0
-cross = (((S.hand == 0) & (S.x == 3)) | ((S.hand == 1) & (S.x == 0))).values
-contrib = np.column_stack([
-    np.log(np.maximum((S.swing_speed * S.low_speed_falloff).values, 1e-3)) - 1.324,     # global median of the speed part
-    np.log(smk(S.stress.values)) - np.log(smk(0.045)),                                     # global median stress
-    np.log(1 + P["crossover"]) * cross,
-    np.log(1 + P["horizontal"]) * S.cut_direction.isin([2, 3]).values,
-    np.log(1 + P["diagonal"]) * S.cut_direction.isin([4, 5, 6, 7]).values,
-    np.log(S.njs_buff.values),
-    np.log(1.05) * (S.is_stream.values == 1),
-    np.log(S.wall_buff.values)])
-LABELS = ["Swing speed", "Tech (angle strain, repositioning, rotation)", "Crossovers", "Horizontal cuts", "Diagonal cuts",
+LABELS = ["Speed (eBPM and reach)", "Tech (angle strain, repositioning, rotation)", "Crossovers", "Horizontal cuts", "Diagonal cuts",
           "High note jump speed", "Hand alternation (streams)", "Walls"]
-pmiss = 1 / (1 + np.exp(-P["slope"] * (ldq - t50[codes])))
-W = np.clip(contrib, 0, None) * (pmiss * notes)[:, None]
+
+# speed modifiers (RatingAPI: SS 0.85, FS 1.2, SF 1.5) play the same swings k times faster: the analyzer multiplies swing speed and
+# NJS by k (Difficulty.cs, NjsBuff.cs), so PassDiff changes only through the speed part, its low-speed falloff and the NJS buff.
+MODS = {"SS": 0.85, "FS": 1.2, "SF": 1.5}
+def variant(k):
+    if k == 1: return S
+    T = S.copy()
+    spd = S.swing_speed.values * k
+    T["swing_speed"] = spd; T["low_speed_falloff"] = 1 - 1.4 ** -spd
+    nj = np.minimum(S.njs.values * k, 50); T["njs_buff"] = np.where(nj > 24, 1 + 0.01 * (nj - 24), 1.0)
+    T["seconds"] = S.seconds / k
+    return T
+
+def compute(T):
+    """quantized ln PassDiff, the map threshold skill50 (on the quantized values) and per-swing cause weights"""
+    ld = np.log(np.maximum(el.pass_diff(T, P), 1e-3))
+    q = np.clip(np.round((ld - Q0) / QS), 0, 255).astype(np.uint8)
+    ldq = q * QS + Q0                                                       # what the page will see
+    LD, ACT = el.note_matrix(ldq, notes, codes)
+    t50 = el.skill50(LD, ACT, P["slope"])
+    # causes: each factor's log contribution to PassDiff above a typical swing, weighted by the swing's miss chance at the map threshold
+    k = P["stress_scale"]
+    smk = lambda st: 2.0 * k * st / (k * st + 2.0) + 1.0
+    cross = (((T.hand == 0) & (T.x == 3)) | ((T.hand == 1) & (T.x == 0))).values
+    contrib = np.column_stack([
+        np.log(np.maximum((T.swing_speed * T.low_speed_falloff).values, 1e-3)) - 1.324,     # global median of the speed part (unmodified)
+        np.log(smk(T.stress.values)) - np.log(smk(0.045)),                                     # global median stress
+        np.log(1 + P["crossover"]) * cross,
+        np.log(1 + P["horizontal"]) * T.cut_direction.isin([2, 3]).values,
+        np.log(1 + P["diagonal"]) * T.cut_direction.isin([4, 5, 6, 7]).values,
+        np.log(T.njs_buff.values),
+        np.log(1.05) * (T.is_stream.values == 1),
+        np.log(T.wall_buff.values)])
+    pmiss = 1 / (1 + np.exp(-P["slope"] * (ldq - t50[codes])))
+    return q, t50, np.clip(contrib, 0, None) * (pmiss * notes)[:, None]
 
 obs_h = {}
 if args.hazard:
@@ -63,35 +82,42 @@ con = sqlite3.connect(args.db)
 rows = dict(con.execute("select LeaderboardId, Json from AccLossProfiles"))
 updates = []
 starts = np.r_[0, np.flatnonzero(codes[1:] != codes[:-1]) + 1, len(codes)]
-for m, lb in enumerate(lbs):
-    if lb not in rows: continue
-    a, z = starts[m], starts[m + 1]
-    t = S.seconds.values[a:z]; t0 = t.min(); width = max(5.0, max(t.max() - t0, 1.0) / 60)
-    win = np.floor((t - t0) / width).astype(int); nw = win.max() + 1
-    prof = json.loads(rows[lb])
-    if len(prof["windows"]["n"]) != nw:                                  # sections must match the accuracy tab
-        print("section mismatch", lb, nw, len(prof["windows"]["n"])); continue
-    Wm = W[a:z]
-    per_win = np.zeros((nw, len(LABELS)))
-    np.add.at(per_win, win, Wm)
-    top = []
-    for i in range(nw):
-        tot = per_win[i].sum()
-        top.append([[LABELS[j], round(float(per_win[i, j] / tot), 3)] for j in np.argsort(-per_win[i])[:3] if tot > 0 and per_win[i, j] / tot >= 0.05])
-    mt = Wm.sum(axis=0); mtot = mt.sum()
-    packed = base64.b64encode(np.column_stack([q[a:z], notes[a:z].astype(np.uint8)]).ravel().tobytes()).decode()
-    pas = {"v": 1, "q": packed, "win": np.bincount(win, minlength=nw).tolist(), "skill50": round(float(t50[m]), 4),
-           "one_saber": bool(one[m]), "top": top,
-           "factors": {LABELS[j]: round(float(mt[j] / mtot), 4) for j in range(len(LABELS)) if mtot > 0 and mt[j] / mtot >= 0.005}}
-    g = obs_h.get(lb)
-    if g is not None:
-        hz = [None] * nw
-        for r in g.itertuples():
-            if 0 <= r.win < nw and r.at_risk >= 100: hz[int(r.win)] = round(float(r.hazard), 5)
-        if any(v is not None for v in hz):
-            pas["observed"] = {"hazard": hz, "clear_rate": round(clear[lb][0], 4) if lb in clear else None, "attempts": clear[lb][1] if lb in clear else None}
-    prof["pass"] = pas
-    updates.append((json.dumps(prof, separators=(",", ":")), lb))
+variants = [("", 1.0)] + ([(":" + m, k) for m, k in MODS.items()] if "njs" in S.columns else [])
+if "njs" not in S.columns: print("no njs column in the swings: speed-modifier rows skipped")
+for suffix, kk in variants:
+    T = variant(kk)
+    q, t50, W = compute(T)
+    print(f"{suffix or 'unmodified'}: {len(lbs)} maps; skill50 computed on the quantized difficulties", flush=True)
+    for m, lb in enumerate(lbs):
+        key = lb + suffix
+        if key not in rows: continue
+        a, z = starts[m], starts[m + 1]
+        t = T.seconds.values[a:z]; t0 = t.min(); width = max(5.0, max(t.max() - t0, 1.0) / 60)
+        win = np.floor((t - t0) / width).astype(int); nw = win.max() + 1
+        prof = json.loads(rows[key])
+        if len(prof["windows"]["n"]) != nw:                                  # sections must match the accuracy tab
+            print("section mismatch", key, nw, len(prof["windows"]["n"])); continue
+        Wm = W[a:z]
+        per_win = np.zeros((nw, len(LABELS)))
+        np.add.at(per_win, win, Wm)
+        top = []
+        for i in range(nw):
+            tot = per_win[i].sum()
+            top.append([[LABELS[j], round(float(per_win[i, j] / tot), 3)] for j in np.argsort(-per_win[i])[:3] if tot > 0 and per_win[i, j] / tot >= 0.05])
+        mt = Wm.sum(axis=0); mtot = mt.sum()
+        packed = base64.b64encode(np.column_stack([q[a:z], notes[a:z].astype(np.uint8)]).ravel().tobytes()).decode()
+        pas = {"v": 1, "q": packed, "win": np.bincount(win, minlength=nw).tolist(), "skill50": round(float(t50[m]), 4),
+               "one_saber": bool(one[m]), "top": top,
+               "factors": {LABELS[j]: round(float(mt[j] / mtot), 4) for j in range(len(LABELS)) if mtot > 0 and mt[j] / mtot >= 0.005}}
+        g = obs_h.get(lb) if not suffix else None                           # attempts overlay: unmodified play only
+        if g is not None:
+            hz = [None] * nw
+            for r in g.itertuples():
+                if 0 <= r.win < nw and r.at_risk >= 100: hz[int(r.win)] = round(float(r.hazard), 5)
+            if any(v is not None for v in hz):
+                pas["observed"] = {"hazard": hz, "clear_rate": round(clear[lb][0], 4) if lb in clear else None, "attempts": clear[lb][1] if lb in clear else None}
+        prof["pass"] = pas
+        updates.append((json.dumps(prof, separators=(",", ":")), key))
 meta = json.loads(rows["__model__"])
 meta["pass"] = {"slope": P["slope"], "scale": P["scale"], "one_saber": P["one_saber"], "start": 50, "hit": 1, "miss": 15, "q0": Q0, "qs": QS,
                 "attempt_spread": 0.3}   # skill spread of real attempts, a25_attempt_mix.py (0.2 lowest hazard error, 0.4 no early/late bias)

@@ -92,6 +92,9 @@ level). It shows:
 - **Causes:** the top three per section in the tooltip, and the map-wide list. Each cause is a factor's log contribution to
   `PassDiff` above a typical swing, weighted by the swing's miss chance at the map's pass level.
 - **Hints (ⓘ and "What do these mean?")** explaining every factor, on both tabs.
+- **The page's modifier selector (SS / FS / SF)**, which shows the same map at that speed. Each swing's PassDiff gets speed × k,
+  its low-speed falloff and the NJS buff at NJS × k, exactly as in the analyzer. There is no attempts overlay for modifiers. The
+  speed cause is labelled "Speed (eBPM and reach)": eBPM, counted up to 2× higher for long reaches.
 
 **Typical attempt** compares the model with the observed fail hazard of real clean attempts (3 950 maps).
 - Real attempts are a mix of players: weaker ones fail early, so later sections see only stronger ones. The chip therefore
@@ -164,6 +167,41 @@ At the top of the list:
   the terms the classic rating missed (#43). The best players clear it first try (44 of the 200 strongest attempters who tried),
   as they do every map on the list. Players fail it late: the median fail is at 1:34 of 4:00, where the other top maps' are at
   0:25–0:56.
+
+### Community check (2026-10-09)
+
+Players flagged pass ratings on `algo-b-v5`. Checked against the attempts-based pass difficulty `b` (rank of 3 732 maps):
+
+| map | v2 | v2 rank | attempts rank | residual | players said | attempts say |
+|---|---|---|---|---|---|---|
+| *Extratongue* E+ | 15.18 | 14 | 4 | +0.37 | should be on the first page | yes |
+| *Dual Doom Deathmatch* E+ | 15.23 | 13 | 29 | −0.75 | not as hard as Extratongue | yes |
+| *414 PER SPEED* E+ | 15.06 | 15 | 25 | −0.54 | | |
+| *SLIDE THE BPM (UP TO) 420!!* E+ | 14.86 | 16 | 19 | −0.05 | | |
+| *Godspeed* Expert / E+ | 16.85 / 15.44 | 2 / 8 | 46 / 39 | −1.93 / −1.07 | about equal to pass | yes: b 4.95 / 5.00, the classic rating had them equal |
+| *kannabis kultivation* E+ | 13.37 | 41 | 181 | −0.98 | easier than *Sound Chimera* | yes: *Sound Chimera* `4cbd0` / `2c00e` are #118 / #139 |
+
+- **Godspeed Expert vs E+.** With the horizontal and diagonal terms off, both rate exactly 13.17. The whole gap is the
+  diagonal ×1.29 on Expert's 500-eBPM streams (48 % diagonal against 40 % on E+).
+- **Extratongue falls behind.** 414 PER SPEED (67 % diagonal) and Dual Doom gain +2.5–2.8 from the cut-direction terms.
+  Extratongue's 500-eBPM streams are 22 % diagonal with no horizontals, so it barely gains and drops behind them. 73 % of its
+  fails happen at 0:15–0:30.
+- **Kannabis.** Every v2 term lifts it, and they multiply in its 5:47 section, where the model puts a fail spike. Real fails are
+  spread out (median 2:20, busiest 15 s only 25 %). It is 4-wide at 294 eBPM: "Speed" in the pass tab counts reach as well as eBPM
+  (now labelled "Speed (eBPM and reach)").
+- **SS plays are not in either number.** v2 is computed from the map; `b` uses unmodified attempts only. Extratongue's
+  scores are 36 % SS, but `b` uses its 6 987 unmodified attempts.
+- **The attempts do not favour spiky maps.** The classic peak-window rating over-rated them (spikiest fifth −0.31 logits,
+  flattest +0.21); v2 is neutral (+0.03 / −0.12).
+
+Tested fixes (`a28_fast_diagonals.py`), none adopted:
+- **Cut-direction terms only below 200–300 eBPM, or fading out between 200 and 400:** these fix most of the named maps (Godspeed
+  Expert −1.93 → −0.3, 414 → +0.7, Kannabis → +0.25). But overall R² drops to 0.907–0.913, with 523–574 maps off by more than
+  1 logit against 500.
+- **Terms skipped or halved on straight-back reversals (flowing diagonal streams):** R² 0.910–0.915, also worse.
+
+At speed and in flow, diagonal and horizontal cuts are harder to pass on average. These maps are exceptions to that, and a
+fix will need something more specific than the cut direction.
 
 Elsewhere: *Extraterrestrial* E+ (still too low), *Merry-Go-Round* Normal, *Toymatic Parade* Hard, *PISSCORD* Hard, *iLLness LiLin* Expert,
 *een vliegtuig* E+ (now too low), *Romantic Homicide* E+ (rated 0.03: the analyzer finds almost no swings), and

@@ -24,7 +24,10 @@ namespace portaBLe.Pages
         public int CompareTotalPages { get; set; }
         public int CompareTotalScores { get; set; }
     
-        /// <summary>"Where accuracy is lost" profile of this map and the shared model row (AccLossProfiles), null when the DB has none.</summary>
+        /// <summary>
+        /// "Where accuracy is lost" / "Where players fail" profiles of this map as one JSON object {"none": ..., "SS": ..., "FS": ..., "SF": ...}
+        /// (speed-modifier rows exist when the export wrote them) and the shared model row (AccLossProfiles); null when the DB has none.
+        /// </summary>
         public string? AccLossJson { get; set; }
         public string? AccLossModelJson { get; set; }
 
@@ -137,7 +140,7 @@ namespace portaBLe.Pages
         }
 
         /// <summary>
-        /// This map's AccLossProfiles row and the shared '__model__' row (written by Analysis/py/export_acc_loss_profiles.py).
+        /// This map's AccLossProfiles rows (unmodified + speed modifiers) and the shared '__model__' row (Analysis/py/export_acc_loss_profiles.py).
         /// DBs built without the export have no such table, so that case is simply "no profile".
         /// </summary>
         private static (string?, string?) LoadAccLoss(DbContext context, string id)
@@ -147,15 +150,19 @@ namespace portaBLe.Pages
                 var conn = context.Database.GetDbConnection();
                 if (conn.State != System.Data.ConnectionState.Open) conn.Open();
                 using var cmd = conn.CreateCommand();
-                cmd.CommandText = "SELECT LeaderboardId, Json FROM AccLossProfiles WHERE LeaderboardId IN ($id, '__model__')";
+                cmd.CommandText = "SELECT LeaderboardId, Json FROM AccLossProfiles WHERE LeaderboardId IN ($id, $id || ':SS', $id || ':FS', $id || ':SF', '__model__')";
                 var p = cmd.CreateParameter(); p.ParameterName = "$id"; p.Value = id; cmd.Parameters.Add(p);
-                string? map = null, model = null;
+                string? model = null;
+                var maps = new List<string>();
                 using var r = cmd.ExecuteReader();
                 while (r.Read())
                 {
-                    if (r.GetString(0) == "__model__") model = r.GetString(1); else map = r.GetString(1);
+                    var key = r.GetString(0);
+                    if (key == "__model__") { model = r.GetString(1); continue; }
+                    var variant = key == id ? "none" : key.Substring(id.Length + 1);
+                    maps.Add($"\"{variant}\":{r.GetString(1)}");
                 }
-                return map != null && model != null ? (map, model) : (null, null);
+                return maps.Count > 0 && model != null ? ("{" + string.Join(",", maps) + "}", model) : (null, null);
             }
             catch (Microsoft.Data.Sqlite.SqliteException)
             {

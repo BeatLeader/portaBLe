@@ -8,6 +8,10 @@
  * The curve is driven live from the Acc/Pass/Tech sliders rendered by
  * Leaderboard.cshtml: it reads the slider values and redraws whenever the
  * sliders dispatch a `ratingschange` event.
+ *
+ * Speed modifiers (SS/FS/SF) follow the page's modifier selector when there is one (#leaderboard-mod): the selector puts that
+ * modifier's ratings into the sliders and dispatches `leaderboardmodifier`; the curve then uses the sliders as they are (no second
+ * override from the modifier ratings) and the modifier's predicted accuracy. Clicking a speed button changes the page selector.
  */
 (function () {
 	'use strict';
@@ -601,6 +605,7 @@
 		const ABS_MIN = 0.5;
 		const ABS_MAX = 1.0;
 		let selectedModifiers = [];
+		let pageSpeed = null;                                            // speed modifier chosen by the page selector
 		let highlightedPoint = null;
 		let highlightedAccInput = '';
 		let highlightedGraphInputs = {};
@@ -697,6 +702,12 @@
 				button.title = `${userDescriptionForModifier(modifier.name)}: ${formatNumber(modifier.value * 100, 0, true)}%`;
 				button.addEventListener('click', () => {
 					if (isDisabled) return;
+					const pageSelect = document.getElementById('leaderboard-mod');
+					if (pageSelect && SPEED_MODIFIERS.includes(modifier.name)) {
+						pageSelect.value = isSelected ? '' : modifier.name;
+						pageSelect.dispatchEvent(new Event('change'));
+						return;
+					}
 					selectedModifiers = isSelected
 						? selectedModifiers.filter(m => m.name !== modifier.name)
 						: [...selectedModifiers, modifier];
@@ -1184,9 +1195,11 @@
 		// --- Redraw -------------------------------------------------------
 		function redraw() {
 			const base = baseRatings();
-			modifiedPassRating = computeModifiedRating(base.pass, 'PassRating', modifiersRating, selectedModifiers);
-			modifiedAccRating = computeModifiedRating(base.acc, 'AccRating', modifiersRating, selectedModifiers);
-			modifiedTechRating = computeModifiedRating(base.tech, 'TechRating', modifiersRating, selectedModifiers);
+			// with a page-level speed modifier the sliders already hold its ratings: only the other modifiers apply on top
+			const ratingMods = pageSpeed ? selectedModifiers.filter(m => !SPEED_MODIFIERS.includes(m.name)) : selectedModifiers;
+			modifiedPassRating = computeModifiedRating(base.pass, 'PassRating', modifiersRating, ratingMods);
+			modifiedAccRating = computeModifiedRating(base.acc, 'AccRating', modifiersRating, ratingMods);
+			modifiedTechRating = computeModifiedRating(base.tech, 'TechRating', modifiersRating, ratingMods);
 			// pass fade / acc cap judge a speed-modded score against that modifier's own predicted accuracy (as the server does)
 			const speedMod = selectedModifiers.find(m => SPEED_MODIFIERS.includes(m.name));
 			const speedPredicted = speedMod && modifiersRating ? modifiersRating[speedMod.name.toLowerCase() + 'PredictedAcc'] : 0;
@@ -1218,6 +1231,13 @@
 
 		// --- Wire up ------------------------------------------------------
 		if (sliders) sliders.addEventListener('ratingschange', redraw);
+		document.addEventListener('leaderboardmodifier', e => {
+			const mod = e.detail && e.detail.mod;
+			pageSpeed = mod && SPEED_MODIFIERS.includes(mod) && modifiersRating ? mod : null;
+			selectedModifiers = selectedModifiers.filter(m => !SPEED_MODIFIERS.includes(m.name));
+			if (pageSpeed) selectedModifiers.push({name: pageSpeed, value: RANKED_MODIFIERS[pageSpeed]});
+			redraw();
+		});
 		redraw();
 	}
 

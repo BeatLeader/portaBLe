@@ -1,0 +1,206 @@
+{
+ "v2 (terms on every swing)": {
+  "r2": 0.9165919957154641,
+  "off1": 500,
+  "off2": 47,
+  "named": {
+   "Godspeed Ex": [
+    16.85,
+    -1.93
+   ],
+   "Godspeed E+": [
+    15.44,
+    -1.07
+   ],
+   "Extratongue E+": [
+    15.18,
+    0.37
+   ],
+   "414 PER SPEED E+": [
+    15.06,
+    -0.54
+   ],
+   "Dual Doom E+": [
+    15.23,
+    -0.75
+   ],
+   "SLIDE THE BPM E+": [
+    14.86,
+    -0.05
+   ],
+   "Kannabis E+": [
+    13.37,
+    -0.98
+   ],
+   "Sound Chimera 4cbd0": [
+    13.29,
+    -0.55
+   ],
+   "Sound Chimera 2c00e": [
+    12.98,
+    -0.54
+   ],
+   "Feral E+": [
+    16.52,
+    -0.33
+   ],
+   "Calamitous Demise E+": [
+    17.54,
+    -2.09
+   ]
+  }
+ },
+ "terms skip straight-back reversals": {
+  "r2": 0.9096098819677249,
+  "off1": 572,
+  "off2": 54,
+  "named": {
+   "Godspeed Ex": [
+    13.18,
+    -0.53
+   ],
+   "Godspeed E+": [
+    13.41,
+    -0.63
+   ],
+   "Extratongue E+": [
+    13.95,
+    0.29
+   ],
+   "414 PER SPEED E+": [
+    12.52,
+    0.27
+   ],
+   "Dual Doom E+": [
+    15.09,
+    -1.55
+   ],
+   "SLIDE THE BPM E+": [
+    13.48,
+    -0.01
+   ],
+   "Kannabis E+": [
+    10.64,
+    0.14
+   ],
+   "Sound Chimera 4cbd0": [
+    12.05,
+    -0.49
+   ],
+   "Sound Chimera 2c00e": [
+    11.99,
+    -0.62
+   ],
+   "Feral E+": [
+    14.35,
+    0.1
+   ],
+   "Calamitous Demise E+": [
+    16.16,
+    -2.24
+   ]
+  }
+ },
+ "terms skip straight-back reversals at >= 200 eBPM": {
+  "r2": 0.9107293582030842,
+  "off1": 546,
+  "off2": 53,
+  "named": {
+   "Godspeed Ex": [
+    13.2,
+    -0.53
+   ],
+   "Godspeed E+": [
+    13.41,
+    -0.64
+   ],
+   "Extratongue E+": [
+    13.95,
+    0.28
+   ],
+   "414 PER SPEED E+": [
+    12.54,
+    0.29
+   ],
+   "Dual Doom E+": [
+    15.09,
+    -1.59
+   ],
+   "SLIDE THE BPM E+": [
+    13.49,
+    -0.02
+   ],
+   "Kannabis E+": [
+    10.68,
+    0.18
+   ],
+   "Sound Chimera 4cbd0": [
+    12.05,
+    -0.46
+   ],
+   "Sound Chimera 2c00e": [
+    12.0,
+    -0.59
+   ],
+   "Feral E+": [
+    14.35,
+    0.08
+   ],
+   "Calamitous Demise E+": [
+    16.16,
+    -2.31
+   ]
+  }
+ },
+ "terms halved on straight-back reversals": {
+  "r2": 0.9144890871473913,
+  "off1": 524,
+  "off2": 48,
+  "named": {
+   "Godspeed Ex": [
+    15.01,
+    -1.33
+   ],
+   "Godspeed E+": [
+    14.37,
+    -0.88
+   ],
+   "Extratongue E+": [
+    14.5,
+    0.33
+   ],
+   "414 PER SPEED E+": [
+    13.76,
+    -0.18
+   ],
+   "Dual Doom E+": [
+    15.14,
+    -1.17
+   ],
+   "SLIDE THE BPM E+": [
+    14.09,
+    -0.03
+   ],
+   "Kannabis E+": [
+    11.96,
+    -0.47
+   ],
+   "Sound Chimera 4cbd0": [
+    12.6,
+    -0.52
+   ],
+   "Sound Chimera 2c00e": [
+    12.45,
+    -0.59
+   ],
+   "Feral E+": [
+    15.25,
+    -0.06
+   ],
+   "Calamitous Demise E+": [
+    16.82,
+    -2.2
+   ]
+  }
+ }
+}

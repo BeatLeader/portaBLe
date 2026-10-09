@@ -490,6 +490,21 @@ The typical swing is 60–90 eBPM.
 - the top causes of each section (tooltip) and of the whole map;
 - where the replay study covered the map, the observed loss of its best and mid-field replays.
 
+**Modifier selector (2026-10-09).** A dropdown under the title (None / SS / FS / SF; `?mod=SF` in the URL) switches the whole page
+to that variant. The PP curve's own SS/FS/SF buttons drive the same selector. It switches:
+- the rating triangle and the preview sliders to the modifier's ratings;
+- the PP curve to the modifier's predicted accuracy;
+- both tabs of this card to the modifier's profile.
+
+`export_acc_loss_profiles.py` writes `<id>:SS/FS/SF` rows with the same swings in played time:
+- eBPM, NJS and density scale with the speed;
+- gaps and section times scale with 1 / speed;
+- the total is anchored to the modifier's predicted accuracy.
+
+`export_pass_profiles.py` shifts each swing's PassDiff exactly as the analyzer does: speed × k, its low-speed falloff, and the NJS buff
+at NJS × k. The page's pass levels match the stored SS/FS/SF pass ratings within ±0.3 % (p1–p99). Modifier views are model only:
+the replays and attempts are unmodified play.
+
 Skill scales each component by one factor, so the page recomputes any skill exactly. The **total** per skill follows the map's
 acc rating (latent model: `log(1 − acc(s)) = log(1 − predictedAcc) + reference_skill − s`), so the expected accuracies match the
 rating. The bottom-up model only splits that total over sections and causes. On maps the rating over- or under-rates (e.g.

@@ -6,6 +6,9 @@ loss per component at the base skill (sum over notes of the expected point-loss 
 factor breakdown per component, and the replay-observed loss per window where the replay study covered the map. Skill scales
 each component by one factor (loss = exp(intercept + factors + skill term) x calibration), so the page recomputes any skill exactly.
 
+Speed modifiers get their own rows ('<id>:SS', '<id>:FS', '<id>:SF'): the same swings in played time (see modded()), without the
+replay overlay (the replays are unmodified). The page anchors their totals to the modifier's predicted accuracy.
+
 Usage: python export_acc_loss_profiles.py --model Analysis/models/acc_loss_model.json --a17 <dir with a17_swings.parquet, a17_obs.parquet>
        --skill <player_skill.parquet> --replays <snap dir> --db wwwroot/test-algo-b-v3.db [--base-pct 0.95]
 """
@@ -15,6 +18,7 @@ import numpy as np, pandas as pd
 ap = argparse.ArgumentParser()
 for a in ["model", "a17", "skill", "replays", "db"]: ap.add_argument(f"--{a}", required=True)
 ap.add_argument("--base-pct", type=float, default=0.95)
+ap.add_argument("--no-mods", action="store_true", help="only the unmodified map (no SS / FS / SF rows)")
 ap.add_argument("--acc-model", default=os.path.join(os.path.dirname(__file__), "..", "..", "RatingAPI", "acc_model.json"),
                 help="the acc model whose reference skill turns the leaderboard's predicted accuracy into a total per skill level")
 args = ap.parse_args()
@@ -31,8 +35,8 @@ def level_labels(f):
     fmt = lambda v: f"{v:g}"
     return [f"< {fmt(e[1])}{u}" if i == 0 else (f"≥ {fmt(e[i])}{u}" if i == n - 1 else f"{fmt(e[i])}–{fmt(e[i + 1])}{u}") for i in range(n)]
 
-def codes(f):
-    v = S[f["column"]]
+def codes(T, f):
+    v = T[f["column"]]
     if f["edges"] is None:
         if f["levels"] == ["0", "1"]: return v.astype(int).clip(0, 1).values
         return pd.Categorical(v, categories=f["levels"]).codes
@@ -40,38 +44,20 @@ def codes(f):
     return np.clip(np.digitize(v.values.astype(float), e[1:-1]), 0, len(e) - 2)
 
 F = spec["factors"]
-C = np.column_stack([codes(f) for f in F])
-logf = {c: np.zeros(len(S)) for c in COMP}
-contrib = {c: np.zeros((len(S), len(F))) for c in COMP}
-for k, f in enumerate(F):
-    for c in COMP:
-        coef = np.array(f["coef"][c]); v = coef[C[:, k]]
-        logf[c] += v; contrib[c][:, k] = v
-
 sk_mid = np.array(spec["skill_mid"]); cal = np.array(spec["calibration"])
 def skill_term(c, s): return float(np.interp(s, sk_mid, np.array(spec["skill_coef"][c])) + np.interp(s, sk_mid, cal))
 P = pd.read_parquet(args.skill)
 s0 = float(P.skill.quantile(args.base_pct))
 notes = S.n_cubes.clip(lower=1).values.astype(float)
-L = {c: np.exp(spec["intercept"][c] + logf[c] + skill_term(c, s0)) for c in COMP}
-L0 = {c: np.exp(spec["intercept"][c] + skill_term(c, s0)) for c in COMP}
-# excess over the plain swing, attributed to the factors that raise the loss, in proportion to their log effect
-att = {}
-for c in COMP:
-    pos = np.clip(contrib[c], 0, None); tot = pos.sum(axis=1, keepdims=True)
-    ex = np.clip(L[c] - L0[c], 0, None)[:, None]
-    att[c] = np.where(tot > 0, ex * pos / np.where(tot > 0, tot, 1), 0) * notes[:, None]
-
 lab = [level_labels(f) for f in F]
 def flabel(k, lvl):
     f = F[k]
     return f["label"] if f["edges"] is None and f["levels"] in (["0", "1"], ["no", "yes"]) else f"{f['label']}: {lab[k][lvl]}"
 # global ids of (factor, level) pairs
 LV_OFF = np.r_[0, np.cumsum([len(lab[k]) for k in range(len(F))])]; N_FL = int(LV_OFF[-1])
-FL = (C + LV_OFF[:-1]).astype(np.int64)
 FL_LABEL = [flabel(k, l) for k in range(len(F)) for l in range(len(lab[k]))]
 
-# replay-observed loss per swing and stratum (sum of point-loss shares over the replay's notes on the swing)
+# replay-observed loss per swing and stratum (sum of point-loss shares over the replay's notes on the swing); unmodified play only
 O = pd.read_parquet(os.path.join(args.a17, "a17_obs.parquet"))
 R = pd.read_parquet(os.path.join(args.replays, "replays.parquet"), columns=["score_id", "player_id", "modifiers", "stratum_kind"])
 R = R[R.modifiers.isna() | R.modifiers.fillna("").isin(["", "IF", "BE"])]
@@ -83,40 +69,77 @@ S["row"] = np.arange(len(S))
 O = O.merge(S[["lb_id", "swing_i", "row"]], on=["lb_id", "swing_i"])
 O_by_lb = {lb: g for lb, g in O.groupby("lb_id", sort=False)}
 
-rows = []
-for lb, idx in S.groupby("lb_id", sort=False).indices.items():
-    t = S.seconds.values[idx]; t0 = t.min(); span = max(t.max() - t0, 1.0); width = max(5.0, span / 60)
-    win = np.floor((t - t0) / width).astype(int); nw = win.max() + 1
-    W = {"t0": [round(t0 + i * width, 2) for i in range(nw)], "w": round(width, 3),
-         "n": np.bincount(win, weights=notes[idx], minlength=nw).round(1).tolist()}
-    for c in COMP: W[c] = np.bincount(win, weights=(L[c] * notes)[idx], minlength=nw).round(5).tolist()
-    # excess per (window, factor level), all components at the base skill -> each window's top 3 causes
-    K = len(F); fl = FL[idx]                                                  # n x K global factor-level ids
-    win_k = np.repeat(win, K)
-    tot_att = sum(att[c][idx] for c in COMP).ravel()
-    grid = np.bincount(win_k * N_FL + fl.ravel(), weights=tot_att, minlength=nw * N_FL).reshape(nw, N_FL)
-    wloss = sum(np.bincount(win, weights=(L[c] * notes)[idx], minlength=nw) for c in COMP)
-    tops = []
-    for i in range(nw):
-        best = np.argsort(-grid[i])[:3]
-        tops.append([[FL_LABEL[j], round(float(grid[i, j] / wloss[i]), 3)] for j in best if grid[i, j] > 0 and wloss[i] > 0])
-    W["top"] = tops
-    # map-wide excess per factor level and component (the page rescales each component with skill)
-    fac = {}
+# speed modifiers (RatingAPI: SS 0.85, FS 1.2, SF 1.5): the same swings played k times faster. eBPM and NJS x k, gaps, section
+# times and minutes / k, density counted within 2 s of played time; jump distance and everything spatial unchanged.
+MODS = {"SS": 0.85, "FS": 1.2, "SF": 1.5}
+def modded(k):
+    T = S.copy()
+    T["ebpm"] = S.ebpm * k; T["any_gap"] = S.any_gap / k; T["njs"] = S.njs * k
+    T["seconds"] = S.seconds / k; T["minutes"] = S.minutes / k
+    dens = np.zeros(len(S)); t = S.seconds.values
+    for _, idx in S.groupby("lb_id", sort=False).indices.items():
+        tt = t[idx]; dens[idx] = np.searchsorted(tt, tt + 2.0 * k) - np.searchsorted(tt, tt - 2.0 * k)
+    T["density"] = dens
+    return T
+
+def build(T, suffix="", observed=None):
+    C = np.column_stack([codes(T, f) for f in F])
+    logf = {c: np.zeros(len(T)) for c in COMP}
+    contrib = {c: np.zeros((len(T), len(F))) for c in COMP}
+    for k, f in enumerate(F):
+        for c in COMP:
+            v = np.array(f["coef"][c])[C[:, k]]
+            logf[c] += v; contrib[c][:, k] = v
+    L = {c: np.exp(spec["intercept"][c] + logf[c] + skill_term(c, s0)) for c in COMP}
+    L0 = {c: np.exp(spec["intercept"][c] + skill_term(c, s0)) for c in COMP}
+    # excess over the plain swing, attributed to the factors that raise the loss, in proportion to their log effect
+    att = {}
     for c in COMP:
-        v = np.bincount(fl.ravel(), weights=att[c][idx].ravel(), minlength=N_FL)
-        fac[c] = {FL_LABEL[j]: round(float(v[j]), 4) for j in np.flatnonzero(v > 0)}
-    base = {c: round(float((L0[c] * notes)[idx].sum()), 4) for c in COMP}
-    obs = {}
-    g = O_by_lb.get(lb)
-    if g is not None and len(g):
-        wi = np.floor((S.seconds.values[g.row.values] - t0) / width).astype(int)
-        for st, gg in g.groupby("stratum"):
-            wgi = wi[g.stratum.values == st]
-            lsum = np.bincount(wgi, weights=gg.loss.values, minlength=nw); nsum = np.bincount(wgi, weights=gg.one.values, minlength=nw)
-            obs[st] = {"skill": round(float(np.nanmean(gg.skill.values)), 3), "replays": int(gg.score_id.nunique()),
-                       "loss": [round(float(a / b), 4) if b >= 30 else None for a, b in zip(lsum, nsum)]}
-    rows.append((lb, json.dumps({"v": 1, "windows": W, "factors": fac, "base": base, "observed": obs}, separators=(",", ":"))))
+        pos = np.clip(contrib[c], 0, None); tot = pos.sum(axis=1, keepdims=True)
+        ex = np.clip(L[c] - L0[c], 0, None)[:, None]
+        att[c] = np.where(tot > 0, ex * pos / np.where(tot > 0, tot, 1), 0) * notes[:, None]
+    FL = (C + LV_OFF[:-1]).astype(np.int64)
+    rows = []
+    for lb, idx in T.groupby("lb_id", sort=False).indices.items():
+        t = T.seconds.values[idx]; t0 = t.min(); span = max(t.max() - t0, 1.0); width = max(5.0, span / 60)
+        win = np.floor((t - t0) / width).astype(int); nw = win.max() + 1
+        W = {"t0": [round(t0 + i * width, 2) for i in range(nw)], "w": round(width, 3),
+             "n": np.bincount(win, weights=notes[idx], minlength=nw).round(1).tolist()}
+        for c in COMP: W[c] = np.bincount(win, weights=(L[c] * notes)[idx], minlength=nw).round(5).tolist()
+        # excess per (window, factor level), all components at the base skill -> each window's top 3 causes
+        K = len(F); fl = FL[idx]                                                  # n x K global factor-level ids
+        win_k = np.repeat(win, K)
+        tot_att = sum(att[c][idx] for c in COMP).ravel()
+        grid = np.bincount(win_k * N_FL + fl.ravel(), weights=tot_att, minlength=nw * N_FL).reshape(nw, N_FL)
+        wloss = sum(np.bincount(win, weights=(L[c] * notes)[idx], minlength=nw) for c in COMP)
+        tops = []
+        for i in range(nw):
+            best = np.argsort(-grid[i])[:3]
+            tops.append([[FL_LABEL[j], round(float(grid[i, j] / wloss[i]), 3)] for j in best if grid[i, j] > 0 and wloss[i] > 0])
+        W["top"] = tops
+        # map-wide excess per factor level and component (the page rescales each component with skill)
+        fac = {}
+        for c in COMP:
+            v = np.bincount(fl.ravel(), weights=att[c][idx].ravel(), minlength=N_FL)
+            fac[c] = {FL_LABEL[j]: round(float(v[j]), 4) for j in np.flatnonzero(v > 0)}
+        base = {c: round(float((L0[c] * notes)[idx].sum()), 4) for c in COMP}
+        obs = {}
+        g = observed.get(lb) if observed else None
+        if g is not None and len(g):
+            wi = np.floor((T.seconds.values[g.row.values] - t0) / width).astype(int)
+            for st, gg in g.groupby("stratum"):
+                wgi = wi[g.stratum.values == st]
+                lsum = np.bincount(wgi, weights=gg.loss.values, minlength=nw); nsum = np.bincount(wgi, weights=gg.one.values, minlength=nw)
+                obs[st] = {"skill": round(float(np.nanmean(gg.skill.values)), 3), "replays": int(gg.score_id.nunique()),
+                           "loss": [round(float(a / b), 4) if b >= 30 else None for a, b in zip(lsum, nsum)]}
+        rows.append((lb + suffix, json.dumps({"v": 1, "windows": W, "factors": fac, "base": base, "observed": obs}, separators=(",", ":"))))
+    return rows
+
+rows = build(S, observed=O_by_lb)
+n_base = len(rows)
+if not args.no_mods:
+    for mod, k in MODS.items():
+        rows += build(modded(k), suffix=":" + mod)
 
 pcts = spec["percentiles"]
 acc_model = json.load(open(args.acc_model))
@@ -132,4 +155,5 @@ con.execute("CREATE TABLE AccLossProfiles (LeaderboardId TEXT PRIMARY KEY, Json 
 con.executemany("INSERT INTO AccLossProfiles VALUES (?, ?)", rows + [("__model__", json.dumps(meta, separators=(",", ":")))])
 con.commit(); con.close()
 size = sum(len(j) for _, j in rows)
-print(f"wrote {len(rows)} profiles ({size / 1e6:.1f} MB JSON) + model row to {args.db}; base skill {s0:.3f} (playerbase p{args.base_pct * 100:g})")
+print(f"wrote {n_base} profiles + {len(rows) - n_base} speed-modifier profiles ({size / 1e6:.1f} MB JSON) + model row to {args.db}; "
+      f"base skill {s0:.3f} (playerbase p{args.base_pct * 100:g})")
