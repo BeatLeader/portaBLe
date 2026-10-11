@@ -244,6 +244,31 @@ What this means for v2:
 - **Next step:** fit the per-note model (slope, swing terms, maybe a run-level skill spread) directly on attempt replays of all
   maps, instead of on map pass rates.
 
+### Fixing the top of the list: tested, nothing adopted (`a30_pass_contrast.py`)
+
+v2 orders the list better than prod overall (rank correlation with attempts 0.957 vs 0.913; with the top 5 % of players 0.823 vs
+0.779; better top-50/100/200 overlap). But its #1 and #2, *Calamitous Demise* E+ and *Godspeed* Expert, are #31 and #46 by attempts.
+Prod's top three (*Extratongue*, *The Purple Dimension*, *999*) are right, and prod's order inside its own top 50 is slightly closer
+(+0.70 vs +0.65 for strong players). Variants of the energy model were scored on R², maps off by more than 1 / 2 logits, top-50/100/200
+overlap and order inside the top 50 (all players and the strongest 5 %), plus the named maps:
+
+| variant | R² | off > 1 / > 2 | order in top 50, all / strong | Calamitous | Godspeed Ex | Superluminal |
+|---|---|---|---|---|---|---|
+| v2 | 0.917 | 500 / 47 | 0.63 / 0.65 | −2.09 | −1.93 | +0.56 |
+| per-note slope 2.0 / 1.6 / 1.3 | 0.916 / 0.915 / 0.912 | 501–540 | 0.61 / 0.46 / 0.17 | −1.97 / −1.86 / +0.42 | −1.89 / −1.78 / +0.20 | |
+| diagonal ×1.15 / no diagonal term | 0.916 / 0.913 | 503 / 538 | 0.56 / 0.54 | −1.99 / −1.80 | −1.47 / −0.80 | |
+| terms added instead of multiplied | 0.913 | 521 / 57 | 0.60 / 0.62 | −1.93 | −2.25 | |
+| run form (skill offset per attempt, σ 0.3 / 0.5) | 0.916 | 498–499 | 0.63 / 0.65 | −2.02 | −1.86 | +0.61 |
+| swing-level draws (a missed stack loses all its notes) | 0.916 | 496 / 50 | 0.58 / 0.57 | −1.79 | −1.63 | **+0.07** |
+
+- **The two top outliers resist every general rule.** Only the flattest slope moves them, and it wrecks the rest of the list.
+- **Swing-level draws** match the game better and fix *Superluminal*, but they order the top 50 slightly worse.
+- **Also checked, no relation to v2's error:** pattern repetition (correlation ≈ 0), how late the hard part comes (−0.03), and quits or
+  restarts before the hard part (−0.01 to −0.11). The latter would make late-hard maps look easier in attempts. The two outliers
+  do show more of it (0.42–0.45 quits per fail vs 0.19 on *Extratongue*), but that is worth about half a logit, not two.
+- **What remains:** their hard parts (422–500 eBPM long-reach diagonal streams) look like *Extratongue*'s on every measured
+  feature, yet they are passed far more often. The difference is not in the analyzer's swing data.
+
 Elsewhere: *Extraterrestrial* E+ (still too low), *Merry-Go-Round* Normal, *Toymatic Parade* Hard, *PISSCORD* Hard, *iLLness LiLin* Expert,
 *een vliegtuig* E+ (now too low), *Romantic Homicide* E+ (rated 0.03: the analyzer finds almost no swings), and
 *Ascension to Heaven* Expert (too high). Per map: `b`, classic, v2 and both residuals are in `out/pass_v2_maps.csv`; the fitted

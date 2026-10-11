@@ -40,6 +40,7 @@ py/a26_ebpm.py            eBPM vs swing speed as the speed parameter (acc model,
 py/a27_fake_fails.py      deliberate fails (fail button / wall bail) in the attempts data and their effect on pass difficulty
 py/a28_fast_diagonals.py  pass v2 cut-direction terms at high eBPM / on straight-back reversals (community outliers; not adopted)
 py/a29_attempt_replays.py attempt replays (R2 otherreplays, ReplayStudy --attempts): how and where runs fail, which swings get missed
+py/a30_pass_contrast.py   pass v2 variants for the top of the list (slope, cut terms, stacking, run form, swing draws); none adopted
 tools/RatingsDump      recompute ratings + per-swing table + per-note ML predictions for a list of maps (prod or corpus analyzer)
 tools/ReplayStudy      SwingCorpus + stratified replay sampling + per-note observation table + tip-motion metrics
 ```
