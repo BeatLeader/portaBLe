@@ -110,42 +110,22 @@ namespace portaBLe.Refresh
             return (float)(pointList2[i-1].Item2 + middle_dis * (pointList2[i].Item2 - pointList2[i-1].Item2));
         }
 
+        // Same as RatingAPI (AccRating.GetRating), so the constants only live in one place
         public static float AccRating(float? predictedAcc, float? passRating, float? techRating) {
-            float difficulty_to_acc;
-            if (predictedAcc > 0) {
-                difficulty_to_acc = 15.5f / Curve((predictedAcc ?? 0) + 0.0022f);
-            } else {
-                float tiny_tech = 0.0208f * (techRating ?? 0) + 1.1284f;
-                difficulty_to_acc = (-MathF.Pow(tiny_tech, -(passRating ?? 0)) + 1) * 8 + 2 + 0.01f * (techRating ?? 0) * (passRating ?? 0);
-            }
-            if (float.IsInfinity(difficulty_to_acc) || float.IsNaN(difficulty_to_acc) || float.IsNegativeInfinity(difficulty_to_acc)) {
-                difficulty_to_acc = 0;
-            }
-            return difficulty_to_acc;
+            return (float)new global::RatingAPI.Controllers.AccRating().GetRating(predictedAcc, passRating, techRating);
         }
 
-        private static float Inflate(float peepee) {
-            return 650f * MathF.Pow(peepee, 1.3f) / MathF.Pow(650f, 1.3f);
-        }
+        private static float Inflate(float peepee) => PpFormula.Current.Inflate(peepee);
 
         private static (float, float, float) GetPp(float accuracy, float accRating, float passRating, float techRating) {
-
-            float passPP = 15.2f * MathF.Exp(MathF.Pow(passRating, 1 / 2.62f)) - 30f;
-            if (float.IsInfinity(passPP) || float.IsNaN(passPP) || float.IsNegativeInfinity(passPP) || passPP < 0)
-            {
-                passPP = 0;
-            }
-            float accPP = Curve2(accuracy) * accRating * 34f;
-            // https://www.desmos.com/calculator/jdpmaozieo
-            float techPP = MathF.Exp(1.9f * accuracy) * 1.08f * techRating;
-            
-            return (passPP, accPP, techPP);
+            var formula = PpFormula.Current;
+            return (formula.PassPp(passRating), formula.AccPp(Curve2(accuracy), accRating), formula.TechPp(accuracy, techRating));
         }
 
         public static float ToStars(float accRating, float passRating, float techRating) {
             (float passPP, float accPP, float techPP) = GetPp(0.96f, accRating, passRating, techRating);
 
-            return Inflate(passPP + accPP + techPP) / 52f;
+            return Inflate(passPP + accPP + techPP) / (float)(PpFormula.Current.StarDivisor * PpFormula.Current.PpMultiplier);
         }
 
         public static (float, float, float, float, float) PpFromScore(
@@ -170,7 +150,8 @@ namespace portaBLe.Refresh
                 (passPP, accPP, techPP) = GetPp(accuracy, accRating, passRating, techRating);
 
                 rawPP = Inflate(passPP + accPP + techPP);
-                if (modifiersRating != null) {
+                // Only scores with modifiers can use the modifier ratings (skips the reflection for every other score)
+                if (modifiersRating != null && !string.IsNullOrEmpty(modifiers)) {
                     var modifiersMap = modifiersRating.ToDictionary<float>();
                     foreach (var modifier in modifiers.ToUpper().Split(","))
                     {

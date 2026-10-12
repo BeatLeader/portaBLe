@@ -1,0 +1,259 @@
+@page
+@model BalanceTuningModel
+@using portaBLe.Refresh
+@{
+    ViewData["Title"] = "Balance Tuning";
+    var r = Model.Result;
+    string Signed(double v, string format = "0.000") => v.ToString("+" + format + ";-" + format);
+}
+
+<h2>Balance Tuning</h2>
+
+<p class="text-muted">
+    Suggested values for the pass, tech and acc rating constants, so that no kind of map is systematically worth more to players than
+    other maps of the same star rating. Every value tried is simulated in memory on the current database: ratings are transformed, stars
+    rebuilt, every score re-scored and every player's weighted pp rebuilt. Nothing is written to the database; apply the suggestions in the
+    code by hand, re-rate, and run the tuner again to check.
+</p>
+
+@if (r == null)
+{
+    <div class="alert alert-warning">
+        <strong>No results yet.</strong> In <code>Program.Main</code>, uncomment
+        <code>await BalanceTuner.Run(dbContext, env.WebRootPath);</code> and run portaBLe once.
+        It saves <code>wwwroot/@BalanceTuner.FileName</code>.
+    </div>
+    return;
+}
+
+<div class="alert alert-secondary small">
+    <strong>How balance is measured.</strong> A map's <em>worth</em> is its Megametric75 (how much it counts in the profiles of the players
+    who play it) relative to the average map of its star range: 0 = average, +0.10 = 10% more valuable. Each constant is moved until the
+    worth no longer depends on what it controls: the pass calibration against the share of pass pp at the predicted acc, the tech pp
+    weight against the share of tech pp (the tech scaler stays as it is, so tech ratings keep their usual scale), the one saber nerf against OneSaber vs Standard maps of the same stars, and the acc offset against the
+    20% easiest-acc maps vs the 20% hardest. The acc scale is the reference and isn't tuned (the three shares add up to 100%, and scaling
+    everything only changes the pp level).
+    <div class="mt-1 text-muted">
+        Generated @r.GeneratedAt.ToString("yyyy-MM-dd HH:mm") UTC. Database rated with @r.RatedWith
+        (<code>BalanceTuner.RatedWith</code>; update it when you change the code and re-rate).
+        The one saber nerf is only applied to OneSaber maps (@r.OneSaberMaps), since the hands ratio of other maps isn't stored.
+    </div>
+</div>
+
+<h4>Suggested constants</h4>
+<div class="table-responsive">
+    <table class="table table-sm">
+        <thead><tr><th>Constant</th><th>Where</th><th class="text-end">In code</th><th class="text-end">Suggested</th><th class="text-end">Change</th></tr></thead>
+        <tbody>
+            @foreach (var (name, location) in BalanceTuningModel.Locations)
+            {
+                double now = BalanceTuningModel.Get(r.RatedWith, name);
+                double suggested = BalanceTuningModel.Get(r.SuggestedConstants, name);
+                var lastSweep = r.Sweeps.LastOrDefault(s => s.Knob == name);
+                <tr>
+                    <td><strong>@name</strong></td>
+                    <td class="small text-muted">@location</td>
+                    <td class="text-end">@now.ToString("0.#####")</td>
+                    <td class="text-end"><strong>@suggested.ToString("0.#####")</strong>@(lastSweep?.AtEdge == true ? " ⚠" : "")</td>
+                    <td class="text-end">@(now != 0 ? ((suggested / now - 1) * 100).ToString("+0.0;-0.0") + "%" : "")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+<p class="small text-muted">⚠ = the best value was at the edge of the range tried; apply it, re-rate, update <code>RatedWith</code> and run again.</p>
+
+@{
+    var a = r.Current.Balance;
+    var b = r.Suggested.Balance;
+    var sa = r.Current.Summary;
+    var sb = r.Suggested.Summary;
+}
+<h4>Balance: in code vs suggested</h4>
+<div class="row g-3">
+    <div class="col-md-6">
+        <table class="table table-sm small">
+            <thead><tr><th>Worth change (0 = balanced)</th><th class="text-end">In code</th><th class="text-end">Suggested</th></tr></thead>
+            <tbody>
+                <tr><td>per +10% pass pp share</td><td class="text-end">@Signed(a.PassShareSlope)</td><td class="text-end">@Signed(b.PassShareSlope)</td></tr>
+                <tr><td>per +10% tech pp share</td><td class="text-end">@Signed(a.TechShareSlope)</td><td class="text-end">@Signed(b.TechShareSlope)</td></tr>
+                <tr><td>per +10% acc pp share</td><td class="text-end">@Signed(a.AccShareSlope)</td><td class="text-end">@Signed(b.AccShareSlope)</td></tr>
+                <tr><td>per +1 point of predicted acc</td><td class="text-end">@Signed(a.PredictedAccSlope)</td><td class="text-end">@Signed(b.PredictedAccSlope)</td></tr>
+                <tr><td>Easiest-acc 20% minus hardest-acc 20% (predicted acc)</td><td class="text-end">@Signed(a.PredictedAccGap)</td><td class="text-end">@Signed(b.PredictedAccGap)</td></tr>
+                <tr><td>Most minus least pass-heavy 20%</td><td class="text-end">@Signed(a.PassShareGap)</td><td class="text-end">@Signed(b.PassShareGap)</td></tr>
+                <tr><td>Most minus least tech-heavy 20%</td><td class="text-end">@Signed(a.TechShareGap)</td><td class="text-end">@Signed(b.TechShareGap)</td></tr>
+                <tr><td>OneSaber vs Standard of the same stars (@a.OneSaberMaps maps)</td><td class="text-end">@Signed(a.OneSaberGap)</td><td class="text-end">@Signed(b.OneSaberGap)</td></tr>
+                <tr class="table-light"><td>Typical distance from the star range's average ↓</td><td class="text-end">@a.WorthSpread.ToString("0.000")</td><td class="text-end">@b.WorthSpread.ToString("0.000")</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="col-md-6">
+        <table class="table table-sm small">
+            <thead><tr><th>Map type: average worth</th><th class="text-end">Maps</th><th class="text-end">In code</th><th class="text-end">Suggested</th></tr></thead>
+            <tbody>
+                @for (int i = 0; i < a.ByType.Count; i++)
+                {
+                    var t = a.ByType[i];
+                    var t2 = i < b.ByType.Count ? b.ByType[i] : t;
+                    <tr><td>@t.Type</td><td class="text-end">@t.Maps</td><td class="text-end">@Signed(t.Worth, "0.00")</td><td class="text-end">@Signed(t2.Worth, "0.00")</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<div class="row g-3">
+    <div class="col-md-6">
+        <table class="table table-sm small">
+            <thead><tr><th>Top 1000 players' pp comes from</th><th class="text-end">In code</th><th class="text-end">Suggested</th></tr></thead>
+            <tbody>
+                <tr><td>Pass pp</td><td class="text-end">@((a.Top1000PassShare * 100).ToString("F1"))%</td><td class="text-end">@((b.Top1000PassShare * 100).ToString("F1"))%</td></tr>
+                <tr><td>Acc pp</td><td class="text-end">@((a.Top1000AccShare * 100).ToString("F1"))%</td><td class="text-end">@((b.Top1000AccShare * 100).ToString("F1"))%</td></tr>
+                <tr><td>Tech pp</td><td class="text-end">@((a.Top1000TechShare * 100).ToString("F1"))%</td><td class="text-end">@((b.Top1000TechShare * 100).ToString("F1"))%</td></tr>
+            </tbody>
+        </table>
+    </div>
+    <div class="col-md-6">
+        <table class="table table-sm small">
+            <thead><tr><th>Checks</th><th class="text-end">In code</th><th class="text-end">Suggested</th></tr></thead>
+            <tbody>
+                <tr><td>Rank correlation with the constants in code, top 1000</td><td class="text-end">@sa.RankCorrelationTop1000.ToString("F4")</td><td class="text-end">@sb.RankCorrelationTop1000.ToString("F4")</td></tr>
+                <tr><td>Average move, top 100</td><td class="text-end">@sa.AverageRankChangeTop100.ToString("F1")</td><td class="text-end">@sb.AverageRankChangeTop100.ToString("F1")</td></tr>
+                <tr><td>Star order breaks (pp at predicted / top 100 players)</td><td class="text-end">@sa.PpAtPredictedInversions / @sa.ProgressionInversions</td><td class="text-end">@sb.PpAtPredictedInversions / @sb.ProgressionInversions</td></tr>
+                <tr><td>#1 / #100 / #1000 pp</td><td class="text-end">@sa.Top1Pp.ToString("F0") / @sa.Top100Pp.ToString("F0") / @sa.Top1000Pp.ToString("F0")</td><td class="text-end">@sb.Top1Pp.ToString("F0") / @sb.Top100Pp.ToString("F0") / @sb.Top1000Pp.ToString("F0")</td></tr>
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<h4>By star range</h4>
+<div class="table-responsive">
+    <table class="table table-sm small">
+        <thead>
+            <tr>
+                <th>Stars</th>
+                <th class="text-end">Maps (in code / suggested)</th>
+                <th class="text-end">pp at predicted acc</th>
+                <th class="text-end">Top 100 players' median pp</th>
+                <th class="text-end">Average Megametric75</th>
+            </tr>
+        </thead>
+        <tbody>
+            @for (int i = 0; i < r.Current.Bands.Count; i++)
+            {
+                var x = r.Current.Bands[i];
+                var y = i < r.Suggested.Bands.Count ? r.Suggested.Bands[i] : x;
+                <tr>
+                    <td>@x.Band</td>
+                    <td class="text-end">@x.Maps / @y.Maps</td>
+                    <td class="text-end">@x.PpAtPredicted.ToString("F0") → @y.PpAtPredicted.ToString("F0")</td>
+                    <td class="text-end">@x.TopPlayersMedianPp.ToString("F0") → @y.TopPlayersMedianPp.ToString("F0")</td>
+                    <td class="text-end">@x.MegametricMean.ToString("F3") → @y.MegametricMean.ToString("F3")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<h4>Sweeps</h4>
+<p class="small text-muted">Each constant tried around the current best value; the suggestion is where the line crosses 0. Later rounds start from the earlier suggestions. The dotted line is the rank correlation with the constants in code (right axis).</p>
+<div class="row g-3">
+    @for (int i = 0; i < r.Sweeps.Count; i++)
+    {
+        <div class="col-md-6"><div id="sweep@(i)" style="width:100%;height:280px;"></div></div>
+    }
+</div>
+
+<!-- pp formula -->
+<h4 class="mt-4">pp formula</h4>
+@{ var f = Model.Formula; }
+@if (f == null)
+{
+    <div class="alert alert-warning">
+        <strong>No pp formula sweeps yet.</strong> In <code>Program.Main</code>, uncomment
+        <code>await BalanceTuner.RunPpFormula(dbContext, env.WebRootPath);</code> and run portaBLe once.
+        It saves <code>wwwroot/@BalanceTuner.PpFormulaFileName</code>.
+    </div>
+}
+else
+{
+    <div class="alert alert-secondary small">
+        <strong>What these show.</strong> Each part of <code>PpFormula</code> (Refresh/PpFormula.cs) that isn't the same as a rating
+        constant, tried one at a time with the ratings as rated (AccWeight 34 does exactly what ACC_SCALE does, and TechWeight is
+        balanced above). They shape how pp is distributed over difficulty, which is a design
+        choice rather than a balance error, so there's no automatic suggestion: pick the value whose progression and 700pp+ spread you
+        like, keeping the worth gaps close to 0 and no star order breaks. Stars follow the formula, so maps move between star ranges a
+        little between values.
+        <div class="mt-1 text-muted">Generated @f.GeneratedAt.ToString("yyyy-MM-dd HH:mm") UTC. Formula in code: @f.Formula. Rated with @f.RatedWith.</div>
+    </div>
+    var bandNames = new[] { "2-3", "5-6", "9-10", "12-13" };
+    foreach (var sw in f.Sweeps)
+    {
+        <h6 class="mt-3">@sw.Knob <span class="small text-muted fw-normal">— @sw.Explanation</span></h6>
+        <div class="table-responsive">
+            <table class="table table-sm small">
+                <thead>
+                    <tr>
+                        <th>Value</th>
+                        @foreach (var band in bandNames) { <th class="text-end">pp at predicted @(band)★</th> }
+                        <th class="text-end" title="pp gained per star at the predicted acc / for the top 100 players' scores">pp per star: predicted / top 100</th>
+                        <th class="text-end">700pp+ maps &lt;10★</th>
+                        <th class="text-end" title="Spread of the share of 700pp+ maps between star ranges (lower = more similar)">700pp+ evenness ↓</th>
+                        <th class="text-end" title="Star ranges where pp at predicted / top 100 median pp drops">Order breaks</th>
+                        <th class="text-end">Worth gap: pass / tech / easy acc</th>
+                        <th class="text-end">Top 1000 pp: pass / acc / tech</th>
+                        <th class="text-end">Rank corr. top 1000</th>
+                        <th class="text-end">Avg move top 100</th>
+                        <th class="text-end">#1 / #100 pp</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @foreach (var pt in sw.Points)
+                    {
+                        var s = pt.Point.Summary;
+                        var bal = pt.Point.Balance;
+                        <tr class="@(Math.Abs(pt.Value - sw.CurrentValue) < 1e-9 ? "table-light fw-bold" : "")">
+                            <td>@pt.Value.ToString("0.###")</td>
+                            @foreach (var band in bandNames)
+                            {
+                                var v = BalanceTuningModel.BandPp(pt.Point, band);
+                                <td class="text-end">@(v.HasValue ? v.Value.ToString("F0") : "–")</td>
+                            }
+                            <td class="text-end">@s.PpPerStarAtPredicted.ToString("F1") / @s.PpPerStarTopPlayers.ToString("F1")</td>
+                            <td class="text-end">@s.MapsUnder10Stars700</td>
+                            <td class="text-end">@s.Share700Spread.ToString("F2")</td>
+                            <td class="text-end @(s.PpAtPredictedInversions + s.ProgressionInversions > 0 ? "text-danger" : "")">@s.PpAtPredictedInversions / @s.ProgressionInversions</td>
+                            <td class="text-end text-nowrap">@Signed(bal.PassShareSlope, "0.00") / @Signed(bal.TechShareSlope, "0.00") / @Signed(bal.PredictedAccGap, "0.00")</td>
+                            <td class="text-end text-nowrap">@((bal.Top1000PassShare * 100).ToString("F0"))% / @((bal.Top1000AccShare * 100).ToString("F0"))% / @((bal.Top1000TechShare * 100).ToString("F0"))%</td>
+                            <td class="text-end">@s.RankCorrelationTop1000.ToString("F3")</td>
+                            <td class="text-end">@s.AverageRankChangeTop100.ToString("F1")</td>
+                            <td class="text-end text-nowrap">@s.Top1Pp.ToString("F0") / @s.Top100Pp.ToString("F0")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
+    }
+}
+
+@section Scripts {
+    <script src="https://cdn.plot.ly/plotly-2.29.1.min.js"></script>
+    <script>
+        const data = @Html.Raw(Model.ChartDataJson);
+        const config = { responsive: true, displaylogo: false };
+        (data.sweeps || []).forEach((s, i) => {
+            Plotly.newPlot('sweep' + i, [
+                { type: 'scatter', mode: 'lines+markers', name: s.target, x: s.values, y: s.targets },
+                { type: 'scatter', mode: 'lines', name: 'rank corr. top 1000', x: s.values, y: s.rankCorrelation, yaxis: 'y2', line: { dash: 'dot', color: '#999' } },
+            ], {
+                title: { text: `${s.knob} (round ${s.round})`, font: { size: 13 } },
+                margin: { t: 35, l: 50, r: 50, b: 40 },
+                xaxis: { title: s.knob },
+                yaxis: { title: 'worth change', zeroline: true },
+                yaxis2: { overlaying: 'y', side: 'right', showgrid: false, title: 'rank corr.' },
+                shapes: [{ type: 'line', x0: s.suggested, x1: s.suggested, yref: 'paper', y0: 0, y1: 1, line: { dash: 'dash', color: '#d33' } }],
+                showlegend: false,
+            }, config);
+        });
+    </script>
+}

@@ -270,23 +270,26 @@ namespace portaBLe.Pages
                     Name = current.Name,
                     ModeName = current.ModeName,
                     DifficultyName = current.DifficultyName,
-                    CurrentStars = current.Stars,
-                    ComparisonStars = comparison?.Stars ?? 0,
-                    StarsDiff = comparison != null ? comparison.Stars - current.Stars : 0,
-                    CurrentAccRating = current.AccRating,
-                    ComparisonAccRating = comparison?.AccRating ?? 0,
-                    AccRatingDiff = comparison != null ? comparison.AccRating - current.AccRating : 0,
-                    CurrentPassRating = current.PassRating,
-                    ComparisonPassRating = comparison?.PassRating ?? 0,
-                    PassRatingDiff = comparison != null ? comparison.PassRating - current.PassRating : 0,
-                    CurrentTechRating = current.TechRating,
-                    ComparisonTechRating = comparison?.TechRating ?? 0,
-                    TechRatingDiff = comparison != null ? comparison.TechRating - current.TechRating : 0
+                    CurrentStars = Finite(current.Stars),
+                    ComparisonStars = Finite(comparison?.Stars ?? 0),
+                    StarsDiff = comparison != null ? Finite(comparison.Stars - current.Stars) : 0,
+                    CurrentAccRating = Finite(current.AccRating),
+                    ComparisonAccRating = Finite(comparison?.AccRating ?? 0),
+                    AccRatingDiff = comparison != null ? Finite(comparison.AccRating - current.AccRating) : 0,
+                    CurrentPassRating = Finite(current.PassRating),
+                    ComparisonPassRating = Finite(comparison?.PassRating ?? 0),
+                    PassRatingDiff = comparison != null ? Finite(comparison.PassRating - current.PassRating) : 0,
+                    CurrentTechRating = Finite(current.TechRating),
+                    ComparisonTechRating = Finite(comparison?.TechRating ?? 0),
+                    TechRatingDiff = comparison != null ? Finite(comparison.TechRating - current.TechRating) : 0
                 };
             }).ToList();
 
             return new JsonResult(result);
         }
+
+        // NaN or infinite ratings (e.g. a map whose rating failed) can't be written as JSON and would fail the whole table
+        private static float Finite(float value) => float.IsFinite(value) ? value : 0;
 
         public async Task<IActionResult> OnGetMegametricsComparisonAsync(string mainDb = null, string comparisonDb = null)
         {

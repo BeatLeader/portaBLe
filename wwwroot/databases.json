@@ -3,13 +3,18 @@
   "Databases": [
     {
       "Name": "Prod",
-      "FileName": "db-20261007142817-8941.db",
-      "Description": "Current production website"
+      "FileName": "db-20261012191847-9271.db",
+      "Description": "Current production website (no autoreweight)"
     },
     {
-      "Name": "Current test",
-      "FileName": "Database.db",
+      "Name": "Test",
+      "FileName": "db-20261012222200-9785.db",
       "Description": "Current test"
+    },
+    {
+      "Name": "Auto-Prod",
+      "FileName": "db-20261007142817-8941.db",
+      "Description": "Current production website (autoreweighted)"
     }
   ]
 }

@@ -295,6 +295,20 @@ namespace portaBLe
                     // Uncomment to recalculate ratings after changing ReplayUtils.
                     // await RatingsRefresh.Refresh(dbContext);
 
+                    // Uncomment to get suggested pass, tech and acc rating constants for the ratings in this database (in memory
+                    // only, nothing is written). Writes wwwroot/balance-tuning.json for the Balance Tuning page.
+                    // BalanceTuner.RatedWith must hold the constants the database was rated with. About 30 full re-scorings.
+                    // await BalanceTuner.Run(dbContext, env.WebRootPath);
+
+                    // Uncomment to try the parts of the pp formula (Refresh/PpFormula.cs) one at a time, in memory only.
+                    // Writes wwwroot/pp-formula.json, shown on the Balance Tuning page. About 25 full re-scorings.
+                    // await BalanceTuner.RunPpFormula(dbContext, env.WebRootPath);
+
+                    // Uncomment to export a side-by-side of prod (old Acc AI model) and this database (new model and balance) to
+                    // wwwroot/model-comparison.json: every map's ratings / stars / Megametric / best pp in both, and the top 2000
+                    // players in either. Read only. Change the file name if prod is another database.
+                    // await ModelComparisonExport.Run(env.WebRootPath, "db-20261012191847-9271.db");
+
                     // Uncomment to run the reweighter 
                     // Nerf
                     // await ScoresRefresh.Autoreweight(dbContext);
@@ -332,7 +346,7 @@ namespace portaBLe
 
         public static async Task UpdateStats(AppContext dbContext)
         {
-            await LeaderboardsRefresh.Refresh(dbContext);
+            // await LeaderboardsRefresh.Refresh(dbContext);
             await LeaderboardsRefresh.Outliers(dbContext);
             await StatsRefresh.Refresh(dbContext);
         }
