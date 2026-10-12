@@ -244,6 +244,16 @@ namespace portaBLe
                 // Uncomment to set the current .db file as comparison target
                 // SetComparisonDBTarget();
 
+                // Uncomment to rebuild the Acc AI Dataset page (wwwroot/accai-dataset.json) from the beatsaber-replays-ai-2 replay folders,
+                // BeatLeader, BeatSaver, AccSaber and RatingAPI. The first run downloads every map for the ratings, which takes a while.
+                // Pass computeRatings: false to skip the ratings, or replaysPath: @"..." if the replays are somewhere else.
+                // await AccAIDatasetRefresh.Refresh(builder.Environment.WebRootPath);
+
+                // Uncomment to update wwwroot/accai-dataset.json from the replay folders without refetching everything: drops the
+                // leaderboards whose folder is gone, re-reads the replay files, and fetches only new folders.
+                // recomputeRatings: true re-rates every leaderboard with the current RatingAPI model (no BeatLeader/BeatSaver calls).
+                // await AccAIDatasetRefresh.RefreshFromCache(builder.Environment.WebRootPath, recomputeRatings: false);
+
                 // Register the dynamic DB context service
                 builder.Services.AddSingleton<IDynamicDbContextService, DynamicDbContextService>();
 
@@ -301,7 +311,11 @@ namespace portaBLe
 
                     // Uncomment to regenerate only the acc curves (and stars) from stored ratings after editing RatingAPI's Curve.cs
                     // Run ScoresRefresh afterwards (e.g. RefreshEverything) to update score PP with the new curves
-                    await CurvesRefresh.Regenerate(dbContext);
+                    // await CurvesRefresh.Regenerate(dbContext);
+
+                    // Uncomment to compare per-map acc curve settings (RatingAPI CurveSettings) on this database, in memory only.
+                    // Writes wwwroot/curve-experiments.json for the Curve Experiments page. Pass your own list of CurveSettings to try others.
+                    // await CurveExperiment.Run(dbContext, env.WebRootPath);
 
                     // Uncomment to run the reweighter 
                     // Nerf
@@ -310,7 +324,7 @@ namespace portaBLe
                     // await ScoresRefresh.Autoreweight3(dbContext);
 
                     // Uncomment to refresh everything with current ratings
-                    await RefreshEverything(dbContext);
+                    // await RefreshEverything(dbContext);
 
                     // Uncomment to refresh leaderboards (Megametrics) for ALL databases
                     // await RefreshLeaderboardsForAllDatabases(tempDbService, builder.Environment.WebRootPath);

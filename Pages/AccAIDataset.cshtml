@@ -1,0 +1,424 @@
+﻿@page
+@model AccAIDatasetModel
+@using portaBLe.Refresh
+@{
+    ViewData["Title"] = "Acc AI Dataset";
+    var dataset = Model.Dataset;
+    string Pct(float v) => AccAIDatasetModel.Percent(v);
+}
+
+<h2>Acc AI Dataset</h2>
+
+<p class="text-muted">
+    The leaderboards and replay data used to train the Acc AI, the model behind each leaderboard's acc rating.
+</p>
+
+@if (dataset == null)
+{
+    <div class="alert alert-warning">
+        <strong>No dataset yet.</strong> In <code>Program.Main</code>, uncomment
+        <code>await AccAIDatasetRefresh.Refresh(builder.Environment.WebRootPath);</code> and run portaBLe once.
+        It reads the replay folders in <code>@AccAIDatasetRefresh.DefaultReplaysPath</code>, fetches BeatLeader, BeatSaver and AccSaber,
+        computes the ratings with RatingAPI, and saves everything to <code>wwwroot/@AccAIDatasetRefresh.FileName</code>.
+    </div>
+    return;
+}
+
+<div class="alert alert-secondary">
+    <strong>How the valid data was selected.</strong>
+    The valid data was fetched using a 0.5% accuracy filter from the top score, with a minimum of 8 scores and no maximum.
+    The leaderboard must have at least 200 scores and at least 20 notes. The data was fetched from the nomods and general contexts; the PM, IF and BE
+    modifiers were allowed. Leaderboards where the top score is under 93% are ignored.
+    <div class="small text-muted mt-2">
+        Generated @dataset.GeneratedAt.ToString("yyyy-MM-dd HH:mm") UTC from <code>@dataset.ReplaysPath</code>.
+        Pass, tech and star ratings below are computed with RatingAPI (no modifiers) so ranked and unranked maps use the same scale.
+    </div>
+</div>
+
+<!-- Summary -->
+<div class="row g-3 mb-4">
+    <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body">
+        <div class="text-muted small">Leaderboards</div><div class="fs-3 fw-bold">@Model.Leaderboards.Count</div>
+    </div></div></div>
+    <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body">
+        <div class="text-muted small">Songs</div><div class="fs-3 fw-bold">@Model.SongCount</div>
+    </div></div></div>
+    <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body">
+        <div class="text-muted small">Valid replays</div><div class="fs-3 fw-bold">@Model.ReplayFileCount</div>
+    </div></div></div>
+    <div class="col-6 col-md-3"><div class="card h-100"><div class="card-body">
+        <div class="text-muted small">Replays per leaderboard</div>
+        <div class="fs-3 fw-bold">@(Model.Leaderboards.Count > 0 ? (Model.ReplayFileCount / (double)Model.Leaderboards.Count).ToString("F1") : "0")</div>
+    </div></div></div>
+</div>
+
+<!-- Difficulties and ranked status -->
+<div class="row g-3 mb-4">
+    <div class="col-md-4">
+        <h5>Difficulties</h5>
+        <table class="table table-sm">
+            <tbody>
+                @foreach (var d in Model.DifficultyCounts)
+                {
+                    <tr><td>@d.Name</td><td class="text-end">@d.Count</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <div class="col-md-4">
+        <h5>Ranked status</h5>
+        <table class="table table-sm">
+            <tbody>
+                <tr><td>ScoreSaber ranked</td><td class="text-end">@Model.ScoreSaberRanked</td></tr>
+                <tr><td>BeatLeader ranked</td><td class="text-end">@Model.BeatLeaderRanked</td></tr>
+                <tr><td>AccSaber ranked</td><td class="text-end">@Model.AccSaberRanked</td></tr>
+                <tr class="table-light"><td>Ranked on at least one</td><td class="text-end">@Model.AnyRanked</td></tr>
+                <tr><td>Not ranked anywhere</td><td class="text-end">@Model.NotRanked</td></tr>
+            </tbody>
+        </table>
+        @if (Model.AccSaberCategories.Any())
+        {
+            <div class="small text-muted">
+                AccSaber categories:
+                @string.Join(", ", Model.AccSaberCategories.Select(c => $"{c.Name} {c.Count}"))
+            </div>
+        }
+        <div class="small text-muted">
+            ScoreSaber status comes from BeatSaver; AccSaber from its ranked list (@dataset.AccSaberRankedListSize difficulties).
+        </div>
+    </div>
+    <div class="col-md-4">
+        <h5>Characteristics</h5>
+        <table class="table table-sm">
+            <tbody>
+                @foreach (var c in Model.CharacteristicCounts)
+                {
+                    <tr><td>@c.Name</td><td class="text-end">@c.Count</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Star distribution -->
+<h4>Star rating distribution</h4>
+<div id="starChart" style="width:100%;height:400px;"></div>
+<p class="small text-muted">
+    RatingAPI stars for @Model.RatingsComputed of @Model.Leaderboards.Count leaderboards. The BeatLeader trace shows the official
+    stars of the BeatLeader ranked ones, for comparison.
+</p>
+
+<!-- Pass and tech buckets -->
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <h5>Pass rating</h5>
+        <table class="table table-sm">
+            <thead><tr><th>Range</th><th class="text-end">Leaderboards</th></tr></thead>
+            <tbody>
+                @foreach (var b in Model.PassBuckets)
+                {
+                    <tr><td>@b.Label</td><td class="text-end">@b.Count</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <div class="col-md-6">
+        <h5>Tech rating</h5>
+        <table class="table table-sm">
+            <thead><tr><th>Range</th><th class="text-end">Leaderboards</th></tr></thead>
+            <tbody>
+                @foreach (var b in Model.TechBuckets)
+                {
+                    <tr><td>@b.Label</td><td class="text-end">@b.Count</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Checks -->
+<h4>Checks</h4>
+<p class="small text-muted">Each line should be 0 unless there is a reason. Click a line to see the leaderboards.</p>
+@{
+    var checks = new List<(string Title, string Explanation, List<portaBLe.DB.AccAIDatasetLeaderboard> Items, Func<portaBLe.DB.AccAIDatasetLeaderboard, string> Detail)>
+    {
+        ("Accuracy spread above 0.5%", "Lowest replay is more than 0.5% below the top one, so the folder doesn't match the download filter.",
+            Model.SpreadTooWide, l => $"spread {(l.AccuracySpread * 100):F2}% ({Pct(l.LowestAccuracy)} to {Pct(l.TopAccuracy)})"),
+        ("Fewer than 8 replays", "Some replays failed to download or decode.", Model.TooFewReplays, l => $"{l.ReplayCount} replays"),
+        ("Top accuracy under 93%", "Should have been skipped by the download filter.", Model.TopTooLow, l => $"top {Pct(l.TopAccuracy)}"),
+        ("NJS in file names differs from BeatLeader", "The NJS the model trains on is wrong (0 means it was unknown when downloading).",
+            Model.NjsMismatch, l => $"files {l.FileNjs}, BeatLeader {l.Njs}"),
+        ("Unreadable file names", "Files that don't match playerid-accuracy-score-njs.npy.", Model.UnreadableFiles, l => $"{l.UnreadableFiles} files"),
+        ("Not found on BeatLeader", "No name, NJS or hash, so no ratings either.", Model.NotOnBeatLeader, l => ""),
+        ("Not found on BeatSaver", $"Deleted or private maps; ScoreSaber status unknown. {Model.OstCount} OST/DLC leaderboards aren't looked up and aren't counted.", Model.NotOnBeatSaver, l => l.BeatSaverKey),
+        ("Ratings not computed", "RatingAPI could not rate the map.", Model.RatingFailed, l => l.RatingError),
+        ("BeatLeader ranked status differs between BeatLeader and BeatSaver", "Usually a recent rank or unrank that one side hasn't synced.",
+            Model.RankedMismatch, l => $"BeatLeader status {l.BeatLeaderStatus}, BeatSaver {(l.BeatSaverBeatLeaderRanked ? "ranked" : "not ranked")}"),
+    };
+}
+<div class="list-group mb-4">
+    @foreach (var check in checks)
+    {
+        <details class="list-group-item">
+            <summary class="d-flex justify-content-between">
+                <span>@check.Title <span class="small text-muted">— @check.Explanation</span></span>
+                <span class="badge @(check.Items.Count == 0 ? "bg-success" : "bg-warning text-dark")">@check.Items.Count</span>
+            </summary>
+            @if (check.Items.Count > 0)
+            {
+                <ul class="small mt-2 mb-0">
+                    @foreach (var l in check.Items.Take(100))
+                    {
+                        <li>
+                            <a href="https://beatleader.xyz/leaderboard/global/@l.Id" target="_blank">@l.Id</a>
+                            @l.Name @(string.IsNullOrEmpty(l.Difficulty) ? "" : $"[{l.Difficulty}]")
+                            <span class="text-muted">@check.Detail(l)</span>
+                        </li>
+                    }
+                    @if (check.Items.Count > 100)
+                    {
+                        <li class="text-muted">and @(check.Items.Count - 100) more</li>
+                    }
+                </ul>
+            }
+        </details>
+    }
+</div>
+
+<!-- AI check -->
+<h4>Acc AI vs the dataset</h4>
+@if (Model.AIAccMae != null)
+{
+    <p>
+        Average gap between the dataset's average accuracy and RatingAPI's predicted accuracy:
+        <strong>@Model.AIAccMae.Value.ToString("F2") points</strong>,
+        bias <strong>@Model.AIAccBias!.Value.ToString("+0.00;-0.00") points</strong>
+        <span class="small text-muted">(positive: the AI predicts lower than the top players got).</span>
+    </p>
+    <p class="small text-muted">
+        RatingAPI's predicted accuracy includes the farmability adjustment, so a steady bias is expected; large gaps on single maps are worth a look.
+        These maps are the AI's own training data, so this checks the deployed model and RatingAPI's input, not how well it generalizes.
+    </p>
+    <div id="aiChart" style="width:100%;height:450px;"></div>
+    <h6>Largest gaps</h6>
+    <table class="table table-sm small">
+        <thead><tr><th>Leaderboard</th><th>Name</th><th class="text-end">Average acc</th><th class="text-end">AI acc</th><th class="text-end">Gap</th></tr></thead>
+        <tbody>
+            @foreach (var l in Model.LargestAIAccErrors)
+            {
+                <tr>
+                    <td><a href="https://beatleader.xyz/leaderboard/global/@l.Id" target="_blank">@l.Id</a></td>
+                    <td>@l.Name [@l.Difficulty]</td>
+                    <td class="text-end">@Pct(l.AverageAccuracy)</td>
+                    <td class="text-end">@Pct(l.PredictedAcc)</td>
+                    <td class="text-end">@(((l.AIAccDifference ?? 0) * 100).ToString("+0.00;-0.00"))</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+}
+else
+{
+    <p class="text-muted">No ratings were computed (run the refresh with <code>computeRatings: true</code>).</p>
+}
+
+<!-- Other distributions -->
+<h4>Other distributions</h4>
+<div class="row g-3 mb-2">
+    <div class="col-md-4"><div id="replayChart" style="width:100%;height:320px;"></div></div>
+    <div class="col-md-4"><div id="accChart" style="width:100%;height:320px;"></div></div>
+    <div class="col-md-4"><div id="njsChart" style="width:100%;height:320px;"></div></div>
+</div>
+<div class="row g-3 mb-4">
+    <div class="col-md-6">
+        <h6>Songs with the most leaderboards</h6>
+        <table class="table table-sm small">
+            <tbody>
+                @foreach (var s in Model.TopSongs)
+                {
+                    <tr><td>@s.Name</td><td class="text-end">@s.Count</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+    <div class="col-md-6">
+        <h6>Mappers with the most leaderboards</h6>
+        <table class="table table-sm small">
+            <tbody>
+                @foreach (var m in Model.TopMappers)
+                {
+                    <tr><td>@m.Name</td><td class="text-end">@m.Count</td></tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<!-- Leaderboards -->
+<h4>Leaderboards</h4>
+<div class="row mb-2">
+    <div class="col-md-5">
+        <input type="text" id="lbSearch" class="form-control" placeholder="Search id, name or mapper" />
+    </div>
+    <div class="col-md-7 d-flex align-items-center small text-muted">
+        <span id="lbShown">@Model.Leaderboards.Count</span>&nbsp;shown. Click a column to sort.
+    </div>
+</div>
+<div class="table-responsive">
+    <table class="table table-striped table-sm small" id="lbTable">
+        <thead>
+            <tr>
+                <th data-type="text">Leaderboard ID</th>
+                <th data-type="text">Name</th>
+                <th data-type="num" class="text-end">NJS</th>
+                <th data-type="num" class="text-end">Pass</th>
+                <th data-type="num" class="text-end">Tech</th>
+                <th data-type="num" class="text-end">Stars</th>
+                <th data-type="num" class="text-end">Valid replays</th>
+                <th data-type="num" class="text-end">Top acc</th>
+                <th data-type="num" class="text-end">Average acc</th>
+                <th data-type="num" class="text-end">AI acc</th>
+                <th data-type="num" class="text-end" title="Average acc minus AI acc, in points. Positive: the AI predicts too low.">Avg − AI</th>
+                <th data-type="text">Ranked</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var l in Model.Leaderboards)
+            {
+                var characteristic = AccAIDatasetModel.CharacteristicOf(l);
+                var gap = l.AIAccDifference * 100;
+                <tr data-search="@($"{l.Id} {l.Name} {l.SubName} {l.Author} {l.Mapper}".ToLowerInvariant())">
+                    <td data-value="@l.Id"><a href="https://localhost:7083/leaderboard/@l.Id" target="_blank">@l.Id</a></td>
+                    <td data-value="@l.Name">
+                        @l.Name
+                        <span class="text-muted">[@AccAIDatasetModel.DifficultyOf(l)@(characteristic == "Standard" ? "" : $" {characteristic}")]</span>
+                        @if (!string.IsNullOrEmpty(l.Mapper)) { <div class="text-muted">@l.Mapper</div> }
+                    </td>
+                    <td class="text-end" data-value="@l.Njs.ToString(System.Globalization.CultureInfo.InvariantCulture)">@(l.FoundOnBeatLeader ? l.Njs.ToString("0.##") : "—")</td>
+                    <td class="text-end" data-value="@(l.RatingComputed ? l.PassRating.ToString(System.Globalization.CultureInfo.InvariantCulture) : "-1")">@(l.RatingComputed ? l.PassRating.ToString("F2") : "—")</td>
+                    <td class="text-end" data-value="@(l.RatingComputed ? l.TechRating.ToString(System.Globalization.CultureInfo.InvariantCulture) : "-1")">@(l.RatingComputed ? l.TechRating.ToString("F2") : "—")</td>
+                    <td class="text-end" data-value="@(l.RatingComputed ? l.Stars.ToString(System.Globalization.CultureInfo.InvariantCulture) : "-1")">@(l.RatingComputed ? l.Stars.ToString("F2") : "—")</td>
+                    <td class="text-end" data-value="@l.ReplayCount">@l.ReplayCount</td>
+                    <td class="text-end" data-value="@l.TopAccuracy.ToString(System.Globalization.CultureInfo.InvariantCulture)">@Pct(l.TopAccuracy)</td>
+                    <td class="text-end" data-value="@l.AverageAccuracy.ToString(System.Globalization.CultureInfo.InvariantCulture)">@Pct(l.AverageAccuracy)</td>
+                    <td class="text-end" data-value="@(l.RatingComputed ? l.PredictedAcc.ToString(System.Globalization.CultureInfo.InvariantCulture) : "-1")">@(l.RatingComputed ? Pct(l.PredictedAcc) : "—")</td>
+                    <td class="text-end @(gap == null ? "" : Math.Abs(gap.Value) >= 0.5 ? "text-danger fw-bold" : Math.Abs(gap.Value) >= 0.25 ? "text-warning" : "")"
+                        data-value="@(gap == null ? "-999" : gap.Value.ToString(System.Globalization.CultureInfo.InvariantCulture))">@(gap == null ? "—" : gap.Value.ToString("+0.00;-0.00"))</td>
+                    <td data-value="@((l.ScoreSaberRanked ? "SS " : "") + (l.BeatLeaderRanked ? "BL " : "") + (l.AccSaberRanked ? "AS" : ""))">
+                        @if (l.ScoreSaberRanked) { <span class="badge bg-warning text-dark" title="ScoreSaber ranked">SS</span> }
+                        @if (l.BeatLeaderRanked) { <span class="badge bg-danger" title="BeatLeader ranked">BL</span> }
+                        @if (l.AccSaberRanked) { <span class="badge bg-info text-dark" title="AccSaber ranked (@l.AccSaberCategory)">AS</span> }
+                    </td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<style>
+    #lbTable th { cursor: pointer; white-space: nowrap; }
+    #lbTable th.sorted-asc::after { content: " ▲"; color: #0d6efd; }
+    #lbTable th.sorted-desc::after { content: " ▼"; color: #0d6efd; }
+    details summary { cursor: pointer; }
+</style>
+
+@section Scripts {
+    <script src="https://cdn.plot.ly/plotly-2.29.1.min.js"></script>
+    <script>
+        const data = @Html.Raw(Model.ChartDataJson);
+        const config = { responsive: true, displaylogo: false };
+
+        Plotly.newPlot('starChart', [
+            { type: 'histogram', x: data.stars, name: 'RatingAPI stars', xbins: { start: 0, size: 0.5 }, opacity: 0.8 },
+            { type: 'histogram', x: data.blStars, name: 'BeatLeader stars (ranked only)', xbins: { start: 0, size: 0.5 }, opacity: 0.6 },
+        ], {
+            barmode: 'overlay',
+            margin: { t: 20 },
+            xaxis: { title: 'Stars', dtick: 1 },
+            yaxis: { title: 'Leaderboards' },
+            legend: { orientation: 'h', y: 1.1 },
+        }, config);
+
+        function histogram(id, values, title, binSize) {
+            Plotly.newPlot(id, [{ type: 'histogram', x: values, xbins: binSize ? { size: binSize } : undefined }], {
+                title: { text: title, font: { size: 14 } },
+                margin: { t: 40, l: 40, r: 10, b: 40 },
+                yaxis: { title: 'Leaderboards' },
+            }, config);
+        }
+        Plotly.newPlot('replayChart', [{ type: 'histogram', x: data.replayCounts, xbins: { start: 0.5, end: data.replayCap + 0.5, size: 1 } }], {
+            title: { text: 'Valid replays per leaderboard', font: { size: 14 } },
+            margin: { t: 40, l: 40, r: 10, b: 40 },
+            yaxis: { title: 'Leaderboards' },
+            xaxis: { range: [0.5, data.replayCap + 0.5] },
+            annotations: data.replayAboveCap > 0 ? [{
+                x: data.replayCap, y: 1, xref: 'x', yref: 'paper', yanchor: 'bottom', showarrow: false,
+                text: `${data.replayCap}+: ${data.replayAboveCap} (max ${data.replayMax})`, font: { size: 11 },
+            }] : [],
+        }, config);
+        histogram('accChart', data.averageAccuracy, 'Average accuracy (%)', 0.25);
+        histogram('njsChart', data.njs, 'NJS', 1);
+
+        if (document.getElementById('aiChart')) {
+            const pts = data.aiPoints;
+            const all = pts.map(p => p.predicted).concat(pts.map(p => p.actual));
+            const lo = Math.min(...all), hi = Math.max(...all);
+            Plotly.newPlot('aiChart', [
+                {
+                    type: 'scattergl', mode: 'markers', name: 'Leaderboards',
+                    x: pts.map(p => p.predicted), y: pts.map(p => p.actual),
+                    text: pts.map(p => `${p.name} (${p.id})<br>${p.stars} stars`),
+                    hovertemplate: '%{text}<br>AI: %{x:.2f}%<br>Dataset: %{y:.2f}%<extra></extra>',
+                    marker: { size: 5, color: pts.map(p => p.stars), colorscale: 'Viridis', colorbar: { title: 'Stars' } },
+                },
+                { type: 'scatter', mode: 'lines', name: 'Same value', x: [lo, hi], y: [lo, hi], line: { dash: 'dash', color: '#888' } },
+            ], {
+                margin: { t: 20 },
+                xaxis: { title: 'RatingAPI predicted accuracy (%)' },
+                yaxis: { title: 'Dataset average accuracy (%)' },
+                showlegend: false,
+            }, config);
+        }
+
+        // Leaderboard table: search and sort
+        const table = document.getElementById('lbTable');
+        const tbody = table.querySelector('tbody');
+        const rows = Array.from(tbody.rows);
+        const search = document.getElementById('lbSearch');
+        const shown = document.getElementById('lbShown');
+        let searchTimer;
+
+        search.addEventListener('input', () => {
+            clearTimeout(searchTimer);
+            searchTimer = setTimeout(() => {
+                const q = search.value.trim().toLowerCase();
+                let count = 0;
+                for (const row of rows) {
+                    const match = !q || row.dataset.search.includes(q);
+                    row.style.display = match ? '' : 'none';
+                    if (match) count++;
+                }
+                shown.textContent = count;
+            }, 200);
+        });
+
+        table.querySelectorAll('th').forEach((th, index) => {
+            th.addEventListener('click', () => {
+                const numeric = th.dataset.type === 'num';
+                const desc = !th.classList.contains('sorted-desc');
+                table.querySelectorAll('th').forEach(h => h.classList.remove('sorted-asc', 'sorted-desc'));
+                th.classList.add(desc ? 'sorted-desc' : 'sorted-asc');
+                const value = row => row.cells[index].dataset.value || '';
+                rows.sort((a, b) => {
+                    const r = numeric
+                        ? parseFloat(value(a)) - parseFloat(value(b))
+                        : value(a).localeCompare(value(b));
+                    return desc ? -r : r;
+                });
+                const fragment = document.createDocumentFragment();
+                rows.forEach(r => fragment.appendChild(r));
+                tbody.appendChild(fragment);
+            });
+        });
+    </script>
+}
