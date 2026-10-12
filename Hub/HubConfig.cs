@@ -26,7 +26,7 @@ public sealed class HubConfig
     public int FirstPort { get; set; } = 5101;
     public int PollSeconds { get; set; } = 60;
     public int KeepReleases { get; set; } = 2;
-    public int HealthTimeoutSeconds { get; set; } = 180;
+    public int HealthTimeoutSeconds { get; set; } = 600;   // portaBLe can download extra databases on start
     /// <summary>systemd MemoryMax for each deployment.</summary>
     public string MemoryMax { get; set; } = "1500M";
 

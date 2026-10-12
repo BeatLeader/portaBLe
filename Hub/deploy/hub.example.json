@@ -16,7 +16,7 @@
   "FirstPort": 5101,
   "PollSeconds": 60,
   "KeepReleases": 2,
-  "HealthTimeoutSeconds": 180,
+  "HealthTimeoutSeconds": 600,
   "MemoryMax": "1500M",
 
   "S3": {
