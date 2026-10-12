@@ -169,8 +169,10 @@ namespace portaBLe.Refresh
             return (passPP, accPP, techPP);
         }
 
+        // Stars always use the base curve (RatingAPI Curve.BaseCurve), whatever per-map curve the leaderboard has:
+        // the per-map curve changes how pp is rewarded, not how difficult the map is rated. The curve parameter is ignored.
         public static float ToStars(float accRating, float passRating, float techRating, IReadOnlyList<Vector2>? curve = null) {
-            (float passPP, float accPP, float techPP) = GetPp(0.96f, accRating, passRating, techRating, curve);
+            (float passPP, float accPP, float techPP) = GetPp(0.96f, accRating, passRating, techRating, RatingAPI.Controllers.Curve.BaseCurve);
 
             return Inflate(passPP + accPP + techPP) / 52f;
         }

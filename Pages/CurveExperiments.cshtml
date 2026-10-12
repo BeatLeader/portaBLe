@@ -1,0 +1,374 @@
+@page
+@model CurveExperimentsModel
+@using portaBLe.Refresh
+@{
+    ViewData["Title"] = "Curve Experiments";
+    var r = Model.Result;
+    string F(double v, string format = "F3") => v.ToString(format);
+}
+
+<h2>Curve Experiments</h2>
+
+<p class="text-muted">
+    Per-map acc curves tried on the current database. Every score is re-scored with each candidate's curves and every player's
+    weighted pp is rebuilt, in memory; nothing is written to the database. Curves only use map data; scores are only used to judge them.
+</p>
+
+@if (r == null)
+{
+    <div class="alert alert-warning">
+        <strong>No results yet.</strong> In <code>Program.Main</code>, uncomment
+        <code>await CurveExperiment.Run(dbContext, env.WebRootPath);</code> and run portaBLe once.
+        It saves <code>wwwroot/@CurveExperiment.FileName</code>.
+    </div>
+    return;
+}
+
+<div class="alert alert-secondary small">
+    <strong>How the curves work.</strong> Without a boost, every candidate gives the same value as today at the map's predicted acc, so AccRating and stars
+    don't change. <em>Relative</em> measures accuracy below that point as a share of the map's expected misses,
+    (1 − acc) / (1 − predicted acc), read off the base curve at the reference acc; the percentage blends between today's curve (0%)
+    and fully relative (100%). <em>Cap</em> keeps only part of the extra value above predicted acc + the offset (a fixed number of
+    points, or a share of the map's expected misses). <em>Fill</em> boosts the value at the predicted acc so the map's pp there
+    (from its ratings) closes that share of the gap to the target pp; maps already at the target get nothing, and the boost is added,
+    not multiplied, above the predicted acc. <em>Above</em> replaces the curve above the predicted acc with a gain that depends on the share
+    of the predicted misses removed, the same on every map (+strength at SS), applied to the map's own value (the boost is added on top).
+    <em>Tapered</em> lowers that gain on very easy maps (predicted acc above 98.5%), where the few predicted misses are mostly luck. With a boost, AccRating keeps its value but the map's pp level changes; stars stay on the base curve.
+    <div class="mt-1 text-muted">
+        Generated @r.GeneratedAt.ToString("yyyy-MM-dd HH:mm") UTC: @r.Leaderboards leaderboards, @r.Scores.ToString("N0") scores, @r.Players.ToString("N0") players.
+        The first candidate is today's curve; green and red compare with it. Rank bands use today's ranking. Stars use the base curve.
+    </div>
+</div>
+
+<!-- Summary -->
+<h4>Summary</h4>
+@{ var refSummary = r.Candidates[0].Summary; }
+<div class="table-responsive">
+    <table class="table table-sm small">
+        <thead>
+            <tr>
+                <th>Candidate</th>
+                <th class="text-end" title="Spread of Megametric75 between maps of the same star band (lower = value spread more evenly)">Megametric CV ↓</th>
+                <th class="text-end" title="Gini of Megametric75 within star bands">Megametric Gini ↓</th>
+                <th class="text-end" title="Gini of the best pp set on each map, within star bands (lower = fewer standout farm maps)">Best pp Gini ↓</th>
+                <th class="text-end" title="Median share of a map's scores that are in their player's top 50">Top-50 share ↑</th>
+                <th class="text-end" title="Star bands where the top 100 players' median pp drops compared with the band below">Star order breaks ↓</th>
+                <th class="text-end" title="Star bands where the median pp at the predicted acc (from ratings) drops compared with the band below">Order breaks at predicted ↓</th>
+                <th class="text-end" title="Same, with 30% fewer misses than predicted">Order breaks above ↓</th>
+                <th class="text-end" title="Maps under 10 stars whose best score is worth 700pp+">700pp+ maps under 10★ ↑</th>
+                <th class="text-end" title="Spread (CV) of the share of 700pp+ maps across star ranges with 30+ maps; lower = more similar between ranges">700pp+ evenness ↓</th>
+                <th class="text-end" title="Lowest and highest share of 700pp+ maps among those star ranges">700pp+ share range</th>
+                <th class="text-end" title="Players in the new top 100 / top 1000 with more than 90% of their pp from maps under 5 stars">Easy-map profiles top 100 / 1000</th>
+                <th class="text-end" title="Average pp change of today's top 10 players">Top 10 pp</th>
+                <th class="text-end" title="Average pp change of today's top 50 players">Top 50 pp</th>
+                <th class="text-end" title="Average pp change of today's top 1000 players">Top 1000 pp</th>
+                <th class="text-end" title="Average places gained (+) or lost (-) by today's top 10">Top 10 places</th>
+                <th class="text-end" title="Average places gained (+) or lost (-) by today's top 50">Top 50 places</th>
+                <th class="text-end" title="Spearman correlation with today's ranking, top 1000 players">Rank corr. top 1000</th>
+                <th class="text-end">Rank corr. all</th>
+                <th class="text-end" title="Average number of places a top 100 player moves">Avg move top 100</th>
+                <th class="text-end">#1 pp</th>
+                <th class="text-end">#10 pp</th>
+                <th class="text-end">#100 pp</th>
+                <th class="text-end">#1000 pp</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var c in r.Candidates)
+            {
+                var s = c.Summary;
+                <tr>
+                    <td>
+                        <strong>@c.Settings.Name</strong>
+                        <div class="text-muted">
+                            @(c.Settings.Lambda > 0 ? $"relative {c.Settings.Lambda:P0}, ref {c.Settings.ReferenceAcc:P1}" : "")
+                            @(c.Settings.CapShare > 0 ? $" cap {c.Settings.CapShare:P0} of misses keep {c.Settings.CapKeep:0.##}" : c.Settings.CapOffset > 0 ? $" cap +{c.Settings.CapOffset * 100:0.##} keep {c.Settings.CapKeep:0.##}" : "")
+                            @(c.Settings.Fill > 0 ? $" fill {c.Settings.Fill:0.##} to {c.Settings.TargetPp:0}pp" : "")
+                            @(c.Settings.AboveStrength > 0 ? $" above +{c.Settings.AboveStrength * 100:0}% at SS" : "")@(c.Settings.AboveTaperAcc > 0 ? " (tapered)" : "")
+                        </div>
+                    </td>
+                    <td class="text-end @CurveExperimentsModel.Compare(s.MegametricCv, refSummary.MegametricCv, false)">@F(s.MegametricCv)</td>
+                    <td class="text-end @CurveExperimentsModel.Compare(s.MegametricGini, refSummary.MegametricGini, false)">@F(s.MegametricGini)</td>
+                    <td class="text-end @CurveExperimentsModel.Compare(s.MaxPpGini, refSummary.MaxPpGini, false)">@F(s.MaxPpGini)</td>
+                    <td class="text-end @CurveExperimentsModel.Compare(s.Top50Share, refSummary.Top50Share, true)">@((s.Top50Share * 100).ToString("F1"))%</td>
+                    <td class="text-end @(s.ProgressionInversions > refSummary.ProgressionInversions ? "text-danger" : "")">@s.ProgressionInversions</td>
+                    <td class="text-end @(s.PpAtPredictedInversions > refSummary.PpAtPredictedInversions ? "text-danger" : "")">@s.PpAtPredictedInversions</td>
+                    <td class="text-end @(s.PpAbovePredictedInversions > refSummary.PpAbovePredictedInversions ? "text-danger" : "")">@s.PpAbovePredictedInversions</td>
+                    <td class="text-end @CurveExperimentsModel.Compare(s.MapsUnder10Stars700, refSummary.MapsUnder10Stars700, true)">@s.MapsUnder10Stars700</td>
+                    <td class="text-end @CurveExperimentsModel.Compare(s.Share700Spread, refSummary.Share700Spread, false)">@F(s.Share700Spread, "F2")</td>
+                    <td class="text-end text-nowrap">@((s.Share700Min * 100).ToString("F0"))–@((s.Share700Max * 100).ToString("F0"))%</td>
+                    <td class="text-end @(s.EasyProfilesTop100 > refSummary.EasyProfilesTop100 ? "text-danger" : "")">@s.EasyProfilesTop100 / @s.EasyProfilesTop1000</td>
+                    <td class="text-end">@s.Top10PpChange.ToString("+0.0;-0.0")%</td>
+                    <td class="text-end">@s.Top50PpChange.ToString("+0.0;-0.0")%</td>
+                    <td class="text-end">@s.Top1000PpChange.ToString("+0.0;-0.0")%</td>
+                    <td class="text-end">@s.Top10RankChange.ToString("+0.0;-0.0")</td>
+                    <td class="text-end">@s.Top50RankChange.ToString("+0.0;-0.0")</td>
+                    <td class="text-end">@F(s.RankCorrelationTop1000, "F4")</td>
+                    <td class="text-end">@F(s.RankCorrelationAll, "F4")</td>
+                    <td class="text-end">@F(s.AverageRankChangeTop100, "F1")</td>
+                    <td class="text-end">@F(s.Top1Pp, "F0")</td>
+                    <td class="text-end">@F(s.Top10Pp, "F0")</td>
+                    <td class="text-end">@F(s.Top100Pp, "F0")</td>
+                    <td class="text-end">@F(s.Top1000Pp, "F0")</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+@{ var elite = r.Candidates[0].Summary.EliteMargin; }
+<p class="small text-muted">
+    Today's top 50, on their top 20 scores: @((elite.AbovePredictedShare * 100).ToString("F0"))% are above the predicted acc,
+    on average by @elite.MeanPoints.ToString("+0.00;-0.00") points, i.e. @((elite.MeanMissShare * 100).ToString("+0;-0"))% of the predicted misses removed
+    (@elite.Scores scores). This is the margin the curve above the prediction has to reward fairly.
+</p>
+
+<h6>Same metrics on two random halves of the leaderboards</h6>
+<p class="small text-muted">An improvement that only shows up in one half is probably carried by a few maps.</p>
+<div class="table-responsive">
+    <table class="table table-sm small">
+        <thead>
+            <tr>
+                <th>Candidate</th>
+                <th class="text-end">Megametric CV (A)</th><th class="text-end">Megametric CV (B)</th>
+                <th class="text-end">Best pp Gini (A)</th><th class="text-end">Best pp Gini (B)</th>
+                <th class="text-end">Top-50 share (A)</th><th class="text-end">Top-50 share (B)</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var c in r.Candidates)
+            {
+                var a = c.Summary.HalfA; var b = c.Summary.HalfB;
+                var ra = refSummary.HalfA; var rb = refSummary.HalfB;
+                <tr>
+                    <td>@c.Settings.Name</td>
+                    <td class="text-end @CurveExperimentsModel.Compare(a.MegametricCv, ra.MegametricCv, false)">@F(a.MegametricCv)</td>
+                    <td class="text-end @CurveExperimentsModel.Compare(b.MegametricCv, rb.MegametricCv, false)">@F(b.MegametricCv)</td>
+                    <td class="text-end @CurveExperimentsModel.Compare(a.MaxPpGini, ra.MaxPpGini, false)">@F(a.MaxPpGini)</td>
+                    <td class="text-end @CurveExperimentsModel.Compare(b.MaxPpGini, rb.MaxPpGini, false)">@F(b.MaxPpGini)</td>
+                    <td class="text-end @CurveExperimentsModel.Compare(a.Top50Share, ra.Top50Share, true)">@((a.Top50Share * 100).ToString("F1"))%</td>
+                    <td class="text-end @CurveExperimentsModel.Compare(b.Top50Share, rb.Top50Share, true)">@((b.Top50Share * 100).ToString("F1"))%</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+
+<!-- Curve shapes -->
+<h4>Curve shapes</h4>
+<div class="d-flex align-items-center gap-2 mb-2">
+    <label for="sampleSelect" class="small text-muted">Predicted acc</label>
+    <select id="sampleSelect" class="form-select form-select-sm" style="width:auto">
+        @for (int i = 0; i < r.CurveSamples.Count; i++)
+        {
+            <option value="@i" selected="@(Math.Abs(r.CurveSamples[i].PredictedAcc - 0.99) < 1e-6)">@((r.CurveSamples[i].PredictedAcc * 100).ToString("0.#"))%</option>
+        }
+    </select>
+</div>
+<div id="shapeChart" style="width:100%;height:420px;"></div>
+<p class="small text-muted">Value relative to today's value at the predicted acc (1 = today's acc pp for a player hitting the predicted acc), for a map with acc rating only (no pass or tech, so the boost is at its largest). Steeper = more pp lost below and gained above.</p>
+
+<!-- By star band -->
+<h4>By star band</h4>
+<div class="row g-3">
+    <div class="col-md-6"><div id="cvChart" style="width:100%;height:320px;"></div></div>
+    <div class="col-md-6"><div id="shareChart" style="width:100%;height:320px;"></div></div>
+    <div class="col-md-6"><div id="maxChart" style="width:100%;height:320px;"></div></div>
+    <div class="col-md-6"><div id="topChart" style="width:100%;height:320px;"></div></div>
+</div>
+
+@{
+    var bandTables = new List<(string Title, string Explanation, Func<StarBandStats, string> Value)>
+    {
+        ("Median pp at the predicted acc", "From the ratings and the curve, no scores: what a player hitting the AI's prediction gets. Should rise with stars.", b => b.PpAtPredictedMedian.ToString("F0")),
+        ("Median pp with 30% fewer misses than predicted", "Same, for a player beating the prediction: where the cap or the relative gain matters. Should also rise with stars.", b => b.PpAbovePredictedMedian.ToString("F0")),
+        ("Share of maps whose best score is worth 700pp+", "The goal: a similar share in every star range.", b => (b.Share700 * 100).ToString("F0") + "%"),
+        ("Maps whose best score is worth 700pp+", "Count per range.", b => b.Maps700.ToString()),
+        ("Maps whose best score is worth 600pp+", "The \"only 10-20 maps worth 600pp+\" count.", b => b.Maps600.ToString()),
+        ("Maps near the top", "Maps whose best pp is within 10% of the band's 90th percentile: how many maps compete with the best ones.", b => b.MapsNearTop.ToString()),
+        ("Median top-50 share", "Share of a map's scores that are in their player's top 50.", b => (b.Top50ShareMedian * 100).ToString("F1") + "%"),
+        ("Megametric75 CV", "Spread of Megametric75 between maps of the band (lower = more even).", b => b.MegametricMaps >= 10 ? b.MegametricCv.ToString("F3") : "—"),
+    };
+}
+@foreach (var table in bandTables)
+{
+    <h6 class="mt-3">@table.Title <span class="small text-muted fw-normal">— @table.Explanation</span></h6>
+    <div class="table-responsive">
+        <table class="table table-sm small">
+            <thead>
+                <tr>
+                    <th>Stars</th>
+                    <th class="text-end">Maps</th>
+                    @foreach (var c in r.Candidates) { <th class="text-end">@c.Settings.Name</th> }
+                </tr>
+            </thead>
+            <tbody>
+                @for (int band = 0; band < r.StarBands.Count; band++)
+                {
+                    if (r.MapsPerStarBand[band] == 0) continue;
+                    <tr>
+                        <td>@r.StarBands[band]</td>
+                        <td class="text-end">@r.MapsPerStarBand[band]</td>
+                        @foreach (var c in r.Candidates) { <td class="text-end">@table.Value(c.ByStars[band])</td> }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<!-- Rank band x star band -->
+<h4 class="mt-3">Worth pp for which players</h4>
+<p class="small text-muted">
+    Median over maps of the share of that rank band's scores on the map that are in the player's top 50
+    (maps with 5+ scores from the band). The goal is high values across the whole table, not only for the top ranks.
+</p>
+<div class="d-flex align-items-center gap-2 mb-2">
+    <label for="coverageSelect" class="small text-muted">Candidate</label>
+    <select id="coverageSelect" class="form-select form-select-sm" style="width:auto">
+        @for (int i = 0; i < r.Candidates.Count; i++) { <option value="@i">@r.Candidates[i].Settings.Name</option> }
+    </select>
+</div>
+@for (int i = 0; i < r.Candidates.Count; i++)
+{
+    var c = r.Candidates[i];
+    <div class="table-responsive coverage-table" data-index="@i" style="@(i == 0 ? "" : "display:none")">
+        <table class="table table-sm small">
+            <thead>
+                <tr>
+                    <th>Stars</th>
+                    @for (int rb = 0; rb < r.RankBands.Count; rb++) { <th class="text-end">Rank @r.RankBands[rb]</th> }
+                </tr>
+            </thead>
+            <tbody>
+                @for (int band = 0; band < r.StarBands.Count; band++)
+                {
+                    if (r.MapsPerStarBand[band] == 0) continue;
+                    <tr>
+                        <td>@r.StarBands[band]</td>
+                        @for (int rb = 0; rb < r.RankBands.Count; rb++)
+                        {
+                            var value = c.ByStars[band].Top50ShareByRank[rb];
+                            var reference = r.Candidates[0].ByStars[band].Top50ShareByRank[rb];
+                            <td class="text-end @(i == 0 ? "" : CurveExperimentsModel.Compare(value, reference, true, 0.02))">@((value * 100).ToString("F1"))%</td>
+                        }
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+}
+
+<!-- Ranking movers -->
+<h4 class="mt-3">Biggest ranking moves</h4>
+<p class="small text-muted">
+    Among today's top 1000. The split is the share of the player's weighted pp from maps under 5★ / 5 to 9★ / 9★ and up,
+    before → after. The maps are the scores whose weighted pp changed the most for that player.
+</p>
+<div class="d-flex align-items-center gap-2 mb-2">
+    <label for="moversSelect" class="small text-muted">Candidate</label>
+    <select id="moversSelect" class="form-select form-select-sm" style="width:auto">
+        @for (int i = 1; i < r.Candidates.Count; i++) { <option value="@i">@r.Candidates[i].Settings.Name</option> }
+    </select>
+</div>
+@for (int i = 1; i < r.Candidates.Count; i++)
+{
+    var c = r.Candidates[i];
+    <div class="movers-block" data-index="@i" style="@(i == 1 ? "" : "display:none")">
+        @foreach (var (title, list) in new[] { ("Risers", c.Risers), ("Fallers", c.Fallers) })
+        {
+            <h6>@title</h6>
+            <div class="table-responsive">
+                <table class="table table-sm small">
+                    <thead>
+                        <tr>
+                            <th>Player</th>
+                            <th class="text-end">Rank</th>
+                            <th class="text-end">pp</th>
+                            <th class="text-center">&lt;5★ / 5-9★ / 9★+</th>
+                            <th>Scores that changed the most (acc vs predicted, pp before → after)</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var m in list)
+                        {
+                            <tr>
+                                <td><a href="https://beatleader.xyz/u/@m.PlayerId" target="_blank">@m.Name</a></td>
+                                <td class="text-end text-nowrap">@m.RankBefore → <strong>@m.RankAfter</strong></td>
+                                <td class="text-end text-nowrap">@m.PpBefore.ToString("F0") → @m.PpAfter.ToString("F0")</td>
+                                <td class="text-center text-nowrap">
+                                    @string.Join(" / ", m.StarsSplitBefore.Select(v => v.ToString("F0")))
+                                    → @string.Join(" / ", m.StarsSplitAfter.Select(v => v.ToString("F0")))
+                                </td>
+                                <td>
+                                    @foreach (var sc in m.BiggestChanges)
+                                    {
+                                        <div>
+                                            <a href="https://beatleader.xyz/leaderboard/global/@sc.LeaderboardId" target="_blank">@sc.Map</a>
+                                            <span class="text-muted">@sc.Stars.ToString("F2")★, @sc.Accuracy.ToString("F2")% vs @sc.PredictedAcc.ToString("F2")%,
+                                                @sc.PpBefore.ToString("F0") → @sc.PpAfter.ToString("F0")pp</span>
+                                        </div>
+                                    }
+                                </td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </div>
+        }
+    </div>
+}
+
+@section Scripts {
+    <script src="https://cdn.plot.ly/plotly-2.29.1.min.js"></script>
+    <script>
+        const data = @Html.Raw(Model.ChartDataJson);
+        const config = { responsive: true, displaylogo: false };
+
+        function drawShapes(index) {
+            const sample = data.samples[index];
+            const traces = sample.curves.map((points, i) => ({
+                type: 'scatter', mode: 'lines', name: data.names[i],
+                x: points.map(p => p[0]), y: points.map(p => p[1]),
+                line: { width: i === 0 ? 3 : 1.5, dash: i === 0 ? 'dot' : 'solid' },
+            }));
+            Plotly.react('shapeChart', traces, {
+                margin: { t: 20 },
+                xaxis: { title: 'Accuracy (%)' },
+                yaxis: { title: 'Curve value / value at predicted acc' },
+                shapes: [{ type: 'line', x0: sample.predicted * 100, x1: sample.predicted * 100, yref: 'paper', y0: 0, y1: 1, line: { dash: 'dash', color: '#888' } }],
+                legend: { orientation: 'h', y: -0.2 },
+            }, config);
+        }
+        const sampleSelect = document.getElementById('sampleSelect');
+        sampleSelect.addEventListener('change', () => drawShapes(+sampleSelect.value));
+        drawShapes(+sampleSelect.value);
+
+        function bandChart(id, series, title, yTitle) {
+            Plotly.newPlot(id, series.map((values, i) => ({
+                type: 'scatter', mode: 'lines+markers', name: data.names[i], x: data.bands, y: values,
+                line: { width: i === 0 ? 3 : 1.5, dash: i === 0 ? 'dot' : 'solid' },
+            })), {
+                title: { text: title, font: { size: 14 } },
+                margin: { t: 40, l: 50, r: 10, b: 40 },
+                xaxis: { title: 'Stars', type: 'category' },
+                yaxis: { title: yTitle },
+                showlegend: false,
+            }, config);
+        }
+        bandChart('cvChart', data.megametricCv, 'Megametric75 CV (lower = more even)', 'CV');
+        bandChart('shareChart', data.top50Share, 'Median top-50 share (higher = worth pp to more players)', '%');
+        bandChart('maxChart', data.maxPpMedian, 'Median best pp per map', 'pp');
+        bandChart('topChart', data.topPlayersPp, 'Top 100 players: median pp per star band (should rise)', 'pp');
+
+        const moversSelect = document.getElementById('moversSelect');
+        if (moversSelect) moversSelect.addEventListener('change', () => {
+            document.querySelectorAll('.movers-block').forEach(t => t.style.display = t.dataset.index === moversSelect.value ? '' : 'none');
+        });
+
+        const coverageSelect = document.getElementById('coverageSelect');
+        coverageSelect.addEventListener('change', () => {
+            document.querySelectorAll('.coverage-table').forEach(t => t.style.display = t.dataset.index === coverageSelect.value ? '' : 'none');
+        });
+    </script>
+}
