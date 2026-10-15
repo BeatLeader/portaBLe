@@ -1,5 +1,6 @@
 ﻿using portaBLe.DB;
 using System.ComponentModel;
+using System.Numerics;
 using System.Reflection;
 
 namespace portaBLe.Refresh
@@ -92,6 +93,37 @@ namespace portaBLe.Refresh
             return (float)(pointList[i-1].Item2 + middle_dis * (pointList[i].Item2 - pointList[i-1].Item2));
         }
 
+        // Value of a per-leaderboard curve (points from 100% down, see RatingAPI Curve.GetCurve). Null or empty: the base curve.
+        public static float Curve2(float acc, IReadOnlyList<Vector2>? curve)
+        {
+            if (curve == null || curve.Count < 2)
+            {
+                return Curve2(acc);
+            }
+
+            int i = 0;
+            for (; i < curve.Count; i++)
+            {
+                if (curve[i].X <= acc) {
+                    break;
+                }
+            }
+
+            if (i == 0) {
+                i = 1;
+            }
+            if (i >= curve.Count) {
+                i = curve.Count - 1;
+            }
+
+            double middle_dis = (acc - curve[i - 1].X) / (double)(curve[i].X - curve[i - 1].X);
+            return (float)(curve[i - 1].Y + middle_dis * (curve[i].Y - curve[i - 1].Y));
+        }
+
+        // RatingAPI's curve points as stored in the database
+        public static List<Vector2> ToCurve(IEnumerable<global::RatingAPI.Controllers.Point>? points) =>
+            points?.Select(p => new Vector2((float)p.x, (float)p.y)).ToList() ?? new List<Vector2>();
+
         public static float Curve2(float acc)
         {
             int i = 0;
@@ -117,9 +149,10 @@ namespace portaBLe.Refresh
 
         private static float Inflate(float peepee) => PpFormula.Current.Inflate(peepee);
 
-        private static (float, float, float) GetPp(float accuracy, float accRating, float passRating, float techRating) {
+        // curve: the leaderboard's own acc curve (null: the base curve). Stars always use the base curve (ToStars).
+        private static (float, float, float) GetPp(float accuracy, float accRating, float passRating, float techRating, IReadOnlyList<Vector2>? curve = null) {
             var formula = PpFormula.Current;
-            return (formula.PassPp(passRating), formula.AccPp(Curve2(accuracy), accRating), formula.TechPp(accuracy, techRating));
+            return (formula.PassPp(passRating), formula.AccPp(Curve2(accuracy, curve), accRating), formula.TechPp(accuracy, techRating));
         }
 
         public static float ToStars(float accRating, float passRating, float techRating) {
@@ -134,7 +167,8 @@ namespace portaBLe.Refresh
             ModifiersRating? modifiersRating,
             float accRating, 
             float passRating, 
-            float techRating)
+            float techRating,
+            IReadOnlyList<Vector2>? curve = null)   // the leaderboard's acc curve (null: the base curve)
         {
             if (accuracy <= 0 || accuracy > 1) return (0, 0, 0, 0, 0);
 
@@ -147,9 +181,10 @@ namespace portaBLe.Refresh
             float rawPP = 0; float fullPP = 0; float passPP = 0; float accPP = 0; float techPP = 0; float increase = 0; 
             if (!modifiers.Contains("NF"))
             {
-                (passPP, accPP, techPP) = GetPp(accuracy, accRating, passRating, techRating);
+                (passPP, accPP, techPP) = GetPp(accuracy, accRating, passRating, techRating, curve);
 
                 rawPP = Inflate(passPP + accPP + techPP);
+                var scoreCurve = curve;
                 // Only scores with modifiers can use the modifier ratings (skips the reflection for every other score)
                 if (modifiersRating != null && !string.IsNullOrEmpty(modifiers)) {
                     var modifiersMap = modifiersRating.ToDictionary<float>();
@@ -159,12 +194,14 @@ namespace portaBLe.Refresh
                             accRating = modifiersMap[modifier + "AccRating"]; 
                             passRating = modifiersMap[modifier + "PassRating"]; 
                             techRating = modifiersMap[modifier + "TechRating"];
+                            var modifierCurve = modifiersRating.GetCurve(modifier);
+                            if (modifierCurve != null && modifierCurve.Count >= 2) { scoreCurve = modifierCurve; }
 
                             break;
                         }
                     }
                 }
-                (passPP, accPP, techPP) = GetPp(accuracy, accRating * mp, passRating * mp, techRating * mp);
+                (passPP, accPP, techPP) = GetPp(accuracy, accRating * mp, passRating * mp, techRating * mp, scoreCurve);
                 fullPP = Inflate(passPP + accPP + techPP);
                 if (passPP + accPP + techPP > 0) {
                     increase = fullPP / (passPP + accPP + techPP);

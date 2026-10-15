@@ -177,6 +177,52 @@ namespace portaBLe.Refresh
             Console.WriteLine($"Rating fit export: {written} scores, {players.Count} players saved to {path}");
         }
 
+        public const string ModifiersFile = "rating-fit-modifiers.json";
+
+        // Ratings of every leaderboard without modifiers and with SS, FS, SF (as stored by RatingsRefresh.Overwrite), to compare
+        // what speed-modifier scores are worth with nomod scores on maps of similar ratings (together with RunScores). Read only.
+        // Writes wwwroot/rating-fit-modifiers.json: Columns and one row per leaderboard.
+        public static async Task RunModifiers(AppContext dbContext, string webRootPath)
+        {
+            var lbs = await dbContext.Leaderboards.AsNoTracking()
+                .Select(l => new
+                {
+                    l.Id, l.ModeName, l.DifficultyName, l.Name, l.Stars, l.PassRating, l.TechRating, l.AccRating, l.PredictedAcc,
+                    Mod = l.ModifiersRating == null ? null : new
+                    {
+                        l.ModifiersRating.SSStars, l.ModifiersRating.SSPassRating, l.ModifiersRating.SSTechRating, l.ModifiersRating.SSAccRating, l.ModifiersRating.SSPredictedAcc,
+                        l.ModifiersRating.FSStars, l.ModifiersRating.FSPassRating, l.ModifiersRating.FSTechRating, l.ModifiersRating.FSAccRating, l.ModifiersRating.FSPredictedAcc,
+                        l.ModifiersRating.SFStars, l.ModifiersRating.SFPassRating, l.ModifiersRating.SFTechRating, l.ModifiersRating.SFAccRating, l.ModifiersRating.SFPredictedAcc,
+                    }
+                })
+                .ToListAsync();
+
+            var rows = lbs.Select(l => new object?[]
+            {
+                l.Id, l.Name, l.DifficultyName, l.ModeName,
+                l.Stars, l.PassRating, l.TechRating, l.AccRating, l.PredictedAcc,
+                l.Mod?.SSStars, l.Mod?.SSPassRating, l.Mod?.SSTechRating, l.Mod?.SSAccRating, l.Mod?.SSPredictedAcc,
+                l.Mod?.FSStars, l.Mod?.FSPassRating, l.Mod?.FSTechRating, l.Mod?.FSAccRating, l.Mod?.FSPredictedAcc,
+                l.Mod?.SFStars, l.Mod?.SFPassRating, l.Mod?.SFTechRating, l.Mod?.SFAccRating, l.Mod?.SFPredictedAcc,
+            }).ToList();
+
+            var path = Path.Combine(webRootPath, ModifiersFile);
+            await File.WriteAllTextAsync(path, JsonSerializer.Serialize(new
+            {
+                GeneratedAt = DateTime.UtcNow,
+                Columns = new[]
+                {
+                    "Id", "Name", "Difficulty", "Mode",
+                    "Stars", "PassRating", "TechRating", "AccRating", "PredictedAcc",
+                    "SSStars", "SSPassRating", "SSTechRating", "SSAccRating", "SSPredictedAcc",
+                    "FSStars", "FSPassRating", "FSTechRating", "FSAccRating", "FSPredictedAcc",
+                    "SFStars", "SFPassRating", "SFTechRating", "SFAccRating", "SFPredictedAcc",
+                },
+                Rows = rows,
+            }));
+            Console.WriteLine($"Rating fit export: modifier ratings of {rows.Count} leaderboards saved to {path}");
+        }
+
         public const string WallsFile = "wall-fit.json";
 
         // Every wall of every ranked Standard leaderboard, and how the Analyzer classifies them (WallClassifier: dodge and

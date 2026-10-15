@@ -443,6 +443,7 @@ namespace portaBLe.Refresh
                     ModeName = lb.ModeName,
                     DifficultyName = lb.DifficultyName,
                     PredictedAcc = lb.PredictedAcc,
+                    Curve = lb.Curve,
                     PassRating = pass,
                     TechRating = tech,
                     AccRating = acc,
@@ -459,6 +460,7 @@ namespace portaBLe.Refresh
                         SSPredictedAcc = mod.SSPredictedAcc, SSPassRating = ssPass, SSTechRating = ssTech, SSAccRating = ssAcc,
                         FSPredictedAcc = mod.FSPredictedAcc, FSPassRating = fsPass, FSTechRating = fsTech, FSAccRating = fsAcc,
                         SFPredictedAcc = mod.SFPredictedAcc, SFPassRating = sfPass, SFTechRating = sfTech, SFAccRating = sfAcc,
+                        SSCurve = mod.SSCurve, FSCurve = mod.FSCurve, SFCurve = mod.SFCurve,
                     };
                 }
                 float stars = ReplayUtils.ToStars(copy.AccRating, copy.PassRating, copy.TechRating);
@@ -528,7 +530,7 @@ namespace portaBLe.Refresh
             {
                 var lb = data.Maps[data.ScoreMap[s]].Leaderboard;
                 var (pp, _, passPp, accPp, techPp) = ReplayUtils.PpFromScore(data.ScoreAcc[s], data.ScoreModifiers[s], lb.ModifiersRating,
-                    lb.AccRating, lb.PassRating, lb.TechRating);
+                    lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve);
                 e.Pp[s] = float.IsFinite(pp) ? pp : 0;
                 e.PassPp[s] = float.IsFinite(passPp) ? passPp : 0;
                 e.AccPp[s] = float.IsFinite(accPp) ? accPp : 0;

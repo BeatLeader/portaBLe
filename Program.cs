@@ -24,6 +24,8 @@ namespace portaBLe
         public DbSet<Leaderboard> Leaderboards { get; set; }
         public DbSet<ModifiersRating> ModifiersRating { get; set; }
         public DbSet<DB.Stats> Stats { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder) => CurveModelConfig.Apply(modelBuilder);
     }
 
     public class ComparisonContext : DbContext
@@ -37,6 +39,8 @@ namespace portaBLe
         public DbSet<Leaderboard> Leaderboards { get; set; }
         public DbSet<ModifiersRating> ModifiersRating { get; set; }
         public DbSet<DB.Stats> Stats { get; set; }
+
+        protected override void OnModelCreating(ModelBuilder modelBuilder) => CurveModelConfig.Apply(modelBuilder);
     }
 
     public class Program
@@ -307,6 +311,10 @@ namespace portaBLe
                     // Recalculate acc ratings and stars from the stored predicted acc (after changing AccRating / ReplayUtils)
                     // await RatingsRefresh.Refresh(dbContext);
 
+                    // Per-leaderboard acc curves from the stored predicted acc (RatingAPI Curve.GetCurve, CurveSettings), without
+                    // rating the maps again. Overwrite stores them too. Then RefreshEverything to re-score with them.
+                    // await CurvesRefresh.Regenerate(dbContext);
+
                     // Scores, players, leaderboards (Megametric), stars, outliers and stats from the current ratings
                     // await RefreshEverything(dbContext);
 
@@ -336,6 +344,9 @@ namespace portaBLe
                     // Every ranked score (rating-fit-scores.json / .bin). Also the input of beatsaber-replays-ai-2's
                     // tools/player_skill.py (player-adjusted Acc AI targets).
                     // await RatingFitExport.RunScores(dbContext, env.WebRootPath);
+                    // Ratings with SS / FS / SF of every leaderboard (rating-fit-modifiers.json), to compare speed-modifier scores with
+                    // nomod scores of similar ratings.
+                    // await RatingFitExport.RunModifiers(dbContext, env.WebRootPath);
                     // Every wall and the Analyzer's dodge / crouch classification (wall-fit.json).
                     // await RatingFitExport.RunWalls(dbContext, env.WebRootPath);
 
@@ -443,7 +454,9 @@ namespace portaBLe
 
                             var columnType = property.GetColumnType(storeObject);
                             var clrType = Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType;
-                            var defaultValue = clrType == typeof(string) ? "''" : "0";
+                            // Columns stored through a converter (the curves: List<Vector2> as text) default to their stored type
+                            var storedType = property.GetValueConverter()?.ProviderClrType ?? clrType;
+                            var defaultValue = storedType == typeof(string) ? "''" : "0";
                             var sql = property.IsNullable
                                 ? $"ALTER TABLE \"{tableName}\" ADD COLUMN \"{columnName}\" {columnType} NULL"
                                 : $"ALTER TABLE \"{tableName}\" ADD COLUMN \"{columnName}\" {columnType} NOT NULL DEFAULT {defaultValue}";

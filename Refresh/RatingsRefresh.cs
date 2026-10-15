@@ -35,9 +35,14 @@ namespace portaBLe.Refresh
                 ("Duration", "REAL"),
                 ("IsFitbeat", "INTEGER"),
                 ("IsLinear", "INTEGER"),
+                ("Curve", "TEXT"),
             })
             {
                 await DbSchema.AddColumnIfMissing(dbContext, "Leaderboards", column, type);
+            }
+            foreach (var column in new[] { "SSCurve", "FSCurve", "SFCurve" })
+            {
+                await DbSchema.AddColumnIfMissing(dbContext, "ModifiersRating", column, "TEXT");
             }
 
             var configDictionary = new Dictionary<string, string>
@@ -91,22 +96,26 @@ namespace portaBLe.Refresh
                     lb.TechRating = (float)response["none"].LackMapCalculation.TechRating;
                     lb.PredictedAcc = (float)response["none"].PredictedAcc;
                     lb.AccRating = (float)response["none"].AccRating;
+                    lb.Curve = ReplayUtils.ToCurve(response["none"].PointList);
                     lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating);
 
                     lb.ModifiersRating.SSPassRating = (float)response["SS"].LackMapCalculation.PassRating;
                     lb.ModifiersRating.SSTechRating = (float)response["SS"].LackMapCalculation.TechRating;
                     lb.ModifiersRating.SSPredictedAcc = (float)response["SS"].PredictedAcc;
                     lb.ModifiersRating.SSAccRating = (float)response["SS"].AccRating;
+                    lb.ModifiersRating.SSCurve = ReplayUtils.ToCurve(response["SS"].PointList);
 
                     lb.ModifiersRating.FSPassRating = (float)response["FS"].LackMapCalculation.PassRating;
                     lb.ModifiersRating.FSTechRating = (float)response["FS"].LackMapCalculation.TechRating;
                     lb.ModifiersRating.FSPredictedAcc = (float)response["FS"].PredictedAcc;
                     lb.ModifiersRating.FSAccRating = (float)response["FS"].AccRating;
+                    lb.ModifiersRating.FSCurve = ReplayUtils.ToCurve(response["FS"].PointList);
 
                     lb.ModifiersRating.SFPassRating = (float)response["SFS"].LackMapCalculation.PassRating;
                     lb.ModifiersRating.SFTechRating = (float)response["SFS"].LackMapCalculation.TechRating;
                     lb.ModifiersRating.SFPredictedAcc = (float)response["SFS"].PredictedAcc;
                     lb.ModifiersRating.SFAccRating = (float)response["SFS"].AccRating;
+                    lb.ModifiersRating.SFCurve = ReplayUtils.ToCurve(response["SFS"].PointList);
 
                     lb.ModifiersRating.SFStars = ReplayUtils.ToStars(lb.ModifiersRating.SFAccRating, lb.ModifiersRating.SFPassRating, lb.ModifiersRating.SFTechRating);
                     lb.ModifiersRating.FSStars = ReplayUtils.ToStars(lb.ModifiersRating.FSAccRating, lb.ModifiersRating.FSPassRating, lb.ModifiersRating.FSTechRating);

@@ -61,6 +61,21 @@
     }
 }
 
+<form method="get" class="modifier-selector">
+    @if (!string.IsNullOrEmpty(Request.Query["db"]))
+    {
+        <input type="hidden" name="db" value="@Request.Query["db"]" />
+    }
+    <label for="modifierSelect">Speed modifier:</label>
+    <select id="modifierSelect" name="modifier" onchange="this.form.submit()">
+        @foreach (var m in LeaderboardModel.Modifiers)
+        {
+            <option value="@m" selected="@(m == Model.Modifier)">@(m == "none" ? "None" : m)</option>
+        }
+    </select>
+    <span class="modifier-note">Ratings, stars, predicted acc and curve of the selected modifier (the scores below are unchanged)</span>
+</form>
+
 <div class="leaderboard-comparison">
     <div class="leaderboard-container">
         <h2>@Model.Leaderboard.Name - @Model.Leaderboard.DifficultyName - @Model.Leaderboard.ModeName</h2>
@@ -125,6 +140,7 @@
                 <span>Pass: @(Math.Round(Model.Leaderboard.PassRating, 2)) ★</span>
             </div>
         </div>
+        <div class="predicted-acc">Predicted acc: @((Model.Leaderboard.PredictedAcc * 100).ToString("0.00"))%</div>
     </div>
 
     @if (Model.CompareLeaderboard != null)
@@ -192,7 +208,71 @@
                     <span>Pass: @(Math.Round(Model.CompareLeaderboard.PassRating, 2)) ★</span>
                 </div>
             </div>
+            <div class="predicted-acc">Predicted acc: @((Model.CompareLeaderboard.PredictedAcc * 100).ToString("0.00"))%</div>
         </div>
+    }
+</div>
+
+<div class="curve-section">
+    <h4>Acc curve (@(Model.Modifier == "none" ? "no modifier" : Model.Modifier))</h4>
+    @if (Model.CurveParams != null)
+    {
+        var cp = Model.CurveParams;
+        var dp = LeaderboardModel.DefaultCurveParams;
+        string Param(string name, double value, double def, string format) =>
+            Math.Abs(value - def) < 1e-9 ? $"{name} = {value.ToString(format)}" : $"<b>{name} = {value.ToString(format)}</b> (default {def.ToString(format)})";
+        <div class="modifier-note curve-params">
+            Curve for a predicted acc of @((Model.Leaderboard.PredictedAcc * 100).ToString("0.00"))%:
+            @if (cp.A < 0.9995)
+            {
+                @Html.Raw($"a = {(Math.Max(cp.A, 0.951) * 100).ToString("0.00")}%, c = {cp.C.ToString("0.00")}")
+            }
+            else
+            {
+                <span>a = 100% (no taper)</span>
+            }
+            &middot; middle (60-95%): @Html.Raw(Param("k", cp.K, dp.K, "0.00")), @Html.Raw(Param("w", cp.W, dp.W, "0.00"))
+            &middot; upper (95% to a): @Html.Raw(Param("k2", cp.K2, dp.K2, "0.00")), @Html.Raw(Param("p2", cp.P2, dp.P2, "0.00"))
+            @if (cp.IsDefault)
+            {
+                <span>&middot; same as the base curve</span>
+            }
+        </div>
+    }
+    @if (!Model.HasOwnCurve)
+    {
+        <div class="modifier-note">No curve stored for this leaderboard: the base curve is used (run CurvesRefresh.Regenerate).</div>
+    }
+    <div class="curve-chart-container">
+        <canvas id="curveChart"></canvas>
+    </div>
+    @if (Model.PpTable.Count > 0)
+    {
+        <table class="table table-sm curve-table">
+            <thead>
+                <tr>
+                    <th></th>
+                    <th>Accuracy</th>
+                    <th>Curve</th>
+                    <th>Base curve</th>
+                    <th>PP</th>
+                    <th>PP (base curve)</th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var row in Model.PpTable)
+                {
+                    <tr>
+                        <td>@row.Label</td>
+                        <td>@row.Accuracy.ToString("0.00")%</td>
+                        <td>@row.CurveValue.ToString("0.000")</td>
+                        <td>@row.BaseCurveValue.ToString("0.000")</td>
+                        <td>@row.Pp.ToString("0.0")</td>
+                        <td>@row.BasePp.ToString("0.0")@(row.BasePp > 0 && Math.Abs(row.Pp / row.BasePp - 1) > 0.0005 ? $" ({(row.Pp / row.BasePp - 1) * 100:+0.0;-0.0}%)" : "")</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
     }
 </div>
 
@@ -274,7 +354,7 @@
                     for (int i = firstPageToShow; i <= lastPageToShow; i++)
                     {
                         <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
-                            <a class="page-link" asp-page="./Leaderboard" asp-route-id="@Model.Leaderboard.Id" asp-route-compareId="@Model.CompareLeaderboard?.Id" asp-route-currentPage="@i">@i</a>
+                            <a class="page-link" asp-page="./Leaderboard" asp-route-id="@Model.Leaderboard.Id" asp-route-compareId="@Model.CompareLeaderboard?.Id" asp-route-currentPage="@i" asp-route-modifier="@Model.Modifier">@i</a>
                         </li>
                     }
                 }
@@ -311,6 +391,42 @@
 </div>
 
 <style>
+    .modifier-selector {
+        display: flex;
+        gap: 0.5em;
+        align-items: center;
+        justify-content: center;
+        flex-wrap: wrap;
+        margin-bottom: 1em;
+    }
+
+    .modifier-note {
+        font-size: 0.8em;
+        opacity: 0.7;
+    }
+
+    .predicted-acc {
+        text-align: center;
+        font-size: 0.85em;
+        margin-top: 0.3em;
+    }
+
+    .curve-section {
+        max-width: 900px;
+        margin: 1.5em auto;
+    }
+
+    .curve-chart-container {
+        position: relative;
+        height: 300px;
+        width: 100%;
+    }
+
+    .curve-table {
+        margin-top: 0.5em;
+        font-size: 0.85em;
+    }
+
     .leaderboard-comparison {
         display: flex;
         gap: 2em;
@@ -412,6 +528,84 @@
         let currentPlayerId = null;
         const leaderboardScores = @Html.Raw(JsonSerializer.Serialize(Model.ScoreGraphEntries));
         const compareLeaderboardScores = @Html.Raw(JsonSerializer.Serialize(Model.CompareScoreGraphEntries ?? new LeaderboardModel.ScoreGraphEntry[] { }));
+
+        const curvePoints = @Html.Raw(JsonSerializer.Serialize(Model.CurvePoints));
+        const baseCurvePoints = @Html.Raw(JsonSerializer.Serialize(Model.BaseCurvePoints));
+        const curvePredicted = @Html.Raw(JsonSerializer.Serialize(Model.Leaderboard.PredictedAcc > 0 ? Model.Leaderboard.PredictedAcc * 100 : (double?)null));
+        const curveStart = @Html.Raw(JsonSerializer.Serialize(Model.CurveStart));
+
+        function drawCurveChart() {
+            const canvas = document.getElementById('curveChart');
+            if (!canvas) return;
+            const toXY = pts => pts.map(p => ({ x: p[0], y: p[1] }));
+            const curveAt = x => {
+                for (let i = 1; i < curvePoints.length; i++) {
+                    if (curvePoints[i][0] >= x) {
+                        const [x0, y0] = curvePoints[i - 1], [x1, y1] = curvePoints[i];
+                        return y0 + (x - x0) / (x1 - x0) * (y1 - y0);
+                    }
+                }
+                return curvePoints.length ? curvePoints[curvePoints.length - 1][1] : 0;
+            };
+            const markers = [];
+            if (curvePredicted !== null) markers.push({ x: curvePredicted, y: curveAt(curvePredicted), label: 'Predicted acc' });
+            if (curveStart !== null && curveStart < 100) markers.push({ x: curveStart, y: curveAt(curveStart), label: 'Taper start (A)' });
+            const minX = curvePredicted !== null ? Math.max(60, Math.floor(curvePredicted) - 4) : 90;
+
+            new Chart(canvas.getContext('2d'), {
+                type: 'line',
+                data: {
+                    datasets: [
+                        {
+                            label: 'This curve',
+                            data: toXY(curvePoints),
+                            borderColor: 'rgb(75, 192, 192)',
+                            backgroundColor: 'rgba(75, 192, 192, 0.2)',
+                            pointRadius: 0,
+                            borderWidth: 2,
+                            tension: 0,
+                        },
+                        {
+                            label: 'Base curve',
+                            data: toXY(baseCurvePoints),
+                            borderColor: 'rgba(200, 200, 200, 0.8)',
+                            borderDash: [6, 4],
+                            pointRadius: 0,
+                            borderWidth: 1,
+                            tension: 0,
+                        },
+                        {
+                            type: 'scatter',
+                            label: 'Predicted acc / taper start',
+                            data: markers,
+                            borderColor: 'rgb(255, 205, 86)',
+                            backgroundColor: 'rgb(255, 205, 86)',
+                            pointRadius: 5,
+                        },
+                    ]
+                },
+                options: {
+                    maintainAspectRatio: false,
+                    parsing: true,
+                    scales: {
+                        x: { type: 'linear', min: minX, max: 100, title: { display: true, text: 'Accuracy (%)' } },
+                        y: { title: { display: true, text: 'Curve value (acc pp multiplier)' } }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                label: ctx => (ctx.raw && ctx.raw.label ? ctx.raw.label + ': ' : ctx.dataset.label + ': ') +
+                                    formatNumber(ctx.parsed.x, 2) + '% → ' + formatNumber(ctx.parsed.y, 3)
+                            }
+                        },
+                        zoom: {
+                            zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' },
+                            pan: { enabled: true, mode: 'x' }
+                        }
+                    }
+                }
+            });
+        }
 
         function formatNumber(num, decimals) {
             return Number(num).toFixed(decimals);
@@ -728,5 +922,6 @@
 
         // Initial load
         setupChart(leaderboardScores, compareLeaderboardScores);
+        drawCurveChart();
     </script>
 }
