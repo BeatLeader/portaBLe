@@ -144,7 +144,9 @@ namespace portaBLe.Refresh
 
         // Same as RatingAPI (AccRating.GetRating), so the constants only live in one place
         public static float AccRating(float? predictedAcc, float? passRating, float? techRating) {
-            return (float)new global::RatingAPI.Controllers.AccRating().GetRating(predictedAcc, passRating, techRating);
+            // passRating is the displayed rating; the formula uses the internal pass
+            double? internalPass = passRating.HasValue ? global::beatleader_analyzer.BeatmapScanner.Data.Ratings.InternalPass(passRating.Value) : null;
+            return (float)new global::RatingAPI.Controllers.AccRating().GetRating(predictedAcc, internalPass, techRating);
         }
 
         private static float Inflate(float peepee) => PpFormula.Current.Inflate(peepee);

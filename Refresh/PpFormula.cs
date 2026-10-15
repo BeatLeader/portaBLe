@@ -19,16 +19,18 @@ namespace portaBLe.Refresh
         public double TechAccExponent { get; set; } = 1.9;
         public double InflateBase { get; set; } = 650;
         public double InflateExponent { get; set; } = 1.3;
-        public double StarDivisor { get; set; } = 52;
+        public double StarDivisor { get; set; } = 44.64;
         public double PpMultiplier { get; set; } = 1.042;
 
         public static PpFormula Current { get; set; } = new();
 
         public PpFormula Clone() => (PpFormula)MemberwiseClone();
 
+        // passRating is the displayed rating; the formula uses the internal pass (Analyzer Ratings.PassDisplayScale)
         public float PassPp(float passRating)
         {
-            float passPP = (float)PassScale * MathF.Exp(MathF.Pow(passRating, 1 / (float)PassExponent)) - (float)PassOffset;
+            float internalPass = (float)global::beatleader_analyzer.BeatmapScanner.Data.Ratings.InternalPass(passRating);
+            float passPP = (float)PassScale * MathF.Exp(MathF.Pow(internalPass, 1 / (float)PassExponent)) - (float)PassOffset;
             if (float.IsInfinity(passPP) || float.IsNaN(passPP) || passPP < 0) passPP = 0;
             return passPP;
         }
