@@ -19,103 +19,25 @@ namespace portaBLe.Refresh
             }
         }
 
+        // The modifiers Overwrite stores (RatingsController.Get also rates BFS / BSF, which aren't kept here)
+        private static readonly string[] StoredModifiers = { "none", "SS", "FS", "SFS" };
+
         public static async Task Overwrite(AppContext dbContext)
         {
-            try
+            // Columns older databases may not have (checked first, so no failed ALTER TABLE in the log)
+            foreach (var (column, type) in new[] {
+                ("LinearPercent", "REAL"),
+                ("MultiRating", "REAL"),
+                ("ParityErrors", "INTEGER"),
+                ("BombAvoidances", "INTEGER"),
+                ("DodgeWalls", "INTEGER"),
+                ("CrouchWalls", "INTEGER"),
+                ("Duration", "REAL"),
+                ("IsFitbeat", "INTEGER"),
+                ("IsLinear", "INTEGER"),
+            })
             {
-                await dbContext.Database.ExecuteSqlRawAsync(
-                    "ALTER TABLE Leaderboards ADD COLUMN LinearPercent REAL DEFAULT 0");
-                Console.WriteLine("LinearPercent column added successfully.");
-            }
-            catch
-            {
-                Console.WriteLine("LinearPercent column already exist.");
-            }
-            try
-            {
-                await dbContext.Database.ExecuteSqlRawAsync(
-                    "ALTER TABLE Leaderboards ADD COLUMN MultiRating REAL DEFAULT 0");
-                Console.WriteLine("MultiRating column added successfully.");
-            }
-            catch
-            {
-                Console.WriteLine("MultiRating column already exist.");
-            }
-            try
-            {
-                await dbContext.Database.ExecuteSqlRawAsync(
-                     "ALTER TABLE Leaderboards ADD COLUMN ParityErrors INTEGER DEFAULT 0");
-                Console.WriteLine("ParityErrors column added successfully.");
-            }
-            catch
-            {
-                Console.WriteLine("ParityErrors column already exist.");
-            }
-            try
-            {
-
-                await dbContext.Database.ExecuteSqlRawAsync(
-                    "ALTER TABLE Leaderboards ADD COLUMN BombAvoidances INTEGER DEFAULT 0");
-                Console.WriteLine("BombAvoidances column added successfully.");
-            }
-            catch
-            {
-                Console.WriteLine("BombAvoidances column already exist.");
-            }
-            try
-            {
-
-                await dbContext.Database.ExecuteSqlRawAsync(
-                    "ALTER TABLE Leaderboards ADD COLUMN DodgeWalls INTEGER DEFAULT 0");
-                Console.WriteLine("DodgeWalls column added successfully.");
-            }
-            catch
-            {
-                Console.WriteLine("DodgeWalls column already exist.");
-            }
-            try
-            {
-
-                await dbContext.Database.ExecuteSqlRawAsync(
-                    "ALTER TABLE Leaderboards ADD COLUMN CrouchWalls INTEGER DEFAULT 0");
-                Console.WriteLine("CrouchWalls column added successfully.");
-            }
-            catch
-            {
-                Console.WriteLine("CrouchWalls column already exist.");
-            }
-            try
-            {
-
-                await dbContext.Database.ExecuteSqlRawAsync(
-                    "ALTER TABLE Leaderboards ADD COLUMN Duration REAL DEFAULT 0");
-                Console.WriteLine("Duration column added successfully.");
-            }
-            catch
-            {
-                Console.WriteLine("Duration column already exist.");
-            }
-            try
-            {
-
-                await dbContext.Database.ExecuteSqlRawAsync(
-                    "ALTER TABLE Leaderboards ADD COLUMN IsFitbeat INTEGER DEFAULT 0");
-                Console.WriteLine("IsFitbeat column added successfully.");
-            }
-            catch
-            {
-                Console.WriteLine("IsFitbeat column already exist.");
-            }
-            try
-            {
-
-                await dbContext.Database.ExecuteSqlRawAsync(
-                    "ALTER TABLE Leaderboards ADD COLUMN IsLinear INTEGER DEFAULT 0");
-                Console.WriteLine("IsLinear column added successfully.");
-            }
-            catch
-            {
-                Console.WriteLine("IsLinear column already exist.");
+                await DbSchema.AddColumnIfMissing(dbContext, "Leaderboards", column, type);
             }
 
             var configDictionary = new Dictionary<string, string>
@@ -151,7 +73,7 @@ namespace portaBLe.Refresh
                     var logger = loggerFactory.CreateLogger<RatingsController>();
                     var controller = new RatingsController(configuration, logger);
                     
-                    var result = controller.Get(lb.Hash, lb.ModeName, GetDiffCode(lb.DifficultyName));
+                    var result = controller.Get(lb.Hash, lb.ModeName, GetDiffCode(lb.DifficultyName), StoredModifiers);
                     var response = result.Value;
                     if (response == null || !response.ContainsKey("none"))
                     {
@@ -167,24 +89,24 @@ namespace portaBLe.Refresh
 
                     lb.PassRating = (float)response["none"].LackMapCalculation.PassRating;
                     lb.TechRating = (float)response["none"].LackMapCalculation.TechRating;
-                    // lb.PredictedAcc = (float)response["none"].PredictedAcc;
-                    // lb.AccRating = (float)response["none"].AccRating;
+                    lb.PredictedAcc = (float)response["none"].PredictedAcc;
+                    lb.AccRating = (float)response["none"].AccRating;
                     lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating);
 
                     lb.ModifiersRating.SSPassRating = (float)response["SS"].LackMapCalculation.PassRating;
                     lb.ModifiersRating.SSTechRating = (float)response["SS"].LackMapCalculation.TechRating;
-                    // lb.ModifiersRating.SSPredictedAcc = (float)response["SS"].PredictedAcc;
-                    // lb.ModifiersRating.SSAccRating = (float)response["SS"].AccRating;
+                    lb.ModifiersRating.SSPredictedAcc = (float)response["SS"].PredictedAcc;
+                    lb.ModifiersRating.SSAccRating = (float)response["SS"].AccRating;
 
                     lb.ModifiersRating.FSPassRating = (float)response["FS"].LackMapCalculation.PassRating;
                     lb.ModifiersRating.FSTechRating = (float)response["FS"].LackMapCalculation.TechRating;
-                    // lb.ModifiersRating.FSPredictedAcc = (float)response["FS"].PredictedAcc;
-                    // lb.ModifiersRating.FSAccRating = (float)response["FS"].AccRating;
+                    lb.ModifiersRating.FSPredictedAcc = (float)response["FS"].PredictedAcc;
+                    lb.ModifiersRating.FSAccRating = (float)response["FS"].AccRating;
 
                     lb.ModifiersRating.SFPassRating = (float)response["SFS"].LackMapCalculation.PassRating;
                     lb.ModifiersRating.SFTechRating = (float)response["SFS"].LackMapCalculation.TechRating;
-                    // lb.ModifiersRating.SFPredictedAcc = (float)response["SFS"].PredictedAcc;
-                    // lb.ModifiersRating.SFAccRating = (float)response["SFS"].AccRating;
+                    lb.ModifiersRating.SFPredictedAcc = (float)response["SFS"].PredictedAcc;
+                    lb.ModifiersRating.SFAccRating = (float)response["SFS"].AccRating;
 
                     lb.ModifiersRating.SFStars = ReplayUtils.ToStars(lb.ModifiersRating.SFAccRating, lb.ModifiersRating.SFPassRating, lb.ModifiersRating.SFTechRating);
                     lb.ModifiersRating.FSStars = ReplayUtils.ToStars(lb.ModifiersRating.FSAccRating, lb.ModifiersRating.FSPassRating, lb.ModifiersRating.FSTechRating);

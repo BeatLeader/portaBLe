@@ -41,6 +41,11 @@
     <Content Remove="wwwroot\Comparison.db" />
     <Content Remove="wwwroot\Database.db" />
     <Content Remove="wwwroot\db-20261007142817-8941.db" />
+    <Content Remove="wwwroot\db-20261012191847-9271.db" />
+    <Content Remove="wwwroot\db-20261015023202-7674.db" />
+    <Content Remove="wwwroot\db-20261015025023-4297.db" />
+    <Content Remove="wwwroot\db-20261015031039-9347.db" />
+    <Content Remove="wwwroot\db-20261015031635-4677.db" />
     <Content Remove="wwwroot\dump.zip" />
     <Content Remove="wwwroot\export.json" />
   </ItemGroup>

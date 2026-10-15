@@ -7,14 +7,19 @@
       "Description": "Current production website (no autoreweight)"
     },
     {
-      "Name": "Test",
-      "FileName": "db-20261012222200-9785.db",
-      "Description": "Current test"
+      "Name": "New stuff",
+      "FileName": "db-20261015031039-9347.db",
+      "Description": "New model + Autorebalance"
     },
     {
-      "Name": "Auto-Prod",
+      "Name": "Prod Autoreweighted",
       "FileName": "db-20261007142817-8941.db",
       "Description": "Current production website (autoreweighted)"
+    },
+    {
+      "Name": "New stuff Autoreweighted",
+      "FileName": "db-20261015031635-4677.db",
+      "Description": "New stuff Autoreweighted"
     }
   ]
 }

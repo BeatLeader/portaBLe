@@ -20,17 +20,7 @@ namespace portaBLe.Refresh
             Console.WriteLine("Recalculating Outliers");
             dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
 
-            // Ensure OutlierCount column exists
-            try
-            {
-                await dbContext.Database.ExecuteSqlRawAsync(
-                    "ALTER TABLE Leaderboards ADD COLUMN OutlierCount INTEGER DEFAULT 0");
-                Console.WriteLine("OutlierCount column added successfully.");
-            }
-            catch
-            {
-                // Column already exists, continue
-            }
+            await DbSchema.AddColumnIfMissing(dbContext, "Leaderboards", "OutlierCount", "INTEGER");
 
             const int minScoresCount = 100;
             const float outlierThreshold = 8f;

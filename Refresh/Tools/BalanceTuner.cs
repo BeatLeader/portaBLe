@@ -18,9 +18,9 @@ namespace portaBLe.Refresh
     // - AccScale and AccOffset (RatingAPI AccRating.ACC_SCALE / ACC_OFFSET): acc rating = AccScale / Curve(predictedAcc + AccOffset).
     public class RatingConstants
     {
-        public double PassCalibration { get; set; } = 0.825;
-        public double OneSaberNerf { get; set; } = 0.54;
-        public double TechScaler { get; set; } = 14;
+        public double PassCalibration { get; set; } = 0.664;
+        public double OneSaberNerf { get; set; } = 0.28;
+        public double TechScaler { get; set; } = 17.6;
         // Follows the PpFormula default, since the tuner re-scores everything with the formula in code
         public double TechWeight { get; set; } = new PpFormula().TechWeight;
         public double AccScale { get; set; } = 15.5;

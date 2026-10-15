@@ -11,17 +11,16 @@ namespace portaBLe.Refresh
     //   stars   = pp at 96% / StarDivisor (before PpMultiplier, so the multiplier doesn't move stars)
     public class PpFormula
     {
-        public double PassScale { get; set; } = 15.2;
+        public double PassScale { get; set; } = 12.9;
         public double PassExponent { get; set; } = 2.62;
         public double PassOffset { get; set; } = 30;
         public double AccWeight { get; set; } = 34;
-        // 1.08 * 9 / 14: the tech pp of BALANCED_TECH_SCALER 9 with tech ratings at their usual BALANCED_TECH_SCALER 14 scale
-        public double TechWeight { get; set; } = 0.69429;
+        public double TechWeight { get; set; } = 0.63;
         public double TechAccExponent { get; set; } = 1.9;
         public double InflateBase { get; set; } = 650;
         public double InflateExponent { get; set; } = 1.3;
         public double StarDivisor { get; set; } = 52;
-        public double PpMultiplier { get; set; } = 1.075;
+        public double PpMultiplier { get; set; } = 1.042;
 
         public static PpFormula Current { get; set; } = new();
 

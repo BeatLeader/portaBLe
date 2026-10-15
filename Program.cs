@@ -213,6 +213,13 @@ namespace portaBLe
         public static Stopwatch Stopwatch = new();
         public static int CoreCount = Environment.ProcessorCount;
 
+        // The prod database ModelComparisonExport compares with (wwwroot, listed in databases.json)
+        private const string ProdDatabase = "db-20261012191847-9271.db";
+
+        // beatsaber-replays-ai-2 next to this repository (parity replays, Acc AI training)
+        private static string ReplaysRepo(IWebHostEnvironment env) =>
+            Path.GetFullPath(Path.Combine(env.ContentRootPath, "..", "beatsaber-replays-ai-2"));
+
         public static async Task Main(string[] args)
         {
             Stopwatch = Stopwatch.StartNew();
@@ -289,39 +296,56 @@ namespace portaBLe
                     var env = services.GetRequiredService<IWebHostEnvironment>();
                     using var dbContext = dbContextFactory.CreateDbContext();
 
-                    // Uncomment to overwrite ratings with RatingAPI
+                    // ---- Rating pipeline -------------------------------------------------------------------------------
+                    // Usual order after changing the Analyzer, the Acc AI model or a constant:
+                    //   RatingsRefresh.Overwrite -> RefreshEverything -> BalanceTuner.Run -> ModelComparisonExport.Run
+                    // (only pp formula changes, Refresh/PpFormula.cs: skip Overwrite)
+
+                    // Rate every leaderboard again with RatingAPI (Analyzer + Acc AI)
                     // await RatingsRefresh.Overwrite(dbContext);
 
-                    // Uncomment to recalculate ratings after changing ReplayUtils.
+                    // Recalculate acc ratings and stars from the stored predicted acc (after changing AccRating / ReplayUtils)
                     // await RatingsRefresh.Refresh(dbContext);
 
-                    // Uncomment to get suggested pass, tech and acc rating constants for the ratings in this database (in memory
-                    // only, nothing is written). Writes wwwroot/balance-tuning.json for the Balance Tuning page.
+                    // Scores, players, leaderboards (Megametric), stars, outliers and stats from the current ratings
+                    // await RefreshEverything(dbContext);
+
+                    // ---- Balance tools (Refresh/Tools, read only) ---------------------------------------------------------
+                    // Suggested pass / tech / acc constants so no kind of map is worth more than others of its stars
+                    // (in memory only). Writes wwwroot/balance-tuning.json for the Balance Tuning page.
                     // BalanceTuner.RatedWith must hold the constants the database was rated with. About 30 full re-scorings.
                     // await BalanceTuner.Run(dbContext, env.WebRootPath);
 
-                    // Uncomment to try the parts of the pp formula (Refresh/PpFormula.cs) one at a time, in memory only.
-                    // Writes wwwroot/pp-formula.json, shown on the Balance Tuning page. About 25 full re-scorings.
+                    // The parts of the pp formula (Refresh/PpFormula.cs) one at a time, in memory only. Writes
+                    // wwwroot/pp-formula.json, shown on the Balance Tuning page. About 25 full re-scorings.
                     // await BalanceTuner.RunPpFormula(dbContext, env.WebRootPath);
 
-                    // Uncomment to export a side-by-side of prod (old Acc AI model) and this database (new model and balance) to
-                    // wwwroot/model-comparison.json: every map's ratings / stars / Megametric / best pp in both, and the top 2000
-                    // players in either. Read only. Change the file name if prod is another database.
-                    // await ModelComparisonExport.Run(env.WebRootPath, "db-20261012191847-9271.db");
+                    // Side by side of prod and this database: every map's ratings / stars / Megametric / best pp, and the
+                    // top 2000 players. Writes wwwroot/model-comparison.json. Change the file name if prod is another database.
+                    // await ModelComparisonExport.Run(env.WebRootPath, ProdDatabase);
 
-                    // Uncomment to run the reweighter 
-                    // Nerf
-                    // await ScoresRefresh.Autoreweight(dbContext);
-                    // Buff
-                    // await ScoresRefresh.Autoreweight3(dbContext);
+                    // ---- Research exports (Refresh/Tools, read only, big files in wwwroot) ----------------------------------
+                    // Analyzer parity check against replays: write the list of leaderboards, run
+                    // "BLReplaysPrepare parity <that file>" in beatsaber-replays-ai-2, then compare.
+                    // await ParityCheck.WriteSample(dbContext, env.WebRootPath);
+                    // await ParityCheck.Run(dbContext, env.WebRootPath, Path.Combine(ReplaysRepo(env), "parity2"));
 
-                    // Uncomment to refresh everything with current ratings
-                    // await RefreshEverything(dbContext);
+                    // Every swing of every ranked map with its scores' accuracy (rating-fit.json / .bin), to fit the pass and
+                    // tech formulas.
+                    // await RatingFitExport.Run(dbContext, env.WebRootPath);
+                    // Every ranked score (rating-fit-scores.json / .bin). Also the input of beatsaber-replays-ai-2's
+                    // tools/player_skill.py (player-adjusted Acc AI targets).
+                    // await RatingFitExport.RunScores(dbContext, env.WebRootPath);
+                    // Every wall and the Analyzer's dodge / crouch classification (wall-fit.json).
+                    // await RatingFitExport.RunWalls(dbContext, env.WebRootPath);
 
-                    // Uncomment to refresh leaderboards (Megametrics) for ALL databases
+                    // ---- Score-based reweighting (the old way to fix outliers; needs scores) -----------
+                    // await ScoresRefresh.Autoreweight(dbContext);    // nerf
+                    // await ScoresRefresh.Autoreweight3(dbContext);   // buff
+
+                    // ---- All databases ------------------------------------------------------------------------------------
+                    // Leaderboards (Megametric) and stats of every database in databases.json
                     // await RefreshLeaderboardsForAllDatabases(tempDbService, builder.Environment.WebRootPath);
-
-                    // Uncomment to calculate and store database statistics for ALL databases
                     // await RefreshStatsForAllDatabases(tempDbService, builder.Environment.WebRootPath);
                 }
 
@@ -335,8 +359,10 @@ namespace portaBLe
 
         public static async Task RefreshEverything(AppContext dbContext)
         {
-            await ScoresRefresh.Refresh(dbContext);
-            await PlayersRefresh.Refresh(dbContext);
+            // Same as ScoresRefresh.Refresh + PlayersRefresh.Refresh, in one pass over the scores (about 3x faster)
+            await ScoresPlayersRefresh.Refresh(dbContext);
+            // await ScoresRefresh.Refresh(dbContext);
+            // await PlayersRefresh.Refresh(dbContext);
             await LeaderboardsRefresh.Refresh(dbContext);
             await LeaderboardsRefresh.RefreshStars(dbContext);
 
