@@ -410,10 +410,10 @@
 			glossEl.innerHTML = glossary(rows.map(x => x[0]));
 		}
 		el.querySelector('.acc-loss-note').textContent =
-			'Pass rating v2 (energy bar): every note is missed with a probability that grows with its swing difficulty (speed, tech, crossovers, ' +
+			'Pass rating (energy bar): every note is missed with a probability that grows with its swing difficulty (speed, tech, crossovers, ' +
 			'cut direction, NJS, walls) relative to the player\'s pass level; the game\'s energy bar starts at 50 %, gains 1 % per hit and loses 15 % per miss, ' +
 			'and the attempt fails at 0. The pass rating is the level at which a player clears the map half the time. Measured against 24 M attempts it ' +
-			'explains pass difficulty with R² 0.917 (classic rating 0.856) and locates the sections where players fail better than swing difficulty alone. ' +
+			'explains pass difficulty with R² 0.92 (classic rating 0.856) and locates the sections where players fail better than swing difficulty alone. ' +
 			"'Typical attempt' models a mix of players, as real attempts are (weaker players fail early, so later sections see stronger ones), " +
 			'and its white line shows where real clean attempts failed (quits and restarts count as still playing until they end).';
 		render();

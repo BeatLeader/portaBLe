@@ -9,8 +9,11 @@ The '__model__' row gets the energy rules. The page runs the exact energy-bar DP
 Speed-modifier rows ('<id>:SS' / ':FS' / ':SF', from export_acc_loss_profiles.py) get the same data for the modded map (see variant()),
 without the attempts overlay. They need the swings' njs column (swings_prod.csv.gz has it).
 
-Usage: python export_pass_profiles.py --swings <swings_prod.csv.gz | swings_passv2.parquet> --db <portaBLe DB with AccLossProfiles>
-       [--hazard a19_hazard_windows.parquet] [--pass-maps a19_pass_maps.parquet]
+--pass-model v6 (default) rebuilds PassDiff from the raw swing metrics of Loloppe's analyzer (swings_v6a.csv.gz, energylib.V6);
+v2 uses the old analyzer's swing_speed / stress columns (swings_prod.csv.gz, energylib.V2).
+
+Usage: python export_pass_profiles.py --swings <swings csv.gz | parquet> --db <portaBLe DB with AccLossProfiles>
+       [--pass-model v6|v2] [--hazard a19_hazard_windows.parquet] [--pass-maps a19_pass_maps.parquet]
 """
 import argparse, base64, json, os, sqlite3, sys
 import numpy as np, pandas as pd
@@ -19,12 +22,13 @@ import energylib as el
 
 ap = argparse.ArgumentParser()
 ap.add_argument("--swings", required=True); ap.add_argument("--db", required=True)
-ap.add_argument("--hazard", default=None); ap.add_argument("--pass-maps", default=None)
+ap.add_argument("--hazard", default=None); ap.add_argument("--pass-maps", default=None); ap.add_argument("--pass-model", default="v6")
 args = ap.parse_args()
-P = el.V2
+V6 = args.pass_model == "v6"
+P = el.V6 if V6 else el.V2
 Q0, QS = -3.0, 0.03
 COLS = ["lb_id", "seconds", "hand", "x", "cut_direction", "n_cubes", "parity_error", "is_stream", "swing_speed", "stress",
-        "low_speed_falloff", "njs_buff", "wall_buff", "njs"]
+        "low_speed_falloff", "njs_buff", "wall_buff", "njs", "frequency", "hit_distance", "angle_strain", "reposition", "rotation"]
 if args.swings.endswith(".parquet"): S = pd.read_parquet(args.swings)
 else: S = pd.read_csv(args.swings, usecols=lambda c: c in COLS, dtype={"lb_id": str})
 S = S.sort_values(["lb_id", "seconds", "hand"], kind="stable").reset_index(drop=True)
@@ -38,7 +42,7 @@ LABELS = ["Speed (eBPM and reach)", "Tech (angle strain, repositioning, rotation
 # NJS by k (Difficulty.cs, NjsBuff.cs), so PassDiff changes only through the speed part, its low-speed falloff and the NJS buff.
 MODS = {"SS": 0.85, "FS": 1.2, "SF": 1.5}
 def variant(k):
-    if k == 1: return S
+    if k == 1 or V6: return S                                             # v6: pass_diff_v6 applies k itself
     T = S.copy()
     spd = S.swing_speed.values * k
     T["swing_speed"] = spd; T["low_speed_falloff"] = 1 - 1.4 ** -spd
@@ -46,29 +50,42 @@ def variant(k):
     T["seconds"] = S.seconds / k
     return T
 
-def compute(T):
+def compute(T, kk=1.0):
     """quantized ln PassDiff, the map threshold skill50 (on the quantized values) and per-swing cause weights"""
-    ld = np.log(np.maximum(el.pass_diff(T, P), 1e-3))
+    if V6:
+        d, part, st = el.pass_diff_v6(T, P, kk)
+        ld = np.log(np.maximum(d, 1e-3))
+    else:
+        ld = np.log(np.maximum(el.pass_diff(T, P), 1e-3))
     q = np.clip(np.round((ld - Q0) / QS), 0, 255).astype(np.uint8)
     ldq = q * QS + Q0                                                       # what the page will see
     LD, ACT = el.note_matrix(ldq, notes, codes)
     t50 = el.skill50(LD, ACT, P["slope"])
     # causes: each factor's log contribution to PassDiff above a typical swing, weighted by the swing's miss chance at the map threshold
-    k = P["stress_scale"]
-    smk = lambda st: 2.0 * k * st / (k * st + 2.0) + 1.0
     cross = (((T.hand == 0) & (T.x == 3)) | ((T.hand == 1) & (T.x == 0))).values
+    if V6:
+        sm = lambda x: 2 * x / (x + 2) + 1
+        if kk == 1.0: MED.update(part=float(np.median(part)), st=float(np.median(st)))      # typical swing of the unmodified maps
+        nj = T.njs_buff.values if kk == 1 else np.where(np.minimum(T.njs.values * kk, 50) > 24, 1 + 0.01 * (np.minimum(T.njs.values * kk, 50) - 24), 1.0)
+        speed_c, tech_c = np.log(np.maximum(part, 1e-3)) - np.log(MED["part"]), np.log(sm(st)) - np.log(sm(MED["st"]))
+        stream_c, wall_c = np.log(1 + P["stream"]) * (T.is_stream.values == 1), np.log(el.wall_factor(T.wall_buff.values, P))
+    else:
+        k = P["stress_scale"]
+        smk = lambda st: 2.0 * k * st / (k * st + 2.0) + 1.0
+        speed_c = np.log(np.maximum((T.swing_speed * T.low_speed_falloff).values, 1e-3)) - 1.324      # global median of the speed part (unmodified)
+        tech_c = np.log(smk(T.stress.values)) - np.log(smk(0.045))                                     # global median stress
+        nj = T.njs_buff.values
+        stream_c, wall_c = np.log(1.05) * (T.is_stream.values == 1), np.log(T.wall_buff.values)
     contrib = np.column_stack([
-        np.log(np.maximum((T.swing_speed * T.low_speed_falloff).values, 1e-3)) - 1.324,     # global median of the speed part (unmodified)
-        np.log(smk(T.stress.values)) - np.log(smk(0.045)),                                     # global median stress
+        speed_c, tech_c,
         np.log(1 + P["crossover"]) * cross,
         np.log(1 + P["horizontal"]) * T.cut_direction.isin([2, 3]).values,
         np.log(1 + P["diagonal"]) * T.cut_direction.isin([4, 5, 6, 7]).values,
-        np.log(T.njs_buff.values),
-        np.log(1.05) * (T.is_stream.values == 1),
-        np.log(T.wall_buff.values)])
+        np.log(nj), stream_c, wall_c])
     pmiss = 1 / (1 + np.exp(-P["slope"] * (ldq - t50[codes])))
     return q, t50, np.clip(contrib, 0, None) * (pmiss * notes)[:, None]
 
+MED = {}
 obs_h = {}
 if args.hazard:
     H = pd.read_parquet(args.hazard, columns=["lb_id", "win", "hazard", "at_risk"])
@@ -86,7 +103,8 @@ variants = [("", 1.0)] + ([(":" + m, k) for m, k in MODS.items()] if "njs" in S.
 if "njs" not in S.columns: print("no njs column in the swings: speed-modifier rows skipped")
 for suffix, kk in variants:
     T = variant(kk)
-    q, t50, W = compute(T)
+    if V6 and kk != 1: T = T.assign(seconds=S.seconds / kk)
+    q, t50, W = compute(T, kk)
     print(f"{suffix or 'unmodified'}: {len(lbs)} maps; skill50 computed on the quantized difficulties", flush=True)
     for m, lb in enumerate(lbs):
         key = lb + suffix

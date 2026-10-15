@@ -352,6 +352,16 @@ namespace portaBLe
                                 PpCurve.ModeGammaScale[kv[0]] = float.Parse(kv[1], System.Globalization.CultureInfo.InvariantCulture);
                             }
                             break;
+                        case "--mode-tech": // per-characteristic tech rating scale, e.g. OneSaber=0.76 (see PpCurve)
+                            foreach (var pair in args[++i].Split(',', StringSplitOptions.RemoveEmptyEntries))
+                            {
+                                var kv = pair.Split('=');
+                                PpCurve.ModeTechScale[kv[0]] = float.Parse(kv[1], System.Globalization.CultureInfo.InvariantCulture);
+                            }
+                            break;
+                        case "--difficulty-premium": // acc rating x (min(1 - predicted acc, 0.04) / 0.02)^d (see PpCurve)
+                            PpCurve.DifficultyPremium = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture);
+                            break;
                         case "--score-correction": o.ScoreCorrectionTau = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture); break;
                         case "--pass-fade": // strength,floor,center (see PassFade)
                             var fade = args[++i].Split(',').Select(x => float.Parse(x, System.Globalization.CultureInfo.InvariantCulture)).ToArray();
@@ -381,7 +391,9 @@ namespace portaBLe
             Console.WriteLine($"Pipeline: {string.Join(",", cli.Steps)} | acc source {cli.AccSource} {cli.AccModel ?? "(embedded model)"} | curve {cli.Curve}"
                 + (cli.Curve == CurveMode.PowerLaw ? $" (gamma {PpCurve.Gamma}, acc scale {PpCurve.AccScale}, epsilon {PpCurve.Epsilon}"
                     + (PpCurve.PerMap ? $" + {PpCurve.RelativeEpsilon} x (1 - predicted acc)" : "")
-                    + (PpCurve.ModeGammaScale.Count > 0 ? ", gamma x " + string.Join(", ", PpCurve.ModeGammaScale.Select(kv => $"{kv.Value} on {kv.Key}")) : "") + ")" : "")
+                    + (PpCurve.ModeGammaScale.Count > 0 ? ", gamma x " + string.Join(", ", PpCurve.ModeGammaScale.Select(kv => $"{kv.Value} on {kv.Key}")) : "")
+                    + (PpCurve.DifficultyPremium > 0 ? $", difficulty premium {PpCurve.DifficultyPremium}" : "")
+                    + (PpCurve.ModeTechScale.Count > 0 ? ", tech x " + string.Join(", ", PpCurve.ModeTechScale.Select(kv => $"{kv.Value} on {kv.Key}")) : "") + ")" : "")
                 + (PassFade.Enabled ? $" | pass fade strength {PassFade.Strength}, floor {PassFade.Floor}, center {PassFade.Center}" : "")
                 + (PassBlend.Enabled ? $" | pass blend p {PassBlend.P}" : "")
                 + (AccCap.Enabled ? $" | acc cap {AccCap.MaxAdvantage}" : ""));

@@ -23,6 +23,16 @@ namespace portaBLe.Refresh
     /// ModeGammaScale multiplies Gamma per characteristic. Error rates on One Saber maps fall more slowly with skill
     /// (log(1 - acc) = d - beta * skill with beta 0.909 vs 1 on Standard, Analysis/ALGO_ACC_TEST.md), so a curve exponent of
     /// Gamma / beta gives the same PP per unit of skill as Standard maps; PP at the predicted accuracy is unchanged.
+    /// DifficultyPremium d multiplies the acc rating by ((1 - predictedAcc) / PremiumReference)^d: at the same skill, a map whose
+    /// reference player loses twice as much accuracy pays 2^d times more acc PP. With the per-map curve alone (d = 0) acc PP depends
+    /// on skill only, which lifts easy maps (near-perfect plays on Easy maps stand out on the weighted scores graph); d = 0.15 gives
+    /// about the production premium (total PP of hard vs easy maps at the same skill x1.6) and the smoothest weighted scores graph.
+    /// The premium stops growing at PremiumMaxLoss (predicted 96 %): it was measured between maps below 97 % and maps at 99-99.5 %,
+    /// and on the hardest maps the acc model over-predicts difficulty (regression to the mean), which the premium would amplify.
+    /// ModeTechScale multiplies the stored tech rating per characteristic (RatingsRefresh). Loloppe's analyzer (v6) raised One Saber
+    /// tech by x1.31 relative to Standard (the classic pass it scales with lost half its One Saber nerf, 0.5 -> 0.28); his PP formula
+    /// offsets that with a lower tech weight, ours doesn't, so OneSaber=0.76 keeps the earlier relation. The acc model still sees the
+    /// analyzer's tech.
     /// </summary>
     public static class PpCurve
     {
@@ -32,6 +42,17 @@ namespace portaBLe.Refresh
         public static float RelativeEpsilon = 0f;
         public static float AccScale = 1.052f;
         public static Dictionary<string, float> ModeGammaScale = new(StringComparer.OrdinalIgnoreCase);
+        public static Dictionary<string, float> ModeTechScale = new(StringComparer.OrdinalIgnoreCase);
+        public static float DifficultyPremium = 0f;
+
+        public static float TechScaleFor(string? mode) =>
+            mode != null && ModeTechScale.TryGetValue(mode, out var scale) ? scale : 1f;
+        public const float PremiumReference = 0.02f;
+        public const float PremiumMaxLoss = 0.04f;
+
+        public static float Premium(float predictedAcc) =>
+            DifficultyPremium > 0 && predictedAcc > 0
+                ? MathF.Pow(Math.Clamp(1f - predictedAcc, 1e-4f, PremiumMaxLoss) / PremiumReference, DifficultyPremium) : 1f;
 
         public static bool PerMap => RelativeEpsilon > 0;
 
@@ -221,7 +242,7 @@ namespace portaBLe.Refresh
             if (predictedAcc > 0) {
                 float pred = predictedAcc ?? 0;
                 difficulty_to_acc = 15.5f / Curve(pred + (PpCurve.Mode == CurveMode.PowerLaw && PpCurve.PerMap ? 0f : 0.0022f), pred, mode);
-                if (PpCurve.Mode == CurveMode.PowerLaw) difficulty_to_acc *= PpCurve.AccScale;
+                if (PpCurve.Mode == CurveMode.PowerLaw) difficulty_to_acc *= PpCurve.AccScale * PpCurve.Premium(pred);
             } else {
                 float tiny_tech = 0.0208f * (techRating ?? 0) + 1.1284f;
                 difficulty_to_acc = (-MathF.Pow(tiny_tech, -(passRating ?? 0)) + 1) * 8 + 2 + 0.01f * (techRating ?? 0) * (passRating ?? 0);

@@ -631,6 +631,60 @@ Conclusion:
   - "Where" Spearman, best / mid-field replays: 0.731 / 0.596 (was 0.737 / 0.599).
   - Live on `algo-b-v5`. Older deployments keep their old labels until their profiles are re-exported.
 
+### v6: Loloppe's analyzer, refitted pass, a difficulty premium (test deployment `algo-b-v6`)
+
+v6 combines what came out of the community round, Loloppe's branches and the curve discussion:
+
+- **Analyzer: Loloppe's** (`dev` 31c2607: parity engine update, dot-note direction, refitted classic constants), merged with the
+  energy-bar pass (analyzer branch `v6`). His classic constants keep driving the classic pass and tech ratings.
+- **Pass: refitted on attempts with the new analyzer.** Pass difficulty gets its own swing-speed and stress constants, fitted with
+  the exact energy-bar model (`PASS_RATING.md`, v6 section): R² 0.922 vs 0.916, and better ordering among the hardest maps.
+- **Acc model: refitted on the new analyzer's features.** Song-grouped CV R² 0.9668 vs 0.9675; speed-mod shrink and the One Saber
+  skill scale are unchanged.
+- **PP curve: v5's per-map curve plus a difficulty premium** (`--difficulty-premium 0.15`). The acc rating gets
+  `× (min(1 − predicted acc, 0.04) / 0.02)^0.15`: at the same skill, a map whose reference player loses twice as much accuracy pays
+  2^0.15 = ×1.11 more acc PP. Without it (v5), acc PP depends on skill alone, so near-perfect plays on Easy maps stand out on the
+  weighted scores graph (Light Ai's smoothness criterion).
+  - 0.15 gives about the production premium: total PP of hard (< 97 %) vs easy (99–99.5 %) maps at the same skill ×1.54 (prod ×1.61,
+    v5 ×1.24), and the smoothest graph of 0.10 / 0.15 / 0.20.
+  - It stops growing at a predicted 96 %. It was measured between those bands, and on the hardest maps the acc model over-predicts
+    difficulty (*PISSCORD*, *SONG REQUEST*, *Bomb The Rave*: 0.14–0.24 above their scores), which the premium amplified to 19★ and
+    1 011 PP plays. With the cap: 17.8★ and 980.
+- **One Saber tech ×0.76** (`--mode-tech OneSaber=0.76`). Loloppe's analyzer raised One Saber tech 31 % relative to Standard, because
+  the classic pass it scales with lost half its One Saber nerf (0.5 → 0.28). His PP formula offsets that with a tech weight of 0.63;
+  ours doesn't, so the factor keeps the earlier relation (One Saber worth +26 % → +14 %, v5 +13 %). The acc model still sees the
+  analyzer's tech.
+- **The rest of v5:** γ 0.6198, k 0.75, pass blend 1.5, One Saber γ ×1.0998. Acc scale 1.089 keeps the top 1 000 players' PP at v5's level.
+
+The whole systems on the same October dump (Analysis/py/scorecard.py, `out/scorecard_v6.csv`). Prod's ratings include production's
+reweights, which change 42 % of the acc ratings (587 maps by more than 5 %), so "ML baseline", the same model rerated without them, is
+the like-for-like reference; v5, Loloppe's and v6 have no score-based reweights.
+
+| | prod (reweighted) | ML baseline | v5 | Loloppe rebalancer + curve | **v6** |
+|---|---|---|---|---|---|
+| acc prediction vs score-implied difficulty, R² | 0.856 | 0.856 | 0.959 | 0.906 | **0.958** |
+| pass vs attempts, R² / maps off by > 1 logit | 0.856 / 861 | 0.856 / 861 | 0.917 / 500 | 0.896 / 664 | **0.922 / 458** |
+| pass top-200 overlap / order inside its own top 50, strong players | 0.65 / 0.70 | 0.65 / 0.70 | 0.69 / 0.65 | 0.65 / 0.73 | **0.72 / 0.53** |
+| balance: spread of map worth / maps worth +50 % | 0.578 / 591 | 0.633 / 683 | 0.525 / 538 | 0.542 / 596 | **0.529 / 535** |
+| One Saber worth | +74 % | +76 % | +13 % | ±0 % | **+14 %** |
+| PP vs skill: per-map slope, median / IQR | 0.525 / 0.079 | 0.522 / 0.079 | 0.593 / 0.092 | 0.550 / 0.071 | **0.588 / 0.075** |
+| hard / easy maps' PP at the same skill | 1.61 | 1.62 | 1.24 | 1.68 | **1.54** |
+| weighted scores graph: jaggedness p50 / p90 / p99 | 0.381 / 0.053 / 0.026 | 0.439 / 0.063 / 0.027 | 0.385 / 0.073 / 0.045 | 0.416 / 0.062 / 0.032 | **0.298 / 0.051 / 0.033** |
+| … maps standing out 1.5× / 2× from their star neighbours | 32 / 6 | 25 / 2 | 75 / 15 | 24 / 1 | **41 / 3** |
+| stars p50 / p90 / max | 7.07 / 11.36 / 15.76 | 6.96 / 11.08 / 15.76 | 7.69 / 11.45 / 16.84 | 6.39 / 10.63 / 15.50 | **6.97 / 11.37 / 17.79** |
+| FS/SF share of the top 1 000 scores | 14 % | 16 % | 18 % | 24 % | **13 %** |
+| best score on a map under 4★ | 951 | 844 | 857 | 703 | **613** |
+| top player | 24 712 | 24 142 | 23 282 | 22 785 | **24 479** |
+
+- **Better than v5:** pass fit, graph smoothness (easy-map stand-outs 75 → 41; the median and 90th-percentile lines are the
+  smoothest of all, reweighted prod included), PP vs skill spread (0.092 → 0.075), speed-mod farming (18 → 13 %), easy-map farming
+  (857 → 613), top players back near prod's level.
+- **Same as v5:** acc prediction, balance spread, One Saber.
+- **Worse:** pass order inside its own top 50 (some burst maps climb into it, see `PASS_RATING.md`), and more stand-out maps than
+  prod or Loloppe (41 vs 24–32; the biggest are still near-perfect plays on Easy maps: *Half Of It*, *let you*, *Watch Me Dance*).
+- **Stars:** median ×0.90 of v5 (≈ prod), the top end higher than prod (*Unwelcome School* 17.8, *Bomb The Rave* 17.7, *SONG REQUEST* 17.6; prod 15.5, 12.6, 12.8): the
+  algorithmic acc model rates those maps much harder than the ML did, and the premium adds to it up to the 96 % cap.
+
 ## Known limitations
 
 * Weights are fitted on today's ranked Standard and (since v5) One Saber pool; maps far outside it (gimmicks, extreme speeds,

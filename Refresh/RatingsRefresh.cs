@@ -113,23 +113,23 @@ namespace portaBLe.Refresh
                     lb.BombAvoidances = (float)response["none"].LackMapCalculation.Statistics.BombAvoidances;
 
                     lb.PassRating = (float)response["none"].LackMapCalculation.PassRating;
-                    lb.TechRating = (float)response["none"].LackMapCalculation.TechRating;
+                    lb.TechRating = (float)response["none"].LackMapCalculation.TechRating * PpCurve.TechScaleFor(lb.ModeName);
                     lb.PredictedAcc = (float)response["none"].PredictedAcc;
                     lb.AccRating = AccRatingFor(response["none"], lb.ModeName);
                     lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.PredictedAcc, lb.ModeName);
 
                     lb.ModifiersRating.SSPassRating = (float)response["SS"].LackMapCalculation.PassRating;
-                    lb.ModifiersRating.SSTechRating = (float)response["SS"].LackMapCalculation.TechRating;
+                    lb.ModifiersRating.SSTechRating = (float)response["SS"].LackMapCalculation.TechRating * PpCurve.TechScaleFor(lb.ModeName);
                     lb.ModifiersRating.SSPredictedAcc = (float)response["SS"].PredictedAcc;
                     lb.ModifiersRating.SSAccRating = AccRatingFor(response["SS"], lb.ModeName);
 
                     lb.ModifiersRating.FSPassRating = (float)response["FS"].LackMapCalculation.PassRating;
-                    lb.ModifiersRating.FSTechRating = (float)response["FS"].LackMapCalculation.TechRating;
+                    lb.ModifiersRating.FSTechRating = (float)response["FS"].LackMapCalculation.TechRating * PpCurve.TechScaleFor(lb.ModeName);
                     lb.ModifiersRating.FSPredictedAcc = (float)response["FS"].PredictedAcc;
                     lb.ModifiersRating.FSAccRating = AccRatingFor(response["FS"], lb.ModeName);
 
                     lb.ModifiersRating.SFPassRating = (float)response["SFS"].LackMapCalculation.PassRating;
-                    lb.ModifiersRating.SFTechRating = (float)response["SFS"].LackMapCalculation.TechRating;
+                    lb.ModifiersRating.SFTechRating = (float)response["SFS"].LackMapCalculation.TechRating * PpCurve.TechScaleFor(lb.ModeName);
                     lb.ModifiersRating.SFPredictedAcc = (float)response["SFS"].PredictedAcc;
                     lb.ModifiersRating.SFAccRating = AccRatingFor(response["SFS"], lb.ModeName);
 

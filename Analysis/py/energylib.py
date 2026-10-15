@@ -16,6 +16,30 @@ def pass_diff(S, p=V2):
             * (1 + p["crossover"] * cross) * (1 + p["horizontal"] * S.cut_direction.isin([2, 3]).values)
             * (1 + p["diagonal"] * S.cut_direction.isin([4, 5, 6, 7]).values) * (1 + p["parity"] * S.parity_error.values))
 
+# v6 (Loloppe's analyzer): PassDiff from the swing's raw metrics with its own constants (a31_v6_pass.py); filled in after the fit
+V6 = {"distance_falloff": 1.7649, "speed_falloff_base": 3.6231, "w_angle_strain": 0.4291, "w_reposition": 1.4935, "w_rotation": 0.0, "crossover": 0.5632, "horizontal": 0.3309, "diagonal": 0.2589, "parity": -0.1517, "stream": 0.0822, "dodge_wall": 0.1932, "crouch_wall": 0.5523, "slope": 2.5, "scale": 0.2039, "one_saber": 0.79}
+
+def pass_diff_v6(S, p, k=1.0):
+    """v6 PassDiff per swing from the raw per-swing metrics (frequency, hit_distance, angle_strain, reposition, rotation, ...), the analyzer's
+    PassEnergy.SwingPassDiff x NJS x stream x wall. k = speed modifier (swings k times faster, NJS x k; needs the njs column if k != 1).
+    Returns (PassDiff, speed part, stress s) so callers can split it into causes."""
+    dist = S.hit_distance.values / (S.hit_distance.values + p["distance_falloff"]) + 1
+    speed = S.frequency.values * dist * k
+    part = speed * (1 - np.power(p["speed_falloff_base"], -speed))
+    st = (S.angle_strain.values * p["w_angle_strain"] + S.reposition.values * p["w_reposition"] + S.rotation.values * p["w_rotation"]) * dist
+    cross = (((S.hand == 0) & (S.x == 3)) | ((S.hand == 1) & (S.x == 0))).values
+    if k == 1: njs = S.njs_buff.values
+    else:
+        nj = np.minimum(S.njs.values * k, 50); njs = np.where(nj > 24, 1 + 0.01 * (nj - 24), 1.0)
+    d = part * (2 * st / (st + 2) + 1) * njs * (1 + p["crossover"] * cross) * (1 + p["horizontal"] * S.cut_direction.isin([2, 3]).values)         * (1 + p["diagonal"] * S.cut_direction.isin([4, 5, 6, 7]).values) * (1 + p["parity"] * (S.parity_error.values == 1))         * (1 + p["stream"] * (S.is_stream.values == 1)) * wall_factor(S.wall_buff.values, p)
+    return d, part, st
+
+def wall_factor(wall_buff, p):
+    """the classic wall buff marks dodge (1.1) and crouch (2.0, or 1.2 in the old analyzer) swings; pass difficulty has its own factors"""
+    crouch = wall_buff >= 1.15; dodge = (wall_buff > 1.01) & ~crouch
+    if wall_buff.max() < 1.15 + 1e-9: dodge = wall_buff > 1.01            # no crouch value present
+    return (1 + p["dodge_wall"] * dodge) * (1 + p["crouch_wall"] * crouch)
+
 def note_matrix(logd, notes, map_codes):
     """(maps x notes) matrix of ln d per note (each swing repeated for its notes, 1..4) and the active mask"""
     rep = np.repeat(np.arange(len(logd)), notes)

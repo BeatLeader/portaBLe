@@ -1,0 +1,52 @@
+{
+ "v2 constants, new analyzer": {
+  "R2": 0.9161310894809725,
+  "off>1": 501,
+  "one_saber": 0.74,
+  "b top50": 0.58,
+  "b top200": 0.685,
+  "b order50": 0.5787755102040816,
+  "b_top top50": 0.52,
+  "b_top top200": 0.68,
+  "b_top order50": 0.6483073229291717
+ },
+ "refit, all maps": {
+  "R2": 0.9213733815533038,
+  "off>1": 459,
+  "one_saber": 0.7899999999999999,
+  "b top50": 0.58,
+  "b top200": 0.72,
+  "b order50": 0.5645618247298919,
+  "b_top top50": 0.56,
+  "b_top top200": 0.705,
+  "b_top order50": 0.4585354141656662
+ },
+ "constants": {
+  "distance_falloff": 1.9680890256260053,
+  "speed_falloff_base": 3.915440509132,
+  "w_angle_strain": 0.48089307762930245,
+  "w_reposition": 1.3614273767698084,
+  "w_rotation": 4.880549501678855e-09,
+  "crossover": 0.5016692611493586,
+  "horizontal": 0.32159350650296237,
+  "diagonal": 0.23161415788175968,
+  "parity": -0.13107653889418777,
+  "stream": 0.07336598724956511,
+  "dodge_wall": 0.19716242217260196,
+  "crouch_wall": 0.5499964124043173
+ },
+ "constants_half": {
+  "distance_falloff": 2.668,
+  "speed_falloff_base": 1.4,
+  "w_angle_strain": 0.326,
+  "w_reposition": 1.9559999999999997,
+  "w_rotation": 1.304,
+  "crossover": 0.59,
+  "horizontal": 0.37,
+  "diagonal": 0.29,
+  "parity": -0.14,
+  "stream": 0.05,
+  "dodge_wall": 0.1,
+  "crouch_wall": 0.2
+ }
+}

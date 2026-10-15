@@ -274,6 +274,50 @@ Elsewhere: *Extraterrestrial* E+ (still too low), *Merry-Go-Round* Normal, *Toym
 *Ascension to Heaven* Expert (too high). Per map: `b`, classic, v2 and both residuals are in `out/pass_v2_maps.csv`; the fitted
 variant constants are in `out/a21_pass_variants.json`.
 
+## v6: Loloppe's analyzer, constants refitted (`a31_v6_pass.py`)
+
+v6 runs on Loloppe's analyzer (`dev` 31c2607: parity engine update, new dot-note direction handling, refitted classic constants, no
+stream bonus) with the energy bar on top (analyzer branch `v6`). His classic constants stay with the classic pass and tech ratings.
+Pass difficulty now has its own constants (`PassEnergy.SwingPassDiff`), built from the swing's raw metrics:
+
+```
+distance  = hit distance / (hit distance + DISTANCE_FALLOFF) + 1
+speed     = swing frequency x distance x speed modifier;   low-speed falloff = 1 - SPEED_FALLOFF_BASE ^ -speed
+stress    = (angle strain x 0.43 + repositioning x 1.49) x distance;   stress multiplier = 2 s / (s + 2) + 1
+PassDiff  = speed x falloff x stress multiplier x crossover / horizontal / diagonal / parity x NJS x stream x wall
+```
+
+All twelve constants were fitted together with the exact energy-bar model against pass difficulty from attempts (least squares on
+the residuals of the cubic fit of `b`, forward-difference Jacobian in parallel; half the maps, scored on the other half, then all).
+
+| constant | v2 (old analyzer) | **v6** | reading |
+|---|---|---|---|
+| distance falloff | 2.668 | **1.765** | reach counts more: a 0.6 hit distance adds ×1.25 (was ×1.18) |
+| low-speed falloff base | 1.4 | **3.623** | slow swings are discounted less (×0.72 at speed 1, was ×0.29): less contrast between slow and fast swings, as the attempt replays showed (a29) |
+| stress: angle strain / repositioning / rotation | 0.33 / 1.96 / 1.30 | **0.43 / 1.49 / 0** | rotation adds nothing once the other two are in |
+| crossover / horizontal / diagonal / parity break | +59 / +37 / +29 / −14 % | **+56 / +33 / +26 / −15 %** | |
+| streams | ×1.05 | **×1.08** | |
+| dodge / crouch walls | ×1.1 / ×1.2 | **×1.19 / ×1.55** | Loloppe's classic fit has crouch ×2.0 |
+| scale / One Saber | 0.2332 / 0.74 | **0.2039 / 0.79** | scale: equal median with the classic pass rating on Standard maps |
+
+| | v2 constants, old analyzer (v5) | v2 constants, new analyzer | **v6 refit** |
+|---|---|---|---|
+| R² vs attempts (3 732 maps) | 0.917 | 0.916 | **0.922** (held-out half 0.918) |
+| maps off by > 1 logit | 498 | 501 | **459** |
+| rank correlation inside the 100 / 200 / 400 hardest maps (attempts) | | 0.49 / 0.52 / 0.63 | **0.51 / 0.53 / 0.67** |
+| same against the strongest 5 % of players | | 0.47 / 0.51 / 0.62 | **0.50 / 0.55 / 0.65** |
+| median rank error of the 50 hardest maps | | 21.5 | **15.5** |
+| order inside its own top 50 vs strongest players | 0.65 | 0.65 | **0.53** |
+| top 2 (attempts rank) | *Calamitous Demise* #31, *Godspeed* #46 | *The Purple Dimension* #7, *Calamitous Demise* #31 | ***The Purple Dimension* #7, *Feral* #3** |
+
+- **Better almost everywhere.** The new analyzer alone changes nothing; the refit is what gains, on the whole list and among the
+  hardest maps by both yardsticks.
+- **Worse inside its own top 50.** A few burst maps climb into it: *Kill Kill Kill Kill* E+ (#19, attempts #242), *Theme for
+  Psychopath* (#33, #225), *kannabis kultivation* (#34, #181), *ATTACK FROM MANDRAKE* (#36, #198), *Bomb The Rave* (#45, #294), while
+  *SUPER EMULATOR* (#5) and *Unwelcome School* (#9) drop to #35 and #47. *Godspeed* Expert and *Calamitous Demise* are still #3 and #4.
+- **A strong-player term doesn't change it.** Adding the residuals of the strongest players' pass difficulty on the 755 hardest maps
+  to the objective (`--top-weight 1`) returns nearly the same constants (`out/a31_top1.json`) and the same picture.
+
 ## Reproduce
 
 ```bash
