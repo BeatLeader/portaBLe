@@ -1,0 +1,123 @@
+{
+ "v2 constants": {
+  "R2": 0.9161310894809725,
+  "own top50 order vs b": 0.5787755102040816,
+  "own top50 order vs b_top": 0.6483073229291717,
+  "top50 overlap b": 0.58,
+  "top200 overlap b": 0.685,
+  "rank corr in hardest 100": 0.4541494149414941,
+  "rank corr in hardest 200": 0.4968739218480463,
+  "median attempts rank of own top 50": 40.5,
+  "own top 50 outside attempts top 150": 6
+ },
+ "v6": {
+  "R2": 0.9215146067663247,
+  "own top50 order vs b": 0.543625450180072,
+  "own top50 order vs b_top": 0.527875150060024,
+  "top50 overlap b": 0.56,
+  "top200 overlap b": 0.715,
+  "rank corr in hardest 100": 0.4882808280828082,
+  "rank corr in hardest 200": 0.5272241806045151,
+  "median attempts rank of own top 50": 44.0,
+  "own top 50 outside attempts top 150": 6
+ },
+ "v6, distance falloff back to v2": {
+  "R2": 0.9212985062447574,
+  "own top50 order vs b": 0.5770468187274909,
+  "own top50 order vs b_top": 0.43193277310924366,
+  "top50 overlap b": 0.56,
+  "top200 overlap b": 0.72,
+  "rank corr in hardest 100": 0.489024902490249,
+  "rank corr in hardest 200": 0.5304687617190431,
+  "median attempts rank of own top 50": 43.5,
+  "own top 50 outside attempts top 150": 7
+ },
+ "v6, low-speed falloff back to v2": {
+  "R2": 0.9196636435307153,
+  "own top50 order vs b": 0.604609843937575,
+  "own top50 order vs b_top": 0.451812725090036,
+  "top50 overlap b": 0.56,
+  "top200 overlap b": 0.705,
+  "rank corr in hardest 100": 0.4854005400540053,
+  "rank corr in hardest 200": 0.5330683267081677,
+  "median attempts rank of own top 50": 43.5,
+  "own top 50 outside attempts top 150": 6
+ },
+ "v6, stress weights back to v2": {
+  "R2": 0.9168448521974586,
+  "own top50 order vs b": 0.6038415366146458,
+  "own top50 order vs b_top": 0.6127731092436973,
+  "top50 overlap b": 0.58,
+  "top200 overlap b": 0.7,
+  "rank corr in hardest 100": 0.46135013501350125,
+  "rank corr in hardest 200": 0.48217505437635944,
+  "median attempts rank of own top 50": 40.5,
+  "own top 50 outside attempts top 150": 6
+ },
+ "v6, crossover back to v2": {
+  "R2": 0.9214413566985737,
+  "own top50 order vs b": 0.5446818727490996,
+  "own top50 order vs b_top": 0.5242256902761104,
+  "top50 overlap b": 0.56,
+  "top200 overlap b": 0.715,
+  "rank corr in hardest 100": 0.49005700570057,
+  "rank corr in hardest 200": 0.5270021750543764,
+  "median attempts rank of own top 50": 42.5,
+  "own top 50 outside attempts top 150": 6
+ },
+ "v6, horizontal back to v2": {
+  "R2": 0.9214696691081649,
+  "own top50 order vs b": 0.549483793517407,
+  "own top50 order vs b_top": 0.5833853541416567,
+  "top50 overlap b": 0.56,
+  "top200 overlap b": 0.715,
+  "rank corr in hardest 100": 0.4874647464746474,
+  "rank corr in hardest 200": 0.5240951023775595,
+  "median attempts rank of own top 50": 40.5,
+  "own top 50 outside attempts top 150": 6
+ },
+ "v6, diagonal back to v2": {
+  "R2": 0.9214669233217588,
+  "own top50 order vs b": 0.5858823529411764,
+  "own top50 order vs b_top": 0.48744297719087637,
+  "top50 overlap b": 0.54,
+  "top200 overlap b": 0.715,
+  "rank corr in hardest 100": 0.4874887488748874,
+  "rank corr in hardest 200": 0.5251496287407186,
+  "median attempts rank of own top 50": 40.5,
+  "own top 50 outside attempts top 150": 6
+ },
+ "v6, parity back to v2": {
+  "R2": 0.92151206795578,
+  "own top50 order vs b": 0.543625450180072,
+  "own top50 order vs b_top": 0.527875150060024,
+  "top50 overlap b": 0.56,
+  "top200 overlap b": 0.715,
+  "rank corr in hardest 100": 0.48727272727272725,
+  "rank corr in hardest 200": 0.5274176854421361,
+  "median attempts rank of own top 50": 44.0,
+  "own top 50 outside attempts top 150": 6
+ },
+ "v6, stream back to v2": {
+  "R2": 0.9213057211673091,
+  "own top50 order vs b": 0.5293157262905162,
+  "own top50 order vs b_top": 0.5563985594237695,
+  "top50 overlap b": 0.58,
+  "top200 overlap b": 0.71,
+  "rank corr in hardest 100": 0.49742574257425737,
+  "rank corr in hardest 200": 0.5277986949673743,
+  "median attempts rank of own top 50": 38.5,
+  "own top 50 outside attempts top 150": 5
+ },
+ "v6, walls back to v2": {
+  "R2": 0.9208976490062947,
+  "own top50 order vs b": 0.5515006002400961,
+  "own top50 order vs b_top": 0.45133253301320525,
+  "top50 overlap b": 0.56,
+  "top200 overlap b": 0.715,
+  "rank corr in hardest 100": 0.4916411641164116,
+  "rank corr in hardest 200": 0.5300292507312684,
+  "median attempts rank of own top 50": 40.5,
+  "own top 50 outside attempts top 150": 5
+ }
+}

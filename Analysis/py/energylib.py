@@ -17,7 +17,7 @@ def pass_diff(S, p=V2):
             * (1 + p["diagonal"] * S.cut_direction.isin([4, 5, 6, 7]).values) * (1 + p["parity"] * S.parity_error.values))
 
 # v6 (Loloppe's analyzer): PassDiff from the swing's raw metrics with its own constants (a31_v6_pass.py); filled in after the fit
-V6 = {"distance_falloff": 1.7649, "speed_falloff_base": 3.6231, "w_angle_strain": 0.4291, "w_reposition": 1.4935, "w_rotation": 0.0, "crossover": 0.5632, "horizontal": 0.3309, "diagonal": 0.2589, "parity": -0.1517, "stream": 0.0822, "dodge_wall": 0.1932, "crouch_wall": 0.5523, "slope": 2.5, "scale": 0.2039, "one_saber": 0.79}
+V6 = {"distance_falloff": 1.7649, "speed_falloff_base": 3.6231, "w_angle_strain": 0.4291, "w_reposition": 1.4935, "w_rotation": 0.0, "crossover": 0.5632, "horizontal": 0.3309, "diagonal": 0.2589, "parity": -0.1517, "stream": 0.0822, "dodge_wall": 0.1932, "crouch_wall": 0.5523, "slope": 2.5, "scale": 0.2039, "one_saber": 0.74}
 
 def pass_diff_v6(S, p, k=1.0):
     """v6 PassDiff per swing from the raw per-swing metrics (frequency, hit_distance, angle_strain, reposition, rotation, ...), the analyzer's

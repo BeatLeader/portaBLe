@@ -298,7 +298,7 @@ the residuals of the cubic fit of `b`, forward-difference Jacobian in parallel; 
 | crossover / horizontal / diagonal / parity break | +59 / +37 / +29 / −14 % | **+56 / +33 / +26 / −15 %** | |
 | streams | ×1.05 | **×1.08** | |
 | dodge / crouch walls | ×1.1 / ×1.2 | **×1.19 / ×1.55** | Loloppe's classic fit has crouch ×2.0 |
-| scale / One Saber | 0.2332 / 0.74 | **0.2039 / 0.79** | scale: equal median with the classic pass rating on Standard maps |
+| scale / One Saber | 0.2332 / 0.74 | **0.2039 / 0.74** | scale: equal median with the classic pass rating on Standard maps; the fit gives One Saber 0.79, kept at 0.74 since One Saber maps already pay more |
 
 | | v2 constants, old analyzer (v5) | v2 constants, new analyzer | **v6 refit** |
 |---|---|---|---|
@@ -315,6 +315,9 @@ the residuals of the cubic fit of `b`, forward-difference Jacobian in parallel; 
 - **Worse inside its own top 50.** A few burst maps climb into it: *Kill Kill Kill Kill* E+ (#19, attempts #242), *Theme for
   Psychopath* (#33, #225), *kannabis kultivation* (#34, #181), *ATTACK FROM MANDRAKE* (#36, #198), *Bomb The Rave* (#45, #294), while
   *SUPER EMULATOR* (#5) and *Unwelcome School* (#9) drop to #35 and #47. *Godspeed* Expert and *Calamitous Demise* are still #3 and #4.
+- **That measure is fragile.** Setting single constants back to v2 moves it between 0.43 and 0.61 (`a32_pass_ablation.py`); the
+  stress weights both bring most of the R² gain and reshuffle the top 50. On the lists players see, v6 is as good as v5: median
+  attempts rank of its top 15 is 10 (v5 11, prod 24), of its top 50 42 (v5 43, prod 46).
 - **A strong-player term doesn't change it.** Adding the residuals of the strongest players' pass difficulty on the 755 hardest maps
   to the objective (`--top-weight 1`) returns nearly the same constants (`out/a31_top1.json`) and the same picture.
 
