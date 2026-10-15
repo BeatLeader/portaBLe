@@ -1,0 +1,156 @@
+﻿@page "/curve-explorer"
+@model portaBLe.Pages.CurveExplorerModel
+@{
+    ViewData["Title"] = "Curve Explorer";
+}
+
+<h2>Acc curve explorer</h2>
+<p class="ce-note">
+    The acc curve a map gets for a given predicted acc, with the settings in use (RatingAPI <code>CurveSettings</code>, the
+    same code <code>CurvesRefresh.Regenerate</code> uses). Move the slider to change the predicted acc. Changing the
+    settings needs a rebuild of RatingAPI and portaBLe.
+</p>
+
+<div class="ce-controls">
+    <label for="predSlider">Predicted acc: <b><span id="predValue"></span>%</b></label>
+    <input type="range" id="predSlider" min="0" max="0" step="1" value="0" />
+    <div class="ce-buttons">
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="nudge(-1)">&minus; 0.05</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="nudge(1)">+ 0.05</button>
+        <label class="ce-check"><input type="checkbox" id="autoZoom" checked onchange="draw()" /> zoom around the predicted acc</label>
+        <label class="ce-check"><input type="checkbox" id="showRatio" onchange="draw()" /> show the curve as a share of the base curve</label>
+    </div>
+    <div id="params" class="ce-params"></div>
+</div>
+
+<div class="ce-chart">
+    <canvas id="curveChart"></canvas>
+</div>
+
+<h5>Acc pp relative to the base curve at the predicted acc</h5>
+<table class="table table-sm ce-table">
+    <thead>
+        <tr><th>Accuracy</th><th>Base curve</th><th>This curve</th><th>This / base</th><th>Acc pp vs base at predicted</th></tr>
+    </thead>
+    <tbody id="ppTable"></tbody>
+</table>
+
+<h5>Settings table (rows interpolated by predicted acc)</h5>
+<table class="table table-sm ce-table">
+    <thead>
+        <tr><th>Predicted acc</th><th>a</th><th>c</th><th>k</th><th>w</th><th>k2</th><th>p2</th></tr>
+    </thead>
+    <tbody>
+        @foreach (var r in Model.Table)
+        {
+            <tr>
+                <td>@((r.PredictedAcc * 100).ToString("0.00"))%</td>
+                <td>@(r.A >= 0.9995 ? "100% (no taper)" : (r.A * 100).ToString("0.00") + "%")</td>
+                <td>@r.C.ToString("0.00")</td>
+                <td>@r.K.ToString("0.00")</td>
+                <td>@r.W.ToString("0.00")</td>
+                <td>@r.K2.ToString("0.00")</td>
+                <td>@r.P2.ToString("0.00")</td>
+            </tr>
+        }
+    </tbody>
+</table>
+
+<style>
+    .ce-note { font-size: 0.9em; opacity: 0.8; max-width: 900px; }
+    .ce-controls { max-width: 900px; margin: 1em 0; }
+    .ce-controls input[type=range] { width: 100%; }
+    .ce-buttons { display: flex; gap: 0.75em; align-items: center; flex-wrap: wrap; margin-top: 0.4em; }
+    .ce-check { font-size: 0.85em; margin: 0; }
+    .ce-params { margin-top: 0.6em; font-size: 0.9em; }
+    .ce-chart { position: relative; height: 420px; max-width: 900px; }
+    .ce-table { max-width: 900px; font-size: 0.85em; }
+</style>
+
+@section Scripts {
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script>
+        const data = @Html.Raw(Model.DataJson);
+        const slider = document.getElementById('predSlider');
+        slider.max = data.curves.length - 1;
+        // Start at 97% predicted acc (or the closest step)
+        slider.value = data.curves.reduce((best, c, i) => Math.abs(c.predicted - 97) < Math.abs(data.curves[best].predicted - 97) ? i : best, 0);
+        let chart = null;
+
+        function interp(points, x) {
+            if (x <= points[0][0]) return points[0][1];
+            for (let i = 1; i < points.length; i++) {
+                if (points[i][0] >= x) {
+                    const [x0, y0] = points[i - 1], [x1, y1] = points[i];
+                    return x1 === x0 ? y1 : y0 + (x - x0) / (x1 - x0) * (y1 - y0);
+                }
+            }
+            return points[points.length - 1][1];
+        }
+
+        function fmt(v, d) { return Number(v).toFixed(d); }
+        function nudge(d) { slider.value = Math.min(Math.max(+slider.value + d, 0), data.curves.length - 1); draw(); }
+
+        function param(name, value, def) {
+            const v = fmt(value, 2);
+            return Math.abs(value - def) < 1e-9 ? `${name} = ${v}` : `<b>${name} = ${v}</b> (default ${fmt(def, 2)})`;
+        }
+
+        function draw() {
+            const cur = data.curves[+slider.value];
+            const p = cur.predicted;
+            document.getElementById('predValue').textContent = fmt(p, 2);
+            const d = data.defaults;
+            document.getElementById('params').innerHTML =
+                (data.enabled ? '' : '<b>Per-map curves are disabled (CurveSettings.Enabled = false).</b> ') +
+                (cur.tapered ? `a = ${fmt(cur.a, 2)}%, c = ${fmt(cur.c, 2)}` : 'a = 100% (no taper)') +
+                ` &middot; middle (60-95%): ${param('k', cur.k, d.k)}, ${param('w', cur.w, d.w)}` +
+                ` &middot; upper (95% to a): ${param('k2', cur.k2, d.k2)}, ${param('p2', cur.p2, d.p2)}` +
+                (cur.isDefault ? ' &middot; same as the base curve' : '');
+
+            const ratio = document.getElementById('showRatio').checked;
+            const minX = document.getElementById('autoZoom').checked ? Math.max(60, Math.floor(p) - 3) : 60;
+            const xs = Array.from(new Set(cur.points.map(q => q[0]).concat(data.basePoints.map(q => q[0])))).filter(x => x >= minX).sort((a, b) => a - b);
+            const thisLine = xs.map(x => ({ x, y: ratio ? interp(cur.points, x) / Math.max(interp(data.basePoints, x), 1e-9) : interp(cur.points, x) }));
+            const baseLine = xs.map(x => ({ x, y: ratio ? 1 : interp(data.basePoints, x) }));
+            const markers = [{ x: p, y: ratio ? interp(cur.points, p) / interp(data.basePoints, p) : interp(cur.points, p), label: 'Predicted acc' }];
+            if (cur.tapered && cur.a < 100) markers.push({ x: cur.a, y: ratio ? interp(cur.points, cur.a) / interp(data.basePoints, cur.a) : interp(cur.points, cur.a), label: 'a (taper start)' });
+
+            const config = {
+                type: 'line',
+                data: {
+                    datasets: [
+                        { label: 'Curve for this predicted acc', data: thisLine, borderColor: 'rgb(75, 192, 192)', backgroundColor: 'rgba(75, 192, 192, 0.15)', pointRadius: 0, borderWidth: 2, tension: 0 },
+                        { label: 'Base curve', data: baseLine, borderColor: 'rgba(160, 160, 160, 0.9)', borderDash: [6, 4], pointRadius: 0, borderWidth: 1, tension: 0 },
+                        { type: 'scatter', label: 'Predicted acc / a', data: markers, borderColor: 'rgb(255, 160, 40)', backgroundColor: 'rgb(255, 160, 40)', pointRadius: 5 },
+                    ]
+                },
+                options: {
+                    animation: false,
+                    maintainAspectRatio: false,
+                    scales: {
+                        x: { type: 'linear', min: minX, max: 100, title: { display: true, text: 'Accuracy (%)' } },
+                        y: { title: { display: true, text: ratio ? 'Curve / base curve' : 'Curve value (acc pp multiplier)' } }
+                    },
+                    plugins: {
+                        tooltip: { callbacks: { label: ctx => (ctx.raw && ctx.raw.label ? ctx.raw.label + ': ' : ctx.dataset.label + ': ') + fmt(ctx.parsed.x, 2) + '% → ' + fmt(ctx.parsed.y, 3) } }
+                    }
+                }
+            };
+            if (chart) { chart.data = config.data; chart.options = config.options; chart.update('none'); }
+            else chart = new Chart(document.getElementById('curveChart').getContext('2d'), config);
+
+            // Acc pp table: relative to the base curve's value at the predicted acc (acc pp = curve * acc rating * 34)
+            const baseAtPred = interp(data.basePoints, p);
+            const rows = [['Predicted', p], ['+0.25', p + 0.25], ['+0.5', p + 0.5], ['+1', p + 1], ['+2', p + 2], ['SSS', 100]]
+                .filter(([lbl, x]) => x <= 100.0001 && (lbl === 'SSS' || x < 99.99));
+            document.getElementById('ppTable').innerHTML = rows.map(([lbl, x]) => {
+                const b = interp(data.basePoints, x), t = interp(cur.points, x);
+                return `<tr><td>${lbl} (${fmt(x, 2)}%)</td><td>${fmt(b, 3)}</td><td>${fmt(t, 3)}</td><td>${fmt(t / b, 3)}</td><td>${fmt(b / baseAtPred, 2)}x &rarr; ${fmt(t / baseAtPred, 2)}x</td></tr>`;
+            }).join('');
+        }
+
+        slider.addEventListener('input', draw);
+        draw();
+    </script>
+}

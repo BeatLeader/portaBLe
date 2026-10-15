@@ -17,13 +17,8 @@
       "Description": "Current production website (autoreweighted)"
     },
     {
-      "Name": "New stuff Autoreweighted",
-      "FileName": "db-20261015031635-4677.db",
-      "Description": "New stuff Autoreweighted"
-    },
-    {
       "Name": "Dev",
-      "FileName": "db-20261015181558-3846.db",
+      "FileName": "db-20261015194001-9916.db",
       "Description": "Dev"
     }
   ]
