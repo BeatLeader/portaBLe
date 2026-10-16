@@ -30,6 +30,9 @@ namespace portaBLe.Services
         private static readonly DateTime DayZero = new(2015, 1, 1, 0, 0, 0, DateTimeKind.Utc);
         private static readonly float[] Weights = Enumerable.Range(0, MaxWeighted).Select(i => MathF.Pow(0.965f, i)).ToArray();
 
+        // Day number of a date, as stored per score (Snapshot.Day): for date filters
+        public static int DayNumber(DateTime utc) => (int)Math.Floor((utc - DayZero).TotalDays);
+
         public record PlayerInfo(string Id, string Name, int Rank);
         public record MapInfo(string Id, string Name, string Mapper, string Difficulty, string Mode);
 

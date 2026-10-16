@@ -61,6 +61,8 @@ and validate constants.
   that loads in about a second. The file is matched to its database by content, so the one built locally works on the
   server: `UploadDatabaseAsync` uploads it next to the database and `DownloadAllDatabasesAsync` downloads it. When it's
   missing or outdated it's built in the background while the page says so. `RefreshEverything` builds it at the end.
+- **New Top Acc per Map graph** (Graphs menu): the top X accuracies of every map against stars, every score drawn as its own
+  point, with mode, player rank, date and speed modifier filters and a rolling average. Reads the Top Scores cache.
 - **Speed modifier filters on the Weighted and Unweighted Scores Graph pages.** Tick which scores to include: no speed
   modifier, SS, FS and/or SFS. Modded scores are placed on the X axis with their modifier's stars and ratings (an SFS
   score uses the SFS stars).

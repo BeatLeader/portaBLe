@@ -1,0 +1,147 @@
+@page
+@model portaBLe.Pages.TopAccGraphModel
+@{
+    ViewData["Title"] = "Top Acc per Map";
+}
+
+<h2>@ViewData["Title"]</h2>
+<p class="text-muted" style="font-size: 0.9rem;">
+    The best accuracies of every map, by stars. Each speed version of a map is ranked on its own and placed at its own stars
+    (an SFS score at the SFS stars). Filters apply before ranking: with max player rank 1000, "top 10" is each map's best 10
+    among the top 1000 players. Every score is drawn as its own point.
+</p>
+
+<form method="get" class="card mb-3" autocomplete="off">
+    <div class="card-body">
+        <input type="hidden" name="db" value="@Model.SelectedDatabase" />
+        <div class="row g-2 align-items-end">
+            <div class="col-auto">
+                <label class="form-label mb-0" for="TopPerMap">Top per map</label>
+                <input asp-for="TopPerMap" type="number" min="1" max="@TopAccGraphModel.MaxTopPerMap" class="form-control form-control-sm" style="width: 6rem;" />
+            </div>
+            <div class="col-auto">
+                <label class="form-label mb-0" for="Mode">Mode</label>
+                <select asp-for="Mode" class="form-select form-select-sm">
+                    <option value="" selected="@(string.IsNullOrEmpty(Model.Mode))">All</option>
+                    @foreach (var mode in Model.Modes)
+                    {
+                        <option value="@mode" selected="@(Model.Mode == mode)">@mode</option>
+                    }
+                </select>
+            </div>
+            <div class="col-auto">
+                <label class="form-label mb-0" for="MaxPlayerRank">Max player rank</label>
+                <input asp-for="MaxPlayerRank" type="number" min="0" class="form-control form-control-sm" style="width: 7rem;" title="0: everyone" />
+            </div>
+            <div class="col-auto">
+                <label class="form-label mb-0" for="Since">Scores since</label>
+                <input asp-for="Since" type="date" class="form-control form-control-sm" />
+            </div>
+            <div class="col-auto">
+                <div class="form-label mb-0">Speed</div>
+                <div class="d-flex gap-2" style="padding-top: 0.2rem;">
+                    <label class="form-check-label"><input asp-for="ModNone" class="form-check-input" /> None</label>
+                    <label class="form-check-label"><input asp-for="ModSS" class="form-check-input" /> SS</label>
+                    <label class="form-check-label"><input asp-for="ModFS" class="form-check-input" /> FS</label>
+                    <label class="form-check-label"><input asp-for="ModSFS" class="form-check-input" /> SFS</label>
+                </div>
+            </div>
+            <div class="col-auto">
+                <label class="form-label mb-0" for="RollingWindow">Rolling average (points, 0 = off)</label>
+                <input asp-for="RollingWindow" type="number" min="0" class="form-control form-control-sm" style="width: 7rem;" />
+            </div>
+            <div class="col-auto">
+                <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+            </div>
+        </div>
+    </div>
+</form>
+
+<div id="status" class="text-muted mb-2" style="font-size: 0.9rem;">Loading…</div>
+<div id="plot" style="width: 100%; height: 75vh;"></div>
+
+@section Scripts {
+    <script src="https://cdn.plot.ly/plotly-2.29.1.min.js"></script>
+    <script>
+        const SPEEDS = ['No speed modifier', 'SS', 'FS', 'SFS'];
+        const COLORS = ['#2a78d6', '#3fae6a', '#e08a1e', '#c8463c'];
+        const statusEl = document.getElementById('status');
+        const rollingWindow = @Model.RollingWindow;
+
+        // Mean of a sliding window over the points sorted by stars, sampled to about 300 points for the line
+        function rollingAverage(xs, ys, windowSize) {
+            const n = xs.length;
+            if (windowSize <= 0 || n === 0) return null;
+            const idx = Array.from({ length: n }, (_, i) => i).sort((a, b) => xs[a] - xs[b]);
+            const sx = idx.map(i => xs[i]), sy = idx.map(i => ys[i]);
+            const prefix = new Float64Array(n + 1);
+            for (let i = 0; i < n; i++) prefix[i + 1] = prefix[i] + sy[i];
+            const half = Math.floor(windowSize / 2), step = Math.max(1, Math.floor(n / 300));
+            const lx = [], ly = [];
+            for (let i = 0; i < n; i += step) {
+                const lo = Math.max(0, i - half), hi = Math.min(n, i + half + 1);
+                lx.push(sx[i]);
+                ly.push((prefix[hi] - prefix[lo]) / (hi - lo));
+            }
+            return { x: lx, y: ly };
+        }
+
+        function render(d) {
+            const traces = [];
+            for (let s = 0; s < 4; s++) {
+                const xs = [], ys = [], text = [];
+                for (let i = 0; i < d.count; i++) {
+                    if (d.speed[i] !== s) continue;
+                    const m = d.maps[d.map[i]];
+                    xs.push(d.x[i]);
+                    ys.push(d.y[i]);
+                    text.push(`${d.players[d.player[i]]}<br>${m[1]} [${m[2]}] by ${m[3]}<br>#${d.rank[i]} on the map${s ? ' (' + SPEEDS[s] + ')' : ''}`);
+                }
+                if (xs.length === 0) continue;
+                traces.push({
+                    type: 'scattergl', mode: 'markers', name: `${SPEEDS[s]} (${xs.length.toLocaleString()})`,
+                    x: xs, y: ys, text,
+                    hovertemplate: '%{text}<br>%{x:.2f}★  %{y:.2f}%<extra></extra>',
+                    marker: { size: 4, color: COLORS[s], opacity: 0.55 },
+                });
+            }
+            const avg = rollingAverage(d.x, d.y, rollingWindow);
+            if (avg) traces.push({
+                type: 'scattergl', mode: 'lines', name: `Rolling average (${rollingWindow})`,
+                x: avg.x, y: avg.y, line: { color: '#222', width: 2 }, hoverinfo: 'skip',
+            });
+            Plotly.react('plot', traces, {
+                margin: { t: 20, r: 20, b: 50, l: 60 },
+                xaxis: { title: 'Stars', zeroline: false },
+                yaxis: { title: 'Accuracy (%)', zeroline: false },
+                legend: { orientation: 'h', y: -0.12 },
+                hovermode: 'closest',
+            }, { responsive: true });
+        }
+
+        async function load() {
+            const url = new URL(window.location.href);
+            url.searchParams.set('handler', 'Data');
+            try {
+                const resp = await fetch(url.toString(), { headers: { 'Accept': 'application/json' } });
+                if (!resp.ok) { statusEl.textContent = `Could not load the data (${resp.status}).`; return; }
+                const d = await resp.json();
+                if (d.count === undefined) {
+                    statusEl.textContent = d.error
+                        ? `The scores cache failed to build: ${d.error}`
+                        : 'Building the scores cache for this database (it can take a minute or two)…';
+                    if (!d.error) setTimeout(load, 10000);
+                    return;
+                }
+                statusEl.textContent = `${d.count.toLocaleString()} scores on ${d.maps.length.toLocaleString()} maps`
+                    + (d.building ? ' · the database changed, the cache is being rebuilt' : '');
+                render(d);
+            } catch (e) {
+                statusEl.textContent = 'Could not load the data.';
+                console.error(e);
+            }
+        }
+
+        load();
+    </script>
+}
