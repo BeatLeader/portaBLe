@@ -302,7 +302,7 @@
         }
 
         // initial render with empty data
-        const defaultWindow = parseInt(document.getElementById('rollingWindow').value || '400');
+        const defaultWindow = parseInt(document.getElementById('rollingWindow').value || '50');
         renderPlot(data, 'x', 'pp', defaultWindow);
 
         document.getElementById('xSelect').addEventListener('change', function() {

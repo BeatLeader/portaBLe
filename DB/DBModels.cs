@@ -140,6 +140,9 @@ namespace portaBLe.DB
         public ICollection<Score> Scores { get; set; }
 
         public float Duration { get; set; }
+        // Base note jump speed of the difficulty (Info.dat, without speed modifiers). 0 = not filled yet: RatingsRefresh.Overwrite
+        // stores it, RatingsRefresh.RefreshNjs fills it without rating the maps again.
+        public float Njs { get; set; }
         public bool IsLinear { get; set; }
         public bool IsFitbeat { get; set; }
 

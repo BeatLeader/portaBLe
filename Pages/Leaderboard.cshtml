@@ -141,6 +141,10 @@
             </div>
         </div>
         <div class="predicted-acc">Predicted acc: @((Model.Leaderboard.PredictedAcc * 100).ToString("0.00"))%</div>
+        @if (Model.NjsText(Model.Njs) is string njsText)
+        {
+            <div class="predicted-acc">@njsText</div>
+        }
     </div>
 
     @if (Model.CompareLeaderboard != null)
@@ -209,6 +213,10 @@
                 </div>
             </div>
             <div class="predicted-acc">Predicted acc: @((Model.CompareLeaderboard.PredictedAcc * 100).ToString("0.00"))%</div>
+            @if (Model.NjsText(Model.CompareNjs) is string compareNjsText)
+            {
+                <div class="predicted-acc">@compareNjsText</div>
+            }
         </div>
     }
 </div>

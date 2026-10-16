@@ -33,6 +33,7 @@ namespace portaBLe.Refresh
                 ("DodgeWalls", "INTEGER"),
                 ("CrouchWalls", "INTEGER"),
                 ("Duration", "REAL"),
+                ("Njs", "REAL"),
                 ("IsFitbeat", "INTEGER"),
                 ("IsLinear", "INTEGER"),
                 ("Curve", "TEXT"),
@@ -91,6 +92,7 @@ namespace portaBLe.Refresh
                     lb.ParityErrors = (float)response["none"].LackMapCalculation.Statistics.ParityErrors;
                     lb.BombAvoidances = (float)response["none"].LackMapCalculation.Statistics.BombAvoidances;
                     lb.Duration = (float)response["none"].Length;
+                    lb.Njs = response["none"].Njs;
 
                     lb.PassRating = (float)response["none"].LackMapCalculation.PassRating;
                     lb.TechRating = (float)response["none"].LackMapCalculation.TechRating;
@@ -149,6 +151,89 @@ namespace portaBLe.Refresh
             Console.WriteLine($"\nCompleted: {processedCount - errorCount} successful, {errorCount} errors");
             dbContext.BulkSaveChanges();
             Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
+        }
+
+        // Base NJS of every leaderboard from Info.dat in the maps folder, without rating the maps again (Overwrite stores it
+        // too). Maps missing from the folder are left as they are (they aren't downloaded).
+        public static async Task RefreshNjs(AppContext dbContext, string mapsDirectory = "maps")
+        {
+            await DbSchema.AddColumnIfMissing(dbContext, "Leaderboards", "Njs", "REAL");
+            var lbs = await dbContext.Leaderboards.AsNoTracking()
+                .Select(l => new Leaderboard { Id = l.Id, Hash = l.Hash, ModeName = l.ModeName, DifficultyName = l.DifficultyName, Njs = l.Njs })
+                .ToListAsync();
+            var updates = new List<Leaderboard>();
+            int missing = 0;
+            foreach (var lb in lbs)
+            {
+                var njs = ReadNjs(mapsDirectory, lb.Hash, lb.ModeName, lb.DifficultyName);
+                if (njs == null) { missing++; continue; }
+                if (njs.Value != lb.Njs) updates.Add(new Leaderboard { Id = lb.Id, Njs = njs.Value });
+            }
+            if (updates.Count > 0)
+            {
+                await dbContext.BulkUpdateAsync(updates, options => options.ColumnInputExpression = c => new { c.Njs });
+            }
+            Console.WriteLine($"NJS: {updates.Count} leaderboards updated, {missing} not found in {mapsDirectory}");
+        }
+
+        // A difficulty's NJS from Info.dat: v2 (_difficultyBeatmapSets) or v4 (difficultyBeatmaps). Custom modes
+        // (InvertedStandard...) fall back to Standard, as RatingAPI rates them. Null when the map or difficulty isn't there.
+        public static float? ReadNjs(string mapsDirectory, string? hash, string? mode, string? difficulty)
+        {
+            if (string.IsNullOrEmpty(hash) || string.IsNullOrEmpty(difficulty)) return null;
+            mode = string.IsNullOrEmpty(mode) ? "Standard" : mode;
+            try
+            {
+                var dir = new[] { hash.ToLowerInvariant(), hash.ToUpperInvariant(), hash }
+                    .Select(h => Path.Combine(mapsDirectory, h))
+                    .FirstOrDefault(Directory.Exists);
+                if (dir == null) return null;
+                var file = new[] { "Info.dat", "info.dat" }.Select(f => Path.Combine(dir, f)).FirstOrDefault(File.Exists);
+                if (file == null) return null;
+
+                using var doc = System.Text.Json.JsonDocument.Parse(File.ReadAllText(file));
+                var root = doc.RootElement;
+                var found = new List<(string Mode, string Difficulty, float Njs)>();
+                if (root.TryGetProperty("_difficultyBeatmapSets", out var sets) && sets.ValueKind == System.Text.Json.JsonValueKind.Array)
+                {
+                    foreach (var set in sets.EnumerateArray())
+                    {
+                        var setMode = set.TryGetProperty("_beatmapCharacteristicName", out var m) ? m.GetString() ?? "" : "";
+                        if (!set.TryGetProperty("_difficultyBeatmaps", out var diffs) || diffs.ValueKind != System.Text.Json.JsonValueKind.Array) continue;
+                        foreach (var diff in diffs.EnumerateArray())
+                        {
+                            if (diff.TryGetProperty("_difficulty", out var d) && diff.TryGetProperty("_noteJumpMovementSpeed", out var n)
+                                && n.TryGetSingle(out var value))
+                            {
+                                found.Add((setMode, d.GetString() ?? "", value));
+                            }
+                        }
+                    }
+                }
+                if (root.TryGetProperty("difficultyBeatmaps", out var v4) && v4.ValueKind == System.Text.Json.JsonValueKind.Array)
+                {
+                    foreach (var diff in v4.EnumerateArray())
+                    {
+                        var diffMode = diff.TryGetProperty("characteristic", out var m) ? m.GetString() ?? "Standard" : "Standard";
+                        if (diff.TryGetProperty("difficulty", out var d) && diff.TryGetProperty("noteJumpMovementSpeed", out var n)
+                            && n.TryGetSingle(out var value))
+                        {
+                            found.Add((diffMode, d.GetString() ?? "", value));
+                        }
+                    }
+                }
+
+                float? Find(string wanted) => found
+                    .Where(f => string.Equals(f.Mode, wanted, StringComparison.OrdinalIgnoreCase)
+                             && string.Equals(f.Difficulty, difficulty, StringComparison.OrdinalIgnoreCase))
+                    .Select(f => (float?)f.Njs)
+                    .FirstOrDefault();
+                return Find(mode) ?? Find("Standard");
+            }
+            catch
+            {
+                return null;
+            }
         }
 
         public static async Task Refresh(AppContext dbContext)

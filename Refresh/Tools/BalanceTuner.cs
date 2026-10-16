@@ -20,7 +20,7 @@ namespace portaBLe.Refresh
     public class RatingConstants
     {
         public double PassCalibration { get; set; } = 0.655;
-        public double OneSaberNerf { get; set; } = 0.42;
+        public double OneSaberNerf { get; set; } = 0.4;
         public double TechScaler { get; set; } = 17.6;
         // Follows the PpFormula default, since the tuner re-scores everything with the formula in code
         public double TechWeight { get; set; } = new PpFormula().TechWeight;

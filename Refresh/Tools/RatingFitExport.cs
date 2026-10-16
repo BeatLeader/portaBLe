@@ -181,13 +181,14 @@ namespace portaBLe.Refresh
 
         // Ratings of every leaderboard without modifiers and with SS, FS, SF (as stored by RatingsRefresh.Overwrite), to compare
         // what speed-modifier scores are worth with nomod scores on maps of similar ratings (together with RunScores). Read only.
-        // Writes wwwroot/rating-fit-modifiers.json: Columns and one row per leaderboard.
+        // Writes wwwroot/rating-fit-modifiers.json: Columns and one row per leaderboard. Njs is the base NJS (Leaderboard.Njs,
+        // or Info.dat in the maps folder when the database doesn't have it yet; 0 when neither has it).
         public static async Task RunModifiers(AppContext dbContext, string webRootPath)
         {
             var lbs = await dbContext.Leaderboards.AsNoTracking()
                 .Select(l => new
                 {
-                    l.Id, l.ModeName, l.DifficultyName, l.Name, l.Stars, l.PassRating, l.TechRating, l.AccRating, l.PredictedAcc,
+                    l.Id, l.ModeName, l.DifficultyName, l.Name, l.Stars, l.PassRating, l.TechRating, l.AccRating, l.PredictedAcc, l.Hash, l.Njs,
                     Mod = l.ModifiersRating == null ? null : new
                     {
                         l.ModifiersRating.SSStars, l.ModifiersRating.SSPassRating, l.ModifiersRating.SSTechRating, l.ModifiersRating.SSAccRating, l.ModifiersRating.SSPredictedAcc,
@@ -204,6 +205,7 @@ namespace portaBLe.Refresh
                 l.Mod?.SSStars, l.Mod?.SSPassRating, l.Mod?.SSTechRating, l.Mod?.SSAccRating, l.Mod?.SSPredictedAcc,
                 l.Mod?.FSStars, l.Mod?.FSPassRating, l.Mod?.FSTechRating, l.Mod?.FSAccRating, l.Mod?.FSPredictedAcc,
                 l.Mod?.SFStars, l.Mod?.SFPassRating, l.Mod?.SFTechRating, l.Mod?.SFAccRating, l.Mod?.SFPredictedAcc,
+                l.Njs > 0 ? l.Njs : RatingsRefresh.ReadNjs("maps", l.Hash, l.ModeName, l.DifficultyName) ?? 0,
             }).ToList();
 
             var path = Path.Combine(webRootPath, ModifiersFile);
@@ -217,6 +219,7 @@ namespace portaBLe.Refresh
                     "SSStars", "SSPassRating", "SSTechRating", "SSAccRating", "SSPredictedAcc",
                     "FSStars", "FSPassRating", "FSTechRating", "FSAccRating", "FSPredictedAcc",
                     "SFStars", "SFPassRating", "SFTechRating", "SFAccRating", "SFPredictedAcc",
+                    "Njs",
                 },
                 Rows = rows,
             }));

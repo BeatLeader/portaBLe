@@ -243,7 +243,7 @@ namespace portaBLe
                 // await DownloadDatabaseIfNeeded(builder.Environment.WebRootPath);
 
                 // Uncomment to upload the local Database.db to S3
-                // await UploadDatabaseAsync($"{builder.Environment.WebRootPath}/Database.db");
+                await UploadDatabaseAsync($"{builder.Environment.WebRootPath}/Database.db");
 
                 // Uncomment to upload all local databases to S3 and update databases.json
                 // await UploadAllDatabasesAsync(builder.Environment.WebRootPath);
@@ -315,6 +315,10 @@ namespace portaBLe
                     // rating the maps again. Overwrite stores them too. Then RefreshEverything to re-score with them.
                     // await CurvesRefresh.Regenerate(dbContext);
 
+                    // Base NJS of every leaderboard from Info.dat in the maps folder, without rating the maps again (Overwrite
+                    // stores it too). For every database in databases.json: RefreshNjsForAllDatabases below.
+                    // await RatingsRefresh.RefreshNjs(dbContext);
+
                     // Scores, players, leaderboards (Megametric), stars, outliers and stats from the current ratings
                     // await RefreshEverything(dbContext);
 
@@ -358,6 +362,8 @@ namespace portaBLe
                     // Leaderboards (Megametric) and stats of every database in databases.json
                     // await RefreshLeaderboardsForAllDatabases(tempDbService, builder.Environment.WebRootPath);
                     // await RefreshStatsForAllDatabases(tempDbService, builder.Environment.WebRootPath);
+                    // NJS of every leaderboard (from the maps folder) in every database in databases.json
+                    // await RefreshNjsForAllDatabases(tempDbService, builder.Environment.WebRootPath);
                 }
 
                 await app.RunAsync();
@@ -506,6 +512,33 @@ namespace portaBLe
             Console.WriteLine($"\n========================================");
             Console.WriteLine($"Completed refreshing stats for all databases");
             Console.WriteLine($"========================================");
+        }
+
+        // Fills Leaderboard.Njs (RatingsRefresh.RefreshNjs) in every database in databases.json
+        private static async Task RefreshNjsForAllDatabases(IDynamicDbContextService dbService, string webRootPath)
+        {
+            var databases = await dbService.GetAvailableDatabasesAsync();
+            foreach (var db in databases)
+            {
+                var path = Path.Combine(webRootPath, db.FileName);
+                if (!File.Exists(path))
+                {
+                    Console.WriteLine($"Skipping NJS for {db.Name}: file not found");
+                    continue;
+                }
+                try
+                {
+                    var optionsBuilder = new DbContextOptionsBuilder<AppContext>();
+                    optionsBuilder.UseSqlite($"Data Source={path};");
+                    using var dbContext = new AppContext(optionsBuilder.Options);
+                    Console.WriteLine($"NJS: {db.Name} ({db.FileName})");
+                    await RatingsRefresh.RefreshNjs(dbContext);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error filling NJS for {db.Name}: {ex.Message}");
+                }
+            }
         }
 
         // Helper method to refresh leaderboards (Megametrics) for all databases

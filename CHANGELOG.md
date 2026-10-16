@@ -39,6 +39,9 @@ and validate constants.
 
 ### Tools and cleanup
 
+- **NJS on the Leaderboard page**, under the predicted acc (with a speed modifier: the NJS the player sees). Stored in
+  `Leaderboard.Njs`: `RatingsRefresh.Overwrite` saves it, `RatingsRefresh.RefreshNjs` fills it from the maps folder without
+  rating again. The column is added to every database at startup.
 - **Speed modifier filters on the Weighted and Unweighted Scores Graph pages.** Tick which scores to include: no speed
   modifier, SS, FS and/or SFS. Modded scores are placed on the X axis with their modifier's stars and ratings (an SFS
   score uses the SFS stars).

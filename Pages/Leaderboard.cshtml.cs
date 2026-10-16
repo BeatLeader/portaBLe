@@ -30,6 +30,24 @@ namespace portaBLe.Pages
         public string Modifier { get; set; } = "none";
         public static readonly string[] Modifiers = { "none", "SS", "FS", "SFS" };
 
+        // Base NJS of the difficulty (Leaderboard.Njs), null when the database doesn't have it yet
+        public float? Njs => Leaderboard?.Njs > 0 ? Leaderboard.Njs : null;
+        public float? CompareNjs => CompareLeaderboard?.Njs > 0 ? CompareLeaderboard.Njs : null;
+
+        // Speed multiplier of the shown modifier (as RatingsController rates them)
+        public static float SpeedOf(string modifier) => modifier switch { "SS" => 0.85f, "FS" => 1.2f, "SFS" => 1.5f, _ => 1f };
+
+        // "NJS: 18", or with a speed modifier the NJS the player sees: "NJS: 27 (18 × 1.5 with SFS)"
+        public string? NjsText(float? njs)
+        {
+            if (!njs.HasValue) return null;
+            float speed = SpeedOf(Modifier);
+            var baseText = njs.Value.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+            if (speed == 1f) return $"NJS: {baseText}";
+            var shown = (njs.Value * speed).ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+            return $"NJS: {shown} ({baseText} × {speed.ToString(System.Globalization.CultureInfo.InvariantCulture)} with {Modifier})";
+        }
+
         // Acc curve of the shown modifier and the base curve, as [accuracy %, value] from low to high accuracy
         public List<double[]> CurvePoints { get; set; } = new();
         public List<double[]> BaseCurvePoints { get; set; } = new();
@@ -114,7 +132,10 @@ namespace portaBLe.Pages
             if (!string.IsNullOrEmpty(compareId))
             {
                 CompareLeaderboard = await context.Leaderboards.AsNoTracking().Include(l => l.ModifiersRating).FirstOrDefaultAsync(l => l.Id == compareId);
-                if (CompareLeaderboard != null) ShowModifier(CompareLeaderboard, Modifier);
+                if (CompareLeaderboard != null)
+                {
+                    ShowModifier(CompareLeaderboard, Modifier);
+                }
 
                 if (CompareLeaderboard != null)
                 {
