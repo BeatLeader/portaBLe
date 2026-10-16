@@ -108,6 +108,13 @@
 		if (loss < predLoss) {
 			const floor = PP.notes > 0 ? PP.standingFloor / PP.notes : 0;
 			r = (loss + floor) / (predLoss + floor);
+		}
+		if (PP.standingEasyTop > 0) {
+			// top standings on easy maps count up to (1 + easyTop) times worse (PpCurve.StandingEasyTop)
+			const easiness = Math.min(Math.max((Math.log(0.02) - Math.log(predLoss)) / (Math.log(0.02) - Math.log(0.005)), 0), 1);
+			r *= 1 + PP.standingEasyTop * easiness * Math.min(Math.max(2 - r, 0), 1);
+		}
+		if (r < 1) {
 			const g = PP.standingCeiling;
 			r = g + (1 - 2 * g) * r + g * r * r;
 		}

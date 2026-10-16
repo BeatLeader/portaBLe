@@ -878,6 +878,26 @@ Args: `--curve Standing --gamma 0.6198 --acc-scale 14.486 --relative-epsilon 0.7
 --standing-ceiling 0.5 --star-divisor 57.5`. Open: One Saber and speed modifiers on the like-effort test; stars of Easy maps (median 5.0★,
 prod 2.9★) since there is no premium.
 
+### v7.2: One Saber predictions and easy-map top standings
+
+- **One Saber.** In v7 the acc model's errors go straight into PP. On One Saber maps its error SD was 0.140 (Standard 0.085) and tracked
+  crossovers (Spearman +0.52; One Saber median 12.5 % of notes vs 0.4 % on Standard), outer columns (+0.51), reach and stress: Standard's
+  costs for crossing over don't apply to one saber. Stage-2 fit on One Saber maps only (song-grouped CV, ridge): `os_frac_cross` -0.728,
+  `os_frac_outer` -0.375 and a One Saber offset +0.214 folded into `one_saber` and the intercept (RatingAPI acc_model.json; Standard
+  predictions unchanged to 1e-15). One Saber CV error SD 0.139 -> 0.114; Bad Liar -0.22, Wheels on the Bus Easy -0.28, The Spoils -0.17,
+  Scream -0.15. What a One Saber map pays its players relative to their own typical Standard play: median map 0.71x -> 0.72x, Bad Liar
+  0.95 -> 0.80, Scream 0.90 -> 0.82, The Spoils 0.88 -> 0.78, none above 1.2x.
+- **Easy-map top (`--standing-easy-top` kappa 0.3).** For typical strong players the predictions are right on easy maps (top 1 %:
+  residual -0.006), but precision specialists beat them far more than their play elsewhere (a median-skill player: -0.39 on maps
+  predicted 99-99.5 %, +0.15 on 98-99 %), which made Easy/Normal-only profiles top-10 in v7. On easy maps (easiness 0 at predicted 98 %,
+  1 at 99.5 %) standings at or above the prediction count up to (1 + kappa) times worse, fading out at twice the predicted loss (scores
+  outside about a map's top 5 % untouched). kappa set so that Pandita (prod #10, v7 #5) lands around #20: 0.25 / 0.3 / 0.35 -> #12 / #16 /
+  #23. Players below rank 20k: median easy-map PP unchanged (115.6).
+
+v7.2 (simulator = DB to 1e-3): PP vs prod +4.5 / +3.7 / 0.0 / -1.2 %; top plays on hard Expert+ maps (RPG, Darling Dance, Gravisphere
+Crisis 851-855) plus let you Easy 860. Args: `--curve Standing --gamma 0.6198 --acc-scale 14.505 --relative-epsilon 0.75 --mode-gamma
+OneSaber=1.0998 --standing-floor 0.5 --standing-ceiling 0.5 --standing-easy-top 0.3 --star-divisor 57.5`.
+
 ## Known limitations
 
 * Weights are fitted on today's ranked Standard and (since v5) One Saber pool; maps far outside it (gimmicks, extreme speeds,

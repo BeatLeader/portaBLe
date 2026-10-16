@@ -374,6 +374,9 @@ namespace portaBLe
                         case "--standing-floor": // Standing curve: notes' worth of accuracy added above the prediction (see PpCurve)
                             PpCurve.StandingFloor = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture);
                             break;
+                        case "--standing-easy-top": // Standing curve: top standings on easy maps count up to (1 + this) times worse (see PpCurve)
+                            PpCurve.StandingEasyTop = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture);
+                            break;
                         case "--standing-ceiling": // Standing curve: standing a 100 % counts as, in predicted losses (see PpCurve)
                             PpCurve.StandingCeiling = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture);
                             break;
@@ -411,7 +414,7 @@ namespace portaBLe
             PpCurve.Mode = cli.Curve;
             Console.WriteLine($"Pipeline: {string.Join(",", cli.Steps)} | acc source {cli.AccSource} {cli.AccModel ?? "(embedded model)"} | curve {cli.Curve}"
                 + (cli.Curve == CurveMode.Standing ? $" (standing: reference {PpCurve.StandingReferenceAcc}, gamma {PpCurve.Gamma}, acc scale {PpCurve.AccScale}, "
-                    + $"epsilon {PpCurve.Epsilon} + {PpCurve.RelativeEpsilon} x 0.02, note floor {PpCurve.StandingFloor}, ceiling {PpCurve.StandingCeiling}"
+                    + $"epsilon {PpCurve.Epsilon} + {PpCurve.RelativeEpsilon} x 0.02, note floor {PpCurve.StandingFloor}, ceiling {PpCurve.StandingCeiling}, easy top {PpCurve.StandingEasyTop}"
                     + (PpCurve.ModeGammaScale.Count > 0 ? ", spread exponent " + string.Join(", ", PpCurve.ModeGammaScale.Select(kv => $"{kv.Value} on {kv.Key}")) : "")
                     + (PpCurve.StarDivisor != 52f ? $", stars = PP at 96 % / {PpCurve.StarDivisor}" : "") + ")" : "")
                 + (cli.Curve == CurveMode.PowerLaw ? $" (gamma {PpCurve.Gamma}, acc scale {PpCurve.AccScale}, epsilon {PpCurve.Epsilon}"

@@ -49,6 +49,11 @@ namespace portaBLe.Refresh
     /// smoothly, r_eff = g0 + (1 - 2 g0) r + g0 r^2 (value and slope 1 at the prediction), so even a 100 % counts as g0 x the predicted
     /// loss and near-perfect runs on easy maps pay like the best plays on hard maps. Notes per map come from the optional table
     /// LeaderboardNotes (LoadNotes); without it the floor is off.
+    /// StandingEasyTop kappa (applied after the floor, before the ceiling): on easy maps the top standings count up to (1 + kappa) times
+    /// worse, r' = r * (1 + kappa * e * w(r)), easiness e = 0 for maps predicted at or below 98 % (EasyTopNoneLoss) rising to 1 at 99.5 %
+    /// (EasyTopFullLoss) in log loss, w = 1 at or above the prediction (r <= 1) fading to 0 at twice the predicted loss. Easy maps are
+    /// where precision specialists beat the prediction far more than their play elsewhere (their skill on harder maps is lower), so top
+    /// standings there say less; scores at twice the predicted loss or worse (outside about the top 5 % of a map) are not touched. 0 = off.
     /// TopEpsilon (Loloppe's "trim the tail above the prediction"): above the map's predicted accuracy the curve uses the offset
     /// max(eps, TopEpsilon), so on the easiest maps (small eps) near-perfect plays gain less; continuous at the prediction and unchanged
     /// below it, so the acc rating (anchored at the prediction) and stars (at 96 %) don't move. 0 = off.
@@ -78,6 +83,9 @@ namespace portaBLe.Refresh
         public const float StandingReferenceAcc = 0.98f;
         public static float StandingFloor = 0.5f;
         public static float StandingCeiling = 0.5f;
+        public static float StandingEasyTop = 0f;
+        public const float EasyTopNoneLoss = 0.02f;
+        public const float EasyTopFullLoss = 0.005f;
         public static Dictionary<string, int> MapNotes = new();
 
         public static int NotesFor(string? leaderboardId) =>
@@ -110,6 +118,14 @@ namespace portaBLe.Refresh
             {
                 float floor = notes > 0 ? StandingFloor / notes : 0f;
                 r = (loss + floor) / (predLoss + floor);
+            }
+            if (StandingEasyTop > 0)
+            {
+                float easiness = Math.Clamp((MathF.Log(EasyTopNoneLoss) - MathF.Log(predLoss)) / (MathF.Log(EasyTopNoneLoss) - MathF.Log(EasyTopFullLoss)), 0f, 1f);
+                r *= 1f + StandingEasyTop * easiness * Math.Clamp(2f - r, 0f, 1f);
+            }
+            if (r < 1f)
+            {
                 float g = StandingCeiling;
                 r = g + (1f - 2f * g) * r + g * r * r;
             }
