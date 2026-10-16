@@ -29,6 +29,12 @@ namespace portaBLe.Refresh
     /// about the production premium (total PP of hard vs easy maps at the same skill x1.6) and the smoothest weighted scores graph.
     /// The premium stops growing at PremiumMaxLoss (predicted 96 %): it was measured between maps below 97 % and maps at 99-99.5 %,
     /// and on the hardest maps the acc model over-predicts difficulty (regression to the mean), which the premium would amplify.
+    /// TopEpsilon (Loloppe's "trim the tail above the prediction"): above the map's predicted accuracy the curve uses the offset
+    /// max(eps, TopEpsilon), so on the easiest maps (small eps) near-perfect plays gain less; continuous at the prediction and unchanged
+    /// below it, so the acc rating (anchored at the prediction) and stars (at 96 %) don't move. 0 = off.
+    /// TechWeight multiplies tech PP. The algorithmic acc model already uses tech (angle strain, rotation, the tech rating) to predict
+    /// accuracy and is unbiased on tech-heavy maps, so full tech PP pays for it twice: with weight 1, maps with a large tech share of their
+    /// PP are worth +37 % more than their stars (production: no relation). The weight is a global balance constant.
     /// ModeTechScale multiplies the stored tech rating per characteristic (RatingsRefresh). Loloppe's analyzer (v6) raised One Saber
     /// tech by x1.31 relative to Standard (the classic pass it scales with lost half its One Saber nerf, 0.5 -> 0.28); his PP formula
     /// offsets that with a lower tech weight, ours doesn't, so OneSaber=0.76 keeps the earlier relation. The acc model still sees the
@@ -44,6 +50,8 @@ namespace portaBLe.Refresh
         public static Dictionary<string, float> ModeGammaScale = new(StringComparer.OrdinalIgnoreCase);
         public static Dictionary<string, float> ModeTechScale = new(StringComparer.OrdinalIgnoreCase);
         public static float DifficultyPremium = 0f;
+        public static float TechWeight = 1f;
+        public static float TopEpsilon = 0f;
 
         public static float TechScaleFor(string? mode) =>
             mode != null && ModeTechScale.TryGetValue(mode, out var scale) ? scale : 1f;
@@ -62,7 +70,13 @@ namespace portaBLe.Refresh
         public static float PowerLaw(float acc, float predictedAcc = 0, string? mode = null)
         {
             float eps = Epsilon + (PerMap && predictedAcc > 0 ? RelativeEpsilon * (1f - predictedAcc) : 0f);
-            return MathF.Pow(MathF.Max(1f - acc + eps, 1e-6f) / (0.05f + eps), -GammaFor(mode));
+            float gamma = GammaFor(mode);
+            if (PerMap && predictedAcc > 0 && acc > predictedAcc && TopEpsilon > eps)
+            {
+                float atPredicted = MathF.Pow((1f - predictedAcc + eps) / (0.05f + eps), -gamma);
+                return atPredicted * MathF.Pow(MathF.Max(1f - acc + TopEpsilon, 1e-6f) / (1f - predictedAcc + TopEpsilon), -gamma);
+            }
+            return MathF.Pow(MathF.Max(1f - acc + eps, 1e-6f) / (0.05f + eps), -gamma);
         }
     }
 
@@ -273,7 +287,7 @@ namespace portaBLe.Refresh
             passPP *= PassFade.Weight(accuracy, predictedAcc);
             float accPP = Curve2(accuracy, predictedAcc, mode) * accRating * 34f;
             // https://www.desmos.com/calculator/jdpmaozieo
-            float techPP = MathF.Exp(1.9f * accuracy) * 1.08f * techRating;
+            float techPP = MathF.Exp(1.9f * accuracy) * 1.08f * techRating * PpCurve.TechWeight;
 
             return PassBlend.Apply(passPP, accPP, techPP);
         }

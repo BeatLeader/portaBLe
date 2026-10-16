@@ -25,6 +25,7 @@ PARAMS = [("distance_falloff", 2.668, 0.2, 8.0), ("speed_falloff_base", 1.4, 1.0
           ("stream", 0.05, -0.3, 0.6), ("dodge_wall", 0.1, -0.3, 1.0), ("crouch_wall", 0.2, -0.3, 3.0)]
 NAMES = [p[0] for p in PARAMS]; X0 = np.array([p[1] for p in PARAMS]); LO = np.array([p[2] for p in PARAMS]); HI = np.array([p[3] for p in PARAMS])
 SLOPE = 2.5
+CLEAR_TARGET = float(os.environ.get("A31_CLEAR_TARGET", "0.5"))   # the rating = skill at which a map is cleared this often (0.5 in production)
 
 class Swings:
     def __init__(self, S):
@@ -57,10 +58,10 @@ def skill50_smooth(LD, ACT, iters=10):
     """skill50 by bisection, then linear interpolation of logit P(clear) inside the last bracket (smooth in the constants)"""
     lo = np.full(LD.shape[0], -2.0); hi = np.full(LD.shape[0], 5.0)
     for _ in range(iters):
-        mid = (lo + hi) / 2; ok = el.p_clear(LD, ACT, mid, SLOPE) >= 0.5
+        mid = (lo + hi) / 2; ok = el.p_clear(LD, ACT, mid, SLOPE) >= CLEAR_TARGET
         hi = np.where(ok, mid, hi); lo = np.where(ok, lo, mid)
     lg = lambda p: np.log(np.clip(p, 1e-6, 1 - 1e-6) / (1 - np.clip(p, 1e-6, 1 - 1e-6)))
-    a, c = lg(el.p_clear(LD, ACT, lo, SLOPE)), lg(el.p_clear(LD, ACT, hi, SLOPE))
+    a, c = lg(el.p_clear(LD, ACT, lo, SLOPE)) - lg(np.array(CLEAR_TARGET)), lg(el.p_clear(LD, ACT, hi, SLOPE)) - lg(np.array(CLEAR_TARGET))
     w = np.where(np.abs(a - c) > 1e-9, a / (a - c), 0.5)
     return lo + np.clip(w, 0, 1) * (hi - lo)
 
@@ -133,6 +134,11 @@ if __name__ == "__main__":
     ap.add_argument("--top-maps", type=int, default=800, help="the hardest maps by b where b_top joins the objective")
     ap.add_argument("--no-holdout", action="store_true", help="skip the half / held-out fit, fit all maps from the start")
     ap.add_argument("--start", default=None, help="JSON file with starting constants ({'constants': {...}} as written by this script)")
+    ap.add_argument("--order-weight", type=float, default=0.0,
+                    help="weight of the top-of-list order: residuals of b (and of the strongest players' b_top) on a linear fit inside a fixed set "
+                         "of the hardest maps (attempts' top N, plus the top N of v2's and of --order-ratings' ratings)")
+    ap.add_argument("--order-n", type=int, default=100)
+    ap.add_argument("--order-ratings", default=None, help="maps parquet with a t50 column (another rating whose top N joins the set)")
     args = ap.parse_args()
     B = pd.read_parquet(args.b).set_index("lb_id")
     B = B[B.index.isin(pd.read_csv("Analysis/out/pass_v2_maps.csv", dtype={"lb_id": str}).lb_id)]
@@ -165,14 +171,28 @@ if __name__ == "__main__":
 
     brank = B.b.rank(ascending=False)
     top_set = set(B.index[(brank <= args.top_maps) & (B.top_attempts >= 100) & (B.b_top > -6)])
+    order_set = set(B.b.nlargest(args.order_n).index)
+    if args.order_weight > 0:
+        t_ref = pd.Series(ev_all([X0], sw.ids)[0], index=sw.ids)
+        order_set |= set(t_ref.nlargest(args.order_n).index)
+        if args.order_ratings:
+            o = pd.read_parquet(args.order_ratings).set_index("lb_id").t50.reindex(sw.ids)
+            order_set |= set(o.nlargest(args.order_n).index)
+        order_set -= set(sw.ids[sw.one])
+        print(f"order set: {len(order_set)} maps (weight {args.order_weight})", flush=True)
     def fit(ids, x_init, max_iter):
         """least squares on the residuals of the cubic fit of b on skill50 (Gauss-Newton / trf, forward-difference Jacobian in parallel);
         with --top-weight, plus the residuals of b_top (strong players) on the hardest maps"""
         bb = B.b.reindex(ids).values; cache = {}
         tsel = np.array([i in top_set for i in ids]); bt = B.b_top.reindex(ids).values[tsel]
+        osel = np.array([i in order_set for i in ids]); ob = bb[osel]
+        oh = osel & np.array([i in top_set for i in ids]); obt = B.b_top.reindex(ids).values[oh]
+        lin = lambda t, y: y - np.polyval(np.polyfit(t, y, 1), t)
         def res_of(t):
             r = cubic_res(t, bb)
             if args.top_weight > 0 and tsel.sum() > 20: r = np.concatenate([r, args.top_weight * cubic_res(t[tsel], bt)])
+            if args.order_weight > 0 and osel.sum() > 20:
+                r = np.concatenate([r, args.order_weight * lin(t[osel], ob), args.order_weight * lin(t[oh], obt)])
             return r
         def tvals(z_list):
             xs = []

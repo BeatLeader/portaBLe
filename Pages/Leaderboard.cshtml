@@ -57,6 +57,8 @@
             : null,
         accCap = portaBLe.Refresh.AccCap.Enabled ? (object)new { maxAdvantage = portaBLe.Refresh.AccCap.MaxAdvantage } : null,
         passBlend = portaBLe.Refresh.PassBlend.Enabled ? (object)portaBLe.Refresh.PassBlend.P : null,
+        techWeight = portaBLe.Refresh.PpCurve.TechWeight,
+        topEpsilon = portaBLe.Refresh.PpCurve.TopEpsilon,
     };
 
     // rating triangle of one variant; gid keeps the SVG gradient ids unique, rgb = tech / pass / acc colours

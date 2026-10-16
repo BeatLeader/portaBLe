@@ -43,6 +43,8 @@ py/a29_attempt_replays.py attempt replays (R2 otherreplays, ReplayStudy --attemp
 py/a30_pass_contrast.py   pass v2 variants for the top of the list (slope, cut terms, stacking, run form, swing draws); none adopted
 py/a31_v6_pass.py         v6 pass: PassDiff from the new analyzer's raw swing metrics, constants fitted with the exact energy model
 py/a32_pass_ablation.py   which v6 pass constant costs top-of-list order (each set back to v2 in turn)
+py/a33_pass_target.py     pass rating at another clear probability (A31_CLEAR_TARGET); top-of-list scores
+py/a34_stream_warmup.py   regular-stream discount / settling-in term for long stream maps (not adopted)
 py/v6sim.py               the v6 PP formula in numpy (matches portaBLe DBs exactly), difficulty premium, weighted graph, Megametric75
 py/scorecard.py           whole systems on the same scores (acc, pass, balance, One Saber, weighted graph, premium, farming)
 tools/RatingsDump      recompute ratings + per-swing table + per-note ML predictions for a list of maps (prod or corpus analyzer)

@@ -701,6 +701,104 @@ the like-for-like reference; v5, Loloppe's and v6 have no score-based reweights.
   players hit them with 3–5 % misses and bad cuts, like normal swings. Its pass is also over-rated (#65, attempts #193). Needs a fix
   in the parity engine's angle strain.
 
+### v6.2: tech PP weight 0.25, premium 0.225 (overnight round, 2026-10-16)
+
+**Tech PP paid for tech twice.** The algorithmic acc model already uses tech (angle strain, rotation and the tech rating are among its
+features), and it is unbiased on tech-heavy maps: its error is +0.00 in every quintile of the tech share of PP. Tech PP then paid the
+same difficulty again. Maps with a large tech share were worth more than their stars: correlation of worth with tech share +0.36 in
+v6.1, +0.24 in v5, 0.00 in production (whose ML acc rating doesn't see tech). `PpCurve.TechWeight` (`--tech-weight`) scales tech PP; the
+leaderboard page's curve follows it (`PP_CURVE_CONFIG.techWeight`).
+
+A grid of tech weight × premium on the exact simulator (`v6sim.py`; acc scale renormalized to the top 1 000 players' PP each time):
+
+| tech weight / premium | balance spread | worth ~ tech share | maps standing out 1.5× / 2× | hard / easy PP at the same skill | One Saber worth (mean / median) |
+|---|---|---|---|---|---|
+| 1 / 0.15 (v6.1) | 0.536 | +0.36 | 44 / 4 | ×1.55 | +13 / −13 % |
+| 0.5 / 0.20 | 0.502 | +0.28 | 43 / 2 | ×1.63 | +15 / −11 % |
+| **0.25 / 0.225** | **0.492** | **+0.22** | **44 / 2** | **×1.67** | **+18 / −4 %** |
+| 0 / 0.25 | 0.496 | +0.17 | 47 / 4 | ×1.71 | +18 / −4 % |
+
+Lowering tech PP alone makes near-perfect plays on Easy maps stand out more; a slightly higher premium (0.225) offsets it. Removing
+tech PP completely (weight 0) balances best but is a bigger change for little extra. With 0.25 the top of the star list is the maps
+players expect (*Unwelcome School*, *The Purple Dimension*, *Feral*, *SONG REQUEST* #4, *Bomb The Rave*, *Speedcore Paradise*,
+*Dual Doom Deathmatch*); *PISSCORD* E+ drops to #23. A typical One Saber map ends at −4 % (closer to Standard than v6.1's −13 %); the
+mean is still lifted by the four specialist maps (*The Spoils*, *Bad Liar*, *Scream*, *Inertia*).
+
+| | prod (reweighted) | ML baseline | v5 | Loloppe + curve | v6.1 | **v6.2** |
+|---|---|---|---|---|---|---|
+| balance: spread / maps worth +50 % | 0.578 / 591 | 0.633 / 683 | 0.525 / 538 | 0.542 / 596 | 0.536 / 559 | **0.492 / 514** |
+| stars explained by the data (R² of ln stars on scores' acc + attempts' pass difficulty) | 0.938 | | 0.943 | | 0.949 | **0.956** |
+| FS/SF share of the top 1 000 scores | 14 % | 16 % | 18 % | 24 % | 14 % | **13 %** |
+| best score on a map under 4★ | 951 | 844 | 857 | 703 | 619 | **562** |
+| hard / easy maps' PP at the same skill | 1.61 | 1.62 | 1.24 | 1.68 | 1.54 | **1.65** |
+| weighted graph: jaggedness p50 / p90 / p99; stand-outs | 0.381 / 0.053 / 0.026; 32 | 0.439 / 0.063 / 0.027; 25 | 0.385 / 0.073 / 0.045; 75 | 0.416 / 0.062 / 0.032; 24 | 0.295 / 0.052 / 0.026; 44 | **0.306 / 0.059 / 0.030; 44** |
+| top player | 24 712 | 24 142 | 23 282 | 22 785 | 24 432 | **24 713** |
+
+Pass and acc rows are the same as v6.1. Args: `--curve PowerLaw --gamma 0.6198 --acc-scale 1.1266 --relative-epsilon 0.75 --pass-blend 1.5
+--mode-gamma OneSaber=1.0998 --mode-tech OneSaber=0.76 --difficulty-premium 0.225 --tech-weight 0.25`.
+
+**Pass order at the top was a measurement artifact.** "Order inside its own top 50" depends on which 50 maps a rating picks, and its
+bootstrap mean is the same for every system: strong players prod 0.53, v5 0.55, Loloppe 0.53, v6.1 0.57 (SD 0.07–0.10); the point values
+0.70 / 0.65 / 0.73 vs 0.53 were luck. Measured inside a fixed set (the hardest maps by attempts), v6 orders best: strong players' hardest
+100 0.485 (v5 0.471, prod 0.438), all players' hardest 100 0.486 (v5 0.456, prod 0.417). Tried and not adopted, because none beats v6.1
+robustly: a refit with a top-of-list term (`a31 --order-weight`), the rating at another clear probability (30 / 70 / 85 %, `a33`), blends
+with the classic rating, a regular-stream discount and a settling-in term for long stream maps (`a34`). The real top-of-list errors are
+specific maps: *Godspeed* Expert (#3, attempts #45), *Calamitous Demise* E+ (#4, #30), *Kill Kill Kill Kill* E+ (#19, #236): long regular
+streams; *Unwelcome School* (#44, #9) and *SUPER EMULATOR* (#33, #5): stress / crossover maps, harder for strong players.
+
+**Outlier maps and scores that remain.**
+- *My Album Is Out On Dance Corps* E+: for 238 established players one of their top 3 plays and > 1.25× their 5th best (v5: 154). It is
+  96 % resets (0.24 s apart; replays confirm players reset 93 %), 10 SD outside every other map, and the acc model rates it 0.5 harder
+  than its scores. Capping features at the ranked range (`fit_acc_model.py --clip`) doesn't fix it and under-rates real extremes
+  (*Extratongue*, *Saw-Saw*), so it is documented, not patched.
+- Maps rated harder than both their scores and their attempts (*Sacrifice of Fools*, *MIREN*, *Waifu*): acc-model error and pass error
+  correlate +0.34 across maps, but no analyzer feature explains it (|r| ≤ 0.09). Popularity does (+0.24 with the number of scores:
+  familiarity and grind). Using play counts would make ratings depend on scores, so it is not used.
+- *SONG REQUEST* E+ (16.4★, #4): tech 17.0 from the parity engine's wrist-roll swings. Replays show those swings are genuinely
+  error-prone (2.4 % misses and bad cuts vs 0.5 % on normal swings), so the swing-level strain is right; what over-paid it was tech PP.
+
+### v6 final: premium 0.10, top taper, PP level held at ranks 1 001–10 000 (deployed 2026-10-16)
+
+v6.2 kept the top 1 000 players' PP and lowered everyone below: median PP vs prod −10 % at ranks 1 001–10 000, −15 % at 10 001–50 000.
+The premium does that by design (at the same skill, easier maps pay less, and most players' best scores are on easier maps). The final
+version anchors the PP level at the median player of prod's ranks 1 001–10 000 instead, and uses a smaller premium plus Loloppe's idea of
+trimming only the tail above the prediction:
+
+- **Loloppe's hard-map correction instead of the premium (tested, not adopted).** His acc rating uses a lowered predicted accuracy below
+  96.75 % (RatingAPI loloppe-rebalancer ec8dc54). In our system it only raises hard maps: with the 1k–10k anchor, maps standing out on the
+  weighted graph 77–109, the best play on a map under 4★ back to ~940, FS/SF share 16–19 %, top stars 19–22. The premium's useful part is
+  that easy maps pay less, which the correction can't do (`tune_hardmap.py` in the scratchpad notes).
+- **Top taper (`PpCurve.TopEpsilon`, `--top-epsilon 0.02`).** Above the predicted accuracy the curve offset is at least 0.02, so on the
+  easiest maps near-perfect plays gain less; continuous at the prediction and unchanged below it (acc rating, stars and everyone's PP level
+  don't move). It cuts easy-map farming (best play under 4★ 800 → 642 at premium 0.10) without changing balance or stand-outs.
+
+| premium (tech PP 0.25, level at prod ranks 1k–10k) | balance | stand-outs | best under 4★ | FS/SF | PP vs prod, ranks 1–100 / 101–1k / 1k–10k / 10k–50k |
+|---|---|---|---|---|---|
+| 0.05 | 0.502 | 99 | 878 | 6.8 % | +4.8 / +5.1 / 0.0 / +0.2 % |
+| **0.10 + taper 0.02** | **0.485** | **84** | **642** | **8.9 %** | **+6.8 / +6.6 / 0.0 / −1.5 %** |
+| 0.15 + taper 0.02 | 0.508 | 74 | 607 | 11.2 % | +9.1 / +8.4 / 0.0 / −3.0 % |
+| 0.225 (v6.2) | 0.501 | 49 | 634 | 12.4 % | +12.6 / +11.2 / 0.0 / −5.4 % |
+
+The stronger the premium, the smoother the weighted graph (fewer easy maps where top players' usual plays stand out) and the lower the
+PP of players who mostly play easier maps. 0.10 keeps every rank band within 7 % of prod.
+
+| | prod (reweighted) | ML baseline | Loloppe (Oct 16, 03:20) | **v6 final** |
+|---|---|---|---|---|
+| acc prediction vs scores, R² | 0.856 | 0.856 | 0.906 | **0.957** |
+| pass vs attempts, R² / maps off by > 1 logit | 0.856 / 861 | 0.856 / 861 | 0.895 / 641 | **0.921 / 457** |
+| balance: spread / maps worth +50 % | 0.578 / 591 | 0.633 / 683 | 0.527 / 575 | **0.485 / 522** |
+| One Saber worth (mean) | +74 % | +76 % | −3 % | +17 % (median about −4 %) |
+| PP vs skill, per-map slope median / IQR | 0.525 / 0.079 | 0.522 / 0.079 | 0.568 / 0.067 | 0.618 / 0.076 |
+| weighted graph: jaggedness p50 / p90 / p99; stand-outs | 0.381 / 0.053 / 0.026; 32 | 0.439 / 0.063 / 0.027; 25 | 0.288 / 0.055 / 0.029; 25 | 0.289 / 0.059 / 0.035; 84 |
+| hard / easy maps' PP at the same skill (at the reference) | 1.33 | 1.34 | 1.46 | 1.32 |
+| stars p50 / p90 / max | 7.07 / 11.36 / 15.76 | 6.96 / 11.08 / 15.76 | 6.56 / 10.74 / 15.50 | 7.85 / 12.26 / 17.94 |
+| FS/SF share of the top 1 000 scores | 14 % | 16 % | 28 % | **9 %** |
+| best score on a map under 4★ | 951 | 844 | 657 | 642 |
+| top player | 24 712 | 24 142 | 22 294 | 25 558 |
+
+Args: `--curve PowerLaw --gamma 0.6198 --acc-scale 1.2458 --relative-epsilon 0.75 --pass-blend 1.5 --mode-gamma OneSaber=1.0998
+--mode-tech OneSaber=0.76 --difficulty-premium 0.1 --tech-weight 0.25 --top-epsilon 0.02` (analyzer v6 7002ad1, RatingAPI v6 ec6e8c2).
+
 ## Known limitations
 
 * Weights are fitted on today's ranked Standard and (since v5) One Saber pool; maps far outside it (gimmicks, extreme speeds,

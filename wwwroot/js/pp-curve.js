@@ -91,6 +91,12 @@
 	function powerLaw(acc, predictedAcc, name) {
 		const eps = PP.epsilon + (PP.relativeEpsilon > 0 && predictedAcc > 0 ? PP.relativeEpsilon * (1 - predictedAcc) : 0);
 		const gamma = PP.gamma * ((PP.modeGamma || {})[name] || 1);
+		const top = PP.topEpsilon || 0;
+		if (PP.relativeEpsilon > 0 && predictedAcc > 0 && acc > predictedAcc && top > eps) {
+			// above the predicted accuracy the curve flattens on the easiest maps (PpCurve.TopEpsilon)
+			const atPredicted = Math.pow((1 - predictedAcc + eps) / (0.05 + eps), -gamma);
+			return atPredicted * Math.pow(Math.max(1 - acc + top, 1e-6) / (1 - predictedAcc + top), -gamma);
+		}
 		return Math.pow(Math.max(1 - acc + eps, 1e-6) / (0.05 + eps), -gamma);
 	}
 	const Curve2 = (acc, predictedAcc, name) => (PP.mode === 'power' ? powerLaw(acc, predictedAcc, name) : interpolateCurve(pointList2, acc));
@@ -135,7 +141,7 @@
 		const acc = accCapped(accuracy, predictedAcc);
 		passPP *= passFadeWeight(acc, predictedAcc);
 		let accPP = golf ? acc * accRating * 42 : Curve2(acc, predictedAcc, name) * accRating * 34;
-		let techPP = Math.exp(1.9 * acc) * 1.08 * techRating;
+		let techPP = Math.exp(1.9 * acc) * 1.08 * techRating * (PP.techWeight ?? 1);
 		[passPP, accPP, techPP] = passBlend(passPP, accPP, techPP);
 		const totalPp = Inflate(passPP + accPP + techPP);
 		const inflation = passPP + accPP + techPP > 0 ? totalPp / (passPP + accPP + techPP) : 0;

@@ -1,21 +1,21 @@
-,prod,ML baseline,v5,Loloppe curve,v6,v6.1
-acc: R2 ln(1-pred) vs d,0.8558,0.8558,0.9587,0.9064,0.9577,0.9568
-pass: R2 vs attempts,0.8563,0.8563,0.9166,0.8961,0.9215,0.9209
-pass: Spearman,0.9193,0.9193,0.9474,0.9386,0.9508,0.9509
-pass: off >1 / >2 logits,861 / 134,861 / 134,500 / 47,664 / 69,458 / 43,457 / 46
-pass: top50 overlap,0.52,0.52,0.56,0.56,0.56,0.56
-pass: top200 overlap,0.645,0.645,0.685,0.645,0.72,0.72
-pass: order in top50,0.57,0.57,0.63,0.68,0.54,0.54
-pass: strong players top50 overlap / order,0.50 / 0.70,0.50 / 0.70,0.52 / 0.65,0.52 / 0.73,0.54 / 0.53,0.54 / 0.53
-balance: SD of worth,0.578,0.633,0.525,0.542,0.529,0.536
-balance: maps worth > +50%,591,683,538,596,535,559
-"balance: corr(worth, pred acc)",-0.02,-0.0,0.02,0.01,0.01,0.01
-balance: One Saber worth,0.74,0.76,0.13,0.0,0.14,0.13
-PP vs skill slope: median / IQR,0.525 / 0.079,0.522 / 0.079,0.593 / 0.092,0.550 / 0.071,0.588 / 0.075,0.588 / 0.075
-stars p50 / p90 / max,7.07 / 11.36 / 15.76,6.96 / 11.08 / 15.76,7.69 / 11.45 / 16.84,6.39 / 10.63 / 15.50,6.97 / 11.37 / 17.79,7.00 / 11.40 / 17.71
-top player PP / FS-SF share of top 1000 scores,24712 / 14%,24142 / 16%,23282 / 18%,22785 / 24%,24479 / 13%,24432 / 14%
-best score on a <4* map,951.0,844.0,857.0,703.0,613.0,619.0
-weighted graph: roughness p50 / p90 / p99,0.381 / 0.053 / 0.026,0.439 / 0.063 / 0.027,0.385 / 0.073 / 0.045,0.416 / 0.062 / 0.032,0.298 / 0.051 / 0.033,0.295 / 0.052 / 0.026
-weighted graph: maps > 1.5x / > 2x star neighbours,32 / 6,25 / 2,75 / 15,24 / 1,41 / 3,44 / 4
-weighted graph: top stand-outs,The Donk No x6.1; Illuyanka Ea x4.0; volcanic No x2.6,let you Ea x2.6; volcanic No x2.5; Burn Ea x1.9,let you Ea x4.1; Burn Ea x3.7; Half Of It Ea x3.5,"Oudenophobia Ex x2.0; let you Ea x1.9; """""""""""""""""""""""" Ex x1.8",Half Of It Ea x3.5; let you Ea x2.3; Watch Me Dan Ea x2.1,Half Of It Ea x3.5; let you Ea x2.3; Watch Me Dan Ea x2.1
-difficulty premium: hard / easy PP at the same skill (below ref / at ref),1.61 / 1.33,1.62 / 1.34,1.24 / 1.21,1.68 / 1.50,1.54 / 1.53,1.54 / 1.53
+,prod,ML baseline,Loloppe night,v6.1,v6 release
+acc: R2 ln(1-pred) vs d,0.8558,0.8558,0.9064,0.9568,0.9568
+pass: R2 vs attempts,0.8563,0.8563,0.8949,0.9209,0.9209
+pass: Spearman,0.9193,0.9193,0.9383,0.9509,0.9509
+pass: off >1 / >2 logits,861 / 134,861 / 134,641 / 79,457 / 46,457 / 46
+pass: top50 overlap,0.52,0.52,0.6,0.56,0.56
+pass: top200 overlap,0.645,0.645,0.675,0.72,0.72
+pass: order in top50,0.57,0.57,0.52,0.54,0.54
+pass: strong players top50 overlap / order,0.50 / 0.70,0.50 / 0.70,0.52 / 0.67,0.54 / 0.53,0.54 / 0.53
+balance: SD of worth,0.578,0.633,0.527,0.536,0.485
+balance: maps worth > +50%,591,683,575,559,522
+"balance: corr(worth, pred acc)",-0.02,-0.0,-0.02,0.01,-0.01
+balance: One Saber worth,0.74,0.76,-0.03,0.13,0.17
+PP vs skill slope: median / IQR,0.525 / 0.079,0.522 / 0.079,0.568 / 0.067,0.588 / 0.075,0.618 / 0.076
+stars p50 / p90 / max,7.07 / 11.36 / 15.76,6.96 / 11.08 / 15.76,6.56 / 10.74 / 15.50,7.00 / 11.40 / 17.71,7.85 / 12.26 / 17.94
+top player PP / FS-SF share of top 1000 scores,24712 / 14%,24142 / 16%,22294 / 28%,24432 / 14%,25558 / 9%
+best score on a <4* map,951.0,844.0,657.0,619.0,642.0
+weighted graph: roughness p50 / p90 / p99,0.381 / 0.053 / 0.026,0.439 / 0.063 / 0.027,0.288 / 0.055 / 0.029,0.295 / 0.052 / 0.026,0.289 / 0.059 / 0.035
+weighted graph: maps > 1.5x / > 2x star neighbours,32 / 6,25 / 2,25 / 1,44 / 4,84 / 10
+weighted graph: top stand-outs,The Donk No x6.1; Illuyanka Ea x4.0; volcanic No x2.6,let you Ea x2.6; volcanic No x2.5; Burn Ea x1.9,Oh No Ea x2.0; Oudenophobia Ex x1.9; Wheels on th Ea x1.8,Half Of It Ea x3.5; let you Ea x2.3; Watch Me Dan Ea x2.1,Half Of It Ea x3.6; let you Ea x3.1; Burn Ea x2.9
+difficulty premium: hard / easy PP at the same skill (below ref / at ref),1.61 / 1.33,1.62 / 1.34,1.63 / 1.46,1.54 / 1.53,1.33 / 1.32

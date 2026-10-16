@@ -27,6 +27,8 @@ ap.add_argument("--out", default=os.path.join(os.path.dirname(__file__), "..", "
 ap.add_argument("--report", default=os.path.join(os.path.dirname(__file__), "..", "out", "fit_acc_model.json"))
 ap.add_argument("--min-scores", type=int, default=40)
 ap.add_argument("--one-saber", action="store_true", help="also train on One Saber maps, with their own skill sensitivity (mode_skill_scale)")
+ap.add_argument("--clip", type=float, default=0.0, help="cap every feature at the q / 1-q quantiles of the training maps (stored as clip_low/high: "
+                "a map far outside the ranked range, e.g. 96 % resets, is predicted like the most extreme typical one instead of extrapolated)")
 args = ap.parse_args()
 os.environ["ANALYSIS_DATA"] = args.data
 data.DATA = args.data
@@ -67,6 +69,12 @@ M = M.replace([np.inf, -np.inf], np.nan).dropna(subset=feat_names + ["predicted_
 M["ml_err"] = latent.err_transform(M.predicted_acc)
 M["beta"] = M["mode"].map(lambda m: mode_scale.get(m, 1.0)).astype(float)
 groups = M["hash"].str.upper().values
+clip_low = clip_high = None
+if args.clip > 0:
+    clip_low, clip_high = M[feat_names].quantile(args.clip), M[feat_names].quantile(1 - args.clip)
+    n_clipped = ((M[feat_names] < clip_low) | (M[feat_names] > clip_high)).any(axis=1).sum()
+    M[feat_names] = M[feat_names].clip(clip_low, clip_high, axis=1)
+    print(f"features capped at the {args.clip:.2%} / {1 - args.clip:.2%} quantiles: {n_clipped} maps have at least one capped feature")
 print(f"training maps: {len(M)}; features: {len(feat_names)}")
 
 def gcv(make_model, cols, y="d", folds=5):
@@ -152,6 +160,8 @@ spec = {
     "max_predicted_acc": 0.9995,
 }
 if mode_scale: spec["mode_skill_scale"] = mode_scale
+if clip_low is not None:
+    spec["clip_low"] = [float(x) for x in clip_low.values]; spec["clip_high"] = [float(x) for x in clip_high.values]
 os.makedirs(os.path.dirname(os.path.abspath(args.out)), exist_ok=True)
 json.dump(spec, open(args.out, "w"), indent=1)
 print("wrote", os.path.abspath(args.out))

@@ -359,6 +359,12 @@ namespace portaBLe
                                 PpCurve.ModeTechScale[kv[0]] = float.Parse(kv[1], System.Globalization.CultureInfo.InvariantCulture);
                             }
                             break;
+                        case "--top-epsilon": // curve offset above the predicted accuracy, at least this (see PpCurve)
+                            PpCurve.TopEpsilon = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture);
+                            break;
+                        case "--tech-weight": // tech PP weight (see PpCurve)
+                            PpCurve.TechWeight = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture);
+                            break;
                         case "--difficulty-premium": // acc rating x (min(1 - predicted acc, 0.04) / 0.02)^d (see PpCurve)
                             PpCurve.DifficultyPremium = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture);
                             break;
@@ -393,6 +399,8 @@ namespace portaBLe
                     + (PpCurve.PerMap ? $" + {PpCurve.RelativeEpsilon} x (1 - predicted acc)" : "")
                     + (PpCurve.ModeGammaScale.Count > 0 ? ", gamma x " + string.Join(", ", PpCurve.ModeGammaScale.Select(kv => $"{kv.Value} on {kv.Key}")) : "")
                     + (PpCurve.DifficultyPremium > 0 ? $", difficulty premium {PpCurve.DifficultyPremium}" : "")
+                    + (PpCurve.TechWeight != 1f ? $", tech PP x {PpCurve.TechWeight}" : "")
+                    + (PpCurve.TopEpsilon > 0 ? $", top epsilon {PpCurve.TopEpsilon}" : "")
                     + (PpCurve.ModeTechScale.Count > 0 ? ", tech x " + string.Join(", ", PpCurve.ModeTechScale.Select(kv => $"{kv.Value} on {kv.Key}")) : "") + ")" : "")
                 + (PassFade.Enabled ? $" | pass fade strength {PassFade.Strength}, floor {PassFade.Floor}, center {PassFade.Center}" : "")
                 + (PassBlend.Enabled ? $" | pass blend p {PassBlend.P}" : "")
