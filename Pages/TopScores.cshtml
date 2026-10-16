@@ -67,16 +67,37 @@
     </div>
 </form>
 
+@if (Model.Building)
+{
+    <meta http-equiv="refresh" content="10" />
+}
 <div class="d-flex flex-wrap align-items-center gap-2 mb-2 text-muted" style="font-size: 0.85rem;">
     @if (Model.Cache != null)
     {
-        <span>Cached @Model.Cache.BuiltAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm") · @Model.Cache.Scores.Length.ToString("N0") scores · built in @Model.Cache.BuildSeconds.ToString("F1") s · rebuilds by itself when the database changes</span>
+        <span>Cached @Model.Cache.BuiltAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm") · @Model.Cache.Count.ToString("N0") scores</span>
     }
-    <form method="post" asp-page-handler="Rebuild" asp-route-db="@Model.SelectedDatabase" class="d-inline">
-        <input type="hidden" name="returnUrl" value="@(HttpContext.Request.Path + HttpContext.Request.QueryString)" />
-        <button type="submit" class="btn btn-outline-secondary btn-sm py-0">Rebuild cache</button>
-    </form>
+    @if (Model.Building)
+    {
+        <span class="text-primary">@(Model.Cache == null ? "" : "Rebuilding in the background… ")</span>
+    }
+    else
+    {
+        <form method="post" asp-page-handler="Rebuild" asp-route-db="@Model.SelectedDatabase" class="d-inline">
+            <input type="hidden" name="returnUrl" value="@(HttpContext.Request.Path + HttpContext.Request.QueryString)" />
+            <button type="submit" class="btn btn-outline-secondary btn-sm py-0">Rebuild cache</button>
+        </form>
+    }
 </div>
+@if (!string.IsNullOrEmpty(Model.BuildError))
+{
+    <div class="alert alert-danger py-2">The last cache build failed: @Model.BuildError</div>
+}
+@if (Model.Cache == null && Model.Building)
+{
+    <div class="alert alert-info">
+        Building the top scores cache for this database. It can take a minute or two; this page reloads by itself.
+    </div>
+}
 
 <div class="text-muted mb-2" style="font-size: 0.9rem;">
     @Model.TotalCount.ToString("N0") scores

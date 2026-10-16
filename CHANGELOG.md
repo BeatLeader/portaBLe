@@ -56,9 +56,11 @@ and validate constants.
   rating again. The column is added to every database at startup.
 - **New Top Scores page:** every score in one list, best pp first, with stars, acc, acc vs the Acc AI's prediction,
   pp split, weight and map rank. Sorts by pp, weighted pp, acc / pass / tech pp, acc, acc vs AI, stars or date, and
-  filters by mode, stars, player rank, player, map and speed modifier. Reads a cache file per database
-  (`wwwroot/cache/<db>.topscores.bin`, `Services/TopScoresCache.cs`), never the database: it rebuilds by itself when the
-  database changes, at the end of `RefreshEverything`, or with the page's Rebuild cache button.
+  filters by mode, stars, player rank, player, map and speed modifier. Never queries the scores table: it reads a
+  compact cache file per database (`wwwroot/cache/<db>.topscores.bin`, about 56 MB for 4.4M scores, `Services/TopScoresCache.cs`)
+  that loads in about a second. The file is matched to its database by content, so the one built locally works on the
+  server: `UploadDatabaseAsync` uploads it next to the database and `DownloadAllDatabasesAsync` downloads it. When it's
+  missing or outdated it's built in the background while the page says so. `RefreshEverything` builds it at the end.
 - **Speed modifier filters on the Weighted and Unweighted Scores Graph pages.** Tick which scores to include: no speed
   modifier, SS, FS and/or SFS. Modded scores are placed on the X axis with their modifier's stars and ratings (an SFS
   score uses the SFS stars).

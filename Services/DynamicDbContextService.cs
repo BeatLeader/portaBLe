@@ -127,6 +127,23 @@ namespace portaBLe.Services
                 {
                     Console.WriteLine($"{db.Name} already exists locally.");
                 }
+
+                // Its Top Scores page cache, when uploaded next to it (else the page builds it in the background)
+                var cachePath = TopScoresCache.CachePathOf(localPath);
+                if (File.Exists(localPath) && !File.Exists(cachePath))
+                {
+                    try
+                    {
+                        Directory.CreateDirectory(Path.GetDirectoryName(cachePath)!);
+                        if (await Program.DownloadDatabaseFileAsync(db.FileName + ".topscores.bin", cachePath))
+                            Console.WriteLine($"Downloaded the top scores cache of {db.Name}");
+                    }
+                    catch (Exception e)
+                    {
+                        Console.WriteLine($"No top scores cache downloaded for {db.Name}: {e.Message}");
+                        try { if (File.Exists(cachePath)) File.Delete(cachePath); } catch { }
+                    }
+                }
             }
         }
     }

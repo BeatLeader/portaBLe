@@ -136,11 +136,38 @@ namespace portaBLe
 
             await fileTransferUtility.UploadAsync(filePath, "portabledbs", key);
 
+            // The Top Scores page cache goes next to it (the server downloads it with the database instead of building it)
+            await UploadTopScoresCacheAsync(filePath, key);
+
             // Save the database name to a file in wwwroot
             File.WriteAllText(Path.Combine("wwwroot", "current_db_name.txt"), dbName);
 
             return dbName;
         }
+        // Uploads wwwroot/cache/<db>.topscores.bin as "<dbKey>.topscores.bin", next to the database in S3. Built by
+        // RefreshEverything (or the Top Scores page). It's matched to a database by content, so a cache built from
+        // Database.db works for the same database uploaded under another name.
+        public static async Task UploadTopScoresCacheAsync(string dbPath, string dbKey)
+        {
+            var cachePath = TopScoresCache.CachePathOf(dbPath);
+            if (!File.Exists(cachePath))
+            {
+                Console.WriteLine($"No top scores cache for {Path.GetFileName(dbPath)} (open the Top Scores page or run RefreshEverything to build it)");
+                return;
+            }
+            await new TransferUtility(GetS3Client()).UploadAsync(cachePath, "portabledbs", dbKey + ".topscores.bin");
+            Console.WriteLine($"Uploaded {Path.GetFileName(cachePath)} as {dbKey}.topscores.bin");
+        }
+
+        // The top scores cache of every database in databases.json that has one locally
+        public static async Task UploadAllTopScoresCachesAsync(IDynamicDbContextService dbService, string webRootPath)
+        {
+            foreach (var db in await dbService.GetAvailableDatabasesAsync())
+            {
+                await UploadTopScoresCacheAsync(Path.Combine(webRootPath, db.FileName), db.FileName);
+            }
+        }
+
         public static async Task<bool> DownloadDatabaseFileAsync(string fileName, string localPath)
         {
             try
@@ -248,6 +275,10 @@ namespace portaBLe
                 // Uncomment to upload all local databases to S3 and update databases.json
                 // await UploadAllDatabasesAsync(builder.Environment.WebRootPath);
 
+                // Uncomment to upload the Top Scores page cache of every database in databases.json (UploadDatabaseAsync
+                // already uploads it with the database)
+                // await UploadAllTopScoresCachesAsync(new DynamicDbContextService(builder.Environment), builder.Environment.WebRootPath);
+
                 // Uncomment to set the current .db file as comparison target
                 // SetComparisonDBTarget();
 
@@ -272,6 +303,11 @@ namespace portaBLe
 
                 // Verify all tables/columns from DBModels exist in every database, and add missing ones (after migrations)
                 await EnsureSchemaForAllDatabases(tempDbService, builder.Environment.WebRootPath);
+
+                // Load the main database's Top Scores cache in the background (or build it when it's missing or outdated),
+                // so the page is ready when someone opens it
+                var startupDbService = app.Services.GetRequiredService<IDynamicDbContextService>();
+                _ = Task.Run(() => TopScoresCache.TryGetAsync(() => startupDbService.CreateContext(startupDbService.GetMainDatabaseFileName())));
 
                 // Configure the HTTP request pipeline.
                 if (!app.Environment.IsDevelopment())
@@ -387,7 +423,7 @@ namespace portaBLe
             await UpdateStats(dbContext);
 
             // The Top Scores page cache (wwwroot/cache/<db>.topscores.bin), so the page opens without building it
-            await TopScoresCache.GetAsync(dbContext, rebuild: true);
+            await TopScoresCache.BuildAndSaveAsync(dbContext);
         }
 
         public static async Task UpdateStats(AppContext dbContext)

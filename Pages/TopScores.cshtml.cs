@@ -3,8 +3,8 @@ using portaBLe.Services;
 
 namespace portaBLe.Pages
 {
-    // Every score in one list, best pp first (or another sort), with filters. Reads Services/TopScoresCache (a file per
-    // database, rebuilt when the database changes), never the database itself. Modded scores use their modifier's stars
+    // Every score in one list, best pp first (or another sort), with filters. Reads Services/TopScoresCache (in memory, from
+    // a file per database, built in the background when missing or outdated), never the scores table. Modded scores use their modifier's stars
     // and predicted acc (an SFS score shows the SFS stars), like the scores graph pages.
     public class TopScoresModel : BasePageModel
     {
@@ -32,14 +32,13 @@ namespace portaBLe.Pages
             public float Weight { get; set; }
             public int MapRank { get; set; }
             public bool FC { get; set; }
-            public int Timepost { get; set; }
+            public string Date { get; set; } = "";
 
             public float WeightedPp => Pp * Weight;
             public string MapDetails => Difficulty + (Mode != "Standard" ? " · " + Mode : "") + (string.IsNullOrEmpty(Mapper) ? "" : " · " + Mapper);
             public string ModsText => (Modifiers ?? "") + (FC ? "" : (string.IsNullOrEmpty(Modifiers) ? "✗" : " ✗"));
             // Score acc minus the Acc AI's predicted acc for the speed played (0 when no prediction)
             public float AccVsAi => PredictedAcc > 0 ? Accuracy - PredictedAcc : 0;
-            public string Date => Timepost > 0 ? DateTimeOffset.FromUnixTimeSeconds(Timepost).UtcDateTime.ToString("yyyy-MM-dd") : "";
         }
 
         public List<Row> Rows { get; set; } = new();
@@ -47,6 +46,8 @@ namespace portaBLe.Pages
         public int TotalCount { get; set; }
         public int TotalPages { get; set; }
         public TopScoresCache.Snapshot? Cache { get; set; }
+        public bool Building { get; set; }
+        public string? BuildError { get; set; }
 
         [BindProperty(SupportsGet = true)] public int CurrentPage { get; set; } = 1;
         [BindProperty(SupportsGet = true)] public string SortBy { get; set; } = "pp";
@@ -74,29 +75,24 @@ namespace portaBLe.Pages
         public async Task OnGetAsync(string db = null)
         {
             await InitializeDatabaseSelectionAsync(db);
-            await LoadAsync(rebuild: false);
+            var result = await TopScoresCache.TryGetAsync(() => GetDbContext());
+            Cache = result.Data;
+            Building = result.Building;
+            BuildError = result.Error;
+            if (Cache != null) Load(Cache);
         }
 
-        // "Rebuild cache" button: builds the file again from the database, then shows the same filters
+        // "Rebuild cache" button: rebuilds in the background from the database, the page keeps showing the current data
         public async Task<IActionResult> OnPostRebuildAsync(string db = null, string returnUrl = null)
         {
             await InitializeDatabaseSelectionAsync(db);
-            using (var context = GetDbContext())
-            {
-                await TopScoresCache.GetAsync(context, rebuild: true);
-            }
+            TopScoresCache.StartBuild(() => GetDbContext());
             if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)) return LocalRedirect(returnUrl);
             return RedirectToPage(new { db = SelectedDatabase });
         }
 
-        private async Task LoadAsync(bool rebuild)
+        private void Load(TopScoresCache.Snapshot data)
         {
-            TopScoresCache.Snapshot data;
-            using (var context = GetDbContext())
-            {
-                data = await TopScoresCache.GetAsync(context, rebuild);
-            }
-            Cache = data;
             Modes = data.Modes.ToList();
 
             // Filters, checked once per player / map instead of once per score
@@ -124,48 +120,52 @@ namespace portaBLe.Pages
 
             int[]? order = SortBy switch
             {
-                "weighted" => data.Order("weighted", r => r.Pp * r.Weight),
-                "accPP" => data.Order("accPP", r => r.AccPp),
-                "passPP" => data.Order("passPP", r => r.PassPp),
-                "techPP" => data.Order("techPP", r => r.TechPp),
-                "acc" => data.Order("acc", r => r.Accuracy),
-                "accVsAi" => data.Order("accVsAi", r => r.PredictedAcc > 0 ? r.Accuracy - r.PredictedAcc : float.MinValue),
-                "stars" => data.Order("stars", r => r.Stars),
-                "date" => data.Order("date", r => r.Timepost),
-                _ => null, // the file is already best pp first
+                "weighted" => data.Order("weighted", i => data.Pp[i] * data.Weight(i)),
+                "accPP" => data.Order("accPP", i => data.AccPp10[i]),
+                "passPP" => data.Order("passPP", i => data.PassPp10[i]),
+                "techPP" => data.Order("techPP", i => data.TechPp(i)),
+                "acc" => data.Order("acc", i => data.Acc[i]),
+                "accVsAi" => data.Order("accVsAi", i => data.PredictedAcc(i) > 0 ? data.Accuracy(i) - data.PredictedAcc(i) : float.MinValue),
+                "stars" => data.Order("stars", i => data.Stars(i)),
+                "date" => data.Order("date", i => data.Day[i]),
+                _ => null, // the cache is already best pp first
             };
 
-            int skip = (Math.Max(CurrentPage, 1) - 1) * PageSize;
+            int page = Math.Max(CurrentPage, 1);
+            int skip = (page - 1) * PageSize;
             var picked = new List<int>(PageSize);
             int total = 0;
-            int count = data.Scores.Length;
-            for (int k = 0; k < count; k++)
+            for (int k = 0; k < data.Count; k++)
             {
                 int i = order == null ? k : order[k];
-                var r = data.Scores[i];
-                if (!mapOk[r.Map] || !playerOk[r.Player] || !speedOk[data.ModsSpeed[r.Mods]]) continue;
-                if (MinStars > 0 && r.Stars < MinStars) continue;
-                if (MaxStars > 0 && r.Stars > MaxStars) continue;
-                if (needsPrediction && !(r.PredictedAcc > 0)) continue;
+                if (!mapOk[data.Map[i]] || !playerOk[data.Player[i]] || !speedOk[data.Speed(i)]) continue;
+                if (MinStars > 0 || MaxStars > 0)
+                {
+                    float stars = data.Stars(i);
+                    if (MinStars > 0 && stars < MinStars) continue;
+                    if (MaxStars > 0 && stars > MaxStars) continue;
+                }
+                if (needsPrediction && !(data.PredictedAcc(i) > 0)) continue;
                 if (total >= skip && picked.Count < PageSize) picked.Add(i);
                 total++;
             }
 
             TotalCount = total;
             TotalPages = Math.Max(1, (int)Math.Ceiling(TotalCount / (double)PageSize));
-            if (CurrentPage > TotalPages || CurrentPage < 1)
+            if (page > TotalPages)
             {
-                // Past the last page (filters changed): show the last one
-                CurrentPage = Math.Clamp(CurrentPage, 1, TotalPages);
-                if (total > 0 && picked.Count == 0) { await LoadAsync(false); return; }
+                // Past the last page (the filters changed): show the last one
+                CurrentPage = TotalPages;
+                Load(data);
+                return;
             }
+            CurrentPage = page;
 
-            int position = (CurrentPage - 1) * PageSize;
+            int position = skip;
             Rows = picked.Select(i =>
             {
-                var r = data.Scores[i];
-                var p = data.Players[r.Player];
-                var m = data.Maps[r.Map];
+                var p = data.Players[data.Player[i]];
+                var m = data.Maps[data.Map[i]];
                 return new Row
                 {
                     Position = ++position,
@@ -177,18 +177,18 @@ namespace portaBLe.Pages
                     Mapper = m.Mapper,
                     Difficulty = m.Difficulty,
                     Mode = m.Mode,
-                    Stars = r.Stars,
-                    Accuracy = r.Accuracy,
-                    PredictedAcc = r.PredictedAcc,
-                    Modifiers = data.Modifiers[r.Mods],
-                    Pp = r.Pp,
-                    AccPp = r.AccPp,
-                    PassPp = r.PassPp,
-                    TechPp = r.TechPp,
-                    Weight = r.Weight,
-                    MapRank = r.MapRank,
-                    FC = r.FC,
-                    Timepost = r.Timepost,
+                    Stars = data.Stars(i),
+                    Accuracy = data.Accuracy(i),
+                    PredictedAcc = data.PredictedAcc(i),
+                    Modifiers = data.ModifiersOf(i),
+                    Pp = data.Pp[i],
+                    AccPp = data.AccPp(i),
+                    PassPp = data.PassPp(i),
+                    TechPp = data.TechPp(i),
+                    Weight = data.Weight(i),
+                    MapRank = data.MapRank[i],
+                    FC = data.FC(i),
+                    Date = data.Date(i).ToString("yyyy-MM-dd"),
                 };
             }).ToList();
         }
