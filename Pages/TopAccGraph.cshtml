@@ -8,7 +8,8 @@
 <p class="text-muted" style="font-size: 0.9rem;">
     The best accuracies of every map, by stars. Each speed version of a map is ranked on its own and placed at its own stars
     (an SFS score at the SFS stars). Filters apply before ranking: with max player rank 1000, "top 10" is each map's best 10
-    among the top 1000 players. Every score is drawn as its own point.
+    among the top 1000 players. Every score is drawn as its own point. "Compare with" adds another database's rolling
+    average (same filters) as a dashed purple line.
 </p>
 
 <form method="get" class="card mb-3" autocomplete="off">
@@ -45,6 +46,16 @@
                     <label class="form-check-label"><input asp-for="ModFS" class="form-check-input" /> FS</label>
                     <label class="form-check-label"><input asp-for="ModSFS" class="form-check-input" /> SFS</label>
                 </div>
+            </div>
+            <div class="col-auto">
+                <label class="form-label mb-0" for="CompareDb">Compare with</label>
+                <select asp-for="CompareDb" class="form-select form-select-sm">
+                    <option value="" selected="@(string.IsNullOrEmpty(Model.CompareDb))">None</option>
+                    @foreach (var other in Model.AvailableDatabases.Where(d => d.FileName != Model.SelectedDatabase))
+                    {
+                        <option value="@other.FileName" selected="@(Model.CompareDb == other.FileName)">@other.Name</option>
+                    }
+                </select>
             </div>
             <div class="col-auto">
                 <label class="form-label mb-0" for="RollingWindow">Rolling average (points, 0 = off)</label>
@@ -107,9 +118,20 @@
             }
             const avg = rollingAverage(d.x, d.y, rollingWindow);
             if (avg) traces.push({
-                type: 'scattergl', mode: 'lines', name: `Rolling average (${rollingWindow})`,
-                x: avg.x, y: avg.y, line: { color: '#222', width: 2 }, hoverinfo: 'skip',
+                type: 'scattergl', mode: 'lines', name: `Rolling average: ${d.name}`,
+                x: avg.x, y: avg.y, line: { color: '#222', width: 2.5 },
+                hovertemplate: `${d.name}<br>%{x:.2f}★  %{y:.2f}%<extra></extra>`,
             });
+            // The comparison database's rolling average (same filters), in another color
+            const c = d.compare;
+            if (c && c.count !== undefined) {
+                const cavg = rollingAverage(c.x, c.y, rollingWindow);
+                if (cavg) traces.push({
+                    type: 'scattergl', mode: 'lines', name: `Rolling average: ${c.name} (${c.count.toLocaleString()} scores)`,
+                    x: cavg.x, y: cavg.y, line: { color: '#9b30d9', width: 2.5, dash: 'dash' },
+                    hovertemplate: `${c.name}<br>%{x:.2f}★  %{y:.2f}%<extra></extra>`,
+                });
+            }
             Plotly.react('plot', traces, {
                 margin: { t: 20, r: 20, b: 50, l: 60 },
                 xaxis: { title: 'Stars', zeroline: false },
@@ -133,8 +155,17 @@
                     if (!d.error) setTimeout(load, 10000);
                     return;
                 }
-                statusEl.textContent = `${d.count.toLocaleString()} scores on ${d.maps.length.toLocaleString()} maps`
-                    + (d.building ? ' · the database changed, the cache is being rebuilt' : '');
+                let status = `${d.name}: ${d.count.toLocaleString()} scores on ${d.maps.length.toLocaleString()} maps`
+                    + (d.building ? ' (the database changed, its cache is being rebuilt)' : '');
+                if (d.compare) {
+                    if (d.compare.count !== undefined) status += ` · compared with ${d.compare.name}: ${d.compare.count.toLocaleString()} scores`;
+                    else if (d.compare.error) status += ` · ${d.compare.name}: its cache failed to build (${d.compare.error})`;
+                    else {
+                        status += ` · ${d.compare.name}: building its scores cache, retrying in 10 s…`;
+                        setTimeout(load, 10000);
+                    }
+                }
+                statusEl.textContent = status;
                 render(d);
             } catch (e) {
                 statusEl.textContent = 'Could not load the data.';
