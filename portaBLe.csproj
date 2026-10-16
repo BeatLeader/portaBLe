@@ -52,6 +52,7 @@
     <Content Remove="wwwroot\db-20261016001453-6317.db" />
     <Content Remove="wwwroot\db-20261016032055-8584.db" />
     <Content Remove="wwwroot\db-20261016143231-9824.db" />
+    <Content Remove="wwwroot\db-20261016174737-7809.db" />
     <Content Remove="wwwroot\dump.zip" />
     <Content Remove="wwwroot\export.json" />
   </ItemGroup>
