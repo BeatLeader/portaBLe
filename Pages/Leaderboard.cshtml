@@ -47,7 +47,8 @@
     // The PP formula this instance runs with (start-up options --curve/--gamma/--epsilon/--relative-epsilon/--mode-gamma/--pass-fade/--pass-blend/--acc-cap), so the curve matches the DB.
     var ppCurveConfig = new
     {
-        mode = portaBLe.Refresh.PpCurve.Mode == portaBLe.Refresh.CurveMode.PowerLaw ? "power" : "classic",
+        mode = portaBLe.Refresh.PpCurve.Mode == portaBLe.Refresh.CurveMode.Standing ? "standing"
+            : portaBLe.Refresh.PpCurve.Mode == portaBLe.Refresh.CurveMode.PowerLaw ? "power" : "classic",
         gamma = portaBLe.Refresh.PpCurve.Gamma,
         epsilon = portaBLe.Refresh.PpCurve.Epsilon,
         relativeEpsilon = portaBLe.Refresh.PpCurve.RelativeEpsilon,
@@ -60,6 +61,10 @@
         techWeight = portaBLe.Refresh.PpCurve.TechWeight,
         topEpsilon = portaBLe.Refresh.PpCurve.TopEpsilon,
         starDivisor = portaBLe.Refresh.PpCurve.StarDivisor,
+        standingReferenceAcc = portaBLe.Refresh.PpCurve.StandingReferenceAcc,
+        standingFloor = portaBLe.Refresh.PpCurve.StandingFloor,
+        standingCeiling = portaBLe.Refresh.PpCurve.StandingCeiling,
+        notes = portaBLe.Refresh.PpCurve.NotesFor(Model.Leaderboard?.Id),
     };
 
     // rating triangle of one variant; gid keeps the SVG gradient ids unique, rgb = tech / pass / acc colours

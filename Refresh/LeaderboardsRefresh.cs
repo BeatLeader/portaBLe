@@ -317,7 +317,7 @@ namespace portaBLe.Refresh
                 .ToList();
             foreach (var lb in lbs)
             {
-                lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.PredictedAcc, lb.ModeName);
+                lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.PredictedAcc, lb.ModeName, PpCurve.NotesFor(lb.Id));
             }
 
             await dbContext.BulkUpdateAsync(lbs, options => options.ColumnInputExpression = c => new { c.Stars });

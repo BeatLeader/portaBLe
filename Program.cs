@@ -250,6 +250,7 @@ namespace portaBLe
                 var app = builder.Build();
 
                 InitializeDatabase(app);
+                if (PpCurve.Mode == CurveMode.Standing) PpCurve.LoadNotes(connectionString);
 
                 // Scripted experiments, e.g. (see Analysis/scripts/build_test_dbs.sh):
                 //   dotnet run -- --db wwwroot/test-algo.db --steps import,rerate,scores,stats --acc-source Algorithm --curve PowerLaw --exit
@@ -370,6 +371,12 @@ namespace portaBLe
                             PpCurve.EasyPremium = ep[0];
                             if (ep.Length > 1) PpCurve.EasyPremiumKnee = ep[1];
                             break;
+                        case "--standing-floor": // Standing curve: notes' worth of accuracy added above the prediction (see PpCurve)
+                            PpCurve.StandingFloor = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture);
+                            break;
+                        case "--standing-ceiling": // Standing curve: standing a 100 % counts as, in predicted losses (see PpCurve)
+                            PpCurve.StandingCeiling = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture);
+                            break;
                         case "--star-divisor": // stars = PP of a 96 % score / this (production 52; display only, see PpCurve)
                             PpCurve.StarDivisor = float.Parse(args[++i], System.Globalization.CultureInfo.InvariantCulture);
                             break;
@@ -403,6 +410,10 @@ namespace portaBLe
         {
             PpCurve.Mode = cli.Curve;
             Console.WriteLine($"Pipeline: {string.Join(",", cli.Steps)} | acc source {cli.AccSource} {cli.AccModel ?? "(embedded model)"} | curve {cli.Curve}"
+                + (cli.Curve == CurveMode.Standing ? $" (standing: reference {PpCurve.StandingReferenceAcc}, gamma {PpCurve.Gamma}, acc scale {PpCurve.AccScale}, "
+                    + $"epsilon {PpCurve.Epsilon} + {PpCurve.RelativeEpsilon} x 0.02, note floor {PpCurve.StandingFloor}, ceiling {PpCurve.StandingCeiling}"
+                    + (PpCurve.ModeGammaScale.Count > 0 ? ", spread exponent " + string.Join(", ", PpCurve.ModeGammaScale.Select(kv => $"{kv.Value} on {kv.Key}")) : "")
+                    + (PpCurve.StarDivisor != 52f ? $", stars = PP at 96 % / {PpCurve.StarDivisor}" : "") + ")" : "")
                 + (cli.Curve == CurveMode.PowerLaw ? $" (gamma {PpCurve.Gamma}, acc scale {PpCurve.AccScale}, epsilon {PpCurve.Epsilon}"
                     + (PpCurve.PerMap ? $" + {PpCurve.RelativeEpsilon} x (1 - predicted acc)" : "")
                     + (PpCurve.ModeGammaScale.Count > 0 ? ", gamma x " + string.Join(", ", PpCurve.ModeGammaScale.Select(kv => $"{kv.Value} on {kv.Key}")) : "")

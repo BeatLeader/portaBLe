@@ -99,7 +99,25 @@
 		}
 		return Math.pow(Math.max(1 - acc + eps, 1e-6) / (0.05 + eps), -gamma);
 	}
-	const Curve2 = (acc, predictedAcc, name) => (PP.mode === 'power' ? powerLaw(acc, predictedAcc, name) : interpolateCurve(pointList2, acc));
+	// v7 (PpCurve.StandingCurve): standing r = loss / predicted loss, note floor and soft ceiling above the prediction, paid on the
+	// reference map predicted at standingReferenceAcc
+	function standingCurve(acc, predictedAcc, name) {
+		if (!(predictedAcc > 0 && predictedAcc < 1)) return 0;
+		const loss = Math.max(1 - acc, 0), predLoss = 1 - predictedAcc;
+		let r = loss / predLoss;
+		if (loss < predLoss) {
+			const floor = PP.notes > 0 ? PP.standingFloor / PP.notes : 0;
+			r = (loss + floor) / (predLoss + floor);
+			const g = PP.standingCeiling;
+			r = g + (1 - 2 * g) * r + g * r * r;
+		}
+		const exponent = (PP.modeGamma || {})[name] || 1, ref = 1 - PP.standingReferenceAcc;
+		const lossEq = Math.min(ref * Math.pow(r, exponent), 1);
+		const eps = PP.epsilon + PP.relativeEpsilon * ref;
+		return Math.pow((lossEq + eps) / (0.05 + eps), -PP.gamma);
+	}
+	const Curve2 = (acc, predictedAcc, name) => (PP.mode === 'standing' ? standingCurve(acc, predictedAcc, name)
+		: PP.mode === 'power' ? powerLaw(acc, predictedAcc, name) : interpolateCurve(pointList2, acc));
 
 	// how much lower the score's error rate is than the map's predicted one (log units)
 	const errorAdvantage = (acc, predictedAcc) => Math.log(Math.max(1 - predictedAcc, 1e-4) / Math.max(1 - acc, 1e-4));
@@ -135,13 +153,13 @@
 	}
 
 	function buildCurve(accuracy, passRating, accRating, techRating, golf, predictedAcc, name) {
-		let passPP = 15.2 * Math.exp(Math.pow(passRating, 1 / 2.62)) - 30;
+		let passPP = PP.mode === 'standing' ? 0 : 15.2 * Math.exp(Math.pow(passRating, 1 / 2.62)) - 30;   // v7: no pass PP
 		if (!isFinite(passPP) || isNaN(passPP) || passPP < 0) passPP = 0;
 		// fade and cap judged on the capped accuracy, as in ReplayUtils.GetPp (pass PP stops fading where acc PP stops growing)
 		const acc = accCapped(accuracy, predictedAcc);
 		passPP *= passFadeWeight(acc, predictedAcc);
 		let accPP = golf ? acc * accRating * 42 : Curve2(acc, predictedAcc, name) * accRating * 34;
-		let techPP = Math.exp(1.9 * acc) * 1.08 * techRating * (PP.techWeight ?? 1);
+		let techPP = PP.mode === 'standing' ? 0 : Math.exp(1.9 * acc) * 1.08 * techRating * (PP.techWeight ?? 1);   // v7: no tech PP
 		[passPP, accPP, techPP] = passBlend(passPP, accPP, techPP);
 		const totalPp = Inflate(passPP + accPP + techPP);
 		const inflation = passPP + accPP + techPP > 0 ? totalPp / (passPP + accPP + techPP) : 0;

@@ -66,7 +66,8 @@ namespace portaBLe.Refresh
                                 leaderboard.PassRating,
                                 leaderboard.TechRating,
                                 leaderboard.PredictedAcc,
-                                leaderboard.ModeName);
+                                leaderboard.ModeName,
+                                PpCurve.NotesFor(leaderboard.Id));
 
                             if (float.IsNaN(pp))
                             {

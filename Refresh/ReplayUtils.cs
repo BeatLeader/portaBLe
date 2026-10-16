@@ -10,6 +10,8 @@ namespace portaBLe.Refresh
         Classic,
         /// <summary>Constant-exponent curve in error rate: ((1 - acc + Epsilon) / (0.05 + Epsilon))^-Gamma (= 1 at 95 %).</summary>
         PowerLaw,
+        /// <summary>v7: PP from standing only (PpCurve.StandingCurve), the same standing pays the same on every map; no pass or tech PP.</summary>
+        Standing,
     }
 
     /// <summary>
@@ -36,6 +38,17 @@ namespace portaBLe.Refresh
     /// production. Maps predicted at or below 1 - EasyPremiumKnee are unchanged. 0 = off.
     /// StarDivisor turns the PP of a 96 % score into stars (production 52). Display only: no PP depends on stars. A larger divisor keeps
     /// the star numbers on production's scale when a curve or acc scale raises the PP of 96 % scores on every map.
+    /// Standing (v7, CurveMode.Standing): a score is paid only for its standing, r = (1 - acc) / (1 - predicted acc) (the score's own
+    /// prediction, speed modifiers included), converted to the equivalent accuracy on one reference map predicted at
+    /// StandingReferenceAcc (98 %): loss_eq = 0.02 * r^s (s = ModeGammaScale, One Saber 1.0998 = 1 / 0.909, where error rates fall more
+    /// slowly with skill), paid with the reference map's power curve ((loss_eq + e) / (0.05 + e))^-Gamma, e = Epsilon + RelativeEpsilon
+    /// * 0.02, times the map's AccRating (AccScale on every map, so modifier multipliers apply as usual). The same player at the same
+    /// effort earns the same PP on any map; there is no pass PP, no tech PP and no premium. Two rules act only above the prediction:
+    /// StandingFloor k counts every run as if it lost k notes' worth of accuracy more, r = (loss + k / notes) / (pred loss + k / notes),
+    /// so perfect runs on 20-note maps aren't 'impossible' while a 100 % on a long map still is; StandingCeiling g0 bends the standing
+    /// smoothly, r_eff = g0 + (1 - 2 g0) r + g0 r^2 (value and slope 1 at the prediction), so even a 100 % counts as g0 x the predicted
+    /// loss and near-perfect runs on easy maps pay like the best plays on hard maps. Notes per map come from the optional table
+    /// LeaderboardNotes (LoadNotes); without it the floor is off.
     /// TopEpsilon (Loloppe's "trim the tail above the prediction"): above the map's predicted accuracy the curve uses the offset
     /// max(eps, TopEpsilon), so on the easiest maps (small eps) near-perfect plays gain less; continuous at the prediction and unchanged
     /// below it, so the acc rating (anchored at the prediction) and stars (at 96 %) don't move. 0 = off.
@@ -62,6 +75,49 @@ namespace portaBLe.Refresh
         public static float EasyPremium = 0f;
         public static float EasyPremiumKnee = 0.01f;
         public static float StarDivisor = 52f;
+        public const float StandingReferenceAcc = 0.98f;
+        public static float StandingFloor = 0.5f;
+        public static float StandingCeiling = 0.5f;
+        public static Dictionary<string, int> MapNotes = new();
+
+        public static int NotesFor(string? leaderboardId) =>
+            leaderboardId != null && MapNotes.TryGetValue(leaderboardId, out var n) ? n : 0;
+
+        /// <summary>Loads LeaderboardNotes (LeaderboardId, Notes) if the DB has it; used by the Standing curve's note floor.</summary>
+        public static void LoadNotes(string connectionString)
+        {
+            using var conn = new Microsoft.Data.Sqlite.SqliteConnection(connectionString);
+            conn.Open();
+            using var check = conn.CreateCommand();
+            check.CommandText = "SELECT count(*) FROM sqlite_master WHERE type = 'table' AND name = 'LeaderboardNotes'";
+            if (Convert.ToInt32(check.ExecuteScalar()) == 0) { Console.WriteLine("Standing curve: no LeaderboardNotes table, note floor off"); return; }
+            using var cmd = conn.CreateCommand();
+            cmd.CommandText = "SELECT LeaderboardId, Notes FROM LeaderboardNotes";
+            using var reader = cmd.ExecuteReader();
+            var notes = new Dictionary<string, int>();
+            while (reader.Read()) notes[reader.GetString(0)] = reader.GetInt32(1);
+            MapNotes = notes;
+            Console.WriteLine($"Standing curve: notes for {notes.Count} maps");
+        }
+
+        /// <summary>The reference-map curve value of a score's standing (see the class summary); 0 without a prediction.</summary>
+        public static float StandingCurve(float acc, float predictedAcc, int notes, string? mode)
+        {
+            if (predictedAcc <= 0 || predictedAcc >= 1) return 0f;
+            float loss = MathF.Max(1f - acc, 0f), predLoss = 1f - predictedAcc;
+            float r = loss / predLoss;
+            if (loss < predLoss)
+            {
+                float floor = notes > 0 ? StandingFloor / notes : 0f;
+                r = (loss + floor) / (predLoss + floor);
+                float g = StandingCeiling;
+                r = g + (1f - 2f * g) * r + g * r * r;
+            }
+            float exponent = mode != null && ModeGammaScale.TryGetValue(mode, out var scale) ? scale : 1f;
+            float lossEq = MathF.Min((1f - StandingReferenceAcc) * MathF.Pow(r, exponent), 1f);
+            float eps = Epsilon + RelativeEpsilon * (1f - StandingReferenceAcc);
+            return MathF.Pow((lossEq + eps) / (0.05f + eps), -Gamma);
+        }
 
         public static float TechScaleFor(string? mode) =>
             mode != null && ModeTechScale.TryGetValue(mode, out var scale) ? scale : 1f;
@@ -267,6 +323,7 @@ namespace portaBLe.Refresh
         }
 
         public static float AccRating(float? predictedAcc, float? passRating, float? techRating, string? mode = null) {
+            if (PpCurve.Mode == CurveMode.Standing) return predictedAcc > 0 ? PpCurve.AccScale : 0f;   // one rating on every map (v7)
             float difficulty_to_acc;
             if (predictedAcc > 0) {
                 float pred = predictedAcc ?? 0;
@@ -291,7 +348,9 @@ namespace portaBLe.Refresh
         /// the map's curve, AccCap on acc/tech and PassFade on pass, both judged on the capped accuracy (so pass PP stops fading
         /// where acc PP stops growing), then PassBlend.
         /// </summary>
-        private static (float, float, float) GetPp(float accuracy, float accRating, float passRating, float techRating, float predictedAcc = 0, string? mode = null) {
+        private static (float, float, float) GetPp(float accuracy, float accRating, float passRating, float techRating, float predictedAcc = 0, string? mode = null, int notes = 0) {
+            if (PpCurve.Mode == CurveMode.Standing)
+                return (0f, PpCurve.StandingCurve(accuracy, predictedAcc, notes, mode) * accRating * 34f, 0f);
 
             float passPP = 15.2f * MathF.Exp(MathF.Pow(passRating, 1 / 2.62f)) - 30f;
             if (float.IsInfinity(passPP) || float.IsNaN(passPP) || float.IsNegativeInfinity(passPP) || passPP < 0)
@@ -308,8 +367,8 @@ namespace portaBLe.Refresh
         }
 
         /// <summary>PP of a 96 % score / PpCurve.StarDivisor (production 52), with the same curve, fade and cap as scores on this map.</summary>
-        public static float ToStars(float accRating, float passRating, float techRating, float predictedAcc = 0, string? mode = null) {
-            (float passPP, float accPP, float techPP) = GetPp(0.96f, accRating, passRating, techRating, predictedAcc, mode);
+        public static float ToStars(float accRating, float passRating, float techRating, float predictedAcc = 0, string? mode = null, int notes = 0) {
+            (float passPP, float accPP, float techPP) = GetPp(0.96f, accRating, passRating, techRating, predictedAcc, mode, notes);
 
             return Inflate(passPP + accPP + techPP) / PpCurve.StarDivisor;
         }
@@ -322,7 +381,8 @@ namespace portaBLe.Refresh
             float passRating, 
             float techRating,
             float predictedAcc = 0,
-            string? mode = null)
+            string? mode = null,
+            int notes = 0)
         {
             if (accuracy <= 0 || accuracy > 1) return (0, 0, 0, 0, 0);
 
@@ -335,7 +395,7 @@ namespace portaBLe.Refresh
             float rawPP = 0; float fullPP = 0; float passPP = 0; float accPP = 0; float techPP = 0; float increase = 0; 
             if (!modifiers.Contains("NF"))
             {
-                (passPP, accPP, techPP) = GetPp(accuracy, accRating, passRating, techRating, predictedAcc, mode);
+                (passPP, accPP, techPP) = GetPp(accuracy, accRating, passRating, techRating, predictedAcc, mode, notes);
 
                 rawPP = Inflate(passPP + accPP + techPP);
                 if (modifiersRating != null) {
@@ -354,7 +414,7 @@ namespace portaBLe.Refresh
                         }
                     }
                 }
-                (passPP, accPP, techPP) = GetPp(accuracy, accRating * mp, passRating * mp, techRating * mp, predictedAcc, mode);
+                (passPP, accPP, techPP) = GetPp(accuracy, accRating * mp, passRating * mp, techRating * mp, predictedAcc, mode, notes);
                 fullPP = Inflate(passPP + accPP + techPP);
                 if (passPP + accPP + techPP > 0) {
                     increase = fullPP / (passPP + accPP + techPP);

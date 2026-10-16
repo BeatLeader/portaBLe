@@ -846,6 +846,38 @@ on it than on its star neighbours (The Curse Of The Lovely Fox, cryptic worthy w
 Args: `--curve PowerLaw --gamma 0.6198 --acc-scale 1.2468 --relative-epsilon 0.75 --pass-blend 1.5 --mode-gamma OneSaber=1.0998
 --mode-tech OneSaber=0.76 --difficulty-premium 0.1 --tech-weight 0.25 --top-epsilon 0.02 --easy-premium 1,0.01 --star-divisor 56.5`.
 
+## v7 prototype: PP from standing only ("flat")
+
+Goal (user): a player who plays any map with enough effort gets the same PP from it. v7 pays a score only for its standing on the map,
+`r = (1 - acc) / (1 - predicted acc)` (the score's own prediction, speed modifiers included), converted to the equivalent accuracy on one
+reference map predicted at 98 % and paid with that map's power curve (`PpCurve.StandingCurve`, `--curve Standing`):
+
+- `loss_eq = 0.02 * r^s` (s = 1, One Saber 1.0998 = 1 / 0.909 through `--mode-gamma`), PP = Inflate(A x 34 x ((loss_eq + e) / (0.05 + e))^-0.6198
+  x modifier multiplier), e = 0.0016 + 0.75 x 0.02. A = `--acc-scale` is stored as the AccRating of every map and modifier row.
+- No pass PP, no tech PP, no difficulty premium, no top taper. Pass and tech ratings stay in the DB for display.
+- Above the prediction only: a note floor (`--standing-floor` k 0.5: every run counts as if it lost k notes' worth of accuracy more, so a
+  perfect run on a 20-note map isn't "impossible", while a 100 % on a long map still is; note counts from the optional table
+  `LeaderboardNotes`) and a soft ceiling (`--standing-ceiling` g0 0.5: r_eff = g0 + (1 - 2 g0) r + g0 r^2, value and slope 1 at the
+  prediction, a 100 % counts as half the predicted loss).
+- Stars stay the PP of a 96 % score (`--star-divisor 57.5` keeps maps prod rates 6★+ on prod's scale); they show difficulty, PP doesn't depend on them.
+
+Evidence on the October scores:
+
+- The skill model fits every player level x map difficulty within ±0.03 in log accuracy loss (top 1 % on easy maps -0.004), so standing
+  is comparable across maps.
+- Without the floor and ceiling, near-perfect runs on micro-maps (Quiet Water Easy, 20 notes) read as impossible skill (1 388 PP). With
+  them the best runs on easy maps pay like the best plays on hard maps: best 50 plays on maps predicted > 99 % 837 PP vs < 97.5 % 833 PP.
+- Same player, median of the best 3 of 5 random plays per difficulty band / on 98-99 % maps: deployed v6 x1.14-1.25 on maps < 97 % and
+  x0.72-0.80 on 99-99.5 %; v7 x0.94-1.07 everywhere. On scores the player worked on (>= 15 attempts) the top 1 000 are flat within 4 %;
+  the rest of the raw tilt is where players spend effort today (median attempts of the top 100: 9 on maps < 97 %, 1 on 98-99.5 %), so no
+  curvature term was fitted to it.
+- PP vs prod by prod rank 1-100 / 101-1k / 1k-10k / 10k-50k: +4.8 / +4.0 / 0.0 / -1.3 %; #1 23 692; max play 893; 343 plays > 800; FS/SF
+  9.2 % of the top 1 000; players below rank 20k: median 115 PP per play on maps predicted > 99 % (v6 86.5).
+
+Args: `--curve Standing --gamma 0.6198 --acc-scale 14.486 --relative-epsilon 0.75 --mode-gamma OneSaber=1.0998 --standing-floor 0.5
+--standing-ceiling 0.5 --star-divisor 57.5`. Open: One Saber and speed modifiers on the like-effort test; stars of Easy maps (median 5.0★,
+prod 2.9★) since there is no premium.
+
 ## Known limitations
 
 * Weights are fitted on today's ranked Standard and (since v5) One Saber pool; maps far outside it (gimmicks, extreme speeds,
