@@ -46,6 +46,31 @@
                         </div>
                     </div>
                     <div class="row">
+                        <div class="col-md-12">
+                            <div class="form-group">
+                                <label>Speed modifiers to include</label>
+                                <div>
+                                    <div class="form-check form-check-inline">
+                                        <input id="modNone" type="checkbox" class="form-check-input" checked="@Model.ModNone" />
+                                        <label class="form-check-label" for="modNone">No speed modifier</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input id="modSS" type="checkbox" class="form-check-input" checked="@Model.ModSS" />
+                                        <label class="form-check-label" for="modSS">SS</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input id="modFS" type="checkbox" class="form-check-input" checked="@Model.ModFS" />
+                                        <label class="form-check-label" for="modFS">FS</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input id="modSFS" type="checkbox" class="form-check-input" checked="@Model.ModSFS" />
+                                        <label class="form-check-label" for="modSFS">SFS</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
                         <div class="col-md-3">
                             <div class="form-group">
                                 <label for="ySelect">Y-axis</label>
@@ -270,7 +295,7 @@
         }
 
         // initial render with empty data
-        const defaultWindow = parseInt(document.getElementById('rollingWindow').value || '50');
+        const defaultWindow = parseInt(document.getElementById('rollingWindow').value || '400');
         renderPlot(data, 'x', 'pp', defaultWindow);
 
         document.getElementById('xSelect').addEventListener('change', function() {
@@ -305,6 +330,10 @@
             const maxPlayerRank = parseInt(document.getElementById('maxPlayerRank').value) || 0;
             const minRankedPlayCount = parseInt(document.getElementById('minRankedPlayCount').value) || 0;
             const playerId = (document.getElementById('playerId').value || '').trim();
+            const modNone = document.getElementById('modNone').checked;
+            const modSS = document.getElementById('modSS').checked;
+            const modFS = document.getElementById('modFS').checked;
+            const modSFS = document.getElementById('modSFS').checked;
             const x = document.getElementById('xSelect').value;
             const y = document.getElementById('ySelect').value;
             const windowSize = parseInt(document.getElementById('rollingWindow').value) || 50;
@@ -317,6 +346,10 @@
             pageUrl.searchParams.set('maxPlayerRank', maxPlayerRank);
             pageUrl.searchParams.set('minRankedPlayCount', minRankedPlayCount);
             pageUrl.searchParams.set('playerId', playerId);
+            pageUrl.searchParams.set('modNone', modNone);
+            pageUrl.searchParams.set('modSS', modSS);
+            pageUrl.searchParams.set('modFS', modFS);
+            pageUrl.searchParams.set('modSFS', modSFS);
             window.history.replaceState({}, '', pageUrl);
 
             const url = new URL(window.location.href);
@@ -330,6 +363,10 @@
             url.searchParams.set('maxPlayerRank', maxPlayerRank);
             url.searchParams.set('minRankedPlayCount', minRankedPlayCount);
             url.searchParams.set('playerId', playerId);
+            url.searchParams.set('modNone', modNone);
+            url.searchParams.set('modSS', modSS);
+            url.searchParams.set('modFS', modFS);
+            url.searchParams.set('modSFS', modSFS);
             if (dbParam) url.searchParams.set('db', dbParam);
 
             showSpinner(true);
@@ -355,8 +392,8 @@
         function shouldAutoLoad() {
             const urlParams = new URLSearchParams(window.location.search);
             // Check if any filter parameter is set (excluding just 'db')
-            const filterParams = ['minYear', 'minMonth', 'minDay', 'maxPlayerRank', 'minRankedPlayCount', 'playerId'];
-            return filterParams.some(param => urlParams.has(param) && urlParams.get(param) !== '' && urlParams.get(param) !== '0');
+            const filterParams = ['minYear', 'minMonth', 'minDay', 'maxPlayerRank', 'minRankedPlayCount', 'playerId', 'modNone', 'modSS', 'modFS', 'modSFS'];
+            return filterParams.some(param => urlParams.has(param) && urlParams.get(param) !== '' && urlParams.get(param) !== '0' && urlParams.get(param) !== 'true');
         }
 
         // Auto-load on page load if filters are present

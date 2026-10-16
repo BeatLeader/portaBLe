@@ -19,7 +19,7 @@ namespace portaBLe.Refresh
         public double TechAccExponent { get; set; } = 1.9;
         public double InflateBase { get; set; } = 650;
         public double InflateExponent { get; set; } = 1.3;
-        public double StarDivisor { get; set; } = 44.64;
+        public double StarDivisor { get; set; } = 49.13;
         public double PpMultiplier { get; set; } = 1.042;
 
         public static PpFormula Current { get; set; } = new();

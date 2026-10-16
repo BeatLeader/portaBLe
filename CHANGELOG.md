@@ -20,6 +20,12 @@ and validate constants.
 
 - **pp formula retuned for the new Acc AI model:** PassScale 15.2 → 12.9, TechWeight 0.694 → 0.63, PpMultiplier 1.075 → 1.042.
   - Why: pp had inflated with the new model, and pass pp was a bit too high.
+- **Hard map correction of the acc rating.** Below 96.75% predicted acc, the acc rating uses a predicted acc lowered by 1.24×
+  the distance below 96.75% (at most 2.17%, reached at 95%). The stored predicted acc and the curves don't change.
+  - Why: top players' acc fell further behind the Acc AI's prediction on the hardest maps (−1.1% at 96%, −1.5% at 95.4%,
+    after removing each player's own level), so their pp stopped rising past about 12 stars.
+  - Simulated on every score: top 100 players' median pp by star band now keeps rising past 11 stars (586, 601, 604, 614
+    instead of 578, 565, 571); 208 of 3886 Standard maps change; top 1000 rank correlation 0.98.
 
 ### Performance
 
@@ -33,6 +39,9 @@ and validate constants.
 
 ### Tools and cleanup
 
+- **Speed modifier filters on the Weighted and Unweighted Scores Graph pages.** Tick which scores to include: no speed
+  modifier, SS, FS and/or SFS. Modded scores are placed on the X axis with their modifier's stars and ratings (an SFS
+  score uses the SFS stars).
 - **New research tools in `Refresh/Tools/`:**
   - `ParityCheck`: Analyzer parity vs replays.
   - `RatingFitExport`: swings, scores and walls, used to fit the formulas and the Acc AI's player skills.

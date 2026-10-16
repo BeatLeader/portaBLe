@@ -15,7 +15,8 @@ namespace portaBLe.Refresh
     //   the database was rated with.
     // - TechWeight (PpFormula.TechWeight): tech pp = e^(1.9 * acc) * TechWeight * tech rating. Does exactly what TechScaler
     //   does to pp and stars, without changing the tech ratings themselves, so this is the one the tuner moves.
-    // - AccScale and AccOffset (RatingAPI AccRating.ACC_SCALE / ACC_OFFSET): acc rating = AccScale / Curve(predictedAcc + AccOffset).
+    // - AccScale and AccOffset (RatingAPI AccRating.ACC_SCALE / ACC_OFFSET): acc rating = AccScale / Curve(effective acc + AccOffset),
+    //   the effective acc being the predicted acc after AccRating's hard map correction (AccRating.EffectiveAcc, not tuned here).
     public class RatingConstants
     {
         public double PassCalibration { get; set; } = 0.655;
@@ -499,8 +500,9 @@ namespace portaBLe.Refresh
             double newAcc = accRating;
             if (predictedAcc > 0)
             {
-                double oldBase = from.AccScale / ReplayUtils.Curve((float)(predictedAcc + from.AccOffset));
-                double newBase = to.AccScale / ReplayUtils.Curve((float)(predictedAcc + to.AccOffset));
+                double effectiveAcc = global::RatingAPI.Controllers.AccRating.EffectiveAcc(predictedAcc);
+                double oldBase = from.AccScale / ReplayUtils.Curve((float)(effectiveAcc + from.AccOffset));
+                double newBase = to.AccScale / ReplayUtils.Curve((float)(effectiveAcc + to.AccOffset));
                 if (oldBase > 0 && double.IsFinite(newBase)) newAcc = accRating * newBase / oldBase;
             }
             return ((float)newPass, (float)newTech, (float)newAcc);

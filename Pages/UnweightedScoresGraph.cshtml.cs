@@ -26,6 +26,16 @@ namespace portaBLe.Pages
         [BindProperty(SupportsGet = true)]
         public string PlayerId { get; set; } = string.Empty;
 
+        // Speed modifiers to include (a score has at most one). All ticked = unfiltered.
+        [BindProperty(SupportsGet = true)]
+        public bool ModNone { get; set; } = true;
+        [BindProperty(SupportsGet = true)]
+        public bool ModSS { get; set; } = true;
+        [BindProperty(SupportsGet = true)]
+        public bool ModFS { get; set; } = true;
+        [BindProperty(SupportsGet = true)]
+        public bool ModSFS { get; set; } = true;
+
         public UnweightedScoresGraphModel(IDynamicDbContextService dbService) : base(dbService)
         {
         }
@@ -36,11 +46,11 @@ namespace portaBLe.Pages
             UnweightedJsonData = "[]";
         }
 
-        public async Task<IActionResult> OnGetDataAsync(int minYear = 0, int minMonth = 0, int minDay = 0, int maxPlayerRank = 0, int minRankedPlayCount = 0, string playerId = "", string db = null)
+        public async Task<IActionResult> OnGetDataAsync(int minYear = 0, int minMonth = 0, int minDay = 0, int maxPlayerRank = 0, int minRankedPlayCount = 0, string playerId = "", bool modNone = true, bool modSS = true, bool modFS = true, bool modSFS = true, string db = null)
         {
             await InitializeDatabaseSelectionAsync(db);
             int minTimepost = ConvertDateToUnix(minYear, minMonth, minDay);
-            var filteredPoints = await GetFilteredPointsAsync(minTimepost, maxPlayerRank, minRankedPlayCount, playerId);
+            var filteredPoints = await GetFilteredPointsAsync(minTimepost, maxPlayerRank, minRankedPlayCount, playerId, modNone, modSS, modFS, modSFS);
             return new JsonResult(filteredPoints);
         }
 
@@ -61,11 +71,11 @@ namespace portaBLe.Pages
             }
         }
 
-        private async Task<List<object>> GetFilteredPointsAsync(int minTimepost, int maxPlayerRank, int minRankedPlayCount, string playerId)
+        private async Task<List<object>> GetFilteredPointsAsync(int minTimepost, int maxPlayerRank, int minRankedPlayCount, string playerId, bool modNone, bool modSS, bool modFS, bool modSFS)
         {
             using var context = (Services.DynamicDbContext)GetDbContext();
 
-            var points = await context.Scores
+            var rows = await ScoreModifierFilter.Apply(context.Scores, modNone, modSS, modFS, modSFS)
                 .Include(s => s.Player)
                 .Include(s => s.Leaderboard)
                 .Where(s => s.Timepost >= minTimepost
@@ -75,17 +85,48 @@ namespace portaBLe.Pages
                             && (string.IsNullOrWhiteSpace(playerId) || s.PlayerId == playerId))
                 .Select(s => new
                 {
-                    x = (double)s.Leaderboard.Stars,
+                    mods = s.Modifiers,
+                    stars = (double)s.Leaderboard.Stars,
+                    accRating = (double)s.Leaderboard.AccRating,
+                    passRating = (double)s.Leaderboard.PassRating,
+                    techRating = (double)s.Leaderboard.TechRating,
+                    ssStars = (double?)s.Leaderboard.ModifiersRating.SSStars,
+                    fsStars = (double?)s.Leaderboard.ModifiersRating.FSStars,
+                    sfStars = (double?)s.Leaderboard.ModifiersRating.SFStars,
+                    ssAcc = (double?)s.Leaderboard.ModifiersRating.SSAccRating,
+                    fsAcc = (double?)s.Leaderboard.ModifiersRating.FSAccRating,
+                    sfAcc = (double?)s.Leaderboard.ModifiersRating.SFAccRating,
+                    ssPass = (double?)s.Leaderboard.ModifiersRating.SSPassRating,
+                    fsPass = (double?)s.Leaderboard.ModifiersRating.FSPassRating,
+                    sfPass = (double?)s.Leaderboard.ModifiersRating.SFPassRating,
+                    ssTech = (double?)s.Leaderboard.ModifiersRating.SSTechRating,
+                    fsTech = (double?)s.Leaderboard.ModifiersRating.FSTechRating,
+                    sfTech = (double?)s.Leaderboard.ModifiersRating.SFTechRating,
                     pp = (double)s.Pp,
                     acc = (double)s.Accuracy,
                     accPP = (double)s.AccPP,
                     passPP = (double)s.PassPP,
                     techPP = (double)s.TechPP,
-                    accRating = (double)s.Leaderboard.AccRating,
-                    passRating = (double)s.Leaderboard.PassRating,
-                    techRating = (double)s.Leaderboard.TechRating
                 })
                 .ToListAsync();
+
+            // A modded score uses its modifier's stars and ratings (SFS score -> SFS stars), the others the base ones
+            var points = rows.Select(s =>
+            {
+                var speed = ScoreModifierFilter.SpeedModifier(s.mods);
+                return new
+                {
+                    x = ScoreModifierFilter.Pick(speed, s.stars, s.ssStars, s.fsStars, s.sfStars),
+                    pp = s.pp,
+                    acc = s.acc,
+                    accPP = s.accPP,
+                    passPP = s.passPP,
+                    techPP = s.techPP,
+                    accRating = ScoreModifierFilter.Pick(speed, s.accRating, s.ssAcc, s.fsAcc, s.sfAcc),
+                    passRating = ScoreModifierFilter.Pick(speed, s.passRating, s.ssPass, s.fsPass, s.sfPass),
+                    techRating = ScoreModifierFilter.Pick(speed, s.techRating, s.ssTech, s.fsTech, s.sfTech)
+                };
+            }).ToList();
 
             int numXBins = 500;
             int numYBins = 500;

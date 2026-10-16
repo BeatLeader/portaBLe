@@ -40,7 +40,7 @@ After a pp formula change only (`Refresh/PpFormula.cs`), skip step 1.
 | Pass / one saber / tech scaling | `RatingAPI/Analyzer/.../Algorithm/AnalyzeMap.cs` (`PASS_CALIBRATION_FACTOR`, `ONE_SABER_NERF`, `BALANCED_TECH_SCALER`) |
 | Pass formula (fitted on fail data) | `RatingAPI/Analyzer/.../Algorithm/Difficulty.cs` (falloffs, stress weights, wall buffs) |
 | Parity | `RatingAPI/Analyzer/.../Algorithm/ParityPredictor.cs` (comfort / rotation / reset costs, `UsePairResets`) |
-| Acc rating | `RatingAPI/Controllers/AccRating.cs` (`ACC_SCALE`, `ACC_OFFSET`) |
+| Acc rating | `RatingAPI/Controllers/AccRating.cs` (`ACC_SCALE`, `ACC_OFFSET`, hard map correction `HARD_MAP_KNEE` / `HARD_MAP_SLOPE` / `HARD_MAP_FLOOR`, fitted with `Refresh/Tools/hard_map_offset_fit.py`) |
 | pp formula | `Refresh/PpFormula.cs` (pass / acc / tech pp, inflate, `StarDivisor`, `PpMultiplier`) |
 | Constants the tuner assumes | `Refresh/Tools/BalanceTuner.cs` (`RatingConstants`: keep it equal to the values in code) |
 
