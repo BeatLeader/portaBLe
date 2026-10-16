@@ -18,10 +18,10 @@ namespace portaBLe.Pages
         public int MinDay { get; set; } = 0;
 
         [BindProperty(SupportsGet = true)]
-        public int MaxPlayerRank { get; set; } = 0;
+        public int MaxPlayerRank { get; set; } = 1000;
 
         [BindProperty(SupportsGet = true)]
-        public int MinRankedPlayCount { get; set; } = 0;
+        public int MinRankedPlayCount { get; set; } = 100;
 
         [BindProperty(SupportsGet = true)]
         public string PlayerId { get; set; } = string.Empty;
@@ -36,6 +36,10 @@ namespace portaBLe.Pages
         [BindProperty(SupportsGet = true)]
         public bool ModSFS { get; set; } = true;
 
+        // Rolling average window (points), kept in the URL so it survives switching databases
+        [BindProperty(SupportsGet = true)]
+        public int RollingWindow { get; set; } = 400;
+
         public UnweightedScoresGraphModel(IDynamicDbContextService dbService) : base(dbService)
         {
         }
@@ -46,7 +50,7 @@ namespace portaBLe.Pages
             UnweightedJsonData = "[]";
         }
 
-        public async Task<IActionResult> OnGetDataAsync(int minYear = 0, int minMonth = 0, int minDay = 0, int maxPlayerRank = 0, int minRankedPlayCount = 0, string playerId = "", bool modNone = true, bool modSS = true, bool modFS = true, bool modSFS = true, string db = null)
+        public async Task<IActionResult> OnGetDataAsync(int minYear = 0, int minMonth = 0, int minDay = 0, int maxPlayerRank = 1000, int minRankedPlayCount = 100, string playerId = "", bool modNone = true, bool modSS = true, bool modFS = true, bool modSFS = true, string db = null)
         {
             await InitializeDatabaseSelectionAsync(db);
             int minTimepost = ConvertDateToUnix(minYear, minMonth, minDay);

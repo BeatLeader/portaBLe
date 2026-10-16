@@ -185,7 +185,8 @@ namespace portaBLe.Refresh
             {
                 (passPP, accPP, techPP) = GetPp(accuracy, accRating, passRating, techRating, curve);
 
-                rawPP = Inflate(passPP + accPP + techPP);
+                // Low star bonus (PpFormula.LowStarMultiplier), from the stars of the ratings each pp uses
+                rawPP = Inflate(passPP + accPP + techPP) * PpFormula.Current.LowStarMultiplier(ToStars(accRating, passRating, techRating));
                 var scoreCurve = curve;
                 // Only scores with modifiers can use the modifier ratings (skips the reflection for every other score)
                 if (modifiersRating != null && !string.IsNullOrEmpty(modifiers)) {
@@ -204,7 +205,7 @@ namespace portaBLe.Refresh
                     }
                 }
                 (passPP, accPP, techPP) = GetPp(accuracy, accRating * mp, passRating * mp, techRating * mp, scoreCurve);
-                fullPP = Inflate(passPP + accPP + techPP);
+                fullPP = Inflate(passPP + accPP + techPP) * PpFormula.Current.LowStarMultiplier(ToStars(accRating, passRating, techRating));
                 if (passPP + accPP + techPP > 0) {
                     increase = fullPP / (passPP + accPP + techPP);
                 }

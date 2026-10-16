@@ -8,6 +8,7 @@ namespace portaBLe.Refresh
     //   tech pp = e^(TechAccExponent * acc) * TechWeight * tech
     //   pp      = InflateBase * (pass + acc + tech)^InflateExponent / InflateBase^InflateExponent
     //   pp      = pp * PpMultiplier
+    //   pp      = pp * (1 + LowStarBonus * (LowStarBonusEnd - stars)^LowStarBonusPower)   (only under LowStarBonusEnd stars)
     //   stars   = pp at 96% / StarDivisor (before PpMultiplier, so the multiplier doesn't move stars)
     public class PpFormula
     {
@@ -21,6 +22,18 @@ namespace portaBLe.Refresh
         public double InflateExponent { get; set; } = 1.3;
         public double StarDivisor { get; set; } = 49.13;
         public double PpMultiplier { get; set; } = 1.042;
+
+        // Low star bonus: maps under LowStarBonusEnd stars pay more, without changing their stars (+45% at 1 star, +17% at 2,
+        // +6% at 3, nothing from 4). Top players farm the easiest maps to 99%+, but stars are measured at 96%, so the
+        // unweighted pp vs stars graph fell off steeply under 4 stars. A soft floor on the acc rating (tried, then removed)
+        // lifted their stars too, which squeezed them into 2.5-4 stars where they paid more than real 3-4 star maps (a bump
+        // on the graph). Raising pp at a given star value keeps maps where they are: simulated on the graph (players ranked
+        // top 1000, 100+ ranked plays), the rolling average rises 243, 274, 278, 293, 301, 313, 329 from 1 to 4 stars (was
+        // 194, 229, 244, 270, 288, 310, 329), unchanged from 4 stars; #1 and #100 player totals unchanged. Set LowStarBonus
+        // to 0 to turn it off.
+        public double LowStarBonus { get; set; } = 0.06;
+        public double LowStarBonusEnd { get; set; } = 4;
+        public double LowStarBonusPower { get; set; } = 1.5;
 
         public static PpFormula Current { get; set; } = new();
 
@@ -39,9 +52,15 @@ namespace portaBLe.Refresh
 
         public float TechPp(float accuracy, float techRating) => MathF.Exp((float)TechAccExponent * accuracy) * (float)TechWeight * techRating;
 
+        public float LowStarMultiplier(float stars)
+        {
+            if (LowStarBonus <= 0 || float.IsNaN(stars) || stars >= LowStarBonusEnd) return 1;
+            return 1 + (float)(LowStarBonus * Math.Pow(LowStarBonusEnd - Math.Max(stars, 0), LowStarBonusPower));
+        }
+
         public float Inflate(float pp) => (float)PpMultiplier * (float)InflateBase * MathF.Pow(pp, (float)InflateExponent) / MathF.Pow((float)InflateBase, (float)InflateExponent);
 
         public override string ToString() => FormattableString.Invariant(
-            $"pass {PassScale}*e^(p^(1/{PassExponent}))-{PassOffset}, acc x{AccWeight}, tech e^({TechAccExponent}a)*{TechWeight}, inflate ^{InflateExponent}, x{PpMultiplier}, stars /{StarDivisor}");
+            $"pass {PassScale}*e^(p^(1/{PassExponent}))-{PassOffset}, acc x{AccWeight}, tech e^({TechAccExponent}a)*{TechWeight}, inflate ^{InflateExponent}, x{PpMultiplier}, stars /{StarDivisor}, low star bonus {LowStarBonus}*({LowStarBonusEnd}-stars)^{LowStarBonusPower}");
     }
 }

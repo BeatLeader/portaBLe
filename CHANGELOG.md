@@ -27,6 +27,18 @@ and validate constants.
   - Simulated on every score: top 100 players' median pp by star band now keeps rising past 11 stars (586, 601, 604, 614
     instead of 578, 565, 571); 208 of 3886 Standard maps change; top 1000 rank correlation 0.98.
 
+- **Low star pp bonus** (`PpFormula.LowStarBonus` 0.06): maps under 4 stars pay more, ×(1 + 0.06 × (4 − stars)^1.5):
+  +45% at 1 star, +17% at 2, +6% at 3, nothing from 4. Stars don't change.
+  - Why: top players farm the easiest maps to 99%+ but stars are measured at 96%, so pp fell off steeply under 4 stars.
+    A first try, a soft floor on the acc rating (removed), raised the stars of those maps too and squeezed
+    them into 2.5-4 stars, where they paid more than real 3-4 star maps.
+  - Simulated on the Unweighted Scores Graph (top 1000 players, 100+ ranked plays): the rolling average from 1 to 4 stars
+    is 243, 274, 278, 293, 301, 313, 329 (was 194, 229, 244, 270, 288, 310, 329), unchanged from 4 stars. #1 and #100
+    player totals unchanged, #1000 +6pp.
+
+- **Per-map acc curve table updated** (`RatingAPI/Controllers/Curve.cs`, `CurveSettings.Table`): new A, C, K, W, K2 and P2
+  from 95.5% to 99.5% predicted acc. The 96-97.5% rows ease back to the default shape by 97.5-98.5% instead of 97%.
+
 ### Performance
 
 - **New `ScoresPlayersRefresh`:** recalculates scores and players in a single pass, about 3× faster. `RefreshEverything`
@@ -42,6 +54,11 @@ and validate constants.
 - **NJS on the Leaderboard page**, under the predicted acc (with a speed modifier: the NJS the player sees). Stored in
   `Leaderboard.Njs`: `RatingsRefresh.Overwrite` saves it, `RatingsRefresh.RefreshNjs` fills it from the maps folder without
   rating again. The column is added to every database at startup.
+- **New Top Scores page:** every score in one list, best pp first, with stars, acc, acc vs the Acc AI's prediction,
+  pp split, weight and map rank. Sorts by pp, weighted pp, acc / pass / tech pp, acc, acc vs AI, stars or date, and
+  filters by mode, stars, player rank, player, map and speed modifier. Reads a cache file per database
+  (`wwwroot/cache/<db>.topscores.bin`, `Services/TopScoresCache.cs`), never the database: it rebuilds by itself when the
+  database changes, at the end of `RefreshEverything`, or with the page's Rebuild cache button.
 - **Speed modifier filters on the Weighted and Unweighted Scores Graph pages.** Tick which scores to include: no speed
   modifier, SS, FS and/or SFS. Modded scores are placed on the X axis with their modifier's stars and ratings (an SFS
   score uses the SFS stars).

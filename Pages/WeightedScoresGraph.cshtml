@@ -28,14 +28,14 @@
                         <div class="col-md-3">
                             <div class="form-group">
                                 <label for="maxPlayerRank">Max Player Rank</label>
-                                <input id="maxPlayerRank" type="number" class="form-control" value="@Model.MaxPlayerRank" placeholder="0 = unfiltered" />
+                                <input id="maxPlayerRank" type="number" class="form-control" autocomplete="off" value="@Model.MaxPlayerRank" placeholder="0 = unfiltered" />
                                 <small class="form-text text-muted">0 = unfiltered</small>
                             </div>
                         </div>
                         <div class="col-md-3">
                             <div class="form-group">
                                 <label for="minRankedPlayCount">Min Ranked Play Count</label>
-                                <input id="minRankedPlayCount" type="number" class="form-control" value="@Model.MinRankedPlayCount" />
+                                <input id="minRankedPlayCount" type="number" class="form-control" autocomplete="off" value="@Model.MinRankedPlayCount" />
                             </div>
                         </div>
                         <div class="col-md-3">
@@ -104,7 +104,7 @@
                         <div class="col-md-3">
                             <div class="form-group">
                                 <label for="rollingWindow">Rolling window smoothing (points)</label>
-                                <input id="rollingWindow" type="number" class="form-control" min="1" step="1" value="50" />
+                                <input id="rollingWindow" type="number" class="form-control" min="1" step="1" autocomplete="off" value="@(Model.RollingWindow > 0 ? Model.RollingWindow : 400)" />
                             </div>
                         </div>
                         <div class="col-md-3">
@@ -302,27 +302,31 @@
         }
 
         // initial render with empty data
-        const defaultWindow = parseInt(document.getElementById('rollingWindow').value || '50');
+        const defaultWindow = parseInt(document.getElementById('rollingWindow').value || '400');
         renderPlot(data, 'x', 'pp', defaultWindow);
 
         document.getElementById('xSelect').addEventListener('change', function() {
             const x = this.value;
             const y = document.getElementById('ySelect').value;
-            const w = parseInt(document.getElementById('rollingWindow').value || '50');
+            const w = parseInt(document.getElementById('rollingWindow').value || '400');
             renderPlot(data, x, y, w);
         });
 
         document.getElementById('ySelect').addEventListener('change', function() {
             const x = document.getElementById('xSelect').value;
             const y = this.value;
-            const w = parseInt(document.getElementById('rollingWindow').value || '50');
+            const w = parseInt(document.getElementById('rollingWindow').value || '400');
             renderPlot(data, x, y, w);
         });
 
         document.getElementById('rollingWindow').addEventListener('change', function() {
             const x = document.getElementById('xSelect').value;
             const y = document.getElementById('ySelect').value;
-            const w = parseInt(this.value || '50');
+            const w = parseInt(this.value || '400');
+            // keep it in the URL, so it survives switching databases
+            const windowUrl = new URL(window.location.href);
+            windowUrl.searchParams.set('rollingWindow', w);
+            window.history.replaceState({}, '', windowUrl);
             renderPlot(data, x, y, w);
         });
 
@@ -344,7 +348,7 @@
             const modSFS = document.getElementById('modSFS').checked;
             const x = document.getElementById('xSelect').value;
             const y = document.getElementById('ySelect').value;
-            const windowSize = parseInt(document.getElementById('rollingWindow').value) || 50;
+            const windowSize = parseInt(document.getElementById('rollingWindow').value) || 400;
 
             // Update the browser URL with filter parameters so they persist when switching databases
             const pageUrl = new URL(window.location.href);
@@ -359,6 +363,7 @@
             pageUrl.searchParams.set('modSS', modSS);
             pageUrl.searchParams.set('modFS', modFS);
             pageUrl.searchParams.set('modSFS', modSFS);
+            pageUrl.searchParams.set('rollingWindow', windowSize);
             window.history.replaceState({}, '', pageUrl);
 
             const url = new URL(window.location.href);

@@ -1,0 +1,174 @@
+@page
+@model portaBLe.Pages.TopScoresModel
+@{
+    ViewData["Title"] = "Top Scores";
+}
+
+<h2>Top Scores</h2>
+<p class="text-muted mb-2" style="font-size: 0.9rem;">
+    Every score, best first. Modded scores use their modifier's stars and predicted acc. "vs AI" is the score's acc minus the Acc AI's predicted acc.
+</p>
+
+<form method="get" class="mb-3" autocomplete="off">
+    <input type="hidden" name="db" value="@Model.SelectedDatabase" />
+    <div class="row g-2 align-items-end">
+        <div class="col-auto">
+            <label class="form-label mb-0" for="SortBy">Sort by</label>
+            <select asp-for="SortBy" class="form-select form-select-sm" onchange="this.form.submit()">
+                @foreach (var (key, label) in TopScoresModel.SortOptions)
+                {
+                    <option value="@key" selected="@(Model.SortBy == key)">@label</option>
+                }
+            </select>
+        </div>
+        <div class="col-auto">
+            <label class="form-label mb-0" for="Mode">Mode</label>
+            <select asp-for="Mode" class="form-select form-select-sm" onchange="this.form.submit()">
+                <option value="" selected="@(string.IsNullOrEmpty(Model.Mode))">All</option>
+                @foreach (var mode in Model.Modes)
+                {
+                    <option value="@mode" selected="@(Model.Mode == mode)">@mode</option>
+                }
+            </select>
+        </div>
+        <div class="col-auto">
+            <label class="form-label mb-0" for="MinStars">Min stars</label>
+            <input id="MinStars" name="MinStars" value="@Model.MinStars.ToString(System.Globalization.CultureInfo.InvariantCulture)" type="number" step="0.1" min="0" class="form-control form-control-sm" style="width: 6rem;" />
+        </div>
+        <div class="col-auto">
+            <label class="form-label mb-0" for="MaxStars">Max stars</label>
+            <input id="MaxStars" name="MaxStars" value="@Model.MaxStars.ToString(System.Globalization.CultureInfo.InvariantCulture)" type="number" step="0.1" min="0" class="form-control form-control-sm" style="width: 6rem;" title="0: no limit" />
+        </div>
+        <div class="col-auto">
+            <label class="form-label mb-0" for="MaxPlayerRank">Max player rank</label>
+            <input asp-for="MaxPlayerRank" type="number" min="0" class="form-control form-control-sm" style="width: 7rem;" title="0: everyone" />
+        </div>
+        <div class="col-auto">
+            <label class="form-label mb-0" for="PlayerSearch">Player</label>
+            <input asp-for="PlayerSearch" class="form-control form-control-sm" placeholder="Name or ID" style="width: 10rem;" />
+        </div>
+        <div class="col-auto">
+            <label class="form-label mb-0" for="MapSearch">Map</label>
+            <input asp-for="MapSearch" class="form-control form-control-sm" placeholder="Song, mapper or ID" style="width: 12rem;" />
+        </div>
+        <div class="col-auto">
+            <div class="form-label mb-0">Speed</div>
+            <div class="d-flex gap-2" style="padding-top: 0.2rem;">
+                <label class="form-check-label"><input asp-for="ModNone" class="form-check-input" /> None</label>
+                <label class="form-check-label"><input asp-for="ModSS" class="form-check-input" /> SS</label>
+                <label class="form-check-label"><input asp-for="ModFS" class="form-check-input" /> FS</label>
+                <label class="form-check-label"><input asp-for="ModSFS" class="form-check-input" /> SFS</label>
+            </div>
+        </div>
+        <div class="col-auto">
+            <button type="submit" class="btn btn-primary btn-sm">Apply</button>
+            <a class="btn btn-outline-secondary btn-sm" href="?db=@Uri.EscapeDataString(Model.SelectedDatabase ?? "")">Reset</a>
+        </div>
+    </div>
+</form>
+
+<div class="d-flex flex-wrap align-items-center gap-2 mb-2 text-muted" style="font-size: 0.85rem;">
+    @if (Model.Cache != null)
+    {
+        <span>Cached @Model.Cache.BuiltAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm") · @Model.Cache.Scores.Length.ToString("N0") scores · built in @Model.Cache.BuildSeconds.ToString("F1") s · rebuilds by itself when the database changes</span>
+    }
+    <form method="post" asp-page-handler="Rebuild" asp-route-db="@Model.SelectedDatabase" class="d-inline">
+        <input type="hidden" name="returnUrl" value="@(HttpContext.Request.Path + HttpContext.Request.QueryString)" />
+        <button type="submit" class="btn btn-outline-secondary btn-sm py-0">Rebuild cache</button>
+    </form>
+</div>
+
+<div class="text-muted mb-2" style="font-size: 0.9rem;">
+    @Model.TotalCount.ToString("N0") scores
+    @if (Model.TotalCount > 0)
+    {
+        <span>· showing @(((Model.CurrentPage - 1) * TopScoresModel.PageSize + 1).ToString("N0"))–@(((Model.CurrentPage - 1) * TopScoresModel.PageSize + Model.Rows.Count).ToString("N0"))</span>
+    }
+</div>
+
+<div class="table-responsive">
+    <table class="table table-sm table-striped align-middle top-scores">
+        <thead>
+            <tr>
+                <th class="num">#</th>
+                <th>Player</th>
+                <th>Map</th>
+                <th class="num">Stars</th>
+                <th class="num">Acc</th>
+                <th class="num" title="Score acc minus the Acc AI's predicted acc">vs AI</th>
+                <th>Mods</th>
+                <th class="num">PP</th>
+                <th class="num">Acc PP</th>
+                <th class="num">Pass PP</th>
+                <th class="num">Tech PP</th>
+                <th class="num" title="Weight in the player's total">Weight</th>
+                <th class="num">Weighted</th>
+                <th class="num" title="Rank on the map's leaderboard">Map #</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            @foreach (var r in Model.Rows)
+            {
+                <tr>
+                    <td class="num text-muted">@r.Position</td>
+                    <td class="text-nowrap">
+                        <a asp-page="/Player" asp-route-id="@r.PlayerId" asp-route-db="@Model.SelectedDatabase">@r.PlayerName</a>
+                        <span class="text-muted small">#@r.PlayerRank</span>
+                    </td>
+                    <td>
+                        <a asp-page="/Leaderboard" asp-route-id="@r.LeaderboardId" asp-route-db="@Model.SelectedDatabase">@r.MapName</a>
+                        <div class="text-muted small">@r.MapDetails</div>
+                    </td>
+                    <td class="num">@r.Stars.ToString("F2")</td>
+                    <td class="num">@((r.Accuracy * 100).ToString("F2"))%</td>
+                    <td class="num @(r.AccVsAi >= 0 ? "pos" : "neg")">@(r.PredictedAcc > 0 ? (r.AccVsAi * 100).ToString("+0.00;-0.00") : "")</td>
+                    <td>@r.ModsText</td>
+                    <td class="num fw-semibold">@r.Pp.ToString("F2")</td>
+                    <td class="num">@r.AccPp.ToString("F1")</td>
+                    <td class="num">@r.PassPp.ToString("F1")</td>
+                    <td class="num">@r.TechPp.ToString("F1")</td>
+                    <td class="num">@((r.Weight * 100).ToString("F1"))%</td>
+                    <td class="num">@r.WeightedPp.ToString("F1")</td>
+                    <td class="num">@r.MapRank</td>
+                    <td class="text-nowrap small">@r.Date</td>
+                </tr>
+            }
+        </tbody>
+    </table>
+</div>
+<p class="text-muted small">✗ in Mods: not a full combo.</p>
+
+@if (Model.TotalPages > 1)
+{
+    <nav aria-label="Top scores pages">
+        <ul class="pagination pagination-sm flex-wrap">
+            @{
+                int first = Math.Max(1, Model.CurrentPage - 5);
+                int last = Math.Min(Model.TotalPages, first + 9);
+                first = Math.Max(1, last - 9);
+            }
+            @if (first > 1)
+            {
+                <li class="page-item"><a class="page-link" href="@Model.PageUrl(1)">1</a></li>
+                <li class="page-item disabled"><span class="page-link">…</span></li>
+            }
+            @for (int i = first; i <= last; i++)
+            {
+                <li class="page-item @(i == Model.CurrentPage ? "active" : "")"><a class="page-link" href="@Model.PageUrl(i)">@i</a></li>
+            }
+            @if (last < Model.TotalPages)
+            {
+                <li class="page-item disabled"><span class="page-link">…</span></li>
+                <li class="page-item"><a class="page-link" href="@Model.PageUrl(Model.TotalPages)">@Model.TotalPages</a></li>
+            }
+        </ul>
+    </nav>
+}
+
+<style>
+    .top-scores { font-size: 0.875rem; }
+    .top-scores .num { text-align: right; font-variant-numeric: tabular-nums; white-space: nowrap; }
+    .top-scores .pos { color: #198754; }
+    .top-scores .neg { color: #dc3545; }
+</style>

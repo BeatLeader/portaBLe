@@ -31,3 +31,4 @@ maps
 /wwwroot/rating-fit*.json
 /wwwroot/rating-fit*.bin
 /wwwroot/wall-fit.json
+/wwwroot/cache/

@@ -500,6 +500,7 @@ namespace portaBLe.Refresh
             double newAcc = accRating;
             if (predictedAcc > 0)
             {
+                // Same as AccRating.GetRating, with the hard map correction
                 double effectiveAcc = global::RatingAPI.Controllers.AccRating.EffectiveAcc(predictedAcc);
                 double oldBase = from.AccScale / ReplayUtils.Curve((float)(effectiveAcc + from.AccOffset));
                 double newBase = to.AccScale / ReplayUtils.Curve((float)(effectiveAcc + to.AccOffset));
