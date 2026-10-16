@@ -181,7 +181,7 @@
 
 	function computeStarRating(passRating, accRating, techRating, mode) {
 		return Number.isFinite(passRating) && Number.isFinite(accRating) && Number.isFinite(techRating)
-			? buildCurve(0.96, passRating, accRating, techRating, false, modePredictedAcc(mode), modeName(mode))[0] / 52
+			? buildCurve(0.96, passRating, accRating, techRating, false, modePredictedAcc(mode), modeName(mode))[0] / (PP.starDivisor || 52)
 			: null;
 	}
 

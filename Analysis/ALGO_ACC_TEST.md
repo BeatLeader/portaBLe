@@ -799,6 +799,53 @@ PP of players who mostly play easier maps. 0.10 keeps every rank band within 7 %
 Args: `--curve PowerLaw --gamma 0.6198 --acc-scale 1.2458 --relative-epsilon 0.75 --pass-blend 1.5 --mode-gamma OneSaber=1.0998
 --mode-tech OneSaber=0.76 --difficulty-premium 0.1 --tech-weight 0.25 --top-epsilon 0.02` (analyzer v6 7002ad1, RatingAPI v6 ec6e8c2).
 
+### v6 easy premium + star divisor: star scale and low-star farm maps (deployed 2026-10-16, afternoon)
+
+Feedback on v6 final: the star scale looked off, high stars seemed to dominate, and the weighted scores graph had a step at 4★. Causes:
+
+- **Star scale.** Stars are the PP of a 96 % score / 52. The acc rating is anchored at the predicted accuracy, so the reference player earns
+  about the same acc PP on every map (× premium), and the per-map curve takes ×0.77 off per skill step on every map (production's curve about
+  ×0.6 on easy maps). A 96 % on a map predicted 99.3 % therefore paid about twice production's: v6 / prod stars were ×1.36 (median) on maps
+  production rates under 6★ (Easy/Normal of hard songs ×2, Crying for Rain Easy 2.04 → 4.04) and ×1.07–1.11 above; 461 maps above 12★ vs 221.
+- **"High stars dominate"** was mostly that relabelling: on the same maps (production's star bands) the top 100 players' share of weighted PP
+  from maps production rates 12★+ is 39 % (production 26 %, Loloppe's Oct 16 system 36 %); ranks 101+ about unchanged.
+- **The step at 4★** = Easy/Normal difficulties of hard songs (Crying for Rain, Half Of It, let you, p.h., Burn): their near-perfect plays paid
+  strong players about what production pays (Crying for Rain Easy best plays 626 vs 631 PP), but v6 moved them from ~2★ to ~4★.
+
+Fix, both global named constants (`PpCurve`):
+
+- **EasyPremium** e = 1 below **EasyPremiumKnee** 1 %: maps predicted above 99 % get acc rating × (min(1 − predicted acc, 0.01) / 0.01)^e
+  on top of the difficulty premium (`--easy-premium 1,0.01`). A map predicted 99.3 % pays 0.7× at every accuracy; maps predicted 99 % or less
+  are unchanged.
+- **StarDivisor** 56.5 instead of 52 (`--star-divisor 56.5`): 52 × the median v6 / production star ratio on maps production rates 6★+.
+  Display only (no PP uses stars).
+
+Grid (simulator, PP level held at production's ranks 1 001–10 000; knee / e): 1 % / 0.5: stand-outs 62, rough .302/.052/.026, ranks 10k–50k
+−1.7 %; **1 % / 1.0: 63, .268/.046/.032, balance .472, −2.0 %**; 1 % / 1.5: 63, .330/.050/.033 (Easy maps fall below their star neighbours);
+1.25 % / 1.0: 58, .350/.065/.034, −5.0 %; 1.5 % / 0.75: 58, .286/.044/.032, −7.6 %. A stronger top taper (0.04) only raised the FS/SF share
+(11.3 %).
+
+| | prod | v6 final | **v6 + easy premium + star divisor** |
+|---|---|---|---|
+| stars median Easy / Normal / Hard / Expert / E+ | 2.91 / 3.86 / 5.28 / 7.28 / 10.02 | 4.59 / 5.40 / 6.40 / 8.14 / 10.84 | 3.12 / 4.66 / 5.90 / 7.50 / 9.99 |
+| stars p50 / p90 / max; maps above 12★ | 7.07 / 11.36 / 15.76; 221 | 7.85 / 12.26 / 17.94; 461 | 7.23 / 11.29 / 16.52; 216 |
+| Burn Easy / let you Easy / Crying for Rain Easy: stars, top-20 weighted PP | 1.75★ 553 / 1.54★ 520 / 2.04★ 484 | 3.16★ 428 / 3.12★ 461 / 4.04★ 592 | 1.34★ 72 / 1.20★ 78 / 2.21★ 180 |
+| weighted graph: maps > 1.5× / > 2× star neighbours | 32 / 6 | 84 / 10 | 61 / 2 |
+| balance: spread / maps worth +50 % | 0.578 / 591 | 0.485 / 522 | **0.477 / 510** |
+| hard ÷ easy PP at the same skill (below ref / at ref) | 1.61 / 1.33 | 1.33 / 1.32 | 1.64 / 1.74 |
+| One Saber worth; FS/SF share of the top 1 000 | +74 %; 14 % | +17 %; 9 % | +20 %; 9 % |
+| PP vs prod, ranks 1–100 / 101–1k / 1k–10k / 10k–50k | — | +6.8 / +6.6 / 0.0 / −1.5 % | +6.9 / +6.7 / 0.0 / −2.0 % |
+
+Acc and pass rows are unchanged (R² 0.957 / 0.921). 11.8 % of scores (those on maps predicted above 99 %) lose PP; the rest move +0.09 %
+(acc scale 1.2458 → 1.2468). The weighted graph's mean line now rises evenly through 4★ (0.25★ bins from 3.5★: 21 / 26 / 32 / 35 / 40).
+Roughness on the same star scale: .258/.046/.032 (v6 final .289/.059/.035); the metric's 0.1★ bins shift with the divisor, so at /56.5 it reads
+.338/.064/.038. The remaining 600+ PP plays on maps under 4★ are SF plays on Easy/Normal maps: they are paid by the SF rating (a harder map)
+while the graph places them at the base map's stars. Chrome Vox E+ (13.82★ in v6 final) is 12.73★: the same players lose ×1.24 more accuracy
+on it than on its star neighbours (The Curse Of The Lovely Fox, cryptic worthy widgEt E+), so its acc difficulty is real.
+
+Args: `--curve PowerLaw --gamma 0.6198 --acc-scale 1.2468 --relative-epsilon 0.75 --pass-blend 1.5 --mode-gamma OneSaber=1.0998
+--mode-tech OneSaber=0.76 --difficulty-premium 0.1 --tech-weight 0.25 --top-epsilon 0.02 --easy-premium 1,0.01 --star-divisor 56.5`.
+
 ## Known limitations
 
 * Weights are fitted on today's ranked Standard and (since v5) One Saber pool; maps far outside it (gimmicks, extreme speeds,

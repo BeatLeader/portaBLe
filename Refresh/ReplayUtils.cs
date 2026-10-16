@@ -29,6 +29,13 @@ namespace portaBLe.Refresh
     /// about the production premium (total PP of hard vs easy maps at the same skill x1.6) and the smoothest weighted scores graph.
     /// The premium stops growing at PremiumMaxLoss (predicted 96 %): it was measured between maps below 97 % and maps at 99-99.5 %,
     /// and on the hardest maps the acc model over-predicts difficulty (regression to the mean), which the premium would amplify.
+    /// EasyPremium e steepens the premium for maps predicted above 1 - EasyPremiumKnee: the acc rating is also multiplied by
+    /// (min(1 - predictedAcc, EasyPremiumKnee) / EasyPremiumKnee)^e. With the acc rating anchored at the prediction, the reference player
+    /// earns about the same acc PP on every map, so the Easy/Normal difficulties of hard songs (predicted 99.3 %) paid strong players near
+    /// 100 % about what they get on Expert+ maps, and their stars (PP at 96 %, where the per-map curve keeps half of that) doubled vs
+    /// production. Maps predicted at or below 1 - EasyPremiumKnee are unchanged. 0 = off.
+    /// StarDivisor turns the PP of a 96 % score into stars (production 52). Display only: no PP depends on stars. A larger divisor keeps
+    /// the star numbers on production's scale when a curve or acc scale raises the PP of 96 % scores on every map.
     /// TopEpsilon (Loloppe's "trim the tail above the prediction"): above the map's predicted accuracy the curve uses the offset
     /// max(eps, TopEpsilon), so on the easiest maps (small eps) near-perfect plays gain less; continuous at the prediction and unchanged
     /// below it, so the acc rating (anchored at the prediction) and stars (at 96 %) don't move. 0 = off.
@@ -52,15 +59,23 @@ namespace portaBLe.Refresh
         public static float DifficultyPremium = 0f;
         public static float TechWeight = 1f;
         public static float TopEpsilon = 0f;
+        public static float EasyPremium = 0f;
+        public static float EasyPremiumKnee = 0.01f;
+        public static float StarDivisor = 52f;
 
         public static float TechScaleFor(string? mode) =>
             mode != null && ModeTechScale.TryGetValue(mode, out var scale) ? scale : 1f;
         public const float PremiumReference = 0.02f;
         public const float PremiumMaxLoss = 0.04f;
 
-        public static float Premium(float predictedAcc) =>
-            DifficultyPremium > 0 && predictedAcc > 0
-                ? MathF.Pow(Math.Clamp(1f - predictedAcc, 1e-4f, PremiumMaxLoss) / PremiumReference, DifficultyPremium) : 1f;
+        public static float Premium(float predictedAcc)
+        {
+            if (predictedAcc <= 0) return 1f;
+            float loss = 1f - predictedAcc;
+            float premium = DifficultyPremium > 0 ? MathF.Pow(Math.Clamp(loss, 1e-4f, PremiumMaxLoss) / PremiumReference, DifficultyPremium) : 1f;
+            if (EasyPremium > 0) premium *= MathF.Pow(Math.Clamp(loss, 1e-4f, EasyPremiumKnee) / EasyPremiumKnee, EasyPremium);
+            return premium;
+        }
 
         public static bool PerMap => RelativeEpsilon > 0;
 
@@ -292,11 +307,11 @@ namespace portaBLe.Refresh
             return PassBlend.Apply(passPP, accPP, techPP);
         }
 
-        /// <summary>PP of a 96 % score / 52, with the same curve, fade and cap as scores on this map.</summary>
+        /// <summary>PP of a 96 % score / PpCurve.StarDivisor (production 52), with the same curve, fade and cap as scores on this map.</summary>
         public static float ToStars(float accRating, float passRating, float techRating, float predictedAcc = 0, string? mode = null) {
             (float passPP, float accPP, float techPP) = GetPp(0.96f, accRating, passRating, techRating, predictedAcc, mode);
 
-            return Inflate(passPP + accPP + techPP) / 52f;
+            return Inflate(passPP + accPP + techPP) / PpCurve.StarDivisor;
         }
 
         public static (float, float, float, float, float) PpFromScore(
