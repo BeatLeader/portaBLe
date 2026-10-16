@@ -4,7 +4,7 @@
 <h2>Database Metrics Comparison</h2>
 
 <p class="text-muted">
-    Compare metrics between two databases to determine which one performs better across various criteria.
+    Compare metrics between two databases. Difference is Database 2 minus Database 1 (and the change in %); whether higher or lower is wanted depends on the metric.
 </p>
 
 <form method="get" class="mb-4">
@@ -52,21 +52,21 @@
                         <th>Metric</th>
                         <th>Database 1</th>
                         <th>Database 2</th>
-                        <th>Winner</th>
+                        <th>Difference (DB2 − DB1)</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
                         <td>Total Outliers</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.TotalOutliers, Model.Db2Metrics.TotalOutliers, true)">@Model.Db1Metrics.TotalOutliers</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.TotalOutliers, Model.Db1Metrics.TotalOutliers, true)">@Model.Db2Metrics.TotalOutliers</td>
-                        <td>@GetWinner(Model.Db1Metrics.TotalOutliers, Model.Db2Metrics.TotalOutliers, true)</td>
+                        <td>@Model.Db1Metrics.TotalOutliers</td>
+                        <td>@Model.Db2Metrics.TotalOutliers</td>
+                        <td>@GetDifference(Model.Db1Metrics.TotalOutliers, Model.Db2Metrics.TotalOutliers)</td>
                     </tr>
                     <tr>
                         <td>Average Outlier %</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.AverageOutlierPercentage, Model.Db2Metrics.AverageOutlierPercentage, true)">@Model.Db1Metrics.AverageOutlierPercentage.ToString("F2")%</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.AverageOutlierPercentage, Model.Db1Metrics.AverageOutlierPercentage, true)">@Model.Db2Metrics.AverageOutlierPercentage.ToString("F2")%</td>
-                        <td>@GetWinner(Model.Db1Metrics.AverageOutlierPercentage, Model.Db2Metrics.AverageOutlierPercentage, true)</td>
+                        <td>@Model.Db1Metrics.AverageOutlierPercentage.ToString("F2")%</td>
+                        <td>@Model.Db2Metrics.AverageOutlierPercentage.ToString("F2")%</td>
+                        <td>@GetDifference(Model.Db1Metrics.AverageOutlierPercentage, Model.Db2Metrics.AverageOutlierPercentage)</td>
                     </tr>
                 </tbody>
             </table>
@@ -81,33 +81,33 @@
                         <th>Metric</th>
                         <th>Database 1</th>
                         <th>Database 2</th>
-                        <th>Winner</th>
+                        <th>Difference (DB2 − DB1)</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
                         <td>Avg Megametric</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.AvgMegametric, Model.Db2Metrics.AvgMegametric, true)">@Model.Db1Metrics.AvgMegametric.ToString("F3")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.AvgMegametric, Model.Db1Metrics.AvgMegametric, true)">@Model.Db2Metrics.AvgMegametric.ToString("F3")</td>
-                        <td>@GetWinner(Model.Db1Metrics.AvgMegametric, Model.Db2Metrics.AvgMegametric, true)</td>
+                        <td>@Model.Db1Metrics.AvgMegametric.ToString("F3")</td>
+                        <td>@Model.Db2Metrics.AvgMegametric.ToString("F3")</td>
+                        <td>@GetDifference(Model.Db1Metrics.AvgMegametric, Model.Db2Metrics.AvgMegametric)</td>
                     </tr>
                     <tr>
                         <td>Avg Megametric125</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.AvgMegametric125, Model.Db2Metrics.AvgMegametric125, true)">@Model.Db1Metrics.AvgMegametric125.ToString("F3")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.AvgMegametric125, Model.Db1Metrics.AvgMegametric125, true)">@Model.Db2Metrics.AvgMegametric125.ToString("F3")</td>
-                        <td>@GetWinner(Model.Db1Metrics.AvgMegametric125, Model.Db2Metrics.AvgMegametric125, true)</td>
+                        <td>@Model.Db1Metrics.AvgMegametric125.ToString("F3")</td>
+                        <td>@Model.Db2Metrics.AvgMegametric125.ToString("F3")</td>
+                        <td>@GetDifference(Model.Db1Metrics.AvgMegametric125, Model.Db2Metrics.AvgMegametric125)</td>
                     </tr>
                     <tr>
                         <td>Avg Megametric75</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.AvgMegametric75, Model.Db2Metrics.AvgMegametric75, true)">@Model.Db1Metrics.AvgMegametric75.ToString("F3")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.AvgMegametric75, Model.Db1Metrics.AvgMegametric75, true)">@Model.Db2Metrics.AvgMegametric75.ToString("F3")</td>
-                        <td>@GetWinner(Model.Db1Metrics.AvgMegametric75, Model.Db2Metrics.AvgMegametric75, true)</td>
+                        <td>@Model.Db1Metrics.AvgMegametric75.ToString("F3")</td>
+                        <td>@Model.Db2Metrics.AvgMegametric75.ToString("F3")</td>
+                        <td>@GetDifference(Model.Db1Metrics.AvgMegametric75, Model.Db2Metrics.AvgMegametric75)</td>
                     </tr>
                     <tr>
                         <td>Avg Megametric40</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.AvgMegametric40, Model.Db2Metrics.AvgMegametric40, true)">@Model.Db1Metrics.AvgMegametric40.ToString("F3")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.AvgMegametric40, Model.Db1Metrics.AvgMegametric40, true)">@Model.Db2Metrics.AvgMegametric40.ToString("F3")</td>
-                        <td>@GetWinner(Model.Db1Metrics.AvgMegametric40, Model.Db2Metrics.AvgMegametric40, true)</td>
+                        <td>@Model.Db1Metrics.AvgMegametric40.ToString("F3")</td>
+                        <td>@Model.Db2Metrics.AvgMegametric40.ToString("F3")</td>
+                        <td>@GetDifference(Model.Db1Metrics.AvgMegametric40, Model.Db2Metrics.AvgMegametric40)</td>
                     </tr>
                 </tbody>
             </table>
@@ -122,39 +122,39 @@
                         <th>Metric</th>
                         <th>Database 1</th>
                         <th>Database 2</th>
-                        <th>Winner</th>
+                        <th>Difference (DB2 − DB1)</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
                         <td>Scores > 1000 PP</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.ScoresAbove1000, Model.Db2Metrics.ScoresAbove1000)">@Model.Db1Metrics.ScoresAbove1000</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.ScoresAbove1000, Model.Db1Metrics.ScoresAbove1000)">@Model.Db2Metrics.ScoresAbove1000</td>
-                        <td>@GetWinner(Model.Db1Metrics.ScoresAbove1000, Model.Db2Metrics.ScoresAbove1000)</td>
+                        <td>@Model.Db1Metrics.ScoresAbove1000</td>
+                        <td>@Model.Db2Metrics.ScoresAbove1000</td>
+                        <td>@GetDifference(Model.Db1Metrics.ScoresAbove1000, Model.Db2Metrics.ScoresAbove1000)</td>
                     </tr>
                     <tr>
                         <td>Scores > 900 PP</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.ScoresAbove900, Model.Db2Metrics.ScoresAbove900)">@Model.Db1Metrics.ScoresAbove900</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.ScoresAbove900, Model.Db1Metrics.ScoresAbove900)">@Model.Db2Metrics.ScoresAbove900</td>
-                        <td>@GetWinner(Model.Db1Metrics.ScoresAbove900, Model.Db2Metrics.ScoresAbove900)</td>
+                        <td>@Model.Db1Metrics.ScoresAbove900</td>
+                        <td>@Model.Db2Metrics.ScoresAbove900</td>
+                        <td>@GetDifference(Model.Db1Metrics.ScoresAbove900, Model.Db2Metrics.ScoresAbove900)</td>
                     </tr>
                     <tr>
                         <td>Scores > 800 PP</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.ScoresAbove800, Model.Db2Metrics.ScoresAbove800)">@Model.Db1Metrics.ScoresAbove800</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.ScoresAbove800, Model.Db1Metrics.ScoresAbove800)">@Model.Db2Metrics.ScoresAbove800</td>
-                        <td>@GetWinner(Model.Db1Metrics.ScoresAbove800, Model.Db2Metrics.ScoresAbove800)</td>
+                        <td>@Model.Db1Metrics.ScoresAbove800</td>
+                        <td>@Model.Db2Metrics.ScoresAbove800</td>
+                        <td>@GetDifference(Model.Db1Metrics.ScoresAbove800, Model.Db2Metrics.ScoresAbove800)</td>
                     </tr>
                     <tr>
                         <td>Scores > 700 PP</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.ScoresAbove700, Model.Db2Metrics.ScoresAbove700)">@Model.Db1Metrics.ScoresAbove700</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.ScoresAbove700, Model.Db1Metrics.ScoresAbove700)">@Model.Db2Metrics.ScoresAbove700</td>
-                        <td>@GetWinner(Model.Db1Metrics.ScoresAbove700, Model.Db2Metrics.ScoresAbove700)</td>
+                        <td>@Model.Db1Metrics.ScoresAbove700</td>
+                        <td>@Model.Db2Metrics.ScoresAbove700</td>
+                        <td>@GetDifference(Model.Db1Metrics.ScoresAbove700, Model.Db2Metrics.ScoresAbove700)</td>
                     </tr>
                     <tr>
                         <td>Scores > 600 PP</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.ScoresAbove600, Model.Db2Metrics.ScoresAbove600)">@Model.Db1Metrics.ScoresAbove600</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.ScoresAbove600, Model.Db1Metrics.ScoresAbove600)">@Model.Db2Metrics.ScoresAbove600</td>
-                        <td>@GetWinner(Model.Db1Metrics.ScoresAbove600, Model.Db2Metrics.ScoresAbove600)</td>
+                        <td>@Model.Db1Metrics.ScoresAbove600</td>
+                        <td>@Model.Db2Metrics.ScoresAbove600</td>
+                        <td>@GetDifference(Model.Db1Metrics.ScoresAbove600, Model.Db2Metrics.ScoresAbove600)</td>
                     </tr>
                 </tbody>
             </table>
@@ -169,33 +169,33 @@
                         <th>Metric</th>
                         <th>Database 1</th>
                         <th>Database 2</th>
-                        <th>Winner</th>
+                        <th>Difference (DB2 − DB1)</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
                         <td>Highest Star Rating</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.HighestStars, Model.Db2Metrics.HighestStars)">@Model.Db1Metrics.HighestStars.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.HighestStars, Model.Db1Metrics.HighestStars)">@Model.Db2Metrics.HighestStars.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.HighestStars, Model.Db2Metrics.HighestStars)</td>
+                        <td>@Model.Db1Metrics.HighestStars.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.HighestStars.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.HighestStars, Model.Db2Metrics.HighestStars)</td>
                     </tr>
                     <tr>
                         <td>Highest Acc Rating</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.HighestAccRating, Model.Db2Metrics.HighestAccRating)">@Model.Db1Metrics.HighestAccRating.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.HighestAccRating, Model.Db1Metrics.HighestAccRating)">@Model.Db2Metrics.HighestAccRating.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.HighestAccRating, Model.Db2Metrics.HighestAccRating)</td>
+                        <td>@Model.Db1Metrics.HighestAccRating.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.HighestAccRating.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.HighestAccRating, Model.Db2Metrics.HighestAccRating)</td>
                     </tr>
                     <tr>
                         <td>Highest Pass Rating</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.HighestPassRating, Model.Db2Metrics.HighestPassRating)">@Model.Db1Metrics.HighestPassRating.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.HighestPassRating, Model.Db1Metrics.HighestPassRating)">@Model.Db2Metrics.HighestPassRating.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.HighestPassRating, Model.Db2Metrics.HighestPassRating)</td>
+                        <td>@Model.Db1Metrics.HighestPassRating.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.HighestPassRating.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.HighestPassRating, Model.Db2Metrics.HighestPassRating)</td>
                     </tr>
                     <tr>
                         <td>Highest Tech Rating</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.HighestTechRating, Model.Db2Metrics.HighestTechRating)">@Model.Db1Metrics.HighestTechRating.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.HighestTechRating, Model.Db1Metrics.HighestTechRating)">@Model.Db2Metrics.HighestTechRating.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.HighestTechRating, Model.Db2Metrics.HighestTechRating)</td>
+                        <td>@Model.Db1Metrics.HighestTechRating.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.HighestTechRating.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.HighestTechRating, Model.Db2Metrics.HighestTechRating)</td>
                     </tr>
                 </tbody>
             </table>
@@ -210,33 +210,33 @@
                         <th>Metric</th>
                         <th>Database 1</th>
                         <th>Database 2</th>
-                        <th>Winner</th>
+                        <th>Difference (DB2 − DB1)</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
                         <td>Highest PP</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.HighestPP, Model.Db2Metrics.HighestPP)">@Model.Db1Metrics.HighestPP.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.HighestPP, Model.Db1Metrics.HighestPP)">@Model.Db2Metrics.HighestPP.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.HighestPP, Model.Db2Metrics.HighestPP)</td>
+                        <td>@Model.Db1Metrics.HighestPP.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.HighestPP.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.HighestPP, Model.Db2Metrics.HighestPP)</td>
                     </tr>
                     <tr>
                         <td>Highest Acc PP</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.HighestAccPP, Model.Db2Metrics.HighestAccPP)">@Model.Db1Metrics.HighestAccPP.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.HighestAccPP, Model.Db1Metrics.HighestAccPP)">@Model.Db2Metrics.HighestAccPP.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.HighestAccPP, Model.Db2Metrics.HighestAccPP)</td>
+                        <td>@Model.Db1Metrics.HighestAccPP.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.HighestAccPP.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.HighestAccPP, Model.Db2Metrics.HighestAccPP)</td>
                     </tr>
                     <tr>
                         <td>Highest Tech PP</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.HighestTechPP, Model.Db2Metrics.HighestTechPP)">@Model.Db1Metrics.HighestTechPP.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.HighestTechPP, Model.Db1Metrics.HighestTechPP)">@Model.Db2Metrics.HighestTechPP.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.HighestTechPP, Model.Db2Metrics.HighestTechPP)</td>
+                        <td>@Model.Db1Metrics.HighestTechPP.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.HighestTechPP.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.HighestTechPP, Model.Db2Metrics.HighestTechPP)</td>
                     </tr>
                     <tr>
                         <td>Highest Pass PP</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.HighestPassPP, Model.Db2Metrics.HighestPassPP)">@Model.Db1Metrics.HighestPassPP.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.HighestPassPP, Model.Db1Metrics.HighestPassPP)">@Model.Db2Metrics.HighestPassPP.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.HighestPassPP, Model.Db2Metrics.HighestPassPP)</td>
+                        <td>@Model.Db1Metrics.HighestPassPP.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.HighestPassPP.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.HighestPassPP, Model.Db2Metrics.HighestPassPP)</td>
                     </tr>
                 </tbody>
             </table>
@@ -251,51 +251,51 @@
                         <th>Rank Range</th>
                         <th>Database 1</th>
                         <th>Database 2</th>
-                        <th>Winner</th>
+                        <th>Difference (DB2 − DB1)</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
                         <td>Top 1</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.PpTop1, Model.Db2Metrics.PpTop1)">@Model.Db1Metrics.PpTop1.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.PpTop1, Model.Db1Metrics.PpTop1)">@Model.Db2Metrics.PpTop1.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.PpTop1, Model.Db2Metrics.PpTop1)</td>
+                        <td>@Model.Db1Metrics.PpTop1.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.PpTop1.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.PpTop1, Model.Db2Metrics.PpTop1)</td>
                     </tr>
                     <tr>
                         <td>Top 10</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.PpTop10, Model.Db2Metrics.PpTop10)">@Model.Db1Metrics.PpTop10.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.PpTop10, Model.Db1Metrics.PpTop10)">@Model.Db2Metrics.PpTop10.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.PpTop10, Model.Db2Metrics.PpTop10)</td>
+                        <td>@Model.Db1Metrics.PpTop10.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.PpTop10.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.PpTop10, Model.Db2Metrics.PpTop10)</td>
                     </tr>
                     <tr>
                         <td>Top 100</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.PpTop100, Model.Db2Metrics.PpTop100)">@Model.Db1Metrics.PpTop100.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.PpTop100, Model.Db1Metrics.PpTop100)">@Model.Db2Metrics.PpTop100.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.PpTop100, Model.Db2Metrics.PpTop100)</td>
+                        <td>@Model.Db1Metrics.PpTop100.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.PpTop100.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.PpTop100, Model.Db2Metrics.PpTop100)</td>
                     </tr>
                     <tr>
                         <td>Top 1000</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.PpTop1000, Model.Db2Metrics.PpTop1000)">@Model.Db1Metrics.PpTop1000.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.PpTop1000, Model.Db1Metrics.PpTop1000)">@Model.Db2Metrics.PpTop1000.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.PpTop1000, Model.Db2Metrics.PpTop1000)</td>
+                        <td>@Model.Db1Metrics.PpTop1000.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.PpTop1000.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.PpTop1000, Model.Db2Metrics.PpTop1000)</td>
                     </tr>
                     <tr>
                         <td>Top 2000</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.PpTop2000, Model.Db2Metrics.PpTop2000)">@Model.Db1Metrics.PpTop2000.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.PpTop2000, Model.Db1Metrics.PpTop2000)">@Model.Db2Metrics.PpTop2000.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.PpTop2000, Model.Db2Metrics.PpTop2000)</td>
+                        <td>@Model.Db1Metrics.PpTop2000.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.PpTop2000.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.PpTop2000, Model.Db2Metrics.PpTop2000)</td>
                     </tr>
                     <tr>
                         <td>Top 5000</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.PpTop5000, Model.Db2Metrics.PpTop5000)">@Model.Db1Metrics.PpTop5000.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.PpTop5000, Model.Db1Metrics.PpTop5000)">@Model.Db2Metrics.PpTop5000.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.PpTop5000, Model.Db2Metrics.PpTop5000)</td>
+                        <td>@Model.Db1Metrics.PpTop5000.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.PpTop5000.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.PpTop5000, Model.Db2Metrics.PpTop5000)</td>
                     </tr>
                     <tr>
                         <td>Top 10000</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.PpTop10000, Model.Db2Metrics.PpTop10000)">@Model.Db1Metrics.PpTop10000.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.PpTop10000, Model.Db1Metrics.PpTop10000)">@Model.Db2Metrics.PpTop10000.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.PpTop10000, Model.Db2Metrics.PpTop10000)</td>
+                        <td>@Model.Db1Metrics.PpTop10000.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.PpTop10000.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.PpTop10000, Model.Db2Metrics.PpTop10000)</td>
                     </tr>
                 </tbody>
             </table>
@@ -310,51 +310,51 @@
                         <th>Rank Range</th>
                         <th>Database 1</th>
                         <th>Database 2</th>
-                        <th>Winner</th>
+                        <th>Difference (DB2 − DB1)</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
                         <td>Top 1</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.AccPpTop10, Model.Db2Metrics.AccPpTop10)">@Model.Db1Metrics.AccPpTop10.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.AccPpTop10, Model.Db1Metrics.AccPpTop10)">@Model.Db2Metrics.AccPpTop10.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.AccPpTop10, Model.Db2Metrics.AccPpTop10)</td>
+                        <td>@Model.Db1Metrics.AccPpTop1.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.AccPpTop1.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.AccPpTop1, Model.Db2Metrics.AccPpTop1)</td>
                     </tr>
                     <tr>
                         <td>Top 10</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.AccPpTop10, Model.Db2Metrics.AccPpTop10)">@Model.Db1Metrics.AccPpTop10.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.AccPpTop10, Model.Db1Metrics.AccPpTop10)">@Model.Db2Metrics.AccPpTop10.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.AccPpTop10, Model.Db2Metrics.AccPpTop10)</td>
+                        <td>@Model.Db1Metrics.AccPpTop10.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.AccPpTop10.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.AccPpTop10, Model.Db2Metrics.AccPpTop10)</td>
                     </tr>
                     <tr>
                         <td>Top 100</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.AccPpTop100, Model.Db2Metrics.AccPpTop100)">@Model.Db1Metrics.AccPpTop100.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.AccPpTop100, Model.Db1Metrics.AccPpTop100)">@Model.Db2Metrics.AccPpTop100.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.AccPpTop100, Model.Db2Metrics.AccPpTop100)</td>
+                        <td>@Model.Db1Metrics.AccPpTop100.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.AccPpTop100.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.AccPpTop100, Model.Db2Metrics.AccPpTop100)</td>
                     </tr>
                     <tr>
                         <td>Top 1000</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.AccPpTop1000, Model.Db2Metrics.AccPpTop1000)">@Model.Db1Metrics.AccPpTop1000.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.AccPpTop1000, Model.Db1Metrics.AccPpTop1000)">@Model.Db2Metrics.AccPpTop1000.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.AccPpTop1000, Model.Db2Metrics.AccPpTop1000)</td>
+                        <td>@Model.Db1Metrics.AccPpTop1000.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.AccPpTop1000.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.AccPpTop1000, Model.Db2Metrics.AccPpTop1000)</td>
                     </tr>
                     <tr>
                         <td>Top 2000</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.AccPpTop2000, Model.Db2Metrics.AccPpTop2000)">@Model.Db1Metrics.AccPpTop2000.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.AccPpTop2000, Model.Db1Metrics.AccPpTop2000)">@Model.Db2Metrics.AccPpTop2000.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.AccPpTop2000, Model.Db2Metrics.AccPpTop2000)</td>
+                        <td>@Model.Db1Metrics.AccPpTop2000.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.AccPpTop2000.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.AccPpTop2000, Model.Db2Metrics.AccPpTop2000)</td>
                     </tr>
                     <tr>
                         <td>Top 5000</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.AccPpTop5000, Model.Db2Metrics.AccPpTop5000)">@Model.Db1Metrics.AccPpTop5000.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.AccPpTop5000, Model.Db1Metrics.AccPpTop5000)">@Model.Db2Metrics.AccPpTop5000.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.AccPpTop5000, Model.Db2Metrics.AccPpTop5000)</td>
+                        <td>@Model.Db1Metrics.AccPpTop5000.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.AccPpTop5000.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.AccPpTop5000, Model.Db2Metrics.AccPpTop5000)</td>
                     </tr>
                     <tr>
                         <td>Top 10000</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.AccPpTop10000, Model.Db2Metrics.AccPpTop10000)">@Model.Db1Metrics.AccPpTop10000.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.AccPpTop10000, Model.Db1Metrics.AccPpTop10000)">@Model.Db2Metrics.AccPpTop10000.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.AccPpTop10000, Model.Db2Metrics.AccPpTop10000)</td>
+                        <td>@Model.Db1Metrics.AccPpTop10000.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.AccPpTop10000.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.AccPpTop10000, Model.Db2Metrics.AccPpTop10000)</td>
                     </tr>
                 </tbody>
             </table>
@@ -369,51 +369,51 @@
                         <th>Rank Range</th>
                         <th>Database 1</th>
                         <th>Database 2</th>
-                        <th>Winner</th>
+                        <th>Difference (DB2 − DB1)</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
                         <td>Top 1</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.TechPpTop10, Model.Db2Metrics.TechPpTop10)">@Model.Db1Metrics.TechPpTop10.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.TechPpTop10, Model.Db1Metrics.TechPpTop10)">@Model.Db2Metrics.TechPpTop10.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.TechPpTop10, Model.Db2Metrics.TechPpTop10)</td>
+                        <td>@Model.Db1Metrics.TechPpTop1.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.TechPpTop1.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.TechPpTop1, Model.Db2Metrics.TechPpTop1)</td>
                     </tr>
                     <tr>
                         <td>Top 10</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.TechPpTop10, Model.Db2Metrics.TechPpTop10)">@Model.Db1Metrics.TechPpTop10.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.TechPpTop10, Model.Db1Metrics.TechPpTop10)">@Model.Db2Metrics.TechPpTop10.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.TechPpTop10, Model.Db2Metrics.TechPpTop10)</td>
+                        <td>@Model.Db1Metrics.TechPpTop10.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.TechPpTop10.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.TechPpTop10, Model.Db2Metrics.TechPpTop10)</td>
                     </tr>
                     <tr>
                         <td>Top 100</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.TechPpTop100, Model.Db2Metrics.TechPpTop100)">@Model.Db1Metrics.TechPpTop100.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.TechPpTop100, Model.Db1Metrics.TechPpTop100)">@Model.Db2Metrics.TechPpTop100.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.TechPpTop100, Model.Db2Metrics.TechPpTop100)</td>
+                        <td>@Model.Db1Metrics.TechPpTop100.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.TechPpTop100.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.TechPpTop100, Model.Db2Metrics.TechPpTop100)</td>
                     </tr>
                     <tr>
                         <td>Top 1000</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.TechPpTop1000, Model.Db2Metrics.TechPpTop1000)">@Model.Db1Metrics.TechPpTop1000.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.TechPpTop1000, Model.Db1Metrics.TechPpTop1000)">@Model.Db2Metrics.TechPpTop1000.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.TechPpTop1000, Model.Db2Metrics.TechPpTop1000)</td>
+                        <td>@Model.Db1Metrics.TechPpTop1000.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.TechPpTop1000.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.TechPpTop1000, Model.Db2Metrics.TechPpTop1000)</td>
                     </tr>
                     <tr>
                         <td>Top 2000</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.TechPpTop2000, Model.Db2Metrics.TechPpTop2000)">@Model.Db1Metrics.TechPpTop2000.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.TechPpTop2000, Model.Db1Metrics.TechPpTop2000)">@Model.Db2Metrics.TechPpTop2000.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.TechPpTop2000, Model.Db2Metrics.TechPpTop2000)</td>
+                        <td>@Model.Db1Metrics.TechPpTop2000.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.TechPpTop2000.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.TechPpTop2000, Model.Db2Metrics.TechPpTop2000)</td>
                     </tr>
                     <tr>
                         <td>Top 5000</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.TechPpTop5000, Model.Db2Metrics.TechPpTop5000)">@Model.Db1Metrics.TechPpTop5000.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.TechPpTop5000, Model.Db1Metrics.TechPpTop5000)">@Model.Db2Metrics.TechPpTop5000.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.TechPpTop5000, Model.Db2Metrics.TechPpTop5000)</td>
+                        <td>@Model.Db1Metrics.TechPpTop5000.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.TechPpTop5000.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.TechPpTop5000, Model.Db2Metrics.TechPpTop5000)</td>
                     </tr>
                     <tr>
                         <td>Top 10000</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.TechPpTop10000, Model.Db2Metrics.TechPpTop10000)">@Model.Db1Metrics.TechPpTop10000.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.TechPpTop10000, Model.Db1Metrics.TechPpTop10000)">@Model.Db2Metrics.TechPpTop10000.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.TechPpTop10000, Model.Db2Metrics.TechPpTop10000)</td>
+                        <td>@Model.Db1Metrics.TechPpTop10000.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.TechPpTop10000.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.TechPpTop10000, Model.Db2Metrics.TechPpTop10000)</td>
                     </tr>
                 </tbody>
             </table>
@@ -428,51 +428,51 @@
                         <th>Rank Range</th>
                         <th>Database 1</th>
                         <th>Database 2</th>
-                        <th>Winner</th>
+                        <th>Difference (DB2 − DB1)</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
                         <td>Top 1</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.PassPpTop1, Model.Db2Metrics.PassPpTop1)">@Model.Db1Metrics.PassPpTop1.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.PassPpTop1, Model.Db1Metrics.PassPpTop1)">@Model.Db2Metrics.PassPpTop1.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.PassPpTop1, Model.Db2Metrics.PassPpTop1)</td>
+                        <td>@Model.Db1Metrics.PassPpTop1.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.PassPpTop1.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.PassPpTop1, Model.Db2Metrics.PassPpTop1)</td>
                     </tr>
                     <tr>
                         <td>Top 10</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.PassPpTop10, Model.Db2Metrics.PassPpTop10)">@Model.Db1Metrics.PassPpTop10.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.PassPpTop10, Model.Db1Metrics.PassPpTop10)">@Model.Db2Metrics.PassPpTop10.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.PassPpTop10, Model.Db2Metrics.PassPpTop10)</td>
+                        <td>@Model.Db1Metrics.PassPpTop10.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.PassPpTop10.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.PassPpTop10, Model.Db2Metrics.PassPpTop10)</td>
                     </tr>
                     <tr>
                         <td>Top 100</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.PassPpTop100, Model.Db2Metrics.PassPpTop100)">@Model.Db1Metrics.PassPpTop100.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.PassPpTop100, Model.Db1Metrics.PassPpTop100)">@Model.Db2Metrics.PassPpTop100.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.PassPpTop100, Model.Db2Metrics.PassPpTop100)</td>
+                        <td>@Model.Db1Metrics.PassPpTop100.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.PassPpTop100.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.PassPpTop100, Model.Db2Metrics.PassPpTop100)</td>
                     </tr>
                     <tr>
                         <td>Top 1000</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.PassPpTop1000, Model.Db2Metrics.PassPpTop1000)">@Model.Db1Metrics.PassPpTop1000.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.PassPpTop1000, Model.Db1Metrics.PassPpTop1000)">@Model.Db2Metrics.PassPpTop1000.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.PassPpTop1000, Model.Db2Metrics.PassPpTop1000)</td>
+                        <td>@Model.Db1Metrics.PassPpTop1000.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.PassPpTop1000.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.PassPpTop1000, Model.Db2Metrics.PassPpTop1000)</td>
                     </tr>
                     <tr>
                         <td>Top 2000</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.PassPpTop2000, Model.Db2Metrics.PassPpTop2000)">@Model.Db1Metrics.PassPpTop2000.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.PassPpTop2000, Model.Db1Metrics.PassPpTop2000)">@Model.Db2Metrics.PassPpTop2000.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.PassPpTop2000, Model.Db2Metrics.PassPpTop2000)</td>
+                        <td>@Model.Db1Metrics.PassPpTop2000.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.PassPpTop2000.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.PassPpTop2000, Model.Db2Metrics.PassPpTop2000)</td>
                     </tr>
                     <tr>
                         <td>Top 5000</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.PassPpTop5000, Model.Db2Metrics.PassPpTop5000)">@Model.Db1Metrics.PassPpTop5000.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.PassPpTop5000, Model.Db1Metrics.PassPpTop5000)">@Model.Db2Metrics.PassPpTop5000.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.PassPpTop5000, Model.Db2Metrics.PassPpTop5000)</td>
+                        <td>@Model.Db1Metrics.PassPpTop5000.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.PassPpTop5000.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.PassPpTop5000, Model.Db2Metrics.PassPpTop5000)</td>
                     </tr>
                     <tr>
                         <td>Top 10000</td>
-                        <td class="@GetCellClass(Model.Db1Metrics.PassPpTop10000, Model.Db2Metrics.PassPpTop10000)">@Model.Db1Metrics.PassPpTop10000.ToString("F2")</td>
-                        <td class="@GetCellClass(Model.Db2Metrics.PassPpTop10000, Model.Db1Metrics.PassPpTop10000)">@Model.Db2Metrics.PassPpTop10000.ToString("F2")</td>
-                        <td>@GetWinner(Model.Db1Metrics.PassPpTop10000, Model.Db2Metrics.PassPpTop10000)</td>
+                        <td>@Model.Db1Metrics.PassPpTop10000.ToString("F2")</td>
+                        <td>@Model.Db2Metrics.PassPpTop10000.ToString("F2")</td>
+                        <td>@GetDifference(Model.Db1Metrics.PassPpTop10000, Model.Db2Metrics.PassPpTop10000)</td>
                     </tr>
                 </tbody>
             </table>
@@ -487,44 +487,23 @@ else
 }
 
 @functions {
-    string GetCellClass(float value1, float value2, bool lowerIsBetter = false)
+    // Database 2 minus database 1, with the change relative to database 1. Neutral: no metric is "better" higher or lower.
+    string GetDifference(float value1, float value2)
     {
-        if (Math.Abs(value1 - value2) < 0.001f) return "";
-        
-        if (lowerIsBetter)
-            return value1 < value2 ? "winner-cell" : "loser-cell";
-        else
-            return value1 > value2 ? "winner-cell" : "loser-cell";
+        float diff = value2 - value1;
+        if (Math.Abs(diff) < 0.001f) return "same";
+        string text = diff.ToString(Math.Abs(diff) < 1 ? "+0.000;-0.000" : "+0.00;-0.00");
+        if (Math.Abs(value1) > 1e-6f) text += $" ({diff / Math.Abs(value1) * 100:+0.0;-0.0}%)";
+        return text;
     }
 
-    string GetCellClass(int value1, int value2, bool lowerIsBetter = false)
+    string GetDifference(int value1, int value2)
     {
-        if (value1 == value2) return "";
-        
-        if (lowerIsBetter)
-            return value1 < value2 ? "winner-cell" : "loser-cell";
-        else
-            return value1 > value2 ? "winner-cell" : "loser-cell";
-    }
-
-    string GetWinner(float value1, float value2, bool lowerIsBetter = false)
-    {
-        if (Math.Abs(value1 - value2) < 0.001f) return "Tie";
-        
-        if (lowerIsBetter)
-            return value1 < value2 ? "DB1" : "DB2";
-        else
-            return value1 > value2 ? "DB1" : "DB2";
-    }
-
-    string GetWinner(int value1, int value2, bool lowerIsBetter = false)
-    {
-        if (value1 == value2) return "Tie";
-        
-        if (lowerIsBetter)
-            return value1 < value2 ? "DB1" : "DB2";
-        else
-            return value1 > value2 ? "DB1" : "DB2";
+        int diff = value2 - value1;
+        if (diff == 0) return "same";
+        string text = diff.ToString("+#,0;-#,0");
+        if (value1 != 0) text += $" ({diff / (double)Math.Abs(value1) * 100:+0.0;-0.0}%)";
+        return text;
     }
 }
 
@@ -553,17 +532,9 @@ else
         font-weight: 600;
     }
 
-    .winner-cell {
-        background-color: #d4edda !important;
-        font-weight: 600;
-    }
-
-    .loser-cell {
-        background-color: #f8d7da !important;
-    }
-
     .comparison-table td:last-child {
-        font-weight: 600;
-        text-align: center;
+        text-align: right;
+        font-variant-numeric: tabular-nums;
+        white-space: nowrap;
     }
 </style>

@@ -82,15 +82,6 @@ namespace portaBLe.Pages
             if (Cache != null) Load(Cache);
         }
 
-        // "Rebuild cache" button: rebuilds in the background from the database, the page keeps showing the current data
-        public async Task<IActionResult> OnPostRebuildAsync(string db = null, string returnUrl = null)
-        {
-            await InitializeDatabaseSelectionAsync(db);
-            TopScoresCache.StartBuild(() => GetDbContext());
-            if (!string.IsNullOrEmpty(returnUrl) && Url.IsLocalUrl(returnUrl)) return LocalRedirect(returnUrl);
-            return RedirectToPage(new { db = SelectedDatabase });
-        }
-
         private void Load(TopScoresCache.Snapshot data)
         {
             Modes = data.Modes.ToList();

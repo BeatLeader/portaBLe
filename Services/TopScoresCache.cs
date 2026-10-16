@@ -111,7 +111,8 @@ namespace portaBLe.Services
 
         private static readonly ConcurrentDictionary<string, Snapshot> _loaded = new(StringComparer.OrdinalIgnoreCase);
         private static readonly ConcurrentDictionary<string, Task> _building = new(StringComparer.OrdinalIgnoreCase);
-        private static readonly ConcurrentDictionary<string, string> _errors = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly ConcurrentDictionary<string, (string Message, DateTime AtUtc)> _errors = new(StringComparer.OrdinalIgnoreCase);
+        private static readonly TimeSpan RetryAfter = TimeSpan.FromMinutes(10);
         private static readonly ConcurrentDictionary<string, SemaphoreSlim> _locks = new(StringComparer.OrdinalIgnoreCase);
         private static readonly object _buildLock = new();
 
@@ -167,8 +168,9 @@ namespace portaBLe.Services
                     return new Result(fromFile, false, null);
                 }
 
-                // After a failed build, wait for the page's Rebuild button instead of retrying on every visit
-                if (_errors.TryGetValue(dbPath, out var error)) return new Result(current, false, error);
+                // After a failed build, retry 10 minutes later instead of on every visit
+                if (_errors.TryGetValue(dbPath, out var error) && DateTime.UtcNow - error.AtUtc < RetryAfter)
+                    return new Result(current, false, error.Message);
                 StartBuild(contextFactory, dbPath);
                 return new Result(current, true, null);
             }
@@ -179,7 +181,7 @@ namespace portaBLe.Services
         }
 
         // Builds in the background (does nothing when a build of this database is already running)
-        public static void StartBuild(Func<DbContext> contextFactory, string? dbPath = null)
+        private static void StartBuild(Func<DbContext> contextFactory, string? dbPath = null)
         {
             if (dbPath == null) using (var c = contextFactory()) dbPath = DbPathOf(c);
             lock (_buildLock)
@@ -196,7 +198,7 @@ namespace portaBLe.Services
                     }
                     catch (Exception e)
                     {
-                        _errors[path] = e.Message;
+                        _errors[path] = (e.Message, DateTime.UtcNow);
                         Console.WriteLine($"Top scores cache: build failed for {Path.GetFileName(path)}: {e}");
                     }
                 });

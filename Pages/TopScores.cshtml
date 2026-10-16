@@ -76,21 +76,14 @@
     {
         <span>Cached @Model.Cache.BuiltAtUtc.ToLocalTime().ToString("yyyy-MM-dd HH:mm") · @Model.Cache.Count.ToString("N0") scores</span>
     }
-    @if (Model.Building)
+    @if (Model.Building && Model.Cache != null)
     {
-        <span class="text-primary">@(Model.Cache == null ? "" : "Rebuilding in the background… ")</span>
-    }
-    else
-    {
-        <form method="post" asp-page-handler="Rebuild" asp-route-db="@Model.SelectedDatabase" class="d-inline">
-            <input type="hidden" name="returnUrl" value="@(HttpContext.Request.Path + HttpContext.Request.QueryString)" />
-            <button type="submit" class="btn btn-outline-secondary btn-sm py-0">Rebuild cache</button>
-        </form>
+        <span class="text-primary">The database changed: rebuilding in the background…</span>
     }
 </div>
 @if (!string.IsNullOrEmpty(Model.BuildError))
 {
-    <div class="alert alert-danger py-2">The last cache build failed: @Model.BuildError</div>
+    <div class="alert alert-danger py-2">The last cache build failed (it's retried 10 minutes later): @Model.BuildError</div>
 }
 @if (Model.Cache == null && Model.Building)
 {
