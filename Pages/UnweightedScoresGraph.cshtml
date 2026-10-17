@@ -96,8 +96,8 @@
                         </div>
                         <div class="col-md-3">
                             <div class="form-group">
-                                <label for="rollingWindow">Rolling window smoothing (points)</label>
-                                <input id="rollingWindow" type="number" class="form-control" min="1" step="1" autocomplete="off" value="@(Model.RollingWindow > 0 ? Model.RollingWindow : 400)" />
+                                <label for="rollingPercent">Rolling average window (% of scores)</label>
+                                <input id="rollingPercent" type="number" class="form-control" min="0.05" max="100" step="any" autocomplete="off" value="@((Model.RollingPercent > 0 ? Model.RollingPercent : 1).ToString(System.Globalization.CultureInfo.InvariantCulture))" />
                             </div>
                         </div>
                         <div class="col-md-3">
@@ -106,6 +106,7 @@
                                 <div class="d-flex align-items-center">
                                     <button id="applyFilters" class="btn btn-primary">Apply Filters</button>
                                     <div id="spinner" class="spinner-border spinner-border-sm ms-2" role="status" style="display:none;"></div>
+                                    <small id="status" class="text-muted ms-2"></small>
                                 </div>
                             </div>
                         </div>
@@ -149,16 +150,19 @@
 @section Scripts {
     <script src="https://cdn.plot.ly/plotly-2.29.1.min.js"></script>
     <script>
-        let data = [];
+        // The page's data: { count, dots: { field: [...] }, bins: { xField: { count, at, yField: [...] } } } (see Services/ScoresGraphData)
+        let data = null;
+        const WEIGHTED = false;
+        const LABEL = WEIGHTED ? 'Weighted' : 'Unweighted';
 
         function getAxisLabel(field) {
             switch (field) {
                 case 'x': return 'Stars';
-                case 'pp': return 'Unweighted PP';
+                case 'pp': return LABEL + ' PP';
                 case 'acc': return 'Score Accuracy';
-                case 'accPP': return 'Unweighted Acc PP';
-                case 'passPP': return 'Unweighted Pass PP';
-                case 'techPP': return 'Unweighted Tech PP';
+                case 'accPP': return LABEL + ' Acc PP';
+                case 'passPP': return LABEL + ' Pass PP';
+                case 'techPP': return LABEL + ' Tech PP';
                 case 'accRating': return 'Acc Rating';
                 case 'passRating': return 'Pass Rating';
                 case 'techRating': return 'Tech Rating';
@@ -166,39 +170,36 @@
             }
         }
 
-        function computeRollingAverage(points, xField, yField, windowSize, maxPoints = 200) {
-            if (!points || points.length === 0) return { xs: [], ys: [] };
-            const pts = points.slice().sort((a, b) => a[xField] - b[xField]);
-            const n = pts.length;
-            const half = Math.floor(windowSize / 2);
-            const xsFull = new Array(n);
-            const ysFull = new Array(n);
+        function readPercent() {
+            const v = parseFloat(document.getElementById('rollingPercent').value);
+            return isFinite(v) && v > 0 ? Math.min(v, 100) : 1;
+        }
+
+        // Rolling average over every filtered score: the server sends the scores sorted by the x axis in equal-count bins
+        // (each with its count, mean x and mean y), so a window of P% of the scores is P% of the bins, summed with running totals
+        function computeRollingAverage(bins, yField, percent, maxPoints = 200) {
+            if (!bins || !bins.at || bins.at.length === 0) return { xs: [], ys: [] };
+            const n = bins.at.length, counts = bins.count, means = bins[yField];
+            const half = Math.max(0, Math.floor(percent / 100 * n / 2));
+            const c = new Float64Array(n + 1), s = new Float64Array(n + 1);
             for (let i = 0; i < n; i++) {
-                const start = Math.max(0, i - half);
-                const end = Math.min(n - 1, i + half);
-                let sum = 0;
-                let count = 0;
-                for (let j = start; j <= end; j++) {
-                    const v = pts[j][yField];
-                    if (v != null && !isNaN(v)) { sum += v; count++; }
-                }
-                xsFull[i] = pts[i][xField];
-                ysFull[i] = count > 0 ? sum / count : null;
+                c[i + 1] = c[i] + counts[i];
+                s[i + 1] = s[i] + counts[i] * means[i];
+            }
+            const xsFull = new Array(n), ysFull = new Array(n);
+            for (let i = 0; i < n; i++) {
+                const lo = Math.max(0, i - half), hi = Math.min(n - 1, i + half);
+                const count = c[hi + 1] - c[lo];
+                xsFull[i] = bins.at[i];
+                ysFull[i] = count > 0 ? (s[hi + 1] - s[lo]) / count : null;
             }
 
             // Downsample to at most maxPoints to get a smoother line
             if (n <= maxPoints) return { xs: xsFull, ys: ysFull };
             const step = Math.ceil(n / maxPoints);
-            const xs = [];
-            const ys = [];
-            for (let i = 0; i < n; i += step) {
-                xs.push(xsFull[i]);
-                ys.push(ysFull[i]);
-            }
-            // ensure last point included
-            if (xs[xs.length - 1] !== xsFull[n - 1]) {
-                xs.push(xsFull[n - 1]); ys.push(ysFull[n - 1]);
-            }
+            const xs = [], ys = [];
+            for (let i = 0; i < n; i += step) { xs.push(xsFull[i]); ys.push(ysFull[i]); }
+            if (xs[xs.length - 1] !== xsFull[n - 1]) { xs.push(xsFull[n - 1]); ys.push(ysFull[n - 1]); }
             return { xs, ys };
         }
 
@@ -235,24 +236,18 @@
                 sumSq += diff * diff; count++;
             }
             if (count === 0) return 0;
-            const rmse = Math.sqrt(sumSq / count);
-            const magic = rmse / (maxY - minY);
-            return magic;
+            return Math.sqrt(sumSq / count) / (maxY - minY);
         }
 
-        function renderPlot(points, xField, yField, windowSize) {
-            if (!points || points.length === 0) {
+        function renderPlot(d, xField, yField, percent) {
+            if (!d || !d.count) {
                 Plotly.react('myPlot', [], {
                     xaxis: { title: getAxisLabel(xField) },
                     yaxis: { title: getAxisLabel(yField) },
                     margin: { t: 10, b: 50, l: 50, r: 10 },
                     annotations: [{
-                        text: 'Click "Apply Filters" to load data',
-                        xref: 'paper',
-                        yref: 'paper',
-                        x: 0.5,
-                        y: 0.5,
-                        showarrow: false,
+                        text: d ? 'No scores match these filters' : 'Click "Apply Filters" to load data',
+                        xref: 'paper', yref: 'paper', x: 0.5, y: 0.5, showarrow: false,
                         font: { size: 16, color: 'gray' }
                     }]
                 });
@@ -261,22 +256,22 @@
             }
 
             const tracePoints = {
-                x: points.map(p => p[xField]),
-                y: points.map(p => p[yField]),
+                x: d.dots[xField],
+                y: d.dots[yField],
                 mode: 'markers',
                 type: 'scattergl',
                 marker: { size: 4, color: 'blue', opacity: 0.2 },
                 name: 'Points'
             };
 
-            const ra = computeRollingAverage(points, xField, yField, windowSize);
+            const ra = computeRollingAverage(d.bins[xField], yField, percent);
             const traceAvg = {
                 x: ra.xs,
                 y: ra.ys,
                 mode: 'lines',
                 type: 'scattergl',
                 line: { color: 'red', width: 2 },
-                name: `Rolling Avg (${windowSize})`
+                name: `Rolling Avg (${percent}% of scores)`
             };
 
             const layout = {
@@ -287,74 +282,59 @@
             };
             Plotly.react('myPlot', [tracePoints, traceAvg], layout);
 
-            // compute and display magic value
             const magic = computeMagicValue(ra.xs, ra.ys);
-            const label = `Rolling average for ${getAxisLabel(yField)} vs ${getAxisLabel(xField)} (0 = perfectly linear):`;
-            document.getElementById('magicLabel').textContent = label;
+            document.getElementById('magicLabel').textContent = `Rolling average for ${getAxisLabel(yField)} vs ${getAxisLabel(xField)} (0 = perfectly linear):`;
             document.getElementById('magicValue').textContent = magic.toFixed(4);
         }
 
-        // initial render with empty data
-        const defaultWindow = parseInt(document.getElementById('rollingWindow').value || '400');
-        renderPlot(data, 'x', 'pp', defaultWindow);
+        function redraw() {
+            renderPlot(data, document.getElementById('xSelect').value, document.getElementById('ySelect').value, readPercent());
+        }
 
-        document.getElementById('xSelect').addEventListener('change', function() {
-            const x = this.value;
-            const y = document.getElementById('ySelect').value;
-            const w = parseInt(document.getElementById('rollingWindow').value || '400');
-            renderPlot(data, x, y, w);
-        });
-
-        document.getElementById('ySelect').addEventListener('change', function() {
-            const x = document.getElementById('xSelect').value;
-            const y = this.value;
-            const w = parseInt(document.getElementById('rollingWindow').value || '400');
-            renderPlot(data, x, y, w);
-        });
-
-        document.getElementById('rollingWindow').addEventListener('change', function() {
-            const x = document.getElementById('xSelect').value;
-            const y = document.getElementById('ySelect').value;
-            const w = parseInt(this.value || '400');
+        redraw();
+        document.getElementById('xSelect').addEventListener('change', redraw);
+        document.getElementById('ySelect').addEventListener('change', redraw);
+        document.getElementById('rollingPercent').addEventListener('change', function() {
             // keep it in the URL, so it survives switching databases
             const windowUrl = new URL(window.location.href);
-            windowUrl.searchParams.set('rollingWindow', w);
+            windowUrl.searchParams.set('rollingPercent', readPercent());
             window.history.replaceState({}, '', windowUrl);
-            renderPlot(data, x, y, w);
+            redraw();
         });
 
         function showSpinner(show) {
             document.getElementById('spinner').style.display = show ? 'inline-block' : 'none';
         }
 
+        const statusEl = document.getElementById('status');
+
+        function filterValues() {
+            const v = {
+                minYear: parseInt(document.getElementById('minYear').value) || 0,
+                minMonth: parseInt(document.getElementById('minMonth').value) || 0,
+                minDay: parseInt(document.getElementById('minDay').value) || 0,
+                maxPlayerRank: parseInt(document.getElementById('maxPlayerRank').value) || 0,
+                minRankedPlayCount: parseInt(document.getElementById('minRankedPlayCount').value) || 0,
+                playerId: (document.getElementById('playerId').value || '').trim(),
+                modNone: document.getElementById('modNone').checked,
+                modSS: document.getElementById('modSS').checked,
+                modFS: document.getElementById('modFS').checked,
+                modSFS: document.getElementById('modSFS').checked,
+            };
+            if (WEIGHTED) v.minWeightPercent = parseFloat(document.getElementById('minWeightPercent').value) || 0;
+            return v;
+        }
+
+        let retryTimer = null;
+
         async function fetchFiltered() {
-            const minYear = parseInt(document.getElementById('minYear').value) || 0;
-            const minMonth = parseInt(document.getElementById('minMonth').value) || 0;
-            const minDay = parseInt(document.getElementById('minDay').value) || 0;
-            const maxPlayerRank = parseInt(document.getElementById('maxPlayerRank').value) || 0;
-            const minRankedPlayCount = parseInt(document.getElementById('minRankedPlayCount').value) || 0;
-            const playerId = (document.getElementById('playerId').value || '').trim();
-            const modNone = document.getElementById('modNone').checked;
-            const modSS = document.getElementById('modSS').checked;
-            const modFS = document.getElementById('modFS').checked;
-            const modSFS = document.getElementById('modSFS').checked;
-            const x = document.getElementById('xSelect').value;
-            const y = document.getElementById('ySelect').value;
-            const windowSize = parseInt(document.getElementById('rollingWindow').value) || 400;
+            if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
+            const filters = filterValues();
 
             // Update the browser URL with filter parameters so they persist when switching databases
             const pageUrl = new URL(window.location.href);
-            pageUrl.searchParams.set('minYear', minYear);
-            pageUrl.searchParams.set('minMonth', minMonth);
-            pageUrl.searchParams.set('minDay', minDay);
-            pageUrl.searchParams.set('maxPlayerRank', maxPlayerRank);
-            pageUrl.searchParams.set('minRankedPlayCount', minRankedPlayCount);
-            pageUrl.searchParams.set('playerId', playerId);
-            pageUrl.searchParams.set('modNone', modNone);
-            pageUrl.searchParams.set('modSS', modSS);
-            pageUrl.searchParams.set('modFS', modFS);
-            pageUrl.searchParams.set('modSFS', modSFS);
-            pageUrl.searchParams.set('rollingWindow', windowSize);
+            for (const [k, v] of Object.entries(filters)) pageUrl.searchParams.set(k, v);
+            pageUrl.searchParams.set('rollingPercent', readPercent());
             window.history.replaceState({}, '', pageUrl);
 
             const url = new URL(window.location.href);
@@ -362,46 +342,46 @@
             const dbParam = url.searchParams.get('db');
             url.search = '';
             url.searchParams.set('handler', 'Data');
-            url.searchParams.set('minYear', minYear);
-            url.searchParams.set('minMonth', minMonth);
-            url.searchParams.set('minDay', minDay);
-            url.searchParams.set('maxPlayerRank', maxPlayerRank);
-            url.searchParams.set('minRankedPlayCount', minRankedPlayCount);
-            url.searchParams.set('playerId', playerId);
-            url.searchParams.set('modNone', modNone);
-            url.searchParams.set('modSS', modSS);
-            url.searchParams.set('modFS', modFS);
-            url.searchParams.set('modSFS', modSFS);
+            for (const [k, v] of Object.entries(filters)) url.searchParams.set(k, v);
             if (dbParam) url.searchParams.set('db', dbParam);
 
             showSpinner(true);
             try {
                 const resp = await fetch(url.toString(), { headers: { 'Accept': 'application/json' } });
                 if (!resp.ok) {
-                    console.error('Failed to fetch filtered data');
+                    statusEl.textContent = `Could not load the data (${resp.status}).`;
                     return;
                 }
                 const json = await resp.json();
+                if (json.count === undefined) {
+                    statusEl.textContent = json.error
+                        ? `The scores cache failed to build: ${json.error}`
+                        : 'Building the scores cache for this database (it can take a minute or two), retrying in 10 s…';
+                    if (!json.error) retryTimer = setTimeout(fetchFiltered, 10000);
+                    return;
+                }
                 data = json;
-                renderPlot(data, x, y, windowSize);
+                const shown = json.dots.pp ? json.dots.pp.length : 0;
+                statusEl.textContent = `${json.count.toLocaleString()} scores (${shown.toLocaleString()} dots shown, the average uses all of them)`
+                    + (json.building ? ' · the database changed, its cache is being rebuilt' : '');
+                redraw();
+            } catch (e) {
+                statusEl.textContent = 'Could not load the data.';
+                console.error(e);
             } finally {
                 showSpinner(false);
             }
         }
 
-        document.getElementById('applyFilters').addEventListener('click', function() {
-            fetchFiltered();
-        });
+        document.getElementById('applyFilters').addEventListener('click', fetchFiltered);
 
         // Auto-load data on page load if filter parameters are present in URL
         function shouldAutoLoad() {
             const urlParams = new URLSearchParams(window.location.search);
-            // Check if any filter parameter is set (excluding just 'db')
-            const filterParams = ['minYear', 'minMonth', 'minDay', 'maxPlayerRank', 'minRankedPlayCount', 'playerId', 'modNone', 'modSS', 'modFS', 'modSFS'];
+            const filterParams = ['minWeightPercent', 'minYear', 'minMonth', 'minDay', 'maxPlayerRank', 'minRankedPlayCount', 'playerId', 'modNone', 'modSS', 'modFS', 'modSFS'];
             return filterParams.some(param => urlParams.has(param) && urlParams.get(param) !== '' && urlParams.get(param) !== '0' && urlParams.get(param) !== 'true');
         }
 
-        // Auto-load on page load if filters are present
         if (shouldAutoLoad()) {
             fetchFiltered();
         }

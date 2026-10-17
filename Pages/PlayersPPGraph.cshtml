@@ -49,6 +49,7 @@
                         <div class="col-md-12">
                             <button id="applyFilters" class="btn btn-primary">Apply Filters</button>
                             <div id="spinner" class="spinner-border spinner-border-sm ml-2" role="status" style="display:none;"></div>
+                            <small id="status" class="text-muted ms-2"></small>
                         </div>
                     </div>
                 </div>
@@ -77,138 +78,97 @@
 @section Scripts {
     <script src="https://cdn.plot.ly/plotly-2.29.1.min.js"></script>
     <script type="text/javascript">
-        let players = @Html.Raw(Model.TriangleJsonData);
-        let isRendering = false;
+        // Columns from ?handler=Data: { count, id: [], name: [], accPP: [], techPP: [], passPP: [] }
+        let players = null;
+        const statusEl = document.getElementById('status');
+        const COLORS = {
+            AccPP: { field: 'accPP', scale: 'Viridis' },
+            TechPP: { field: 'techPP', scale: 'Cividis' },
+            PassPP: { field: 'passPP', scale: 'Plasma' },
+        };
 
-        function renderPlot(playersData, colorVariable = 'AccPP') {
-            // Prevent recursive calls
-            if (isRendering) {
-                console.warn('renderPlot already in progress, skipping recursive call');
+        function renderPlot(d, colorVariable) {
+            const noDataMsg = document.getElementById('noDataMessage');
+            const plotDiv = document.getElementById('myPlot');
+            if (!d || !d.count) {
+                noDataMsg.textContent = d ? 'No players match these filters' : 'Loading…';
+                noDataMsg.style.display = 'block';
+                plotDiv.style.display = 'none';
                 return;
             }
+            noDataMsg.style.display = 'none';
+            plotDiv.style.display = 'block';
 
-            isRendering = true;
+            const color = COLORS[colorVariable] || COLORS.AccPP;
+            const colorValues = d[color.field];
+            // A loop, not Math.max(...values): spreading 100k+ values overflows the call stack
+            let maxColor = 0;
+            for (const v of colorValues) if (v > maxColor) maxColor = v;
 
-            try {
-                const noDataMsg = document.getElementById('noDataMessage');
-                const plotDiv = document.getElementById('myPlot');
+            const text = new Array(d.count);
+            for (let i = 0; i < d.count; i++) text[i] = `${d.name[i]} (${d.id[i]})`;
 
-                if (!playersData || playersData.length === 0) {
-                    // Show no data message and hide plot
-                    if (noDataMsg) noDataMsg.style.display = 'block';
-                    if (plotDiv) plotDiv.style.display = 'none';
-                    return;
-                }
+            const trace = {
+                type: 'scatter3d',
+                mode: 'markers',
+                x: d.accPP,
+                y: d.techPP,
+                z: d.passPP,
+                text,
+                hovertemplate: 'Player: %{text}<br>AccPP: %{x:.1f}<br>TechPP: %{y:.1f}<br>PassPP: %{z:.1f}<extra></extra>',
+                marker: {
+                    size: d.count > 20000 ? 2 : d.count > 2000 ? 3 : 5,
+                    color: colorValues,
+                    colorscale: color.scale,
+                    cmin: 0,
+                    cmax: maxColor || 1,
+                    colorbar: { title: colorVariable },
+                    opacity: 0.8,
+                },
+            };
+            const layout = {
+                scene: {
+                    xaxis: { title: 'AccPP' },
+                    yaxis: { title: 'TechPP' },
+                    zaxis: { title: 'PassPP' },
+                },
+                margin: { t: 10, b: 10, l: 10, r: 10 },
+            };
+            Plotly.react('myPlot', [trace], layout, { displayModeBar: true, responsive: true });
+        }
 
-                // Hide no data message and show plot
-                if (noDataMsg) noDataMsg.style.display = 'none';
-                if (plotDiv) plotDiv.style.display = 'block';
-
-                // Map the selected variable to marker color
-                let colorValues, colorTitle, colorscale;
-                if (colorVariable === 'AccPP') {
-                    colorValues = playersData.map(p => Number(p.accPP));
-                    colorTitle = 'AccPP';
-                    colorscale = 'Viridis';
-                } else if (colorVariable === 'TechPP') {
-                    colorValues = playersData.map(p => Number(p.techPP));
-                    colorTitle = 'TechPP';
-                    colorscale = 'Cividis';
-                } else if (colorVariable === 'PassPP') {
-                    colorValues = playersData.map(p => Number(p.passPP));
-                    colorTitle = 'PassPP';
-                    colorscale = 'Plasma';
-                }
-
-                const maxColor = colorValues.length > 0 ? Math.max(...colorValues) : 1;
-
-                const trace = {
-                    type: 'scatter3d',
-                    mode: 'markers',
-                    x: playersData.map(p => Number(p.accPP)),
-                    y: playersData.map(p => Number(p.techPP)),
-                    z: playersData.map(p => Number(p.passPP)),
-                    text: playersData.map(p => (p.player || '') + ' (' + (p.id || '') + ')'),
-                    customdata: playersData.map(p => [p.accPP, p.techPP, p.passPP]),
-                    hovertemplate: 'Player: %{text}<br>AccPP: %{customdata[0]:.2f}<br>TechPP: %{customdata[1]:.2f}<br>PassPP: %{customdata[2]:.2f}<extra></extra>',
-                    marker: {
-                        size: 6,
-                        color: colorValues,
-                        colorscale: colorscale,
-                        cmin: 0,
-                        cmax: maxColor,
-                        colorbar: { title: colorTitle },
-                        opacity: 0.8 }
-                        };
-
-                        const layout = {
-                    scene: {
-                        xaxis: { title: 'AccPP' },
-                        yaxis: { title: 'TechPP' },
-                        zaxis: { title: 'PassPP' }
-                            },
-                    margin: { t: 10, b: 10, l: 10, r: 10 }
-                        };
-
-                        const config = { staticPlot: false, displayModeBar: true, responsive: true };
-
-                        Plotly.react('myPlot', [trace], layout, config);
-                } finally {
-                isRendering = false;
-                    }
-                }
-
-                // Load saved color selection from URL or localStorage
+        // Color selection from the URL, else the last one used
         function loadColorSelection() {
-            const urlParams = new URLSearchParams(window.location.search);
-            const urlColor = urlParams.get('colorBy');
-            const savedColor = localStorage.getItem('playersPPGraph_colorBy');
-            const colorSelect = document.getElementById('colorSelect');
+            let saved = null;
+            try { saved = localStorage.getItem('playersPPGraph_colorBy'); } catch { }
+            const colorToUse = new URLSearchParams(window.location.search).get('colorBy') || saved || 'AccPP';
+            document.getElementById('colorSelect').value = COLORS[colorToUse] ? colorToUse : 'AccPP';
+            return document.getElementById('colorSelect').value;
+        }
 
-                    const colorToUse = urlColor || savedColor || 'AccPP';
-            if (colorSelect && colorSelect.value !== colorToUse) {
-                colorSelect.value = colorToUse;
-                }
-                return colorToUse;
-                }
-
-                // Save color selection to localStorage and URL
         function saveColorSelection(colorBy) {
-            localStorage.setItem('playersPPGraph_colorBy', colorBy);
-            const urlParams = new URLSearchParams(window.location.search);
-            if (urlParams.get('colorBy') !== colorBy) {
-                urlParams.set('colorBy', colorBy);
-                const newUrl = window.location.pathname + '?' + urlParams.toString();
-                window.history.replaceState({}, '', newUrl);
-                    }
-                }
+            try { localStorage.setItem('playersPPGraph_colorBy', colorBy); } catch { }
+            const pageUrl = new URL(window.location.href);
+            pageUrl.searchParams.set('colorBy', colorBy);
+            window.history.replaceState({}, '', pageUrl);
+        }
 
-                // Initial render with saved color selection
-        const initialColor = loadColorSelection();
-        renderPlot(players || [], initialColor);
+        document.getElementById('colorSelect').addEventListener('change', function () {
+            saveColorSelection(this.value);
+            renderPlot(players, this.value);
+        });
 
-                // Dropdown event listener
-        const colorSelectElement = document.getElementById('colorSelect');
-        if (colorSelectElement) {
-            colorSelectElement.addEventListener('change', function() {
-                const selected = this.value;
-                saveColorSelection(selected);
-                renderPlot(players, selected);
-                    });
-                }
+        function showSpinner(show) {
+            document.getElementById('spinner').style.display = show ? 'inline-block' : 'none';
+        }
 
-                function showSpinner(show) {
-            const spinner = document.getElementById('spinner');
-            if (spinner) spinner.style.display = show ? 'inline-block' : 'none';
-                }
+        async function fetchFiltered() {
+            const maxPlayerRank = parseInt(document.getElementById('maxPlayerRank').value) || 0;
+            const minRankedPlayCount = parseInt(document.getElementById('minRankedPlayCount').value) || 0;
+            const playerId = (document.getElementById('playerId').value || '').trim();
+            const colorBy = document.getElementById('colorSelect').value || 'AccPP';
 
-                async function fetchFiltered() {
-            const maxPlayerRank = parseInt(document.getElementById('maxPlayerRank')?.value) || 0;
-            const minRankedPlayCount = parseInt(document.getElementById('minRankedPlayCount')?.value) || 0;
-            const playerId = (document.getElementById('playerId')?.value || '').trim();
-            const colorBy = document.getElementById('colorSelect')?.value || 'AccPP';
-
-                    // Update the browser URL with filter parameters so they persist when switching databases
+            // Keep the filters in the URL so they persist when switching databases
             const pageUrl = new URL(window.location.href);
             pageUrl.searchParams.set('maxPlayerRank', maxPlayerRank);
             pageUrl.searchParams.set('minRankedPlayCount', minRankedPlayCount);
@@ -216,7 +176,7 @@
             pageUrl.searchParams.set('colorBy', colorBy);
             window.history.replaceState({}, '', pageUrl);
 
-                    const url = new URL(window.location.href);
+            const url = new URL(window.location.href);
             url.pathname = url.pathname.replace(/\/$/, '');
             const dbParam = url.searchParams.get('db');
             url.search = '';
@@ -226,40 +186,30 @@
             url.searchParams.set('playerId', playerId);
             if (dbParam) url.searchParams.set('db', dbParam);
 
-                    console.log('Fetching from URL:', url.toString());
             showSpinner(true);
+            statusEl.textContent = '';
             try {
                 const resp = await fetch(url.toString(), { headers: { 'Accept': 'application/json' } });
                 if (!resp.ok) {
-                    console.error('Failed to fetch filtered data. Status:', resp.status);
-                    alert('Failed to load player data. Please check the console for details.');
+                    statusEl.textContent = `Could not load the players (${resp.status}).`;
                     return;
-                    }
-                    const json = await resp.json();
-                console.log('Received data:', json);
-                players = json;
+                }
+                players = await resp.json();
+                statusEl.textContent = `${players.count.toLocaleString()} players`;
                 renderPlot(players, colorBy);
-                } catch (error) {
+            } catch (error) {
+                statusEl.textContent = 'Could not load the players.';
                 console.error('Error fetching filtered data:', error);
-                alert('An error occurred while loading player data: ' + error.message);
-                } finally {
+            } finally {
                 showSpinner(false);
-                    }
-                }
-
-                document.getElementById('applyFilters')?.addEventListener('click', fetchFiltered);
-
-                // Auto-load data on page load if filter parameters are present in URL
-        function shouldAutoLoad() {
-            const urlParams = new URLSearchParams(window.location.search);
-            // Check if any filter parameter is set (excluding just 'db')
-            const filterParams = ['maxPlayerRank', 'minRankedPlayCount', 'playerId'];
-            return filterParams.some(param => urlParams.has(param) && urlParams.get(param) !== '' && urlParams.get(param) !== '0');
-                }
-
-                // Auto-load on page load if filters are present
-        if (shouldAutoLoad()) {
-            fetchFiltered();
             }
+        }
+
+        document.getElementById('applyFilters').addEventListener('click', fetchFiltered);
+
+        // Load straight away with the filters shown (from the URL, else the defaults)
+        loadColorSelection();
+        renderPlot(null);
+        fetchFiltered();
     </script>
 }

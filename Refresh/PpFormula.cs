@@ -12,16 +12,16 @@ namespace portaBLe.Refresh
     //   stars   = pp at 96% / StarDivisor (before PpMultiplier, so the multiplier doesn't move stars)
     public class PpFormula
     {
-        public double PassScale { get; set; } = 12.9;
+        public double PassScale { get; set; } = 12.3;
         public double PassExponent { get; set; } = 2.62;
         public double PassOffset { get; set; } = 30;
         public double AccWeight { get; set; } = 34;
-        public double TechWeight { get; set; } = 0.63;
+        public double TechWeight { get; set; } = 0.60;
         public double TechAccExponent { get; set; } = 1.9;
         public double InflateBase { get; set; } = 650;
         public double InflateExponent { get; set; } = 1.3;
         public double StarDivisor { get; set; } = 49.13;
-        public double PpMultiplier { get; set; } = 1.042;
+        public double PpMultiplier { get; set; } = 1.050;
 
         // Low star bonus: maps under LowStarBonusEnd stars pay more, without changing their stars (+45% at 1 star, +17% at 2,
         // +6% at 3, nothing from 4). Top players farm the easiest maps to 99%+, but stars are measured at 96%, so the

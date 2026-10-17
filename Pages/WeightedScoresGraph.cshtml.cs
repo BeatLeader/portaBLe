@@ -1,20 +1,17 @@
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.EntityFrameworkCore;
 using portaBLe.Services;
-using System.Text.Json;
-using static portaBLe.Pages.LeaderboardModel;
 
 namespace portaBLe.Pages
 {
+    // Every score's weighted pp against its map's stars or ratings. Reads the Top Scores cache (Services/ScoresGraphData),
+    // never the scores table. The rolling average is over every filtered score; the dots are thinned.
     public class WeightedScoresGraphModel : BasePageModel
     {
-        public string WeightedJsonData { get; set; }
-
         // Min weight expressed as percentage 0..100 for easier UI. Will be converted to 0..1 fraction.
         [BindProperty(SupportsGet = true)]
         public float MinWeightPercent { get; set; } = 0;
 
-        // Date components for Timepost filter. If Year is 0 -> unfiltered.
+        // Date components for the date filter (to the day). If Year is 0 -> unfiltered.
         [BindProperty(SupportsGet = true)]
         public int MinYear { get; set; } = 0;
         [BindProperty(SupportsGet = true)]
@@ -22,7 +19,7 @@ namespace portaBLe.Pages
         [BindProperty(SupportsGet = true)]
         public int MinDay { get; set; } = 0;
 
-        // Now a maximum player rank. 0 = unfiltered.
+        // Maximum player rank. 0 = unfiltered.
         [BindProperty(SupportsGet = true)]
         public int MaxPlayerRank { get; set; } = 1000;
 
@@ -43,9 +40,9 @@ namespace portaBLe.Pages
         [BindProperty(SupportsGet = true)]
         public bool ModSFS { get; set; } = true;
 
-        // Rolling average window (points), kept in the URL so it survives switching databases
+        // Rolling average window as a share of the filtered scores (%), kept in the URL so it survives switching databases
         [BindProperty(SupportsGet = true)]
-        public int RollingWindow { get; set; } = 400;
+        public double RollingPercent { get; set; } = 1;
 
         public WeightedScoresGraphModel(IDynamicDbContextService dbService) : base(dbService)
         {
@@ -54,125 +51,44 @@ namespace portaBLe.Pages
         public async Task OnGetAsync(string db = null)
         {
             await InitializeDatabaseSelectionAsync(db);
-            WeightedJsonData = "[]";
         }
 
         public async Task<IActionResult> OnGetDataAsync(float minWeightPercent = 0, int minYear = 0, int minMonth = 0, int minDay = 0, int maxPlayerRank = 1000, int minRankedPlayCount = 100, string playerId = "", bool modNone = true, bool modSS = true, bool modFS = true, bool modSFS = true, string db = null)
         {
             await InitializeDatabaseSelectionAsync(db);
-            int minTimepost = ConvertDateToUnix(minYear, minMonth, minDay);
-            var filteredPoints = await GetFilteredPointsAsync(minWeightPercent / 100f, minTimepost, maxPlayerRank, minRankedPlayCount, playerId, modNone, modSS, modFS, modSFS);
-            return new JsonResult(filteredPoints);
-        }
+            var result = await TopScoresCache.TryGetAsync(() => GetDbContext());
+            if (result.Data == null) return new JsonResult(new { building = result.Building, error = result.Error });
 
-        private int ConvertDateToUnix(int year, int month, int day)
+            var filters = new ScoresGraphData.Filters
+            {
+                Weighted = true,
+                MinWeight = minWeightPercent / 100f,
+                MinDay = ScoresGraphDates.DayOf(minYear, minMonth, minDay),
+                MaxPlayerRank = maxPlayerRank,
+                MinRankedPlayCount = minRankedPlayCount,
+                PlayerId = playerId ?? "",
+                Speeds = new[] { modNone, modSS, modFS, modSFS },
+            };
+            return new JsonResult(await ScoresGraphData.BuildAsync(result.Data, () => GetDbContext(), filters, result.Building));
+        }
+    }
+
+    public static class ScoresGraphDates
+    {
+        // The filter's day (TopScoresCache.DayNumber), int.MinValue when unfiltered (year 0) or not a valid date
+        public static int DayOf(int year, int month, int day)
         {
+            if (year <= 0) return int.MinValue;
+            if (month <= 0) month = 1;
+            if (day <= 0) day = 1;
             try
             {
-                if (year <= 0) return 0; // unfiltered
-                if (month <= 0) month = 1;
-                if (day <= 0) day = 1;
-                var dt = new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Utc);
-                var unix = (int)(dt.Subtract(new DateTime(1970, 1, 1, 0, 0, 0, DateTimeKind.Utc)).TotalSeconds);
-                return unix;
+                return TopScoresCache.DayNumber(new DateTime(year, month, day, 0, 0, 0, DateTimeKind.Utc));
             }
             catch
             {
-                return 0;
+                return int.MinValue;
             }
-        }
-
-        private async Task<List<object>> GetFilteredPointsAsync(float minWeightFraction, int minTimepost, int maxPlayerRank, int minRankedPlayCount, string playerId, bool modNone, bool modSS, bool modFS, bool modSFS)
-        {
-            using var context = (Services.DynamicDbContext)GetDbContext();
-
-            var rows = await ScoreModifierFilter.Apply(context.Scores, modNone, modSS, modFS, modSFS)
-                .Include(s => s.Player)
-                .Include(s => s.Leaderboard)
-                .Where(s => s.Weight >= minWeightFraction
-                            && s.Timepost >= minTimepost
-                            && s.Player != null
-                            && (maxPlayerRank == 0 || s.Player.Rank <= maxPlayerRank)
-                            && s.Player.RankedPlayCount >= minRankedPlayCount
-                            && (string.IsNullOrWhiteSpace(playerId) || s.PlayerId == playerId))
-                .Select(s => new
-                {
-                    mods = s.Modifiers,
-                    stars = (double)s.Leaderboard.Stars,
-                    accRating = (double)s.Leaderboard.AccRating,
-                    passRating = (double)s.Leaderboard.PassRating,
-                    techRating = (double)s.Leaderboard.TechRating,
-                    ssStars = (double?)s.Leaderboard.ModifiersRating.SSStars,
-                    fsStars = (double?)s.Leaderboard.ModifiersRating.FSStars,
-                    sfStars = (double?)s.Leaderboard.ModifiersRating.SFStars,
-                    ssAcc = (double?)s.Leaderboard.ModifiersRating.SSAccRating,
-                    fsAcc = (double?)s.Leaderboard.ModifiersRating.FSAccRating,
-                    sfAcc = (double?)s.Leaderboard.ModifiersRating.SFAccRating,
-                    ssPass = (double?)s.Leaderboard.ModifiersRating.SSPassRating,
-                    fsPass = (double?)s.Leaderboard.ModifiersRating.FSPassRating,
-                    sfPass = (double?)s.Leaderboard.ModifiersRating.SFPassRating,
-                    ssTech = (double?)s.Leaderboard.ModifiersRating.SSTechRating,
-                    fsTech = (double?)s.Leaderboard.ModifiersRating.FSTechRating,
-                    sfTech = (double?)s.Leaderboard.ModifiersRating.SFTechRating,
-                    pp = (double)s.Pp * s.Weight,
-                    acc = (double)s.Accuracy,
-                    accPP = (double)s.AccPP * s.Weight,
-                    passPP = (double)s.PassPP * s.Weight,
-                    techPP = (double)s.TechPP * s.Weight,
-                    weight = (double)s.Weight
-                })
-                .ToListAsync();
-
-            // A modded score uses its modifier's stars and ratings (SFS score -> SFS stars), the others the base ones
-            var points = rows.Select(s =>
-            {
-                var speed = ScoreModifierFilter.SpeedModifier(s.mods);
-                return new
-                {
-                    x = ScoreModifierFilter.Pick(speed, s.stars, s.ssStars, s.fsStars, s.sfStars),
-                    pp = s.pp,
-                    acc = s.acc,
-                    accPP = s.accPP,
-                    passPP = s.passPP,
-                    techPP = s.techPP,
-                    accRating = ScoreModifierFilter.Pick(speed, s.accRating, s.ssAcc, s.fsAcc, s.sfAcc),
-                    passRating = ScoreModifierFilter.Pick(speed, s.passRating, s.ssPass, s.fsPass, s.sfPass),
-                    techRating = ScoreModifierFilter.Pick(speed, s.techRating, s.ssTech, s.fsTech, s.sfTech),
-                    weight = s.weight
-                };
-            }).ToList();
-
-            int numXBins = 500;
-            int numYBins = 500;
-
-            double minX = points.Any() ? points.Min(p => p.x) : 0;
-            double maxX = points.Any() ? points.Max(p => p.x) : 1;
-            double minY = points.Any() ? points.Min(p => p.pp) : 0;
-            double maxY = points.Any() ? points.Max(p => p.pp) : 1;
-
-            double xBinSize = (maxX - minX) / numXBins;
-            double yBinSize = (maxY - minY) / numYBins;
-
-            // Avoid division by zero
-            if (xBinSize <= 0) xBinSize = 1;
-            if (yBinSize <= 0) yBinSize = 1;
-
-            var grid = new bool[numXBins, numYBins];
-            var filteredPoints = new List<object>();
-
-            foreach (var p in points)
-            {
-                int xIndex = Math.Min((int)((p.x - minX) / xBinSize), numXBins - 1);
-                int yIndex = Math.Min((int)((p.pp - minY) / yBinSize), numYBins - 1);
-
-                if (!grid[xIndex, yIndex])
-                {
-                    filteredPoints.Add(p);
-                    grid[xIndex, yIndex] = true;
-                }
-            }
-
-            return filteredPoints;
         }
     }
 }

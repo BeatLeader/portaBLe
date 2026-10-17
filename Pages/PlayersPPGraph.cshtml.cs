@@ -1,14 +1,14 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using portaBLe.Services;
-using System.Text.Json;
 
 namespace portaBLe.Pages
 {
+    // Every player's acc / tech / pass pp as a 3D scatter. The page loads empty and fetches the points (?handler=Data) with the
+    // filters, so opening it never waits on the query. Only the five columns drawn are read, and sent as columns.
     public class PlayersPPGraphModel : BasePageModel
     {
-        public string TriangleJsonData { get; set; }
-
+        // 0 = unfiltered; otherwise ranked players (rank 1..MaxPlayerRank) only
         [BindProperty(SupportsGet = true)]
         public int MaxPlayerRank { get; set; } = 0;
 
@@ -22,63 +22,37 @@ namespace portaBLe.Pages
         {
         }
 
-        public class PlayerPoint
-        {
-            public string player { get; set; } = string.Empty;
-            public string id { get; set; } = string.Empty;
-            public double accPP { get; set; }
-            public double passPP { get; set; }
-            public double techPP { get; set; }
-        }
-
         public async Task OnGetAsync(string db = null)
         {
             await InitializeDatabaseSelectionAsync(db);
-            var playerPoints = await GetFilteredPointsAsync(MaxPlayerRank, MinRankedPlayCount, PlayerId);
-            TriangleJsonData = JsonSerializer.Serialize(playerPoints);
         }
 
         // Handler for AJAX requests: ?handler=Data
         public async Task<IActionResult> OnGetDataAsync(int maxPlayerRank = 0, int minRankedPlayCount = 0, string playerId = "", string db = null)
         {
             await InitializeDatabaseSelectionAsync(db);
-            var playerPoints = await GetFilteredPointsAsync(maxPlayerRank, minRankedPlayCount, playerId);
-            return new JsonResult(playerPoints);
-        }
-
-        private async Task<List<PlayerPoint>> GetFilteredPointsAsync(int maxPlayerRank, int minRankedPlayCount, string playerId)
-        {
             using var context = (Services.DynamicDbContext)GetDbContext();
+            string id = (playerId ?? "").Trim();
 
-            var players = await context.Players
-                .Where(s => s != null
-                            && (maxPlayerRank == 0 || s.Rank <= maxPlayerRank)
-                            && s.RankedPlayCount >= minRankedPlayCount
-                            && (string.IsNullOrWhiteSpace(playerId) || s.Id == playerId))
+            var query = context.Players.AsNoTracking().Where(p => p.RankedPlayCount >= minRankedPlayCount);
+            if (maxPlayerRank > 0) query = query.Where(p => p.Rank > 0 && p.Rank <= maxPlayerRank);
+            if (id.Length > 0) query = query.Where(p => p.Id == id);
+
+            var rows = await query
+                .Where(p => p.AccPp + p.TechPp + p.PassPp > 0)
+                .Select(p => new { p.Id, p.Name, p.AccPp, p.TechPp, p.PassPp })
                 .ToListAsync();
 
-            if (players == null || players.Count == 0)
-                return new List<PlayerPoint>();
-
-            var result = players.Select(s =>
+            static float R(float v) => float.IsFinite(v) ? MathF.Round(v, 1) : 0f;
+            return new JsonResult(new
             {
-                if (s.AccPp + s.TechPp + s.PassPp == 0)
-                    return null;
-
-                return new PlayerPoint
-                {
-                    player = s.Name,
-                    id = s.Id,
-                    accPP = s.AccPp,
-                    techPP = s.TechPp,
-                    passPP = s.PassPp,
-                };
-            })
-            .Where(x => x != null)
-            .Select(x => x!)
-            .ToList();
-
-            return result;
+                count = rows.Count,
+                id = rows.Select(r => r.Id).ToArray(),
+                name = rows.Select(r => r.Name ?? "").ToArray(),
+                accPP = rows.Select(r => R(r.AccPp)).ToArray(),
+                techPP = rows.Select(r => R(r.TechPp)).ToArray(),
+                passPP = rows.Select(r => R(r.PassPp)).ToArray(),
+            });
         }
     }
 }
