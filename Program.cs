@@ -340,6 +340,8 @@ namespace portaBLe
                     // Usual order after changing the Analyzer, the Acc AI model or a constant:
                     //   RatingsRefresh.Overwrite -> RefreshEverything -> BalanceTuner.Run -> ModelComparisonExport.Run
                     // (only pp formula changes, Refresh/PpFormula.cs: skip Overwrite)
+                    // Run FullPipeline to do all of the above in one pass (about 10-15 minutes and 8-15GB of RAM)
+                    // await FullPipeline(dbContext, env);
 
                     // Rate every leaderboard again with RatingAPI (Analyzer + Acc AI)
                     // await RatingsRefresh.Overwrite(dbContext);
@@ -414,6 +416,13 @@ namespace portaBLe
             }
         }
 
+        public static async Task FullPipeline(AppContext dbContext, IWebHostEnvironment env)
+        {
+            await RatingsRefresh.Overwrite(dbContext);
+            await RefreshEverything(dbContext);
+            await BalanceTuner.Run(dbContext, env.WebRootPath);
+            await ModelComparisonExport.Run(env.WebRootPath, ProdDatabase);
+        }
         public static async Task RefreshEverything(AppContext dbContext)
         {
             // Same as ScoresRefresh.Refresh + PlayersRefresh.Refresh, in one pass over the scores (about 3x faster)
