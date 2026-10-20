@@ -1,15 +1,10 @@
 {
-  "MainDB": 0,
+  "MainDB": -1,
   "Databases": [
     {
       "Name": "Prod",
       "FileName": "db-20261012191847-9271.db",
       "Description": "Current production website (no autoreweight)"
-    },
-    {
-      "Name": "New stuff",
-      "FileName": "db-20261015031039-9347.db",
-      "Description": "New model + Autorebalance"
     },
     {
       "Name": "Prod Autoreweighted",
@@ -18,8 +13,13 @@
     },
     {
       "Name": "Dev",
-      "FileName": "db-20261020015519-1202.db",
+      "FileName": "db-20261020224729-8121.db",
       "Description": "Dev"
+    },
+    {
+      "Name": "Dev Autoreweighted",
+      "FileName": "db-20261020223115-2133.db",
+      "Description": "Dev + new autoreweight"
     }
   ]
 }

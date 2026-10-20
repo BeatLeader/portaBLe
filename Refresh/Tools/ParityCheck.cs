@@ -119,6 +119,12 @@ namespace portaBLe.Refresh
 
             // Direction the saber moved at the cut (world space, degrees, 0 right / 90 up): mean of the players' unit vectors
             public double DirX, DirY;
+            // Roll of the controller at the cut (world direction minus the direction in the hand frame, both sign conventions
+            // as the hand frame may be mirrored), minus the replay's mean for that hand: wrist rotation, not arm movement
+            public double RollMX, RollMY, RollPX, RollPY;
+            public int RollCount;
+            public double? RollMinus => RollCount >= MinVotes ? (Math.Atan2(RollMY, RollMX) * 180 / Math.PI + 360) % 360 : null;
+            public double? RollPlus => RollCount >= MinVotes ? (Math.Atan2(RollPY, RollPX) * 180 / Math.PI + 360) % 360 : null;
             public int DirCount;
             public double Angle => (Math.Atan2(DirY, DirX) * 180 / Math.PI + 360) % 360;
             // 1 when every player cut in the same direction, lower when they spread out
@@ -191,6 +197,10 @@ namespace portaBLe.Refresh
                     if (side == 0) continue;
                     double forehandAngle = side > 0 ? axis : axis + Math.PI;
 
+                    var handRows = rows.Where(r => r.Hand == hand && !double.IsNaN(r.World)).ToList();
+                    double meanMinus = Math.Atan2(handRows.Sum(r => Math.Sin(r.World - r.Angle)), handRows.Sum(r => Math.Cos(r.World - r.Angle)));
+                    double meanPlus = Math.Atan2(handRows.Sum(r => Math.Sin(r.World + r.Angle)), handRows.Sum(r => Math.Cos(r.World + r.Angle)));
+
                     foreach (var r in rows.Where(r => r.Hand == hand))
                     {
                         var noteKey = (r.Key, (int)Math.Round(r.Time * 1000));
@@ -204,6 +214,11 @@ namespace portaBLe.Refresh
                             note.DirX += Math.Cos(r.World);
                             note.DirY += Math.Sin(r.World);
                             note.DirCount++;
+                            note.RollMX += Math.Cos(r.World - r.Angle - meanMinus);
+                            note.RollMY += Math.Sin(r.World - r.Angle - meanMinus);
+                            note.RollPX += Math.Cos(r.World + r.Angle - meanPlus);
+                            note.RollPY += Math.Sin(r.World + r.Angle - meanPlus);
+                            note.RollCount++;
                         }
                         double c = Math.Cos(r.Angle - forehandAngle);
                         if (Math.Abs(c) < ConfidentCos) continue;
@@ -389,6 +404,7 @@ namespace portaBLe.Refresh
                     "HeadSeconds", "TailSeconds", "HeadBeat", "TailBeat", "HeadX", "HeadY", "HeadCut", "TailX", "TailY", "TailCut", "Notes",
                     "Direction", "AnalyzerBombAvoidance", "AnalyzerForehand", "PlayerForehand", "PlayerShare", "PlayerVotes",
                     "BombsBefore", "ParityDirection", "PlayerAngle", "PlayerAngleSpread", "Chain", "AngleOffset",
+                    "ArcOffset", "AngleStrain", "RotationAmount", "SwingTech", "ParityErrors", "RollMinus", "RollPlus", "RepositioningDistance",
                 },
                 // Per map, per hand (0 left, 1 right): swings in time order. BombsBefore: [beat, x, y] of every bomb between the
                 // previous swing's last note and this swing's first note. PlayerForehand: 1, 0, or null when players don't agree.
@@ -492,6 +508,8 @@ namespace portaBLe.Refresh
                         note != null && note.DirCount > 0 ? R(note.Spread) : null,
                         head.Chain,
                         R(head.AngleOffset),
+                        R(swing.ArcOffset), R(swing.AngleStrain), R(swing.RotationAmount), R(swing.SwingTech), swing.ParityErrors,
+                        note?.RollMinus is double rm ? R(rm) : null, note?.RollPlus is double rp ? R(rp) : null, R(swing.RepositioningDistance),
                     });
 
                     // Notes of a multi-note swing that the players hit with the other parity: they swung twice

@@ -3,8 +3,108 @@
 The `loloppe-rebalancer` branch of portaBLe, plus the rating changes in the RatingAPI and Analyzer submodules. The Acc AI
 model comes from `beatsaber-replays-ai-2`.
 
-The goal is ratings that never need scores at rating time. Scores, replays and fail attempts are only used offline, to fit
-and validate constants.
+The goal is ratings that never need scores at rating time. Scores, replays and fail attempts are used offline, to fit and
+validate constants. The one exception is the acc reweighter (below), the only tool that changes ratings from scores.
+
+## Row streams, pass windows, prod scale, acc reweighter
+
+### Ratings (Analyzer submodule)
+
+- **Arrow directions refitted on replays.** Single arrows were pulled all the way towards the path from the previous
+  swing; players actually cut them close to the way they point and reach the next note with the arm. The pull is now
+  0.15 of that on the same row and 0.3-0.85 on a row change (more for faster swings).
+  - Why: on bottom row streams, every up and down arrow was bent into a ~50° diagonal, so they looked like constant wrist
+    rotation and angle strain, and those maps had too much tech.
+  - Against top players' cut directions (3.3M arrows on 3886 maps): mean error 15.9° → 10.2°, within 30° 85% → 96%.
+    Rotation and angle strain follow the players' real wrist roll (controller roll in the replays) much better, R² 0.27 →
+    0.50 and 0.52 → 0.64.
+- **Pass windows 16-128 s → 4-32 s.** Long dense streams were overvalued (Ascension to Heaven Expert) and peak-driven
+  speed maps undervalued (The Purple Dimension).
+- **Density bonus capped** (`DENSITY_CAP` 2 → 1): sparse stretches still count less, dense ones no more than the
+  reference.
+- **Distance between swings counts more** (`DISTANCE_FALLOFF` 2.668 → 1.0). Maps with longer hit distances were worth
+  less than others of their stars.
+- **New `Ratings.HitDistance`:** mean distance between consecutive swings, used by the acc rating.
+
+### Acc rating (RatingAPI submodule)
+
+- **Movement and high pass corrections.** The Acc AI predicts the accuracy of the notes players cut, but misses and bad
+  cuts cost more where the hands travel far or the pass is very high. The effective predicted acc is lowered:
+  - by 3% per meter of mean hit distance above 0.62 m (capped at 0.8 m), on maps under 97-97.5% predicted acc;
+  - by 0.214% per pass point above 14.52.
+  - Fitted on the top 300 players' scores after removing each player's own level. The Purple Dimension's acc rating was
+    too low for what players can get on it (−2.5% against the prediction).
+- **Legacy `star_rating` removed from RatingAPI's response.** portaBLe computes stars itself.
+
+### Ratings on prod's scale
+
+- **Pass, tech, acc and stars on prod's scale**, fitted on the quantiles of prod's ranked ratings. The stored values are
+  the ones the formulas use (no display curves):
+  - pass: `PASS_CALIBRATION_FACTOR` 0.5195 → 0.7721 (a linear ×1.4862); the pass pp formula (`PpFormula.PassInner`,
+    `PassTopKnee`), the tech pass factor (`Ratings.TechPassBase`) and the high pass acc correction were converted so
+    the same map gets the same pp;
+  - tech: `BALANCED_TECH_SCALER` × (average swing tech × pass factor)^0.8015;
+  - acc: `ACC_SCALE` × Curve(...)^−0.8222 (`ACC_SCALE` 15.1 → 13.5382);
+  - stars: `StarScale` × (pp at 96% / `StarDivisor`)^0.9039 (`StarDivisor` 49.13 → 45.25).
+  - Medians and 99th percentiles, now vs prod: stars 6.86 / 13.34 (6.97 / 13.19), pass 4.47 / 13.03 (4.44 / 13.39), acc
+    8.54 / 13.13 (8.68 / 12.63), tech 3.88 / 11.88 (3.75 / 11.23).
+- **Acc and tech pp take the ratings to a power** (`PpFormula.AccRatingPower` 1.2163, `TechRatingPower` 1.2477, the
+  inverses of the ratings' powers; `AccWeight` 34 → 21.584, `TechWeight` 0.0938): the same pp as before.
+  - Why: prod's tech and acc ratings are flatter at the top than acc and tech pp need. With pp proportional to them, a
+    star range's acc-heavy maps lost pp against its pass-heavy ones (pass share slope +0.03 → +0.11, tech share slope
+    +0.01 → −0.15), and no `PassScale` / `TechWeight` combination undid it.
+- **Speed modifier multipliers** multiply the ratings directly, as in prod.
+- **pp level on prod's scale:** `PpMultiplier` 1.050 → 1.146 (top 1000 players within 0.4% of prod on average).
+- **Low star bonus** refitted on the new stars (0.0642 × (4.49 − stars)^1.36), so the same maps get the same bonus.
+
+### pp and balance
+
+- **One saber nerf** 0.53 → 0.548 (OneSaber gap +0.026 → −0.006 once the stars were rescaled).
+- **TechWeight** 0.2193 → 0.1348 through each step above (dense low-tech maps lost pass, high-movement maps gained acc,
+  tech ratings ×1.102 on prod's scale), then 0.0938 with `TechRatingPower` (same tech pp).
+- **Balance vs the start of this round:**
+
+  | | Before | After |
+  |---|---|---|
+  | Worth spread (before the acc reweighter) | 0.497 | 0.479 |
+  | Pass share slope / gap | 0.049 / 0.052 | 0.034 / 0.023 |
+  | Tech share slope / gap | 0.038 / 0.033 | 0.013 / 0.010 |
+  | Predicted acc gap | +0.010 | −0.009 |
+  | OneSaber gap | +0.026 | −0.006 |
+
+### Acc reweighter
+
+- **New `Refresh/Tools/AccReweighter.cs`, the only tool that changes ratings from scores.** It moves each map's acc
+  rating so the map is worth about as much as other maps of its kind, without moving kinds of maps against each other.
+  - Every candidate is re-scored in memory, since one map's change moves every player's weights.
+  - Maps with few scores move less; maps without a worth (newly ranked) keep ×1.
+  - How far it goes is chosen on held-out players: worth spread on the half it didn't fit on went 0.49 → 0.24. About half
+    of each map's deviation is reproducible across players, the rest is score noise and is left alone.
+  - The result is only kept if the balance tuner's slopes and gaps don't get worse. Multipliers average 1 within each star
+    range and stay within ±15% (4.1% on average, 3585 maps).
+  - Examples: Ascension to Heaven Expert +1.32 → −0.10, Godspeed ExpertPlus +0.83 → +0.06.
+  - Balance after it: pass share slope / gap 0.016 / 0.024, tech share slope / gap −0.020 / 0.004, predicted acc gap
+    +0.002, OneSaber gap +0.012.
+- **Stored in `Leaderboard.AccReweight`** and kept when ratings are recomputed (`RatingsRefresh.Overwrite` / `Refresh`).
+  Report in `wwwroot/acc-reweight.json`.
+- **`FullPipeline(dbContext, env, autoreweight, balancer)`** runs it (and the re-score after it) when `autoreweight` is
+  true.
+- **The old `ScoresRefresh.Autoreweight` / `Autoreweight3` are removed.**
+
+### Pages and tools
+
+- **Worth on the Leaderboards and Leaderboard pages:** `Leaderboard.Worth` (Megametric75 relative to the map's star range,
+  +0.27 = 27% more than average), computed by `LeaderboardsRefresh`.
+- **Leaderboards page redesigned:**
+  - stars, pass, acc, tech and worth side by side, with sortable column headers;
+  - difficulty badges, mapper under the name, characteristic tag;
+  - worth tinted when ±0.25 or more;
+  - 25 maps per page, and the selected database kept in every link.
+- **Balance tuner:** works on internal ratings, can classify maps by other ratings than the ones scored (used by the
+  reweighter), and can measure worth on a subset of players.
+- **`ParityCheck` exports** each swing's tech parts and the players' controller roll (research).
+
+## Parity, pass refit, pp retune
 
 ### Ratings (Analyzer submodule)
 

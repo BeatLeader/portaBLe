@@ -13,18 +13,21 @@ namespace portaBLe.Refresh
     // - TechScaler (AnalyzeMap.BALANCED_TECH_SCALER): tech = swing tech * (1 - 1.4^-pass) * scaler, so tech follows both the
     //   scaler and the new pass rating. Not tuned, so tech ratings keep their usual scale; kept here so the tuner knows what
     //   the database was rated with.
-    // - TechWeight (PpFormula.TechWeight): tech pp = e^(1.9 * acc) * TechWeight * tech rating. Does exactly what TechScaler
-    //   does to pp and stars, without changing the tech ratings themselves, so this is the one the tuner moves.
-    // - AccScale and AccOffset (RatingAPI AccRating.ACC_SCALE / ACC_OFFSET): acc rating = AccScale / Curve(effective acc + AccOffset),
-    //   the effective acc being the predicted acc after AccRating's hard map correction (AccRating.EffectiveAcc, not tuned here).
+    // - TechWeight (PpFormula.TechWeight): tech pp = e^(TechAccExponent * acc) * TechWeight * tech rating^TechRatingPower. Does
+    //   what TechScaler^TechRatingPower does to pp and stars, without changing the tech ratings themselves, so this is the one
+    //   the tuner moves.
+    // - AccScale and AccOffset (RatingAPI AccRating.ACC_SCALE / ACC_OFFSET): acc rating = AccScale x Curve(effective acc +
+    //   AccOffset)^-ACC_EXPONENT, the effective acc being the predicted acc after AccRating's hard map, movement and high
+    //   pass corrections (AccRating.EffectiveAcc, not tuned here).
+    // The stored acc ratings include the acc reweighter's multipliers (Leaderboard.AccReweight).
     public class RatingConstants
     {
-        public double PassCalibration { get; set; } = 0.829;
-        public double OneSaberNerf { get; set; } = 0.53;
-        public double TechScaler { get; set; } = 22.0;
+        public double PassCalibration { get; set; } = 0.7721;
+        public double OneSaberNerf { get; set; } = 0.548;
+        public double TechScaler { get; set; } = 20.611;
         // Follows the PpFormula default, since the tuner re-scores everything with the formula in code
         public double TechWeight { get; set; } = new PpFormula().TechWeight;
-        public double AccScale { get; set; } = 15.1;
+        public double AccScale { get; set; } = 13.5382;
         public double AccOffset { get; set; } = 0.0019;
 
         public RatingConstants Clone() => (RatingConstants)MemberwiseClone();
@@ -63,15 +66,15 @@ namespace portaBLe.Refresh
         private const int MinOneSaberMaps = 10;
 
         public static string StarBandName(int band) => band >= StarBandCount - 1 ? $"{StarBandCount - 1}+" : $"{band}-{band + 1}";
-        private static int StarBandOf(float stars) => Math.Clamp((int)MathF.Floor(stars), 0, StarBandCount - 1);
-        private static bool IsOneSaber(Leaderboard lb) => string.Equals(lb.ModeName, "OneSaber", StringComparison.OrdinalIgnoreCase);
+        internal static int StarBandOf(float stars) => Math.Clamp((int)MathF.Floor(stars), 0, StarBandCount - 1);
+        internal static bool IsOneSaber(Leaderboard lb) => string.Equals(lb.ModeName, "OneSaber", StringComparison.OrdinalIgnoreCase);
         private static bool IsStandard(Leaderboard lb) => string.Equals(lb.ModeName, "Standard", StringComparison.OrdinalIgnoreCase);
 
         // ------------------------------------------------------------------
         // Data
         // ------------------------------------------------------------------
 
-        private sealed class MapInfo
+        internal sealed class MapInfo
         {
             public Leaderboard Leaderboard = null!;
             public float Stars;
@@ -79,7 +82,7 @@ namespace portaBLe.Refresh
             public int[] Scores = Array.Empty<int>();
         }
 
-        private sealed class Data
+        internal sealed class Data
         {
             public MapInfo[] Maps = Array.Empty<MapInfo>();
             public int[] ScoreMap = Array.Empty<int>();
@@ -90,7 +93,7 @@ namespace portaBLe.Refresh
             public int PlayerCount;
         }
 
-        private sealed class Evaluation
+        internal sealed class Evaluation
         {
             public float[] Pp = Array.Empty<float>();
             public float[] Weight = Array.Empty<float>();
@@ -103,7 +106,7 @@ namespace portaBLe.Refresh
             public int[] PlayerRank = Array.Empty<int>();   // 1-based
         }
 
-        private static async Task<Data> Load(AppContext dbContext)
+        internal static async Task<Data> Load(AppContext dbContext)
         {
             var leaderboards = await dbContext.Leaderboards.AsNoTracking().Include(l => l.ModifiersRating).ToListAsync();
             var mapIndex = new Dictionary<string, int>(leaderboards.Count);
@@ -253,8 +256,8 @@ namespace portaBLe.Refresh
             public double[] Values = Array.Empty<double>();
         }
 
-        // Only the parts of the formula that shape how pp grows: AccWeight does exactly what ACC_SCALE does, and TechWeight is
-        // balanced by Run, so those aren't swept here.
+        // Only the parts of the formula that shape how pp grows: AccWeight does what ACC_SCALE^AccRatingPower does, and TechWeight
+        // is balanced by Run, so those aren't swept here.
         private static readonly FormulaKnob[] FormulaKnobs =
         {
             new FormulaKnob
@@ -274,16 +277,16 @@ namespace portaBLe.Refresh
             new FormulaKnob
             {
                 Name = nameof(PpFormula.PassTopSlope),
-                Explanation = "Above PassTopKnee internal pass, each point counts this much for pass pp (1 = off). Lower = the highest pass ratings pay less.",
+                Explanation = "Above PassTopKnee pass, each point counts this much for pass pp (1 = off). Lower = the highest pass ratings pay less.",
                 Get = f => f.PassTopSlope, Set = (f, v) => f.PassTopSlope = v,
                 Values = new[] { 0.3, 0.4, 0.5, 0.6, 0.7, 0.85, 1.0 },
             },
             new FormulaKnob
             {
                 Name = nameof(PpFormula.PassTopKnee),
-                Explanation = "Internal pass where the pass pp top compression starts (9 is about 11 displayed). Lower = more maps compressed.",
+                Explanation = "Pass where the pass pp top compression starts. Lower = more maps compressed.",
                 Get = f => f.PassTopKnee, Set = (f, v) => f.PassTopKnee = v,
-                Values = new[] { 7.0, 8, 9, 10, 11 },
+                Values = new[] { 10.4, 11.9, 13.375, 14.9, 16.3 },
             },
             new FormulaKnob
             {
@@ -297,7 +300,7 @@ namespace portaBLe.Refresh
                 Name = nameof(PpFormula.TechAccExponent),
                 Explanation = "Tech pp is multiplied by e^(x*acc). Higher = tech pp depends more on accuracy.",
                 Get = f => f.TechAccExponent, Set = (f, v) => f.TechAccExponent = v,
-                Values = new[] { 1.3, 1.6, 1.75, 1.9, 2.05, 2.2, 2.5 },
+                Values = new[] { 2.9, 3.2, 3.35, 3.5, 3.65, 3.8, 4.1 },
             },
         };
 
@@ -449,7 +452,7 @@ namespace portaBLe.Refresh
                 var original = source.Maps[i];
                 var lb = original.Leaderboard;
                 bool oneSaber = IsOneSaber(lb);
-                var (pass, tech, acc) = Transform(lb.PassRating, lb.TechRating, lb.AccRating, lb.PredictedAcc, oneSaber, from, to);
+                var (pass, tech, acc) = Transform(lb.PassRating, lb.TechRating, lb.AccRating, lb.PredictedAcc, lb.HitDistance, oneSaber, from, to);
                 var copy = new Leaderboard
                 {
                     Id = lb.Id,
@@ -459,6 +462,7 @@ namespace portaBLe.Refresh
                     DifficultyName = lb.DifficultyName,
                     PredictedAcc = lb.PredictedAcc,
                     Curve = lb.Curve,
+                    HitDistance = lb.HitDistance,
                     PassRating = pass,
                     TechRating = tech,
                     AccRating = acc,
@@ -466,9 +470,9 @@ namespace portaBLe.Refresh
                 var mod = lb.ModifiersRating;
                 if (mod != null)
                 {
-                    var (ssPass, ssTech, ssAcc) = Transform(mod.SSPassRating, mod.SSTechRating, mod.SSAccRating, mod.SSPredictedAcc, oneSaber, from, to);
-                    var (fsPass, fsTech, fsAcc) = Transform(mod.FSPassRating, mod.FSTechRating, mod.FSAccRating, mod.FSPredictedAcc, oneSaber, from, to);
-                    var (sfPass, sfTech, sfAcc) = Transform(mod.SFPassRating, mod.SFTechRating, mod.SFAccRating, mod.SFPredictedAcc, oneSaber, from, to);
+                    var (ssPass, ssTech, ssAcc) = Transform(mod.SSPassRating, mod.SSTechRating, mod.SSAccRating, mod.SSPredictedAcc, lb.HitDistance, oneSaber, from, to);
+                    var (fsPass, fsTech, fsAcc) = Transform(mod.FSPassRating, mod.FSTechRating, mod.FSAccRating, mod.FSPredictedAcc, lb.HitDistance, oneSaber, from, to);
+                    var (sfPass, sfTech, sfAcc) = Transform(mod.SFPassRating, mod.SFTechRating, mod.SFAccRating, mod.SFPredictedAcc, lb.HitDistance, oneSaber, from, to);
                     copy.ModifiersRating = new ModifiersRating
                     {
                         Id = mod.Id,
@@ -494,33 +498,34 @@ namespace portaBLe.Refresh
             };
         }
 
-        private static (float Pass, float Tech, float Acc) Transform(float pass, float tech, float accRating, float predictedAcc, bool oneSaber,
+        private static (float Pass, float Tech, float Acc) Transform(float pass, float tech, float accRating, float predictedAcc, float hitDistance, bool oneSaber,
             RatingConstants from, RatingConstants to)
         {
-            // The constants act on the internal pass (the displayed one is curved, Analyzer Ratings.DisplayPass)
-            double internalPass = global::beatleader_analyzer.BeatmapScanner.Data.Ratings.InternalPass(pass);
-            double newInternal = internalPass * (to.PassCalibration / from.PassCalibration);
+            double newPass = pass * (to.PassCalibration / from.PassCalibration);
             if (oneSaber)
             {
-                newInternal *= (1 - to.OneSaberNerf) / Math.Max(1e-6, 1 - from.OneSaberNerf);
+                newPass *= (1 - to.OneSaberNerf) / Math.Max(1e-6, 1 - from.OneSaberNerf);
             }
-            double newPass = global::beatleader_analyzer.BeatmapScanner.Data.Ratings.DisplayPass(newInternal);
 
+            // tech = scaler x (swing tech x pass factor)^TechExponent (Analyzer AnalyzeMap)
             double newTech = tech;
-            double oldFactor = 1 - Math.Pow(1.4, -internalPass);
-            double newFactor = 1 - Math.Pow(1.4, -newInternal);
+            double oldFactor = global::beatleader_analyzer.BeatmapScanner.Data.Ratings.TechPassFactor(pass);
+            double newFactor = global::beatleader_analyzer.BeatmapScanner.Data.Ratings.TechPassFactor(newPass);
             if (oldFactor > 1e-6)
             {
-                newTech = tech * (to.TechScaler / from.TechScaler) * newFactor / oldFactor;
+                newTech = tech * (to.TechScaler / from.TechScaler)
+                    * Math.Pow(newFactor / oldFactor, global::beatleader_analyzer.BeatmapScanner.Data.Ratings.TechExponent);
             }
 
             double newAcc = accRating;
             if (predictedAcc > 0)
             {
-                // Same as AccRating.GetRating, with the hard map correction
-                double effectiveAcc = global::RatingAPI.Controllers.AccRating.EffectiveAcc(predictedAcc);
-                double oldBase = from.AccScale / global::RatingAPI.Controllers.AccRating.Curve(predictedAcc, effectiveAcc + from.AccOffset);
-                double newBase = to.AccScale / global::RatingAPI.Controllers.AccRating.Curve(predictedAcc, effectiveAcc + to.AccOffset);
+                // Same as AccRating.GetRating, with its corrections (the high pass one follows the new pass)
+                double exponent = global::RatingAPI.Controllers.AccRating.ACC_EXPONENT;
+                double oldEffective = global::RatingAPI.Controllers.AccRating.EffectiveAcc(predictedAcc, pass, hitDistance);
+                double newEffective = global::RatingAPI.Controllers.AccRating.EffectiveAcc(predictedAcc, newPass, hitDistance);
+                double oldBase = from.AccScale * Math.Pow(global::RatingAPI.Controllers.AccRating.Curve(predictedAcc, oldEffective + from.AccOffset), -exponent);
+                double newBase = to.AccScale * Math.Pow(global::RatingAPI.Controllers.AccRating.Curve(predictedAcc, newEffective + to.AccOffset), -exponent);
                 if (oldBase > 0 && double.IsFinite(newBase)) newAcc = accRating * newBase / oldBase;
             }
             return ((float)newPass, (float)newTech, (float)newAcc);
@@ -530,7 +535,7 @@ namespace portaBLe.Refresh
         // Re-score everything
         // ------------------------------------------------------------------
 
-        private static Evaluation Evaluate(Data data)
+        internal static Evaluation Evaluate(Data data)
         {
             int scoreCount = data.ScoreMap.Length;
             var e = new Evaluation
@@ -615,10 +620,15 @@ namespace portaBLe.Refresh
         // ------------------------------------------------------------------
 
         // Megametric75, as LeaderboardsRefresh: top 33% by weight of the players with 75+ plays, pp / top pp * weight
-        private static double? Megametric75(Data data, Evaluation e, int m)
+        private static double? Megametric75(Data data, Evaluation e, int m) => Megametric75(data, e, m, out _);
+
+        // count: how many scores the value averages (0 when null). players: only those players' scores (null = all; the acc
+        // reweighter fits on one half of the players and checks on the other)
+        internal static double? Megametric75(Data data, Evaluation e, int m, out int count, bool[]? players = null)
         {
-            var scores = data.Maps[m].Scores;
-            if (scores.Length < MinScoresPerMap) return null;
+            count = 0;
+            var scores = players == null ? data.Maps[m].Scores : data.Maps[m].Scores.Where(s => players[data.ScorePlayer[s]]).ToArray();
+            if (scores.Length < (players == null ? MinScoresPerMap : MinScoresPerMap / 2)) return null;
             var withTop = scores.Where(s => e.PlayerTopPp[data.ScorePlayer[s]] > 0).ToList();
             int topCount = (int)(withTop.Count * 0.33);
             var filtered = withTop
@@ -627,15 +637,16 @@ namespace portaBLe.Refresh
                 .Take(topCount)
                 .ToList();
             if (filtered.Count <= 10) return null;
+            count = filtered.Count;
             return filtered.Average(s => e.Pp[s] / e.PlayerTopPp[data.ScorePlayer[s]] * e.Weight[s]);
         }
 
         // Each map's Megametric75 relative to the average of its star range (null when the map has too few scores)
-        private static double?[] Worth(Data data, Evaluation e, out double[] bandMeans)
+        internal static double?[] Worth(Data data, Evaluation e, out double[] bandMeans, bool[]? players = null)
         {
             int mapCount = data.Maps.Length;
             var megametric = new double?[mapCount];
-            Parallel.For(0, mapCount, m => megametric[m] = Megametric75(data, e, m));
+            Parallel.For(0, mapCount, m => megametric[m] = Megametric75(data, e, m, out _, players));
 
             var means = new double[StarBandCount];
             var worth = new double?[mapCount];
@@ -650,7 +661,10 @@ namespace portaBLe.Refresh
             return worth;
         }
 
-        private static BalanceStats MeasureBalance(Data data, Evaluation e, double?[] residual)
+        // kinds: the ratings that say what kind each map is (pp shares at the predicted acc), when they differ from data's: the
+        // acc reweighter classifies maps by their ratings without reweighting, else nerfing a map's acc raises its pass share
+        // and the slopes measure the reweighting itself
+        internal static BalanceStats MeasureBalance(Data data, Evaluation e, double?[] residual, Data? kinds = null)
         {
             int mapCount = data.Maps.Length;
             var passShare = new double[mapCount];
@@ -658,7 +672,7 @@ namespace portaBLe.Refresh
             var techShare = new double[mapCount];
             Parallel.For(0, mapCount, m =>
             {
-                var lb = data.Maps[m].Leaderboard;
+                var lb = (kinds ?? data).Maps[m].Leaderboard;
                 if (lb.PredictedAcc <= 0 || lb.PredictedAcc >= 1) return;
                 var (_, _, passPp, accPp, techPp) = ReplayUtils.PpFromScore(lb.PredictedAcc, "", null, lb.AccRating, lb.PassRating, lb.TechRating);
                 double total = passPp + accPp + techPp;

@@ -91,13 +91,17 @@ namespace portaBLe.Refresh
         }
 
         // Same as RatingAPI (AccRating.GetRating), so the constants only live in one place
-        public static float AccRating(float? predictedAcc, float? passRating, float? techRating) {
-            // passRating is the displayed rating; the formula uses the internal pass
-            double? internalPass = passRating.HasValue ? global::beatleader_analyzer.BeatmapScanner.Data.Ratings.InternalPass(passRating.Value) : null;
-            return (float)new global::RatingAPI.Controllers.AccRating().GetRating(predictedAcc, internalPass, techRating);
-        }
+        // hitDistance: the map's Leaderboard.HitDistance (the same with speed modifiers)
+        public static float AccRating(float? predictedAcc, float? passRating, float? techRating, float hitDistance = 0) =>
+            (float)new global::RatingAPI.Controllers.AccRating().GetRating(predictedAcc, passRating, techRating, hitDistance);
 
         private static float Inflate(float peepee) => PpFormula.Current.Inflate(peepee);
+
+        // The acc reweighter's multiplier of a leaderboard (Leaderboard.AccReweight, 0 = none)
+        public static double AccReweightOf(Leaderboard lb) => lb.AccReweight > 0 ? lb.AccReweight : 1;
+
+        // An acc rating times the acc reweighter's multiplier
+        public static float Reweighted(float accRating, double multiplier) => (float)(accRating * multiplier);
 
         // curve: the leaderboard's own acc curve (null: the base curve). Stars always use the base curve (ToStars).
         private static (float, float, float) GetPp(float accuracy, float accRating, float passRating, float techRating, IReadOnlyList<Vector2>? curve = null) {
@@ -108,7 +112,7 @@ namespace portaBLe.Refresh
         public static float ToStars(float accRating, float passRating, float techRating) {
             (float passPP, float accPP, float techPP) = GetPp(0.96f, accRating, passRating, techRating);
 
-            return Inflate(passPP + accPP + techPP) / (float)(PpFormula.Current.StarDivisor * PpFormula.Current.PpMultiplier);
+            return PpFormula.Current.Stars(Inflate(passPP + accPP + techPP) / (float)PpFormula.Current.PpMultiplier);
         }
 
         public static (float, float, float, float, float) PpFromScore(

@@ -94,9 +94,16 @@
 
             // On page load, check localStorage and update URL if needed
             document.addEventListener('DOMContentLoaded', function() {
-                const savedDb = localStorage.getItem(DB_STORAGE_KEY);
+                let savedDb = localStorage.getItem(DB_STORAGE_KEY);
                 const urlParams = new URLSearchParams(window.location.search);
                 const urlDb = urlParams.get('db');
+
+                // A saved database that isn't listed anymore (removed from databases.json) is forgotten: the default is used
+                const selector = document.getElementById('dbSelector');
+                if (savedDb && selector && !Array.from(selector.options).some(o => o.value === savedDb)) {
+                    localStorage.removeItem(DB_STORAGE_KEY);
+                    savedDb = null;
+                }
 
                 // If we have a saved database but no db parameter in URL, redirect with the parameter
                 if (savedDb && !urlDb) {
@@ -110,7 +117,6 @@
                 if (urlDb) {
                     localStorage.setItem(DB_STORAGE_KEY, urlDb);
                     // Update dropdown to reflect current selection
-                    const selector = document.getElementById('dbSelector');
                     if (selector) {
                         selector.value = urlDb;
                     }

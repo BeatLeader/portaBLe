@@ -248,9 +248,23 @@ namespace portaBLe.Refresh
                     await Task.CompletedTask;
                 });
 
-            Console.WriteLine($"Processed {updates.Count} leaderboards, writing to database...");
-
             var updateList = updates.ToList();
+
+            // Worth: Megametric75 relative to the average of its star range (as BalanceTuner.Worth)
+            await DbSchema.AddColumnIfMissing(dbContext, "Leaderboards", "Worth", "REAL");
+            var stars = await dbContext.Leaderboards.AsNoTracking().ToDictionaryAsync(l => l.Id, l => l.Stars);
+            int StarRange(Leaderboard u) => Math.Clamp((int)MathF.Floor(stars.TryGetValue(u.Id, out var s) ? s : 0), 0, 13);
+            var rangeMeans = updateList.Where(u => u.Megametric75 > 0).GroupBy(StarRange)
+                .Where(g => g.Count() >= 5)
+                .ToDictionary(g => g.Key, g => g.Average(u => (double)u.Megametric75));
+            foreach (var u in updateList)
+            {
+                u.Worth = u.Megametric75 > 0 && rangeMeans.TryGetValue(StarRange(u), out var mean) && mean > 0
+                    ? (float)(u.Megametric75 / mean - 1)
+                    : null;
+            }
+
+            Console.WriteLine($"Processed {updates.Count} leaderboards, writing to database...");
             await dbContext.BulkUpdateAsync(updateList, options => options.ColumnInputExpression = c =>
                 new
                 {
@@ -266,7 +280,8 @@ namespace portaBLe.Refresh
                     c.Megametric,
                     c.Megametric40,
                     c.Megametric75,
-                    c.Megametric125
+                    c.Megametric125,
+                    c.Worth
                 });
 
             dbContext.ChangeTracker.AutoDetectChangesEnabled = true;

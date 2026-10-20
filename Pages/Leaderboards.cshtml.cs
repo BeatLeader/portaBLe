@@ -13,6 +13,7 @@ namespace portaBLe.Pages
         public List<Leaderboard> Leaderboards { get; set; }
         public int CurrentPage { get; set; } = 1;
         public int TotalPages { get; set; }
+        public int TotalRecords { get; set; }
         public List<string> ModeNames { get; set; }
 
         [BindProperty(SupportsGet = true)]
@@ -61,15 +62,19 @@ namespace portaBLe.Pages
                 "PassRating" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.PassRating) : leaderboardQuery.OrderBy(l => l.PassRating),
                 "TechRating" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.TechRating) : leaderboardQuery.OrderBy(l => l.TechRating),
                 "AccRating" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.AccRating) : leaderboardQuery.OrderBy(l => l.AccRating),
+                // Maps without a worth go last either way
+                "Worth" => SortDescending
+                    ? leaderboardQuery.OrderBy(l => l.Worth == null).ThenByDescending(l => l.Worth)
+                    : leaderboardQuery.OrderBy(l => l.Worth == null).ThenBy(l => l.Worth),
                 _ => SortDescending ? leaderboardQuery.OrderByDescending(l => l.Stars) : leaderboardQuery.OrderBy(l => l.Stars),
             };
 
-            int pageSize = 10; // Set the number of items per page
-            CurrentPage = currentPage;
-            var totalRecords = await leaderboardQuery.CountAsync();
-            TotalPages = (int)System.Math.Ceiling(totalRecords / (double)pageSize);
+            int pageSize = 25;
+            TotalRecords = await leaderboardQuery.CountAsync();
+            TotalPages = (int)System.Math.Ceiling(TotalRecords / (double)pageSize);
+            CurrentPage = System.Math.Clamp(currentPage, 1, System.Math.Max(TotalPages, 1));
 
-            Leaderboards = await leaderboardQuery.Skip((currentPage - 1) * pageSize).Take(pageSize).ToListAsync();
+            Leaderboards = await leaderboardQuery.Skip((CurrentPage - 1) * pageSize).Take(pageSize).ToListAsync();
         }
     }
 }

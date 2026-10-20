@@ -79,7 +79,9 @@ namespace portaBLe.Services
 
         public string GetMainDatabaseFileName()
         {
-            return _config.Databases[_config.MainDB].FileName;
+            // -1 (or out of range): the last database listed
+            int index = _config.MainDB >= 0 && _config.MainDB < _config.Databases.Count ? _config.MainDB : _config.Databases.Count - 1;
+            return _config.Databases[index].FileName;
         }
 
         public DbContext CreateContext(string fileName)

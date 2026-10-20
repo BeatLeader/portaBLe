@@ -1,141 +1,246 @@
 ﻿@page
 @model LeaderboardsModel
 
-<h2>Leaderboards</h2>
+<div class="lb-header">
+    <h2>Leaderboards</h2>
+    <span class="text-muted small">@Model.TotalRecords maps</span>
+</div>
 
-<form method="get" class="mb-3" id="leaderboardsForm">
-    <div class="row">
-        <div class="col-md-4">
-            <label for="searchString" class="form-label">Search:</label>
-            <input type="text" name="SearchString" id="searchString" class="form-control" value="@Model.SearchString" placeholder="Search leaderboards" />
-        </div>
-        <div class="col-md-3">
-            <label for="modeName" class="form-label">Characteristic:</label>
-            <select name="ModeName" id="modeName" class="form-control" onchange="this.form.submit()">
-                <option value="">All</option>
-                @foreach (var mode in Model.ModeNames)
-                {
-                    <option value="@mode" selected="@(Model.ModeName == mode)">@mode</option>
-                }
-            </select>
-        </div>
-        <div class="col-md-3">
-            <label for="sortBy" class="form-label">Sort By:</label>
-            <select name="SortBy" id="sortBy" class="form-control" onchange="this.form.submit()">
-                <option value="Stars" selected="@(Model.SortBy == "Stars" || string.IsNullOrEmpty(Model.SortBy))">Star Rating</option>
-                <option value="PassRating" selected="@(Model.SortBy == "PassRating")">Pass Rating</option>
-                <option value="TechRating" selected="@(Model.SortBy == "TechRating")">Tech Rating</option>
-                <option value="AccRating" selected="@(Model.SortBy == "AccRating")">Acc Rating</option>
-            </select>
-        </div>
-        @if (!string.IsNullOrEmpty(Model.SearchString) || !string.IsNullOrEmpty(Model.ModeName))
+<form method="get" class="lb-filters" id="leaderboardsForm">
+    @if (!string.IsNullOrEmpty(Model.SelectedDatabase))
+    {
+        <input type="hidden" name="db" value="@Model.SelectedDatabase" />
+    }
+    <input type="hidden" name="SortBy" value="@Model.SortBy" />
+    <input type="hidden" name="SortDescending" value="@(Model.SortDescending ? "true" : "false")" />
+    <input type="search" name="SearchString" id="searchString" class="form-control form-control-sm lb-search" value="@Model.SearchString" placeholder="Search maps..." />
+    <select name="ModeName" id="modeName" class="form-select form-select-sm lb-mode" onchange="this.form.submit()">
+        <option value="">All characteristics</option>
+        @foreach (var mode in Model.ModeNames)
         {
-            <div class="col-md-2 d-flex align-items-end">
-                <a asp-page="./Leaderboards" asp-route-sortBy="@Model.SortBy" class="btn btn-secondary">Clear Filters</a>
-            </div>
+            <option value="@mode" selected="@(Model.ModeName == mode)">@mode</option>
         }
-    </div>
+    </select>
+    @if (!string.IsNullOrEmpty(Model.SearchString) || !string.IsNullOrEmpty(Model.ModeName))
+    {
+        <a asp-page="./Leaderboards" asp-route-sortBy="@Model.SortBy" asp-route-sortDescending="@Model.SortDescending" asp-route-db="@Model.SelectedDatabase" class="btn btn-sm btn-outline-secondary">Clear</a>
+    }
 </form>
 
-<table class="table">
+<table class="table table-sm table-hover align-middle lb-table">
     <thead>
         <tr>
-            <th>---</th>
-            <th>
-                <a asp-page="./Leaderboards" asp-route-sortBy="@Model.SortBy" asp-route-sortDescending="@(Model.SortDescending ? "false" : "true")" asp-route-searchString="@Model.SearchString" asp-route-modeName="@Model.ModeName">@(Model.SortBy ?? "Stars")</a>
-            </th>
-            <th>Name</th>
-            <th>Diff</th>
-            <th>Mapper</th>
+            <th class="lb-cover-col"></th>
+            <th>Map</th>
+            <th>Difficulty</th>
+            @SortHeader("Stars", "Stars", "Star rating")
+            @SortHeader("PassRating", "Pass", "Pass rating")
+            @SortHeader("AccRating", "Acc", "Acc rating")
+            @SortHeader("TechRating", "Tech", "Tech rating")
+            @SortHeader("Worth", "Worth", "How much the map is worth to its players compared with the other maps of its stars: Megametric75 / its star range's average - 1 (+0.27 = 27% more)")
         </tr>
     </thead>
     <tbody>
         @foreach (var leaderboard in Model.Leaderboards)
         {
             <tr>
-                <td><img class="lb-cover" src="@leaderboard.Cover" /></td>
+                <td class="lb-cover-col"><img class="lb-cover" src="@leaderboard.Cover" alt="" loading="lazy" /></td>
                 <td>
-                    @switch (Model.SortBy)
+                    <a class="lb-name" asp-page="/Leaderboard" asp-route-id="@leaderboard.Id" asp-route-db="@Model.SelectedDatabase">@leaderboard.Name</a>
+                    <div class="lb-mapper">@leaderboard.Mapper</div>
+                </td>
+                <td>
+                    <span class="lb-diff lb-diff-@(leaderboard.DifficultyName?.ToLowerInvariant())">@DifficultyLabel(leaderboard.DifficultyName)</span>
+                    @if (leaderboard.ModeName != "Standard")
                     {
-                        case "PassRating":
-                            @Math.Round(leaderboard.PassRating, 2)
-                            break;
-                        case "TechRating":
-                            @Math.Round(leaderboard.TechRating, 2)
-                            break;
-                        case "AccRating":
-                            @Math.Round(leaderboard.AccRating, 2)
-                            break;
-                        default:
-                            @Math.Round(leaderboard.Stars, 2)
-                            break;
+                        <span class="lb-mode-badge">@leaderboard.ModeName</span>
                     }
                 </td>
-                <td><a asp-page="/Leaderboard" asp-route-id="@leaderboard.Id">@leaderboard.Name</a></td>
-                <td>@leaderboard.DifficultyName</td>
-                <td>@leaderboard.Mapper</td>
+                <td class="lb-num lb-stars">@leaderboard.Stars.ToString("0.00") ★</td>
+                <td class="lb-num">@leaderboard.PassRating.ToString("0.00")</td>
+                <td class="lb-num">@leaderboard.AccRating.ToString("0.00")</td>
+                <td class="lb-num">@leaderboard.TechRating.ToString("0.00")</td>
+                <td class="lb-num"><span class="lb-worth @WorthClass(leaderboard.Worth)">@WorthText(leaderboard.Worth)</span></td>
             </tr>
+        }
+        @if (Model.Leaderboards.Count == 0)
+        {
+            <tr><td colspan="8" class="text-center text-muted py-4">No maps found</td></tr>
         }
     </tbody>
 </table>
 
-<nav aria-label="Page navigation">
-    <ul class="pagination">
-        @{
-            int firstPageToShow = Model.CurrentPage - 5;
-            int lastPageToShow = Model.CurrentPage + 4;
-            if (firstPageToShow < 1)
+@if (Model.TotalPages > 1)
+{
+    int firstPageToShow = Math.Max(1, Model.CurrentPage - 4);
+    int lastPageToShow = Math.Min(Model.TotalPages, firstPageToShow + 8);
+    firstPageToShow = Math.Max(1, lastPageToShow - 8);
+    <nav aria-label="Page navigation">
+        <ul class="pagination pagination-sm justify-content-center">
+            <li class="page-item @(Model.CurrentPage == 1 ? "disabled" : "")">@PageLink(1, "«")</li>
+            <li class="page-item @(Model.CurrentPage == 1 ? "disabled" : "")">@PageLink(Math.Max(1, Model.CurrentPage - 1), "‹")</li>
+            @for (int i = firstPageToShow; i <= lastPageToShow; i++)
             {
-                firstPageToShow = 1;
-                lastPageToShow = 10;
+                <li class="page-item @(i == Model.CurrentPage ? "active" : "")">@PageLink(i, i.ToString())</li>
             }
-            if (lastPageToShow > Model.TotalPages)
-            {
-                lastPageToShow = Model.TotalPages;
-                firstPageToShow = Model.TotalPages - 9 > 1 ? Model.TotalPages - 9 : 1;
-            }
+            <li class="page-item @(Model.CurrentPage == Model.TotalPages ? "disabled" : "")">@PageLink(Math.Min(Model.TotalPages, Model.CurrentPage + 1), "›")</li>
+            <li class="page-item @(Model.CurrentPage == Model.TotalPages ? "disabled" : "")">@PageLink(Model.TotalPages, "»")</li>
+        </ul>
+    </nav>
+}
 
-            for (int i = firstPageToShow; i <= lastPageToShow; i++)
-            {
-                <li class="page-item @(i == Model.CurrentPage ? "active" : "")">
-                    <a class="page-link" asp-page="./Leaderboards" asp-route-currentPage="@i" asp-route-sortBy="@Model.SortBy" asp-route-sortDescending="@Model.SortDescending" asp-route-searchString="@Model.SearchString" asp-route-modeName="@Model.ModeName">@i</a>
-                </li>
-            }
-        }
-    </ul>
-</nav>
+@functions {
+    static string WorthText(float? worth) => worth is float w ? w.ToString("+0.00;-0.00;0.00", System.Globalization.CultureInfo.InvariantCulture) : "—";
+
+    // A quarter or more above / below its star range
+    static string WorthClass(float? worth) => worth is float w ? (w >= 0.25f ? "worth-high" : w <= -0.25f ? "worth-low" : "worth-even") : "worth-none";
+
+    static string DifficultyLabel(string? difficulty) => difficulty == "ExpertPlus" ? "Expert+" : difficulty ?? "";
+
+    // Clicking the current sort column flips the order; another column starts descending
+    private Microsoft.AspNetCore.Html.IHtmlContent SortHeader(string sortBy, string label, string title)
+    {
+        bool active = (Model.SortBy ?? "Stars") == sortBy;
+        bool descending = active ? !Model.SortDescending : true;
+        string arrow = active ? (Model.SortDescending ? " ▼" : " ▲") : "";
+        string url = Url.Page("./Leaderboards", new { sortBy, sortDescending = descending, searchString = Model.SearchString, modeName = Model.ModeName, db = Model.SelectedDatabase })!;
+        return new Microsoft.AspNetCore.Html.HtmlString(
+            $"<th class=\"lb-num\" title=\"{System.Net.WebUtility.HtmlEncode(title)}\"><a class=\"lb-sort{(active ? " active" : "")}\" href=\"{url}\">{label}{arrow}</a></th>");
+    }
+
+    private Microsoft.AspNetCore.Html.IHtmlContent PageLink(int page, string label)
+    {
+        string url = Url.Page("./Leaderboards", new { currentPage = page, sortBy = Model.SortBy, sortDescending = Model.SortDescending, searchString = Model.SearchString, modeName = Model.ModeName, db = Model.SelectedDatabase })!;
+        return new Microsoft.AspNetCore.Html.HtmlString($"<a class=\"page-link\" href=\"{url}\">{label}</a>");
+    }
+}
 
 <style>
-    .lb-cover {
-        width: 3em;
-        height: 3em;
+    .lb-header {
+        display: flex;
+        align-items: baseline;
+        gap: 0.75rem;
     }
+
+    .lb-filters {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        align-items: center;
+        margin: 0.5rem 0 1rem;
+    }
+
+    .lb-search {
+        width: 18rem;
+    }
+
+    .lb-mode {
+        width: auto;
+    }
+
+    .lb-table th {
+        font-weight: 600;
+        font-size: 0.85rem;
+        color: #555;
+        border-bottom-width: 2px;
+        white-space: nowrap;
+    }
+
+    .lb-cover-col {
+        width: 3.5rem;
+    }
+
+    .lb-cover {
+        width: 2.75rem;
+        height: 2.75rem;
+        border-radius: 0.3rem;
+        object-fit: cover;
+    }
+
+    .lb-name {
+        font-weight: 600;
+        text-decoration: none;
+    }
+
+    .lb-name:hover {
+        text-decoration: underline;
+    }
+
+    .lb-mapper {
+        font-size: 0.8rem;
+        color: #777;
+    }
+
+    .lb-num {
+        text-align: right;
+        white-space: nowrap;
+        font-variant-numeric: tabular-nums;
+    }
+
+    .lb-stars {
+        font-weight: 600;
+    }
+
+    .lb-sort {
+        color: inherit;
+        text-decoration: none;
+    }
+
+    .lb-sort:hover, .lb-sort.active {
+        color: #0d6efd;
+    }
+
+    .lb-diff {
+        display: inline-block;
+        padding: 0.1rem 0.45rem;
+        border-radius: 0.3rem;
+        font-size: 0.75rem;
+        font-weight: 600;
+        color: #fff;
+        background: #6c757d;
+    }
+
+    .lb-diff-easy { background: #3cb371; }
+    .lb-diff-normal { background: #59b0f4; }
+    .lb-diff-hard { background: #ff6347; }
+    .lb-diff-expert { background: #bf2a42; }
+    .lb-diff-expertplus { background: #8f48db; }
+
+    .lb-mode-badge {
+        display: inline-block;
+        margin-left: 0.25rem;
+        padding: 0.1rem 0.4rem;
+        border-radius: 0.3rem;
+        font-size: 0.7rem;
+        border: 1px solid #ccc;
+        color: #555;
+    }
+
+    .lb-worth {
+        display: inline-block;
+        min-width: 3.4rem;
+        padding: 0.1rem 0.4rem;
+        border-radius: 0.3rem;
+        text-align: center;
+        font-weight: 600;
+    }
+
+    .worth-high { background: #fde2e1; color: #b02a37; }
+    .worth-low { background: #dde9f8; color: #1f5fa8; }
+    .worth-even { color: #555; }
+    .worth-none { color: #aaa; }
 </style>
 
 @section Scripts {
     <script>
-        // Debounce function to avoid too many requests while typing
-        function debounce(func, wait) {
-            let timeout;
-            return function executedFunction(...args) {
-                const later = () => {
-                    clearTimeout(timeout);
-                    func(...args);
-                };
-                clearTimeout(timeout);
-                timeout = setTimeout(later, wait);
-            };
-        }
-
-        // Auto-submit form when search input changes (with debounce)
+        // Search as you type (after a short pause), back to page 1
         const searchInput = document.getElementById('searchString');
         if (searchInput) {
-            const debouncedSubmit = debounce(() => {
-                searchInput.form.submit();
-            }, 500); // Wait 500ms after user stops typing
-
-            searchInput.addEventListener('input', debouncedSubmit);
+            let timeout;
+            searchInput.addEventListener('input', () => {
+                clearTimeout(timeout);
+                timeout = setTimeout(() => searchInput.form.submit(), 500);
+            });
         }
     </script>
 }
-

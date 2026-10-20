@@ -143,6 +143,12 @@ namespace portaBLe.DB
         // Base note jump speed of the difficulty (Info.dat, without speed modifiers). 0 = not filled yet: RatingsRefresh.Overwrite
         // stores it, RatingsRefresh.RefreshNjs fills it without rating the maps again.
         public float Njs { get; set; }
+        // Analyzer mean hit distance (m), used by the acc rating (RatingAPI AccRating.EffectiveAcc). Stored by
+        // RatingsRefresh.Overwrite, so RatingsRefresh.Refresh and the balance tuner can rebuild the acc rating.
+        public float HitDistance { get; set; }
+        // Acc reweighter's multiplier of the acc rating (Refresh/Tools/AccReweighter; 0 or 1 = none). The only
+        // rating change that comes from scores. RatingsRefresh applies it to the acc ratings it computes.
+        public float AccReweight { get; set; }
         public bool IsLinear { get; set; }
         public bool IsFitbeat { get; set; }
 
@@ -160,6 +166,12 @@ namespace portaBLe.DB
         public float Megametric125 { get; set; }
         public float Megametric75 { get; set; }
         public float Megametric40 { get; set; }
+        // How much the map is worth to the players who play it compared with the other maps of its stars: Megametric75 / the
+        // average Megametric75 of its star range (0-1 ... 12-13, 13+) - 1. +0.27 = 27% more than average. Null when the map
+        // has no Megametric75 or its range fewer than 5 maps. Computed by LeaderboardsRefresh.Refresh from its Megametric75;
+        // the balance tuner and the acc reweighter compute the same measure in memory (BalanceTuner.Worth, players with 75+
+        // scores in the database rather than 75+ ranked plays), so their values can differ slightly.
+        public float? Worth { get; set; }
         public int DodgeWalls { get; set; }
         public int CrouchWalls { get; set; }
         public float LinearPercent { get; set; }

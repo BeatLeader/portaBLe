@@ -22,7 +22,9 @@ namespace portaBLe.Refresh
         // The modifiers Overwrite stores (RatingsController.Get also rates BFS / BSF, which aren't kept here)
         private static readonly string[] StoredModifiers = { "none", "SS", "FS", "SFS" };
 
-        public static async Task Overwrite(AppContext dbContext)
+        // applyAccReweight: keep each map's acc reweighter multiplier (Leaderboard.AccReweight) on its acc ratings. false: raw
+        // acc ratings, and the multipliers are cleared (set to 0 = none), so later steps don't apply them either.
+        public static async Task Overwrite(AppContext dbContext, bool applyAccReweight = true)
         {
             // Columns older databases may not have (checked first, so no failed ALTER TABLE in the log)
             foreach (var (column, type) in new[] {
@@ -34,6 +36,8 @@ namespace portaBLe.Refresh
                 ("CrouchWalls", "INTEGER"),
                 ("Duration", "REAL"),
                 ("Njs", "REAL"),
+                ("HitDistance", "REAL"),
+                ("AccReweight", "REAL"),
                 ("IsFitbeat", "INTEGER"),
                 ("IsLinear", "INTEGER"),
                 ("Curve", "TEXT"),
@@ -93,30 +97,34 @@ namespace portaBLe.Refresh
                     lb.BombAvoidances = (float)response["none"].LackMapCalculation.Statistics.BombAvoidances;
                     lb.Duration = (float)response["none"].Length;
                     lb.Njs = response["none"].Njs;
+                    lb.HitDistance = (float)response["none"].LackMapCalculation.HitDistance;
 
                     lb.PassRating = (float)response["none"].LackMapCalculation.PassRating;
                     lb.TechRating = (float)response["none"].LackMapCalculation.TechRating;
                     lb.PredictedAcc = (float)response["none"].PredictedAcc;
-                    lb.AccRating = (float)response["none"].AccRating;
+                    // The acc reweighter's multiplier (from the last AccReweighter run), unless raw acc ratings are asked for
+                    if (!applyAccReweight) lb.AccReweight = 0;
+                    double reweight = ReplayUtils.AccReweightOf(lb);
+                    lb.AccRating = ReplayUtils.Reweighted((float)response["none"].AccRating, reweight);
                     lb.Curve = ReplayUtils.ToCurve(response["none"].PointList);
                     lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating);
 
                     lb.ModifiersRating.SSPassRating = (float)response["SS"].LackMapCalculation.PassRating;
                     lb.ModifiersRating.SSTechRating = (float)response["SS"].LackMapCalculation.TechRating;
                     lb.ModifiersRating.SSPredictedAcc = (float)response["SS"].PredictedAcc;
-                    lb.ModifiersRating.SSAccRating = (float)response["SS"].AccRating;
+                    lb.ModifiersRating.SSAccRating = ReplayUtils.Reweighted((float)response["SS"].AccRating, reweight);
                     lb.ModifiersRating.SSCurve = ReplayUtils.ToCurve(response["SS"].PointList);
 
                     lb.ModifiersRating.FSPassRating = (float)response["FS"].LackMapCalculation.PassRating;
                     lb.ModifiersRating.FSTechRating = (float)response["FS"].LackMapCalculation.TechRating;
                     lb.ModifiersRating.FSPredictedAcc = (float)response["FS"].PredictedAcc;
-                    lb.ModifiersRating.FSAccRating = (float)response["FS"].AccRating;
+                    lb.ModifiersRating.FSAccRating = ReplayUtils.Reweighted((float)response["FS"].AccRating, reweight);
                     lb.ModifiersRating.FSCurve = ReplayUtils.ToCurve(response["FS"].PointList);
 
                     lb.ModifiersRating.SFPassRating = (float)response["SFS"].LackMapCalculation.PassRating;
                     lb.ModifiersRating.SFTechRating = (float)response["SFS"].LackMapCalculation.TechRating;
                     lb.ModifiersRating.SFPredictedAcc = (float)response["SFS"].PredictedAcc;
-                    lb.ModifiersRating.SFAccRating = (float)response["SFS"].AccRating;
+                    lb.ModifiersRating.SFAccRating = ReplayUtils.Reweighted((float)response["SFS"].AccRating, reweight);
                     lb.ModifiersRating.SFCurve = ReplayUtils.ToCurve(response["SFS"].PointList);
 
                     lb.ModifiersRating.SFStars = ReplayUtils.ToStars(lb.ModifiersRating.SFAccRating, lb.ModifiersRating.SFPassRating, lb.ModifiersRating.SFTechRating);
@@ -236,7 +244,8 @@ namespace portaBLe.Refresh
             }
         }
 
-        public static async Task Refresh(AppContext dbContext)
+        // applyAccReweight: as in Overwrite
+        public static async Task Refresh(AppContext dbContext, bool applyAccReweight = true)
         {
             Console.WriteLine("Recalculating Acc Rating from Predicted Accuracy");
             var lbs = dbContext.Leaderboards.Include(lb => lb.ModifiersRating).ToList();
@@ -246,12 +255,14 @@ namespace portaBLe.Refresh
                 {
                     var mod = lb.ModifiersRating;
 
-                    lb.AccRating = ReplayUtils.AccRating(lb.PredictedAcc, lb.PassRating, lb.TechRating);
+                    if (!applyAccReweight) lb.AccReweight = 0;
+                    double reweight = ReplayUtils.AccReweightOf(lb);
+                    lb.AccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(lb.PredictedAcc, lb.PassRating, lb.TechRating, lb.HitDistance), reweight);
                     lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating);
 
-                    lb.ModifiersRating.SSAccRating = ReplayUtils.AccRating(mod.SSPredictedAcc, mod.SSPassRating, mod.SSTechRating);
-                    lb.ModifiersRating.FSAccRating = ReplayUtils.AccRating(mod.FSPredictedAcc, mod.FSPassRating, mod.FSTechRating);
-                    lb.ModifiersRating.SFAccRating = ReplayUtils.AccRating(mod.SFPredictedAcc, mod.SFPassRating, mod.SFTechRating);
+                    lb.ModifiersRating.SSAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.SSPredictedAcc, mod.SSPassRating, mod.SSTechRating, lb.HitDistance), reweight);
+                    lb.ModifiersRating.FSAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.FSPredictedAcc, mod.FSPassRating, mod.FSTechRating, lb.HitDistance), reweight);
+                    lb.ModifiersRating.SFAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.SFPredictedAcc, mod.SFPassRating, mod.SFTechRating, lb.HitDistance), reweight);
 
                     lb.ModifiersRating.SFStars = ReplayUtils.ToStars(lb.ModifiersRating.SFAccRating, lb.ModifiersRating.SFPassRating, lb.ModifiersRating.SFTechRating);
                     lb.ModifiersRating.FSStars = ReplayUtils.ToStars(lb.ModifiersRating.FSAccRating, lb.ModifiersRating.FSPassRating, lb.ModifiersRating.FSTechRating);

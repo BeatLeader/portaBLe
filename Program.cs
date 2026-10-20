@@ -270,7 +270,7 @@ namespace portaBLe
                 // await DownloadDatabaseIfNeeded(builder.Environment.WebRootPath);
 
                 // Uncomment to upload the local Database.db to S3
-                // await UploadDatabaseAsync($"{builder.Environment.WebRootPath}/Database.db");
+                await UploadDatabaseAsync($"{builder.Environment.WebRootPath}/Database.db");
 
                 // Uncomment to upload all local databases to S3 and update databases.json
                 // await UploadAllDatabasesAsync(builder.Environment.WebRootPath);
@@ -338,15 +338,20 @@ namespace portaBLe
 
                     // ---- Rating pipeline -------------------------------------------------------------------------------
                     // Usual order after changing the Analyzer, the Acc AI model or a constant:
-                    //   RatingsRefresh.Overwrite -> RefreshEverything -> BalanceTuner.Run -> ModelComparisonExport.Run
+                    //   RatingsRefresh.Overwrite -> RefreshEverything -> AccReweighter.Run -> RefreshEverything -> BalanceTuner.Run
+                    //   -> ModelComparisonExport.Run
                     // (only pp formula changes, Refresh/PpFormula.cs: skip Overwrite)
-                    // Run FullPipeline to do all of the above in one pass (about 10-15 minutes and 8-15GB of RAM)
-                    // await FullPipeline(dbContext, env);
+                    // Run FullPipeline to do all of the above in one pass (about 10-15 minutes and 8-15GB of RAM). autoreweight:
+                    // the acc reweighter and its re-score; balancer: the balance tuner, the model comparison and the pass window
+                    // check.
+                    // await FullPipeline(dbContext, env, false, false, false);
 
-                    // Rate every leaderboard again with RatingAPI (Analyzer + Acc AI)
+                    // Rate every leaderboard again with RatingAPI (Analyzer + Acc AI). Keeps the acc reweighter's multipliers;
+                    // Overwrite(dbContext, false) for raw acc ratings (multipliers cleared)
                     // await RatingsRefresh.Overwrite(dbContext);
 
-                    // Recalculate acc ratings and stars from the stored predicted acc (after changing AccRating / ReplayUtils)
+                    // Recalculate acc ratings and stars from the stored predicted acc (after changing AccRating / ReplayUtils).
+                    // Refresh(dbContext, false) for raw acc ratings (acc reweighter multipliers cleared)
                     // await RatingsRefresh.Refresh(dbContext);
 
                     // Per-leaderboard acc curves from the stored predicted acc (RatingAPI Curve.GetCurve, CurveSettings), without
@@ -397,9 +402,13 @@ namespace portaBLe
                     // Every wall and the Analyzer's dodge / crouch classification (wall-fit.json).
                     // await RatingFitExport.RunWalls(dbContext, env.WebRootPath);
 
-                    // ---- Score-based reweighting (the old way to fix outliers; needs scores) -----------
-                    // await ScoresRefresh.Autoreweight(dbContext);    // nerf
-                    // await ScoresRefresh.Autoreweight3(dbContext);   // buff
+                    // ---- Score-based reweighting -------------------------------------------------------------------------
+                    // Acc reweighter (the only tool that changes ratings from scores): moves each map's acc rating so it's worth
+                    // about as much as the other maps of its stars, under the balance tuner's metrics. Stored in
+                    // Leaderboards.AccReweight (kept by Overwrite / Refresh). Writes wwwroot/acc-reweight.json. Then re-score.
+                    // FullPipeline runs it when autoreweight is true.
+                    // await AccReweighter.Run(dbContext, env.WebRootPath);
+                    // await RefreshEverything(dbContext);
 
                     // ---- All databases ------------------------------------------------------------------------------------
                     // Leaderboards (Megametric) and stats of every database in databases.json
@@ -417,13 +426,24 @@ namespace portaBLe
             }
         }
 
-        public static async Task FullPipeline(AppContext dbContext, IWebHostEnvironment env)
+        // autoreweight: run the acc reweighter (and re-score after it). keepAccReweight: when it doesn't run, keep the
+        // multipliers of the last run on the acc ratings; false = raw acc ratings, multipliers cleared. (When it runs, it
+        // starts again from the raw acc ratings either way.)
+        public static async Task FullPipeline(AppContext dbContext, IWebHostEnvironment env, bool autoreweight, bool balancer, bool keepAccReweight = true)
         {
-            await RatingsRefresh.Overwrite(dbContext);
+            await RatingsRefresh.Overwrite(dbContext, keepAccReweight);
             await RefreshEverything(dbContext);
-            await BalanceTuner.Run(dbContext, env.WebRootPath);
-            await ModelComparisonExport.Run(env.WebRootPath, ProdDatabase);
-            await PassWindowCheck.Run(dbContext, env.WebRootPath, ProdDatabase);
+            if (autoreweight)
+            {
+                await AccReweighter.Run(dbContext, env.WebRootPath);
+                await RefreshEverything(dbContext);
+            }
+            if (balancer)
+            {
+                await BalanceTuner.Run(dbContext, env.WebRootPath);
+                await ModelComparisonExport.Run(env.WebRootPath, ProdDatabase);
+                await PassWindowCheck.Run(dbContext, env.WebRootPath, ProdDatabase);
+            }
         }
         public static async Task RefreshEverything(AppContext dbContext)
         {
