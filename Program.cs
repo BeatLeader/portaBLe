@@ -270,7 +270,7 @@ namespace portaBLe
                 // await DownloadDatabaseIfNeeded(builder.Environment.WebRootPath);
 
                 // Uncomment to upload the local Database.db to S3
-                await UploadDatabaseAsync($"{builder.Environment.WebRootPath}/Database.db");
+                // await UploadDatabaseAsync($"{builder.Environment.WebRootPath}/Database.db");
 
                 // Uncomment to upload all local databases to S3 and update databases.json
                 // await UploadAllDatabasesAsync(builder.Environment.WebRootPath);
