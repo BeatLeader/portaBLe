@@ -1,0 +1,236 @@
+@page
+@model PassRatingComparisonModel
+@using portaBLe.Refresh
+@{
+    ViewData["Title"] = "Pass Rating Comparison";
+}
+
+<h2>Pass Rating Comparison</h2>
+
+<p class="text-muted">
+    How the leaderboards are ordered by pass rating with the Analyzer as it is now (<strong>new</strong>), in this database
+    (<strong>database</strong>: what it was last rated with) and in the prod database (<strong>prod</strong>), to see what an Analyzer
+    change does before re-rating. Ranks are 1 = hardest to pass, among the leaderboards matching the filters. A positive move means the
+    map is ranked harder with the new formula.
+</p>
+
+@if (Model.DataJson == null)
+{
+    <div class="alert alert-warning">
+        <strong>No results yet.</strong> In <code>Program.Main</code>, uncomment
+        <code>await PassWindowCheck.Run(dbContext, env.WebRootPath, ProdDatabase);</code> and run portaBLe once.
+        It saves <code>wwwroot/@PassWindowCheck.ResultFile</code>.
+    </div>
+    return;
+}
+
+<div class="row g-2 align-items-end mb-3">
+    <div class="col-auto">
+        <label class="form-label small mb-0" for="mode">Mode</label>
+        <select id="mode" class="form-select form-select-sm"></select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label small mb-0" for="difficulty">Difficulty</label>
+        <select id="difficulty" class="form-select form-select-sm"></select>
+    </div>
+    <div class="col-auto">
+        <label class="form-label small mb-0" for="search">Name</label>
+        <input id="search" class="form-control form-control-sm" placeholder="Search" />
+    </div>
+    <div class="col-auto">
+        <label class="form-label small mb-0" for="limit">Rows</label>
+        <select id="limit" class="form-select form-select-sm">
+            <option value="100">100</option>
+            <option value="500" selected>500</option>
+            <option value="1000000">All</option>
+        </select>
+    </div>
+    <div class="col-auto small text-muted" id="generated"></div>
+</div>
+
+<h4>Ordering agreement</h4>
+<div class="table-responsive">
+    <table class="table table-sm small" style="max-width: 900px">
+        <thead>
+            <tr>
+                <th>Pair</th>
+                <th class="text-end">Maps</th>
+                <th class="text-end" title="Spearman rank correlation, 1 = same ordering">Rank correlation</th>
+                <th class="text-end" title="Average absolute rank change, as a share of the number of maps">Avg move</th>
+                <th class="text-end" title="Maps moved by more than 10% of the number of maps">Moved &gt; 10%</th>
+                <th class="text-end" title="Maps in the hardest 100 of both">Hardest 100 shared</th>
+                <th class="text-end" title="Median pass ratio (scale difference only, ranks don't depend on it)">Median pass ratio</th>
+            </tr>
+        </thead>
+        <tbody id="summary"></tbody>
+    </table>
+</div>
+
+<h4>Leaderboards</h4>
+<p class="small text-muted">Click a column header to sort (click again to reverse). Sort a move column to see the biggest movers.</p>
+<div class="table-responsive">
+    <table class="table table-sm table-hover small">
+        <thead>
+            <tr id="headers"></tr>
+        </thead>
+        <tbody id="rows"></tbody>
+    </table>
+</div>
+<p class="small text-muted" id="shown"></p>
+
+@section Scripts {
+    <script>
+        const data = @Html.Raw(Model.DataJson);
+        const col = Object.fromEntries(data.Columns.map((c, i) => [c, i]));
+        const all = data.Rows.map(r => ({
+            id: r[col.Id], name: r[col.Name], difficulty: r[col.Difficulty], mode: r[col.Mode], stars: r[col.Stars],
+            passNew: r[col.PassNew], passDb: r[col.PassDb], passProd: r[col.PassProd],
+        }));
+
+        document.getElementById('generated').textContent =
+            `Generated ${data.GeneratedAt.slice(0, 16).replace('T', ' ')} UTC, prod = ${data.ProdDatabase}, ${all.length} leaderboards`;
+
+        function fillSelect(id, values) {
+            const select = document.getElementById(id);
+            select.innerHTML = '<option value="">All</option>' + values.map(v => `<option>${v}</option>`).join('');
+        }
+        const difficultyOrder = ['Easy', 'Normal', 'Hard', 'Expert', 'ExpertPlus'];
+        fillSelect('mode', [...new Set(all.map(r => r.mode))].sort());
+        fillSelect('difficulty', [...new Set(all.map(r => r.difficulty))]
+            .sort((a, b) => difficultyOrder.indexOf(a) - difficultyOrder.indexOf(b)));
+
+        // Rank 1 = highest pass; maps without a value get no rank
+        function assignRanks(rows, value, key) {
+            const sorted = rows.filter(r => r[value] != null).sort((a, b) => b[value] - a[value]);
+            rows.forEach(r => r[key] = null);
+            sorted.forEach((r, i) => r[key] = i + 1);
+        }
+
+        function pearson(x, y) {
+            const n = x.length;
+            const mx = x.reduce((s, v) => s + v, 0) / n, my = y.reduce((s, v) => s + v, 0) / n;
+            let sxy = 0, sxx = 0, syy = 0;
+            for (let i = 0; i < n; i++) {
+                sxy += (x[i] - mx) * (y[i] - my); sxx += (x[i] - mx) ** 2; syy += (y[i] - my) ** 2;
+            }
+            return sxy / Math.sqrt(sxx * syy);
+        }
+
+        function median(values) {
+            const s = [...values].sort((a, b) => a - b);
+            return s.length ? (s.length % 2 ? s[(s.length - 1) / 2] : (s[s.length / 2 - 1] + s[s.length / 2]) / 2) : NaN;
+        }
+
+        // Agreement of two orderings, on the maps that have both values (ranked again among them)
+        function compare(rows, a, b) {
+            const both = rows.filter(r => r[a] != null && r[b] != null && r[a] > 0 && r[b] > 0);
+            const n = both.length;
+            if (n < 3) return null;
+            const ra = new Map([...both].sort((x, y) => y[a] - x[a]).map((r, i) => [r, i + 1]));
+            const rb = new Map([...both].sort((x, y) => y[b] - x[b]).map((r, i) => [r, i + 1]));
+            const x = both.map(r => ra.get(r)), y = both.map(r => rb.get(r));
+            const moves = both.map(r => Math.abs(ra.get(r) - rb.get(r)));
+            const top = Math.min(100, n);
+            const topA = new Set(both.filter(r => ra.get(r) <= top)), topB = both.filter(r => rb.get(r) <= top);
+            return {
+                n,
+                spearman: pearson(x, y),
+                avgMove: moves.reduce((s, v) => s + v, 0) / n / n,
+                bigMoves: moves.filter(m => m > n * 0.1).length / n,
+                topShared: `${topB.filter(r => topA.has(r)).length} / ${top}`,
+                ratio: median(both.map(r => r[a] / r[b])),
+            };
+        }
+
+        const columns = [
+            { key: 'name', label: 'Map', text: true },
+            { key: 'difficulty', label: 'Difficulty', text: true },
+            { key: 'mode', label: 'Mode', text: true },
+            { key: 'stars', label: 'Stars', digits: 2 },
+            { key: 'passNew', label: 'Pass new', digits: 2 },
+            { key: 'rankNew', label: 'Rank new' },
+            { key: 'passDb', label: 'Pass database', digits: 2 },
+            { key: 'rankDb', label: 'Rank database' },
+            { key: 'moveVsDb', label: 'Move vs database', move: true },
+            { key: 'passProd', label: 'Pass prod', digits: 2 },
+            { key: 'rankProd', label: 'Rank prod' },
+            { key: 'moveVsProd', label: 'Move vs prod', move: true },
+        ];
+        let sortKey = 'rankNew', sortDir = 1;
+
+        document.getElementById('headers').innerHTML = columns
+            .map(c => `<th class="${c.text ? '' : 'text-end'}" role="button" data-key="${c.key}">${c.label}</th>`).join('');
+        document.querySelectorAll('#headers th').forEach(th => th.addEventListener('click', () => {
+            const key = th.dataset.key;
+            const column = columns.find(c => c.key === key);
+            if (sortKey === key) sortDir = -sortDir;
+            else { sortKey = key; sortDir = column.move ? -1 : 1; }
+            render();
+        }));
+
+        function cell(c, v) {
+            if (v == null) return `<td class="text-end text-muted">-</td>`;
+            if (c.text) return `<td>${v}</td>`;
+            if (c.move) {
+                const color = v > 0 ? 'text-success' : v < 0 ? 'text-danger' : 'text-muted';
+                return `<td class="text-end ${color}">${v > 0 ? '+' : ''}${v}</td>`;
+            }
+            return `<td class="text-end">${c.digits ? v.toFixed(c.digits) : v}</td>`;
+        }
+
+        function escapeHtml(s) {
+            return String(s).replace(/[&<>"']/g, ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[ch]);
+        }
+
+        function render() {
+            const mode = document.getElementById('mode').value;
+            const difficulty = document.getElementById('difficulty').value;
+            const search = document.getElementById('search').value.trim().toLowerCase();
+            const limit = +document.getElementById('limit').value;
+
+            // Ranks among the maps of the mode / difficulty filters; the name search only hides rows
+            const rows = all.filter(r => (!mode || r.mode === mode) && (!difficulty || r.difficulty === difficulty));
+            assignRanks(rows, 'passNew', 'rankNew');
+            assignRanks(rows, 'passDb', 'rankDb');
+            assignRanks(rows, 'passProd', 'rankProd');
+            rows.forEach(r => {
+                r.moveVsDb = r.rankNew != null && r.rankDb != null ? r.rankDb - r.rankNew : null;
+                r.moveVsProd = r.rankNew != null && r.rankProd != null ? r.rankProd - r.rankNew : null;
+            });
+
+            const pairs = [
+                ['New vs database', 'passNew', 'passDb'],
+                ['New vs prod', 'passNew', 'passProd'],
+                ['Database vs prod', 'passDb', 'passProd'],
+            ];
+            document.getElementById('summary').innerHTML = pairs.map(([label, a, b]) => {
+                const s = compare(rows, a, b);
+                if (!s) return `<tr><td>${label}</td><td colspan="6" class="text-muted">Not enough maps</td></tr>`;
+                return `<tr><td>${label}</td><td class="text-end">${s.n}</td><td class="text-end"><strong>${s.spearman.toFixed(4)}</strong></td>`
+                    + `<td class="text-end">${(s.avgMove * 100).toFixed(1)}%</td><td class="text-end">${(s.bigMoves * 100).toFixed(1)}%</td>`
+                    + `<td class="text-end">${s.topShared}</td><td class="text-end">${s.ratio.toFixed(3)}</td></tr>`;
+            }).join('');
+
+            const column = columns.find(c => c.key === sortKey);
+            const visible = rows.filter(r => !search || r.name.toLowerCase().includes(search))
+                .sort((a, b) => {
+                    const x = a[sortKey], y = b[sortKey];
+                    if (x == null) return y == null ? 0 : 1;
+                    if (y == null) return -1;
+                    return (column.text ? String(x).localeCompare(String(y)) : x - y) * sortDir;
+                });
+
+            document.getElementById('rows').innerHTML = visible.slice(0, limit).map(r => '<tr>' + columns.map(c => {
+                if (c.key === 'name') return `<td><a href="/leaderboard/${encodeURIComponent(r.id)}">${escapeHtml(r.name)}</a></td>`;
+                return cell(c, c.text ? escapeHtml(r[c.key]) : r[c.key]);
+            }).join('') + '</tr>').join('');
+            document.getElementById('shown').textContent = `${Math.min(limit, visible.length)} of ${visible.length} shown`;
+            document.querySelectorAll('#headers th').forEach(th =>
+                th.textContent = columns.find(c => c.key === th.dataset.key).label + (th.dataset.key === sortKey ? (sortDir > 0 ? ' ▲' : ' ▼') : ''));
+        }
+
+        ['mode', 'difficulty', 'limit'].forEach(id => document.getElementById(id).addEventListener('change', render));
+        document.getElementById('search').addEventListener('input', render);
+        render();
+    </script>
+}

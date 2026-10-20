@@ -3,7 +3,8 @@ namespace portaBLe.Refresh
     // The parts of the pp formula (ReplayUtils.GetPp, Inflate, ToStars). PpFormula.Current is what ReplayUtils uses; the
     // pp formula sweeps (BalanceTuner.RunPpFormula) swap it temporarily to try other values. The defaults are the formula
     // as it was hard-coded:
-    //   pass pp = PassScale * e^(pass^(1/PassExponent)) - PassOffset   (0 when negative)
+    //   pass pp = PassScale * e^(pass^(1/PassExponent)) - PassOffset   (0 when negative; internal pass, above PassTopKnee
+    //             each point counts PassTopSlope)
     //   acc pp  = curve(acc) * accRating * AccWeight
     //   tech pp = e^(TechAccExponent * acc) * TechWeight * tech
     //   pp      = InflateBase * (pass + acc + tech)^InflateExponent / InflateBase^InflateExponent
@@ -16,8 +17,8 @@ namespace portaBLe.Refresh
         public double PassExponent { get; set; } = 2.62;
         public double PassOffset { get; set; } = 30;
         public double AccWeight { get; set; } = 34;
-        public double TechWeight { get; set; } = 0.60;
-        public double TechAccExponent { get; set; } = 1.9;
+        public double TechWeight { get; set; } = 0.2193;
+        public double TechAccExponent { get; set; } = 3.5;
         public double InflateBase { get; set; } = 650;
         public double InflateExponent { get; set; } = 1.3;
         public double StarDivisor { get; set; } = 49.13;
@@ -37,12 +38,19 @@ namespace portaBLe.Refresh
 
         public static PpFormula Current { get; set; } = new();
 
+        // Pass pp top compression: above PassTopKnee internal pass (about 11 displayed), each point counts PassTopSlope. Maps
+        // with more pass than others of their stars were worth more above 10 stars only (Megametric75 +0.18 to +0.31 above
+        // their star range from 11 displayed pass, prod alike). 1 = off.
+        public double PassTopKnee { get; set; } = 9;
+        public double PassTopSlope { get; set; } = 0.5;
+
         public PpFormula Clone() => (PpFormula)MemberwiseClone();
 
-        // passRating is the displayed rating; the formula uses the internal pass (Analyzer Ratings.PassDisplayScale)
+        // passRating is the displayed rating; the formula uses the internal pass (Analyzer Ratings.InternalPass)
         public float PassPp(float passRating)
         {
             float internalPass = (float)global::beatleader_analyzer.BeatmapScanner.Data.Ratings.InternalPass(passRating);
+            if (internalPass > PassTopKnee) internalPass = (float)(PassTopKnee + (internalPass - PassTopKnee) * PassTopSlope);
             float passPP = (float)PassScale * MathF.Exp(MathF.Pow(internalPass, 1 / (float)PassExponent)) - (float)PassOffset;
             if (float.IsInfinity(passPP) || float.IsNaN(passPP) || passPP < 0) passPP = 0;
             return passPP;
@@ -61,6 +69,6 @@ namespace portaBLe.Refresh
         public float Inflate(float pp) => (float)PpMultiplier * (float)InflateBase * MathF.Pow(pp, (float)InflateExponent) / MathF.Pow((float)InflateBase, (float)InflateExponent);
 
         public override string ToString() => FormattableString.Invariant(
-            $"pass {PassScale}*e^(p^(1/{PassExponent}))-{PassOffset}, acc x{AccWeight}, tech e^({TechAccExponent}a)*{TechWeight}, inflate ^{InflateExponent}, x{PpMultiplier}, stars /{StarDivisor}, low star bonus {LowStarBonus}*({LowStarBonusEnd}-stars)^{LowStarBonusPower}");
+            $"pass {PassScale}*e^(p^(1/{PassExponent}))-{PassOffset} (x{PassTopSlope} above {PassTopKnee}), acc x{AccWeight}, tech e^({TechAccExponent}a)*{TechWeight}, inflate ^{InflateExponent}, x{PpMultiplier}, stars /{StarDivisor}, low star bonus {LowStarBonus}*({LowStarBonusEnd}-stars)^{LowStarBonusPower}");
     }
 }

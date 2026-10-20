@@ -101,7 +101,7 @@ namespace portaBLe.Refresh
             Console.WriteLine($"Model comparison saved to {path}: {maps.Count} leaderboards, {players.Count} players ({timer.Elapsed:mm\\:ss})");
         }
 
-        private static AppContext Open(string webRootPath, string fileName)
+        internal static AppContext Open(string webRootPath, string fileName)
         {
             var optionsBuilder = new DbContextOptionsBuilder<AppContext>();
             optionsBuilder.UseSqlite($"Data Source={Path.Combine(webRootPath, fileName)};");

@@ -19,12 +19,12 @@ namespace portaBLe.Refresh
     //   the effective acc being the predicted acc after AccRating's hard map correction (AccRating.EffectiveAcc, not tuned here).
     public class RatingConstants
     {
-        public double PassCalibration { get; set; } = 0.655;
-        public double OneSaberNerf { get; set; } = 0.4;
-        public double TechScaler { get; set; } = 17.6;
+        public double PassCalibration { get; set; } = 0.829;
+        public double OneSaberNerf { get; set; } = 0.53;
+        public double TechScaler { get; set; } = 22.0;
         // Follows the PpFormula default, since the tuner re-scores everything with the formula in code
         public double TechWeight { get; set; } = new PpFormula().TechWeight;
-        public double AccScale { get; set; } = 15.5;
+        public double AccScale { get; set; } = 15.1;
         public double AccOffset { get; set; } = 0.0019;
 
         public RatingConstants Clone() => (RatingConstants)MemberwiseClone();
@@ -273,6 +273,20 @@ namespace portaBLe.Refresh
             },
             new FormulaKnob
             {
+                Name = nameof(PpFormula.PassTopSlope),
+                Explanation = "Above PassTopKnee internal pass, each point counts this much for pass pp (1 = off). Lower = the highest pass ratings pay less.",
+                Get = f => f.PassTopSlope, Set = (f, v) => f.PassTopSlope = v,
+                Values = new[] { 0.3, 0.4, 0.5, 0.6, 0.7, 0.85, 1.0 },
+            },
+            new FormulaKnob
+            {
+                Name = nameof(PpFormula.PassTopKnee),
+                Explanation = "Internal pass where the pass pp top compression starts (9 is about 11 displayed). Lower = more maps compressed.",
+                Get = f => f.PassTopKnee, Set = (f, v) => f.PassTopKnee = v,
+                Values = new[] { 7.0, 8, 9, 10, 11 },
+            },
+            new FormulaKnob
+            {
                 Name = nameof(PpFormula.PassOffset),
                 Explanation = "Subtracted from pass pp. Higher = easy maps get less pass pp (the cut matters most where pass pp is small).",
                 Get = f => f.PassOffset, Set = (f, v) => f.PassOffset = v,
@@ -483,15 +497,18 @@ namespace portaBLe.Refresh
         private static (float Pass, float Tech, float Acc) Transform(float pass, float tech, float accRating, float predictedAcc, bool oneSaber,
             RatingConstants from, RatingConstants to)
         {
-            double newPass = pass * (to.PassCalibration / from.PassCalibration);
+            // The constants act on the internal pass (the displayed one is curved, Analyzer Ratings.DisplayPass)
+            double internalPass = global::beatleader_analyzer.BeatmapScanner.Data.Ratings.InternalPass(pass);
+            double newInternal = internalPass * (to.PassCalibration / from.PassCalibration);
             if (oneSaber)
             {
-                newPass *= (1 - to.OneSaberNerf) / Math.Max(1e-6, 1 - from.OneSaberNerf);
+                newInternal *= (1 - to.OneSaberNerf) / Math.Max(1e-6, 1 - from.OneSaberNerf);
             }
+            double newPass = global::beatleader_analyzer.BeatmapScanner.Data.Ratings.DisplayPass(newInternal);
 
             double newTech = tech;
-            double oldFactor = 1 - Math.Pow(1.4, -pass);
-            double newFactor = 1 - Math.Pow(1.4, -newPass);
+            double oldFactor = 1 - Math.Pow(1.4, -internalPass);
+            double newFactor = 1 - Math.Pow(1.4, -newInternal);
             if (oldFactor > 1e-6)
             {
                 newTech = tech * (to.TechScaler / from.TechScaler) * newFactor / oldFactor;
@@ -725,6 +742,7 @@ namespace portaBLe.Refresh
             double techHigh = Cut(m => techShare[m], 0.8), techLow = Cut(m => techShare[m], 0.2);
             double passHigh = Cut(m => passShare[m], 0.8), passLow = Cut(m => passShare[m], 0.2);
             double predHigh = Cut(m => data.Maps[m].Leaderboard.PredictedAcc, 0.8), predLow = Cut(m => data.Maps[m].Leaderboard.PredictedAcc, 0.2);
+            double passTop = Cut(m => data.Maps[m].Leaderboard.PassRating, 0.95);
             var types = new List<(string Name, Func<int, bool> Match)>
             {
                 (FormattableString.Invariant($"Most acc-heavy 20% (acc pp share {accHigh:P0}+)"), m => accShare[m] >= accHigh),
@@ -735,6 +753,7 @@ namespace portaBLe.Refresh
                 (FormattableString.Invariant($"Least tech-heavy 20% (tech pp share under {techLow:P0})"), m => techShare[m] <= techLow),
                 (FormattableString.Invariant($"Highest predicted acc 20% ({predHigh:P1}+)"), m => data.Maps[m].Leaderboard.PredictedAcc >= predHigh),
                 (FormattableString.Invariant($"Lowest predicted acc 20% (under {predLow:P1})"), m => data.Maps[m].Leaderboard.PredictedAcc <= predLow),
+                (FormattableString.Invariant($"Highest pass 5% (pass {passTop:0.#}+)"), m => data.Maps[m].Leaderboard.PassRating >= passTop),
                 ("OneSaber", m => IsOneSaber(data.Maps[m].Leaderboard)),
             };
             return types.Select(t =>

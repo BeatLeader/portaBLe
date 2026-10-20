@@ -380,9 +380,10 @@ namespace portaBLe
                     // await ParityCheck.WriteSample(dbContext, env.WebRootPath);
                     // await ParityCheck.Run(dbContext, env.WebRootPath, Path.Combine(ReplaysRepo(env), "parity2"));
 
-                    // Pass and tech of every leaderboard with the pass windows in seconds (current) and in swings (before), from the
-                    // maps folder, Analyzer only (no Acc AI). Writes wwwroot/pass-window-check.json.
-                    // await PassWindowCheck.Run(dbContext, env.WebRootPath);
+                    // Pass and tech of every leaderboard with the Analyzer as it is now, next to the pass in this database and in
+                    // prod, from the maps folder, Analyzer only (no Acc AI): the new ordering before re-rating. Writes
+                    // wwwroot/pass-window-check.json for the Pass Rating Comparison page.
+                    // await PassWindowCheck.Run(dbContext, env.WebRootPath, ProdDatabase);
 
                     // Every swing of every ranked map with its scores' accuracy (rating-fit.json / .bin), to fit the pass and
                     // tech formulas.
@@ -422,6 +423,7 @@ namespace portaBLe
             await RefreshEverything(dbContext);
             await BalanceTuner.Run(dbContext, env.WebRootPath);
             await ModelComparisonExport.Run(env.WebRootPath, ProdDatabase);
+            await PassWindowCheck.Run(dbContext, env.WebRootPath, ProdDatabase);
         }
         public static async Task RefreshEverything(AppContext dbContext)
         {
