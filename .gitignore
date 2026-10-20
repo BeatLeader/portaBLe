@@ -32,3 +32,5 @@ maps
 /wwwroot/rating-fit*.bin
 /wwwroot/wall-fit.json
 /wwwroot/cache/
+/wwwroot/acc-reweight.json
+/wwwroot/pass-window-check.json
