@@ -69,6 +69,23 @@ namespace portaBLe.Refresh
 
         public static string StarBandName(int band) => band >= StarBandCount - 1 ? $"{StarBandCount - 1}+" : $"{band}-{band + 1}";
         internal static int StarBandOf(float stars) => Math.Clamp((int)MathF.Floor(stars), 0, StarBandCount - 1);
+        // Worth is measured per map and speed modifier: item map * WorthSpeeds.Length + speed, 0 nomod, then SS, FS, SF (each
+        // at its own stars). A score's speed is its first speed modifier, as the pp (ReplayUtils.PpFromScore); -1: NF, which
+        // no worth counts (0 pp).
+        internal static readonly string[] WorthSpeeds = { "none", "SS", "FS", "SF" };
+        internal static sbyte WorthSpeedOf(string modifiers)
+        {
+            if (string.IsNullOrEmpty(modifiers)) return 0;
+            var list = modifiers.ToUpperInvariant().Split(',');
+            if (list.Contains("NF")) return -1;
+            foreach (var modifier in list)
+            {
+                int i = Array.IndexOf(WorthSpeeds, modifier);
+                if (i > 0) return (sbyte)i;
+            }
+            return 0;
+        }
+
         internal static bool IsOneSaber(Leaderboard lb) => string.Equals(lb.ModeName, "OneSaber", StringComparison.OrdinalIgnoreCase);
         private static bool IsStandard(Leaderboard lb) => string.Equals(lb.ModeName, "Standard", StringComparison.OrdinalIgnoreCase);
 
@@ -91,6 +108,7 @@ namespace portaBLe.Refresh
             public int[] ScorePlayer = Array.Empty<int>();
             public float[] ScoreAcc = Array.Empty<float>();
             public string[] ScoreModifiers = Array.Empty<string>();
+            public sbyte[] ScoreSpeed = Array.Empty<sbyte>();   // WorthSpeedOf(ScoreModifiers): worth item of each score
             public int[] ScoreTime = Array.Empty<int>();   // Score.Timepost (unix seconds)
             public int[][] PlayerScores = Array.Empty<int[]>();
             public string[] PlayerIds = Array.Empty<string>();   // Player.Id of each player index
@@ -131,6 +149,7 @@ namespace portaBLe.Refresh
             var scorePlayer = new List<int>(scores.Count);
             var scoreAcc = new List<float>(scores.Count);
             var scoreModifiers = new List<string>(scores.Count);
+            var scoreSpeed = new List<sbyte>(scores.Count);
             var scoreTime = new List<int>(scores.Count);
             foreach (var s in scores)
             {
@@ -146,6 +165,7 @@ namespace portaBLe.Refresh
                 scorePlayer.Add(player);
                 scoreAcc.Add(s.Accuracy);
                 scoreModifiers.Add(shared);
+                scoreSpeed.Add(WorthSpeedOf(shared));
                 scoreTime.Add(s.Timepost);
             }
 
@@ -167,6 +187,7 @@ namespace portaBLe.Refresh
                 ScorePlayer = scorePlayer.ToArray(),
                 ScoreAcc = scoreAcc.ToArray(),
                 ScoreModifiers = scoreModifiers.ToArray(),
+                ScoreSpeed = scoreSpeed.ToArray(),
                 ScoreTime = scoreTime.ToArray(),
                 PlayerScores = byPlayer.Select(l => l.ToArray()).ToArray(),
                 PlayerIds = playerIndex.OrderBy(kv => kv.Value).Select(kv => kv.Key).ToArray(),
@@ -523,6 +544,7 @@ namespace portaBLe.Refresh
                 ScorePlayer = source.ScorePlayer,
                 ScoreAcc = source.ScoreAcc,
                 ScoreModifiers = source.ScoreModifiers,
+                ScoreSpeed = source.ScoreSpeed,
                 ScoreTime = source.ScoreTime,
                 PlayerScores = source.PlayerScores,
                 PlayerIds = source.PlayerIds,
@@ -659,7 +681,8 @@ namespace portaBLe.Refresh
         internal static double? Megametric75(Data data, Evaluation e, int m, out int count, bool[]? players = null)
         {
             count = 0;
-            var scores = players == null ? data.Maps[m].Scores : data.Maps[m].Scores.Where(s => players[data.ScorePlayer[s]]).ToArray();
+            // Nomod scores only (WorthSpeeds)
+            var scores = data.Maps[m].Scores.Where(s => data.ScoreSpeed[s] == 0 && (players == null || players[data.ScorePlayer[s]])).ToArray();
             if (scores.Length < (players == null ? MinScoresPerMap : MinScoresPerMap / 2)) return null;
             var withTop = scores.Where(s => e.PlayerTopPp[data.ScorePlayer[s]] > 0).ToList();
             int topCount = (int)(withTop.Count * 0.33);
@@ -694,13 +717,15 @@ namespace portaBLe.Refresh
         // Level: the stars of the InRangeHardest-th hardest map among the player's InRangeTopPlays best scores. The average
         // stars of the top 20 (tried) put even the top 10 players at 11.5 (their best scores are on maps they can acc), so
         // only 22 of the 40 13+ star maps kept enough scores; with this, 38. One or two lucky passes don't raise it.
-        // The balance tuner, the acc reweighter and Leaderboard.Worth (LeaderboardsRefresh, StoredWorth) use WorthMeasure.
+        // The balance tuner, the acc reweighter and Leaderboard.Worth (LeaderboardsRefresh, StoredWorth) use WorthMeasure, on
+        // nomod scores: SS / FS / SF scores are their own items (WorthSpeeds, ItemWorth), NF scores count in none.
         public enum WorthMeasures { Megametric75, InRange, PlayerAdjusted }
         public static WorthMeasures WorthMeasure { get; set; } = WorthMeasures.PlayerAdjusted;
 
-        // Each leaderboard's worth (WorthMeasure) from the database as it is, ratings and scores: LeaderboardsRefresh stores it
-        // in Leaderboard.Worth. Stars from the ratings, as the tuner's (the stored ones may not be refreshed yet).
-        public static async Task<Dictionary<string, float?>> StoredWorth(AppContext dbContext)
+        // Each leaderboard's worth (WorthMeasure) from the database as it is, ratings and scores, per WorthSpeeds (nomod, SS,
+        // FS, SF): LeaderboardsRefresh stores it in Leaderboard.Worth and ModifiersRating.SSWorth ... Stars from the ratings,
+        // as the tuner's (the stored ones may not be refreshed yet).
+        public static async Task<Dictionary<string, float?[]>> StoredWorth(AppContext dbContext)
         {
             var data = await Load(dbContext);
             Parallel.ForEach(data.Maps, m =>
@@ -710,8 +735,10 @@ namespace portaBLe.Refresh
                 m.StarBand = StarBandOf(m.Stars);
             });
             var e = Evaluate(data);
-            var worth = Worth(data, e, out _);
-            return Enumerable.Range(0, data.Maps.Length).ToDictionary(i => data.Maps[i].Leaderboard.Id, i => worth[i] is double w ? (float?)w : null);
+            var worth = ItemWorth(data, e, out _);
+            int n = WorthSpeeds.Length;
+            return Enumerable.Range(0, data.Maps.Length).ToDictionary(i => data.Maps[i].Leaderboard.Id,
+                i => Enumerable.Range(0, n).Select(k => worth[i * n + k] is double w ? (float?)w : null).ToArray());
         }
         public static double InRangeMargin { get; set; } = 0.5;
         public static int InRangeTopPlays { get; set; } = 50;
@@ -723,20 +750,44 @@ namespace portaBLe.Refresh
         private const int PlayerAdjustedIterations = 30;
         public static double PlayerAdjustedAgeBandwidthDays { get; set; } = 180;
 
-        // Each player's level for InRange and PlayerAdjusted (see above)
-        internal static double[] PlayerLevels(Data data, Evaluation e)
+        // Each player's level for InRange and PlayerAdjusted (see above), each score at its worth item's stars (ItemStars)
+        internal static double[] PlayerLevels(Data data, Evaluation e, double[]? itemStars = null)
         {
+            itemStars ??= ItemStars(data);
             var stars = new List<double>[data.PlayerCount];
             for (int p = 0; p < data.PlayerCount; p++) stars[p] = new List<double>();
             for (int s = 0; s < data.ScoreMap.Length; s++)
             {
-                if (e.Position[s] < InRangeTopPlays) stars[data.ScorePlayer[s]].Add(data.Maps[data.ScoreMap[s]].Stars);
+                if (e.Position[s] >= InRangeTopPlays || data.ScoreSpeed[s] < 0) continue;
+                double itemStar = itemStars[ItemOf(data, s)];
+                if (!double.IsNaN(itemStar)) stars[data.ScorePlayer[s]].Add(itemStar);
             }
             return stars.Select(list => list.Count == 0 ? 0 : list.OrderByDescending(v => v).ElementAt(Math.Min(InRangeHardest, list.Count) - 1)).ToArray();
         }
 
-        // InRange value of a map: average pp / top pp of its scores by players with more than MegametricMinPlays plays whose
-        // level is at least the map's stars - InRangeMargin. count: how many scores it averages (0 when null).
+        // Worth item of a score (WorthSpeeds; its ScoreSpeed must be 0 or more)
+        internal static int ItemOf(Data data, int s) => data.ScoreMap[s] * WorthSpeeds.Length + data.ScoreSpeed[s];
+
+        // Stars of every worth item: the map's, then its SS / FS / SF ratings' (NaN without them)
+        internal static double[] ItemStars(Data data)
+        {
+            int n = WorthSpeeds.Length;
+            var stars = new double[data.Maps.Length * n];
+            Parallel.For(0, data.Maps.Length, m =>
+            {
+                var lb = data.Maps[m].Leaderboard;
+                stars[m * n] = data.Maps[m].Stars;
+                for (int k = 1; k < n; k++)
+                {
+                    var ratings = lb.ModifiersRating == null ? null : ReplayUtils.SpeedRatings(lb.ModifiersRating, WorthSpeeds[k], lb.Curve);
+                    stars[m * n + k] = ratings is MapRatings r ? PpCalculator.ToStars(r) : double.NaN;
+                }
+            });
+            return stars;
+        }
+
+        // InRange value of a map: average pp / top pp of its nomod scores by players with more than MegametricMinPlays plays
+        // whose level is at least the map's stars - InRangeMargin. count: how many scores it averages (0 when null).
         internal static double? InRangeValue(Data data, Evaluation e, double[] levels, int m, out int count, bool[]? players = null)
         {
             count = 0;
@@ -744,7 +795,7 @@ namespace portaBLe.Refresh
             foreach (var s in data.Maps[m].Scores)
             {
                 int p = data.ScorePlayer[s];
-                if ((players != null && !players[p]) || e.PlayerTopPp[p] <= 0 || data.PlayerScores[p].Length <= MegametricMinPlays) continue;
+                if (data.ScoreSpeed[s] != 0 || (players != null && !players[p]) || e.PlayerTopPp[p] <= 0 || data.PlayerScores[p].Length <= MegametricMinPlays) continue;
                 if (stars > levels[p] + InRangeMargin) continue;
                 sum += e.Pp[s] / e.PlayerTopPp[p];
                 count++;
@@ -753,14 +804,26 @@ namespace portaBLe.Refresh
             return sum / count;
         }
 
-        // PlayerAdjusted generosity of every map: e^(its map term), the median map 1 (see WorthMeasures). Null with fewer than
-        // MinScoresPerMap in-range scores (half with players).
+        // PlayerAdjusted generosity of every map (nomod): e^(its map term), the median map 1 (see WorthMeasures). Null with fewer
+        // than MinScoresPerMap in-range scores (half with players).
         internal static double?[] PlayerAdjustedValues(Data data, Evaluation e, bool[]? players = null) => PlayerAdjustedValues(data, e, out _, players);
 
         // counts: the in-range scores each map's value is fitted on (0 when null)
         internal static double?[] PlayerAdjustedValues(Data data, Evaluation e, out int[] counts, bool[]? players = null)
         {
-            var levels = PlayerLevels(data, e);
+            int n = WorthSpeeds.Length;
+            var items = PlayerAdjustedItemValues(data, e, out var itemCounts, players);
+            counts = Enumerable.Range(0, data.Maps.Length).Select(m => itemCounts[m * n]).ToArray();
+            return Enumerable.Range(0, data.Maps.Length).Select(m => items[m * n]).ToArray();
+        }
+
+        // Per worth item (map and speed modifier, ItemOf): each its own map term, at its own stars, so SS / FS / SF scores (paid
+        // by the modifier's ratings) don't count as the map's; the median nomod map 1. NF scores are left out.
+        internal static double?[] PlayerAdjustedItemValues(Data data, Evaluation e, out int[] counts, bool[]? players = null, double[]? itemStars = null)
+        {
+            int itemCount = data.Maps.Length * WorthSpeeds.Length;
+            itemStars ??= ItemStars(data);
+            var levels = PlayerLevels(data, e, itemStars);
             int t0 = data.ScoreTime.Length > 0 ? data.ScoreTime.Min() : 0;
             long period = PlayerAdjustedPeriodDays * 86400L;
 
@@ -775,8 +838,9 @@ namespace portaBLe.Refresh
                 inRange.Clear();
                 foreach (var s in data.PlayerScores[p])
                 {
-                    double stars = data.Maps[data.ScoreMap[s]].Stars;
-                    if (e.Pp[s] > 0 && stars >= levels[p] - PlayerAdjustedBelow && stars <= levels[p] + InRangeMargin) inRange.Add(s);
+                    if (data.ScoreSpeed[s] < 0 || e.Pp[s] <= 0) continue;
+                    double stars = itemStars[ItemOf(data, s)];
+                    if (stars >= levels[p] - PlayerAdjustedBelow && stars <= levels[p] + InRangeMargin) inRange.Add(s);
                 }
                 if (inRange.Count < PlayerAdjustedMinPlayerScores) continue;
                 foreach (var s in inRange)
@@ -788,42 +852,42 @@ namespace portaBLe.Refresh
                 }
             }
 
-            // Groups with too few scores, then maps with too few, are left out
+            // Groups with too few scores, then items with too few, are left out
             var groupCount = new int[groups.Count];
             foreach (var g in obsGroup) groupCount[g]++;
-            var mapCount = new int[data.Maps.Length];
-            for (int i = 0; i < obsScore.Count; i++) if (groupCount[obsGroup[i]] >= PlayerAdjustedMinPeriodScores) mapCount[data.ScoreMap[obsScore[i]]]++;
-            int minMapScores = players == null ? MinScoresPerMap : MinScoresPerMap / 2;
+            var itemScores = new int[itemCount];
+            for (int i = 0; i < obsScore.Count; i++) if (groupCount[obsGroup[i]] >= PlayerAdjustedMinPeriodScores) itemScores[ItemOf(data, obsScore[i])]++;
+            int minItemScores = players == null ? MinScoresPerMap : MinScoresPerMap / 2;
             var keep = Enumerable.Range(0, obsScore.Count)
-                .Where(i => groupCount[obsGroup[i]] >= PlayerAdjustedMinPeriodScores && mapCount[data.ScoreMap[obsScore[i]]] >= minMapScores)
+                .Where(i => groupCount[obsGroup[i]] >= PlayerAdjustedMinPeriodScores && itemScores[ItemOf(data, obsScore[i])] >= minItemScores)
                 .ToArray();
             var y = keep.Select(i => Math.Log(e.Pp[obsScore[i]])).ToArray();
-            var map = keep.Select(i => data.ScoreMap[obsScore[i]]).ToArray();
+            var item = keep.Select(i => ItemOf(data, obsScore[i])).ToArray();
             var group = keep.Select(i => obsGroup[i]).ToArray();
 
-            // Alternating means: skill of each group given the maps, generosity of each map given the groups
+            // Alternating means: skill of each group given the items, generosity of each item given the groups
             var skill = new double[groups.Count];
-            var gen = new double[data.Maps.Length];
-            var sum = new double[Math.Max(groups.Count, data.Maps.Length)];
+            var gen = new double[itemCount];
+            var sum = new double[Math.Max(groups.Count, itemCount)];
             var count = new int[sum.Length];
             for (int it = 0; it < PlayerAdjustedIterations; it++)
             {
                 Array.Clear(sum); Array.Clear(count);
-                for (int i = 0; i < y.Length; i++) { sum[group[i]] += y[i] - gen[map[i]]; count[group[i]]++; }
+                for (int i = 0; i < y.Length; i++) { sum[group[i]] += y[i] - gen[item[i]]; count[group[i]]++; }
                 for (int g = 0; g < skill.Length; g++) skill[g] = count[g] > 0 ? sum[g] / count[g] : 0;
                 Array.Clear(sum); Array.Clear(count);
-                for (int i = 0; i < y.Length; i++) { sum[map[i]] += y[i] - skill[group[i]]; count[map[i]]++; }
+                for (int i = 0; i < y.Length; i++) { sum[item[i]] += y[i] - skill[group[i]]; count[item[i]]++; }
                 for (int m = 0; m < gen.Length; m++) gen[m] = count[m] > 0 ? sum[m] / count[m] : 0;
             }
 
-            var fitted = Enumerable.Range(0, data.Maps.Length).Where(m => count[m] > 0).ToList();
-            var values = new double?[data.Maps.Length];
-            counts = new int[data.Maps.Length];
-            foreach (var m in fitted) counts[m] = count[m];
-            if (fitted.Count == 0) return values;
-            var sorted = fitted.Select(m => gen[m]).OrderBy(v => v).ToArray();
-            double median = sorted[sorted.Length / 2];
-            foreach (var m in fitted) values[m] = Math.Exp(gen[m] - median);
+            var fitted = Enumerable.Range(0, itemCount).Where(i => count[i] > 0).ToList();
+            var values = new double?[itemCount];
+            counts = new int[itemCount];
+            foreach (var i in fitted) counts[i] = count[i];
+            var nomod = fitted.Where(i => i % WorthSpeeds.Length == 0).Select(i => gen[i]).OrderBy(v => v).ToArray();
+            if (nomod.Length == 0) return values;
+            double median = nomod[nomod.Length / 2];
+            foreach (var i in fitted) values[i] = Math.Exp(gen[i] - median);
             return values;
         }
 
@@ -848,16 +912,18 @@ namespace portaBLe.Refresh
             return counts;
         }
 
-        // PlayerAdjusted worth against maps first played around the same time (Gaussian kernel of
+        // PlayerAdjusted worth of every item against nomod maps first played around the same time (Gaussian kernel of
         // PlayerAdjustedAgeBandwidthDays on each map's first score): the map age effect (see WorthMeasures)
         private static void RemoveMapAge(Data data, double?[] worth)
         {
+            int n = WorthSpeeds.Length;
             var first = new double[data.Maps.Length];
             for (int m = 0; m < first.Length; m++) first[m] = data.Maps[m].Scores.Length > 0 ? data.Maps[m].Scores.Min(s => data.ScoreTime[s]) : 0;
-            var withWorth = Enumerable.Range(0, worth.Length).Where(m => worth[m] != null).ToArray();
+            var withWorth = Enumerable.Range(0, data.Maps.Length).Where(m => worth[m * n] != null).ToArray();
+            var needed = Enumerable.Range(0, data.Maps.Length).Where(m => Enumerable.Range(0, n).Any(k => worth[m * n + k] != null)).ToArray();
             double h = PlayerAdjustedAgeBandwidthDays * 86400;
-            var reference = new double[worth.Length];
-            Parallel.ForEach(withWorth, m =>
+            var reference = new double[data.Maps.Length];
+            Parallel.ForEach(needed, m =>
             {
                 double sw = 0, sy = 0;
                 foreach (var o in withWorth)
@@ -865,47 +931,64 @@ namespace portaBLe.Refresh
                     double d = first[o] - first[m];
                     if (Math.Abs(d) > 4 * h) continue;
                     double w = Math.Exp(-0.5 * d * d / (h * h));
-                    sw += w; sy += w * worth[o]!.Value;
+                    sw += w; sy += w * worth[o * n]!.Value;
                 }
                 reference[m] = sw > 0 ? sy / sw : 0;
             });
-            foreach (var m in withWorth) worth[m] = (1 + worth[m]!.Value) / (1 + reference[m]) - 1;
+            for (int i = 0; i < worth.Length; i++) if (worth[i] is double v) worth[i] = (1 + v) / (1 + reference[i / n]) - 1;
         }
 
-        // Each map's value (WorthMeasure) relative to what maps of its stars average (WorthReference). Null when the map has
-        // too few scores, or its star range fewer than 5 maps.
+        // Each map's value (WorthMeasure) relative to what maps of its stars average (WorthReference): the nomod items of
+        // ItemWorth. Null when the map has too few scores, or its star range fewer than 5 maps.
         internal static double?[] Worth(Data data, Evaluation e, out double[] bandMeans, bool[]? players = null)
         {
-            int mapCount = data.Maps.Length;
-            var megametric = new double?[mapCount];
+            int n = WorthSpeeds.Length;
+            var items = ItemWorth(data, e, out bandMeans, players);
+            return Enumerable.Range(0, data.Maps.Length).Select(m => items[m * n]).ToArray();
+        }
+
+        // Worth of every item (map and speed modifier, ItemOf), each against nomod maps of its stars. Megametric75 and InRange
+        // have nomod worth only.
+        internal static double?[] ItemWorth(Data data, Evaluation e, out double[] bandMeans, bool[]? players = null)
+        {
+            int n = WorthSpeeds.Length, mapCount = data.Maps.Length;
+            var itemStars = ItemStars(data);
+            var values = new double?[mapCount * n];
             if (WorthMeasure == WorthMeasures.PlayerAdjusted)
             {
-                megametric = PlayerAdjustedValues(data, e, players);
+                values = PlayerAdjustedItemValues(data, e, out _, players, itemStars);
             }
             else
             {
-                var levels = WorthMeasure == WorthMeasures.InRange ? PlayerLevels(data, e) : null;
-                Parallel.For(0, mapCount, m => megametric[m] = levels != null
+                var levels = WorthMeasure == WorthMeasures.InRange ? PlayerLevels(data, e, itemStars) : null;
+                Parallel.For(0, mapCount, m => values[m * n] = levels != null
                     ? InRangeValue(data, e, levels, m, out _, players)
                     : Megametric75(data, e, m, out _, players));
             }
 
+            // The reference: nomod maps, by star range
             var means = new double[StarBandCount];
+            var usedBands = new HashSet<int>();
             var used = new List<IGrouping<int, int>>();
-            foreach (var band in Enumerable.Range(0, mapCount).Where(m => megametric[m] != null).GroupBy(m => data.Maps[m].StarBand))
+            foreach (var band in Enumerable.Range(0, mapCount).Where(m => values[m * n] != null).GroupBy(m => data.Maps[m].StarBand))
             {
-                double mean = band.Average(m => megametric[m]!.Value);
+                double mean = band.Average(m => values[m * n]!.Value);
                 means[band.Key] = mean;
                 if (mean <= 0 || band.Count() < 5) continue;
                 used.Add(band);
+                usedBands.Add(band.Key);
             }
-            var points = used.SelectMany(band => band).Select(m => ((double)data.Maps[m].Stars, megametric[m]!.Value)).ToList();
+            var points = used.SelectMany(band => band).Select(m => ((double)data.Maps[m].Stars, values[m * n]!.Value)).ToList();
 
-            var worth = new double?[mapCount];
-            Parallel.ForEach(used.SelectMany(band => band), m =>
+            var worth = new double?[mapCount * n];
+            Parallel.For(0, worth.Length, i =>
             {
-                double reference = WorthReference(points, data.Maps[m].Stars);
-                if (reference > 0) worth[m] = megametric[m]!.Value / reference - 1;
+                if (values[i] is not double v || double.IsNaN(itemStars[i])) return;
+                // Nomod: the map's own star range; speed modifiers: the range of their stars
+                int band = i % n == 0 ? data.Maps[i / n].StarBand : StarBandOf((float)itemStars[i]);
+                if (!usedBands.Contains(band)) return;
+                double reference = WorthReference(points, itemStars[i]);
+                if (reference > 0) worth[i] = v / reference - 1;
             });
             if (WorthMeasure == WorthMeasures.PlayerAdjusted) RemoveMapAge(data, worth);
             bandMeans = means;

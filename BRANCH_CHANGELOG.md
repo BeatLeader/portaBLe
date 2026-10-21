@@ -1,7 +1,8 @@
 # Branch Changelog
 
 **Range:** `5890677` ("New model + auto-rebalancer", included) through `372eb8c` on `loloppe-rebalancer` and the work
-after it (player-adjusted worth, tech weight, low stars: see `CHANGELOG.md`), plus the matching commits in the submodules:
+after it (player-adjusted worth, tech weight, low stars, per-modifier worth, the reweighter fit, smooth per-map curves:
+see `CHANGELOG.md`), plus the matching commits in the submodules:
 RatingAPI `3955df3 → 4f5a2c9` and later, and Analyzer `0d47de6 → 43229f6` (10 commits). The Parser submodule is unchanged.
 
 ## Overview
@@ -20,7 +21,7 @@ real data: top players' replays, all ranked scores and fail attempts. The most i
   measure a map's worth with the player held fixed (how much it pays the same players than their other maps at their
   level), not with Megametric75.
 - **Website:** new Top Scores and Top Acc pages, a curve explorer, a worth column and worth by player rank, a redesigned
-  Leaderboards page, Leaderboard Statistics in views, and much faster graph pages.
+  Leaderboards page, a Leaderboard page with a full pp curve, Leaderboard Statistics in views, and much faster graph pages.
 
 Where the reasoning below comes from the code comments, commit messages or the project's own `CHANGELOG.md`, it's stated
 as fact. Where it isn't documented, it's marked as inferred or unclear.
@@ -129,6 +130,11 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
   - Slider-heavy maps were worth more than others of their stars (+0.48 for the top 3%) while their top scores sat as
     close to the prediction as elsewhere.
   - Simulated: scores above 800pp 246 → 31.
+- **Smooth base** (RatingAPI `34f8be2`): per-map curves scale the base table interpolated with a monotone cubic
+  (Fritsch-Carlson) instead of linearly. With the linear table the slope jumped at every table point and fell inside each
+  segment (the per-map ratio falls with acc), so the curves were bumpy above ~98.5% (0.10, 0.07, 0.12 per 0.05% at
+  99.3-99.55% for 97% predicted). Same values at the table points, up to 1.34% lower between them; the base curve stays
+  linear.
 - **Impact:** the 99%+ tail and the slider outliers are tamed. Several table iterations happened (`65204a7`, `79c19e8`,
   `a3535f7`); only the latest values remain.
 
@@ -262,6 +268,10 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
   - **InRange** barely reacts: stars are what a 96% score pays, so a map that pays more is compared with higher-star maps.
   - **Player-adjusted** reacts in proportion (3% more pp: +1.9% worth). Skill per half year: with one skill per player,
     maps ranked in 2026 looked 2.8% more generous. Map age: maps first played in 2022 were 3% more generous (grinded longer).
+- **Per speed modifier** (after `5292d1f`): SS / FS / SF scores are each their own item in the fit, at that modifier's
+  stars, against nomod maps of those stars (`ModifiersRating.SSWorth` / `FSWorth` / `SFWorth`). `Leaderboard.Worth` and
+  worth by rank use nomod scores only, NF scores none. They had counted in the map's worth at its nomod stars (6.3% of
+  scores); nomod worth moved 0.26 points on average.
 - **Impact:** worth spread 0.46 → 0.059. With it, pass, predicted acc and OneSaber were already balanced; only tech
   wasn't (above). Its curve over stars isn't reliable (players improve between their easy and hard maps).
 
@@ -282,6 +292,9 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
   - **On the player-adjusted worth** (after `372eb8c`): evidence counted from the measure's own scores, strengths 0.1–1.3,
     guard tolerances 0.0035 / 0.0125. When `Applied` (0.5) of the fit fails the guard, the largest fraction under it that
     passes is stored (`AppliedStep` 0.05).
+  - **`Applied` in the fit** (after `5292d1f`): each map's target is `Applied` of the way from its worth to what its kind
+    of map is worth (in log), and the kept point is stored as is, instead of a fraction of the full fit. Guard tolerance
+    0.0035 → 0.0065 (`PlayerAdjustedGuardTolerance`).
 - **Why:** confirmed.
   - The old tools were one-shot, unguarded, and lost on re-rating.
   - About half of each map's worth deviation reproduces across independent halves of the players (held-out spread 0.49 →
@@ -301,9 +314,13 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
     the slopes by itself (players' skills are fitted again). Halfway between twice the noise and Megametric75's.
   - **Largest passing fraction:** the passes are fitted together, the later ones undoing the first one's drift, so half of
     the fit drifted more than all of it (pass slope +0.012 vs +0.006).
+  - **`Applied` in the fit:** stepping down still stored almost nothing (0.10 of the fit, 0.43% mean change, worth spread
+    0.0615 → 0.056). With partial targets the drift stays (pass slope +0.005 → +0.011), so the guard was loosened for a
+    reweight that changes something.
 - **Impact:** outliers corrected (Ascension to Heaven Expert worth +1.32 → −0.10; 3585 maps, 4.1% on average) with balance
-  kept. Worth spread is no longer a fair overall balance measure afterwards. On the player-adjusted worth, the guard lets
-  0.15 of the fit through (0.6% mean change, worth spread 0.061 → 0.053).
+  kept. Worth spread is no longer a fair overall balance measure afterwards. On the player-adjusted worth with `Applied` in
+  the fit: 2.3% mean change on 3084 maps (0.922–1.072), worth spread 0.062 → 0.035, the highest pass 5% −2.1% → −0.3%,
+  but kinds of maps within ±0.8% instead of ±0.4% (pass share slope +0.006 → +0.015, predicted acc gap −0.006 → −0.014).
 
 ### Research exports
 - **What:** new tools in `Refresh/Tools/`:
@@ -330,9 +347,12 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
 ### Improved pages
 - **Leaderboard:**
   - NJS, including the effective NJS with speed modifiers;
-  - a modifier selector;
-  - the map's acc curve and a pp table;
-  - worth.
+  - a modifier selector, which also filters the scores to that modifier;
+  - the map's acc curve, and a full pp curve (0–100%, with its pass / acc / tech parts, the base curve's pp and the scores)
+    that replaced the pp table;
+  - the cover, and a switcher to the song's other difficulties;
+  - worth, of the selected speed modifier;
+  - how many players get pp from it above a weight (as profiles show it), with a ranked plays minimum (default 75).
 - **Leaderboards:** redesigned with all ratings, sortable headers, difficulty badges, worth tinted when far from average,
   search by song or mapper name, and 25 per page. Worth is the player-adjusted one, in %, tinted at ±8%.
 - **Leaderboard Statistics:** split into views (Overview, Worth by rank, Profile weights, Megametric, Map traits); every
@@ -369,7 +389,7 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
   RefreshEverything → BalanceTuner / comparisons. `keepAccReweight` no longer has a default. `RatingsRefresh.RefreshNjs` and `CurvesRefresh.Regenerate` fill new
   columns without re-rating.
 - **New database columns:** `Njs`, `HitDistance`, `AccReweight`, `Worth`, `MegametricWorth`, `WorthRank20` …
-  `WorthRank10000`, and per-modifier curves.
+  `WorthRank10000`, per-modifier curves and per-modifier worth (`SSWorth`, `FSWorth`, `SFWorth`).
 - **Top Scores caches** of databases not in `databases.json` are deleted at startup, with unfinished `.tmp` saves.
 - **Project:**
   - `Program.cs` organized into sections;
@@ -394,7 +414,7 @@ sit on prod's scale.
 - **Burst sensitivity:** the 4–32 s windows bring back some sensitivity to short bursts.
 - **Scores in the ratings:** the acc reweighter uses scores (by design, as the only exception), adds a second re-score to
   the pipeline, and makes worth spread unusable as an overall balance measure afterwards. On the player-adjusted worth,
-  its balance guard lets little through.
+  a reweight that changes something tilts kinds of maps a little (pass-heavy and low predicted acc maps up ~1 point).
 - **Worth measures:** each one sees something different. Player-adjusted is the target; Megametric75 and the rank
   columns are kept for comparison, and neither shows how pp should progress over stars.
 - **For consumers of RatingAPI:** `star_rating` is gone (replaced by `stars`), and pp should be computed with

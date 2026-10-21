@@ -269,9 +269,10 @@ namespace portaBLe.Refresh
                 u.MegametricWorth = reference > 0 ? (float)(u.Megametric75 / reference - 1) : null;
             }
 
-            // Worth: the balance tuner's worth measure (BalanceTuner.WorthMeasure), from the scores as they are
+            // Worth: the balance tuner's worth measure (BalanceTuner.WorthMeasure), from the scores as they are. Nomod here,
+            // SS / FS / SF in ModifiersRating (below)
             var worth = await BalanceTuner.StoredWorth(dbContext);
-            foreach (var u in updateList) u.Worth = worth.TryGetValue(u.Id, out var w) ? w : null;
+            foreach (var u in updateList) u.Worth = worth.TryGetValue(u.Id, out var w) ? w[0] : null;
 
             Console.WriteLine($"Processed {updates.Count} leaderboards, writing to database...");
             await dbContext.BulkUpdateAsync(updateList, options => options.ColumnInputExpression = c =>
@@ -293,6 +294,21 @@ namespace portaBLe.Refresh
                     c.Worth,
                     c.MegametricWorth
                 });
+
+            // SSWorth / FSWorth / SFWorth (BalanceTuner.WorthSpeeds order: nomod, SS, FS, SF)
+            foreach (var column in new[] { "SSWorth", "FSWorth", "SFWorth" })
+            {
+                await DbSchema.AddColumnIfMissing(dbContext, "ModifiersRating", column, "REAL");
+            }
+            var modifierIds = await dbContext.Leaderboards.AsNoTracking().Where(l => l.ModifiersRating != null)
+                .Select(l => new { l.Id, ModifiersRatingId = l.ModifiersRating!.Id })
+                .ToListAsync();
+            var modifierUpdates = modifierIds.Select(l =>
+            {
+                var w = worth.TryGetValue(l.Id, out var values) ? values : new float?[4];
+                return new ModifiersRating { Id = l.ModifiersRatingId, SSWorth = w[1], FSWorth = w[2], SFWorth = w[3] };
+            }).ToList();
+            await dbContext.BulkUpdateAsync(modifierUpdates, options => options.ColumnInputExpression = c => new { c.SSWorth, c.FSWorth, c.SFWorth });
 
             dbContext.ChangeTracker.AutoDetectChangesEnabled = true;
             Console.WriteLine($"Complete! Total time: {Program.Stopwatch.ElapsedMilliseconds / 1000} seconds");
@@ -320,8 +336,10 @@ namespace portaBLe.Refresh
 
             var scores = await dbContext.Scores
                 .Where(s => s.Player.TopPp > 0 && s.Player.RankedPlayCount > WorthRankMinPlays && s.Player.Rank > 0 && s.Player.Rank <= 10000)
-                .Select(s => new { s.LeaderboardId, s.Pp, s.Player.TopPp, s.Player.Rank })
+                .Select(s => new { s.LeaderboardId, s.Pp, s.Player.TopPp, s.Player.Rank, s.Modifiers })
                 .ToListAsync();
+            // Nomod scores only, as Worth: SS / FS / SF scores are paid by the modifier's ratings, NF scores 0
+            scores = scores.Where(s => BalanceTuner.WorthSpeedOf(s.Modifiers ?? "") == 0).ToList();
             var stars = await dbContext.Leaderboards.AsNoTracking().ToDictionaryAsync(l => l.Id, l => l.Stars);
 
             // Per map and rank range: sum of pp / top pp, and how many scores

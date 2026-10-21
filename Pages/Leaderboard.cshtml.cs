@@ -59,17 +59,18 @@ namespace portaBLe.Pages
         // All ModifiableCurve parameters used for this map (CurveSettings.Table), null when the map has no stored curve
         public global::RatingAPI.Controllers.CurveRow? CurveParams { get; set; }
         public static readonly global::RatingAPI.Controllers.CurveRow DefaultCurveParams = new();
-        public List<PpAtAcc> PpTable { get; set; } = new();
 
-        public class PpAtAcc
-        {
-            public string Label { get; set; } = "";
-            public double Accuracy { get; set; }
-            public double CurveValue { get; set; }
-            public double BaseCurveValue { get; set; }
-            public double Pp { get; set; }
-            public double BasePp { get; set; }
-        }
+        // pp over the whole accuracy range with the shown modifier's ratings, as [accuracy %, pp, pass pp, acc pp, tech pp];
+        // with the base curve instead of this map's, [accuracy %, pp]; and the comparison leaderboard's, [accuracy %, pp]
+        public List<double[]> PpCurve { get; set; } = new();
+        public List<double[]> BasePpCurve { get; set; } = new();
+        public List<double[]>? ComparePpCurve { get; set; }
+
+        // The song's other leaderboards (same SongId: other difficulties and modes), lowest difficulty first
+        public List<Leaderboard> Difficulties { get; set; } = new();
+
+        // The score modifier of the shown speed modifier (SFS scores have SF), null without one: then every score is shown
+        public string? ScoreModifier => Modifier switch { "SS" => "SS", "FS" => "FS", "SFS" => "SF", _ => null };
 
         public LeaderboardModel(IDynamicDbContextService dbService) : base(dbService)
         {
@@ -92,16 +93,28 @@ namespace portaBLe.Pages
             Modifier = Modifiers.Contains(modifier) ? modifier : "none";
             ShowModifier(Leaderboard, Modifier);
             BuildCurve();
+            PpCurve = PpOverAcc(Leaderboard, HasOwnCurve ? Leaderboard.Curve : null, true);
+            BasePpCurve = PpOverAcc(Leaderboard, null, false);
+
+            if (!string.IsNullOrEmpty(Leaderboard.SongId))
+            {
+                var songId = Leaderboard.SongId;
+                Difficulties = (await context.Leaderboards.AsNoTracking()
+                        .Where(l => l.SongId == songId)
+                        .Select(l => new Leaderboard { Id = l.Id, DifficultyName = l.DifficultyName, ModeName = l.ModeName, Stars = l.Stars })
+                        .ToListAsync())
+                    .OrderBy(l => l.ModeName != Leaderboard.ModeName).ThenBy(l => l.ModeName).ThenBy(l => DifficultyOrder(l.DifficultyName))
+                    .ToList();
+            }
 
             int pageSize = 10;
             CurrentPage = currentPage;
             CompareCurrentPage = compareCurrentPage;
 
-            TotalScores = await context.Scores.Where(s => s.LeaderboardId == id).CountAsync();
+            TotalScores = await ScoresOf(context, id).CountAsync();
             TotalPages = (int)System.Math.Ceiling(TotalScores / (double)pageSize);
 
-            Scores = await context.Scores
-                                   .Where(s => s.LeaderboardId == id)
+            Scores = await ScoresOf(context, id)
                                    .Include(s => s.Player)
                                    .OrderByDescending(s => s.Pp)
                                    .Skip((currentPage - 1) * pageSize)
@@ -109,8 +122,7 @@ namespace portaBLe.Pages
                                    .ToListAsync();
 
             // Fetch data for first leaderboard chart
-            ScoreGraphEntries = await context.Scores
-                .Where(s => s.LeaderboardId == id)
+            ScoreGraphEntries = await ScoresOf(context, id)
                 .Select(s => new ScoreGraphEntry
                 {
                     playerId = s.PlayerId,
@@ -119,6 +131,7 @@ namespace portaBLe.Pages
                     rank = s.Rank,
                     modifiers = s.Modifiers,
                     playerRank = s.Player.Rank,
+                    playerRankedPlays = s.Player.RankedPlayCount,
                     playerName = s.Player.Name,
                     accuracy = s.Accuracy * 100f,
                     pp = s.Pp,
@@ -135,15 +148,16 @@ namespace portaBLe.Pages
                 if (CompareLeaderboard != null)
                 {
                     ShowModifier(CompareLeaderboard, Modifier);
+                    var compareCurve = CompareLeaderboard.Curve;
+                    ComparePpCurve = PpOverAcc(CompareLeaderboard, compareCurve != null && compareCurve.Count >= 2 ? compareCurve : null, false);
                 }
 
                 if (CompareLeaderboard != null)
                 {
-                    CompareTotalScores = await context.Scores.Where(s => s.LeaderboardId == compareId).CountAsync();
+                    CompareTotalScores = await ScoresOf(context, compareId).CountAsync();
                     CompareTotalPages = (int)System.Math.Ceiling(CompareTotalScores / (double)pageSize);
 
-                    CompareScores = await context.Scores
-                                       .Where(s => s.LeaderboardId == compareId)
+                    CompareScores = await ScoresOf(context, compareId)
                                        .Include(s => s.Player)
                                        .OrderByDescending(s => s.Pp)
                                        .Skip((compareCurrentPage - 1) * pageSize)
@@ -151,8 +165,7 @@ namespace portaBLe.Pages
                                        .ToListAsync();
 
                     // Fetch data for comparison leaderboard chart
-                    CompareScoreGraphEntries = await context.Scores
-                        .Where(s => s.LeaderboardId == compareId)
+                    CompareScoreGraphEntries = await ScoresOf(context, compareId)
                         .Select(s => new ScoreGraphEntry
                         {
                             playerId = s.PlayerId,
@@ -161,6 +174,7 @@ namespace portaBLe.Pages
                             rank = s.Rank,
                             modifiers = s.Modifiers,
                             playerRank = s.Player.Rank,
+                    playerRankedPlays = s.Player.RankedPlayCount,
                             playerName = s.Player.Name,
                             accuracy = s.Accuracy * 100f,
                             pp = s.Pp,
@@ -175,7 +189,44 @@ namespace portaBLe.Pages
             return Page();
         }
 
-        // Puts the modifier's ratings, stars, predicted acc and curve in the leaderboard's own fields (display only)
+        // A leaderboard's scores: with a speed modifier shown, only the scores with it
+        private IQueryable<Score> ScoresOf(Services.DynamicDbContext context, string leaderboardId)
+        {
+            var scores = context.Scores.Where(s => s.LeaderboardId == leaderboardId);
+            if (ScoreModifier is string modifier)
+            {
+                var tag = "," + modifier + ",";
+                scores = scores.Where(s => s.Modifiers != null && ("," + s.Modifiers + ",").Contains(tag));
+            }
+            return scores;
+        }
+
+        private static int DifficultyOrder(string? difficulty) => difficulty switch
+        {
+            "Easy" => 0, "Normal" => 1, "Hard" => 2, "Expert" => 3, "ExpertPlus" => 4, _ => 5
+        };
+
+        // pp at every accuracy with the leaderboard's (shown) ratings: 0-50% by 1%, 50-90% by 0.5%, 90-100% by 0.05%.
+        // curve: the acc curve (null: the base curve). parts: also pass, acc and tech pp.
+        private static List<double[]> PpOverAcc(Leaderboard lb, IReadOnlyList<System.Numerics.Vector2>? curve, bool parts)
+        {
+            var accuracies = new List<double>();
+            for (int i = 0; i < 50; i++) accuracies.Add(i);
+            for (int i = 0; i < 80; i++) accuracies.Add(50 + i * 0.5);
+            for (int i = 0; i <= 200; i++) accuracies.Add(90 + i * 0.05);
+            var points = new List<double[]>(accuracies.Count);
+            foreach (var acc in accuracies)
+            {
+                var (pp, _, passPp, accPp, techPp) = ReplayUtils.PpFromScore((float)(acc / 100), "", null, lb.AccRating, lb.PassRating, lb.TechRating, curve);
+                double Finite(float v) => float.IsFinite(v) ? Math.Round(v, 2) : 0;
+                points.Add(parts
+                    ? new[] { Math.Round(acc, 2), Finite(pp), Finite(passPp), Finite(accPp), Finite(techPp) }
+                    : new[] { Math.Round(acc, 2), Finite(pp) });
+            }
+            return points;
+        }
+
+        // Puts the modifier's ratings, stars, predicted acc, curve and worth in the leaderboard's own fields (display only)
         private static void ShowModifier(Leaderboard lb, string modifier)
         {
             var mod = lb.ModifiersRating;
@@ -185,19 +236,22 @@ namespace portaBLe.Pages
                 case "SS":
                     (lb.PredictedAcc, lb.PassRating, lb.AccRating, lb.TechRating, lb.Stars, lb.Curve) =
                         (mod.SSPredictedAcc, mod.SSPassRating, mod.SSAccRating, mod.SSTechRating, mod.SSStars, mod.SSCurve);
+                    lb.Worth = mod.SSWorth;
                     break;
                 case "FS":
                     (lb.PredictedAcc, lb.PassRating, lb.AccRating, lb.TechRating, lb.Stars, lb.Curve) =
                         (mod.FSPredictedAcc, mod.FSPassRating, mod.FSAccRating, mod.FSTechRating, mod.FSStars, mod.FSCurve);
+                    lb.Worth = mod.FSWorth;
                     break;
                 case "SFS":
                     (lb.PredictedAcc, lb.PassRating, lb.AccRating, lb.TechRating, lb.Stars, lb.Curve) =
                         (mod.SFPredictedAcc, mod.SFPassRating, mod.SFAccRating, mod.SFTechRating, mod.SFStars, mod.SFCurve);
+                    lb.Worth = mod.SFWorth;
                     break;
             }
         }
 
-        // Curve chart and the pp table at a few accuracies around the predicted acc, with this curve and the base curve
+        // Acc curve chart: this curve and the base curve
         private void BuildCurve()
         {
             var lb = Leaderboard;
@@ -224,34 +278,6 @@ namespace portaBLe.Pages
                     CurveC = c;
                 }
             }
-
-            if (lb.PredictedAcc <= 0 || lb.PredictedAcc >= 1) return;
-            double p = lb.PredictedAcc;
-            var points = new List<(string, double)>
-            {
-                ("Predicted acc", p),
-                ("Predicted + 0.25", p + 0.0025),
-                ("Predicted + 0.5", p + 0.005),
-                ("Predicted + 1", p + 0.01),
-                ("Predicted + 2", p + 0.02),
-                ("SSS", 1.0),
-            };
-            foreach (var (label, acc) in points)
-            {
-                if (acc > 1.0001 || (acc > 0.9999 && label != "SS")) continue;
-                float a = (float)Math.Min(acc, 1.0);
-                var withCurve = ReplayUtils.PpFromScore(a, "", null, lb.AccRating, lb.PassRating, lb.TechRating, HasOwnCurve ? curve : null);
-                var withBase = ReplayUtils.PpFromScore(a, "", null, lb.AccRating, lb.PassRating, lb.TechRating);
-                PpTable.Add(new PpAtAcc
-                {
-                    Label = label,
-                    Accuracy = a * 100,
-                    CurveValue = ReplayUtils.Curve2(a, HasOwnCurve ? curve : null),
-                    BaseCurveValue = ReplayUtils.Curve2(a),
-                    Pp = withCurve.Item1,
-                    BasePp = withBase.Item1,
-                });
-            }
         }
 
         public class ScoreGraphEntry
@@ -262,6 +288,7 @@ namespace portaBLe.Pages
             public int timepost { get; set; }
             public string modifiers { get; set; }
             public int playerRank { get; set; }
+            public int playerRankedPlays { get; set; }
             public string playerName { get; set; }
             public string playerAvatar { get; set; }
             public float accuracy { get; set; }

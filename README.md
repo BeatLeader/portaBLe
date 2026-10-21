@@ -76,7 +76,13 @@ balance tuner and the acc reweighter balance, in the measure `BalanceTuner.Worth
 - `InRange`: pp / top pp of the players who can play the map, against maps of the same stars. Stars are what a 96%
   score pays, so a map that pays more is compared with higher star maps: it barely reacts to rating changes.
 
-`Leaderboard.WorthRank20` ... `WorthRank10000` split pp / top pp by player rank (Leaderboard Statistics, Worth by rank).
+Worth is per speed modifier: `Leaderboard.Worth` only has nomod scores, and SS / FS / SF scores are each their own item
+in the fit, at that modifier's stars and against nomod maps of those stars (`ModifiersRating.SSWorth` / `FSWorth` /
+`SFWorth`, on the Leaderboard page with that modifier; the Leaderboards page shows nomod worth only). A score's speed is its
+first speed modifier, as for its pp. NF scores (0 pp) count in no worth.
+
+`Leaderboard.WorthRank20` ... `WorthRank10000` split pp / top pp of nomod scores by player rank (Leaderboard Statistics,
+Worth by rank).
 
 ## Acc reweighter
 
@@ -89,8 +95,11 @@ tech share, predicted acc, OneSaber, star range), and its acc rating is moved to
 - Maps with few scores move less, and maps without a worth (newly ranked) keep ×1.
 - How far it goes is chosen on held-out players: it fits on one half of the players and checks on the other, and takes
   the lowest held-out spread among the points that pass the balance guard.
-- The result is only kept if the balance tuner's slopes and gaps don't get worse.
-- Multipliers average 1 within each star range and stay within ±15% in the fit; only `Applied` (0.5) of that change is stored (in log), so ±7.5% at most.
+- The result is only kept if the balance tuner's slopes and gaps get no worse than the guard tolerances allow (with the
+  player-adjusted worth: 0.0065 on the slopes, 0.0125 on the gaps). It lets a small tilt through: pass-heavy and low
+  predicted acc maps gain about a point on acc-heavy ones.
+- Multipliers average 1 within each star range. The fit only closes `Applied` (0.5) of each map's gap to its target (in
+  log), so ±7.5% at most, and the kept point is stored as is.
 
 ## Where the constants are
 

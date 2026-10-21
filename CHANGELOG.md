@@ -6,6 +6,51 @@ model comes from `beatsaber-replays-ai-2`.
 The goal is ratings that never need scores at rating time. Scores, replays and fail attempts are used offline, to fit and
 validate constants. The one exception is the acc reweighter (below), the only tool that changes ratings from scores.
 
+## Per-modifier worth, reweighter fit, smooth per-map curves, Leaderboard page
+
+### Worth per speed modifier (`BalanceTuner.WorthSpeeds`)
+
+- **SS / FS / SF scores are each their own item** in the player-adjusted fit, at that modifier's stars, against nomod maps
+  of those stars (`ModifiersRating.SSWorth` / `FSWorth` / `SFWorth`). `Leaderboard.Worth`, worth by player rank and the
+  Megametric75 / InRange measures use nomod scores only. A score's speed is its first speed modifier, as for its pp.
+  - Why: these scores (276k, 6.3%) counted in the map's own worth at its nomod stars while paid by the modifier's ratings.
+  - Impact: nomod worth moved 0.26 points on average (spread 0.0342 → 0.0345; the 300 maps with the most speed play
+    −0.08), so they weren't what made worth look off. With enough in-range scores: SS 174 maps (+1.2% on average), FS 433
+    (+2.3%), SF 34 (−4.8%).
+- **NF scores count in no worth.** There are none in the database, and they get 0 pp, which the fit already skipped.
+
+### Acc reweighter
+
+- **`Applied` is part of the fit:** each map's target is `Applied` (0.5) of the way from its worth to what its kind of map
+  is worth (in log), the strengths are compared without the part of the gap a map keeps, and the kept point is stored as is
+  (bounds `Applied` × ±15%, `AppliedStep` removed). Before, the full fit was scaled afterwards: every fraction from 0.5 to
+  0.15 failed the guard and 0.10 was stored (mean change 0.43%, multipliers 0.984-1.014, worth spread 0.0615 → 0.056).
+- **`PlayerAdjustedGuardTolerance` 0.0035 → 0.0065:** with partial targets nothing passed the old one (the pass slope
+  settles at +0.011 from +0.005, the acc slope at −0.006 from −0.001).
+- **Result:** mean change 2.3% on 3084 maps, multipliers 0.922-1.072, worth spread 0.0617 → 0.0346. Against the database
+  without it (balance tuner): kinds of maps within ±0.8% instead of ±0.4%, the highest pass 5% −2.1% → −0.3%, pass share
+  slope +0.006 → +0.015, predicted acc gap −0.006 → −0.014. The tuner keeps every constant on both.
+
+### Per-map acc curves (RatingAPI submodule)
+
+- **Smooth base for per-map curves** (`Curve.SmoothBaseValue`): the base table they scale is interpolated with a monotone
+  cubic (Fritsch-Carlson) instead of linearly. With the linear table the slope jumped at every table point and fell inside
+  each segment (the per-map ratio falls with acc), so per-map curves were bumpy above ~98.5% (99.3-99.55% at 97%
+  predicted: 0.10, 0.07, 0.12 per 0.05%). Same values at the table points, up to 1.34% lower between them. The base curve
+  stays linear.
+- **Curve Explorer:** the per-map curve, slider tilt and acc curve power can be turned on and off on the page, next to the
+  curve without them; the predicted acc slider moved under the chart.
+
+### Leaderboard page
+
+- **PP curve:** pp at every accuracy (0-100%) with the selected modifier's ratings and curve, its pass / acc / tech parts,
+  the base curve's pp, the comparison leaderboard's and the scores; zoom and pan. It replaces the pp table.
+- **Cover, difficulty switcher** (every leaderboard of the song, same `SongId`), **worth** of the selected speed modifier.
+- **Speed modifier filters the scores:** only scores with SS / FS / SFS, all scores without one.
+- **"N players out of M get pp from it above X% weight, with Y ranked plays minimum":** the weight as profiles show it
+  (0.01%), default 0% (about the top 280 plays) and 75 ranked plays.
+- Page links keep the selected database.
+
 ## Player-adjusted worth, high pass buff, tech weight, low stars
 
 ### Worth measured with the player held fixed (`BalanceTuner.WorthMeasure`)

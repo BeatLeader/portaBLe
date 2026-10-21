@@ -98,6 +98,13 @@ namespace portaBLe.DB
         public float SFTechRating { get; set; }
         public float SFStars { get; set; }
 
+        // Worth of the map played with each speed modifier, its own item in the worth measure (scores with that modifier,
+        // at that modifier's stars), against nomod maps of those stars: as Leaderboard.Worth, which only has nomod scores.
+        // Null with too few in-range scores. Not on the Leaderboards page (nomod worth only).
+        public float? SSWorth { get; set; }
+        public float? FSWorth { get; set; }
+        public float? SFWorth { get; set; }
+
         public List<Vector2> SSCurve { get; set; } = new();
         public List<Vector2> FSCurve { get; set; } = new();
         public List<Vector2> SFCurve { get; set; } = new();
@@ -169,7 +176,8 @@ namespace portaBLe.DB
         // How much the map pays its players compared with the other maps of its stars, in the balance tuner's worth measure
         // (BalanceTuner.WorthMeasure, PlayerAdjusted: how much it pays the same players than their other maps at their level,
         // see BalanceTuner.WorthMeasures). +0.04 = 4% more than average. Null with too few in-range scores. The same value
-        // the balance tuner and the acc reweighter use (LeaderboardsRefresh.Refresh, BalanceTuner.StoredWorth).
+        // the balance tuner and the acc reweighter use (LeaderboardsRefresh.Refresh, BalanceTuner.StoredWorth). Nomod scores
+        // only: SS / FS / SF scores have their own (ModifiersRating.SSWorth ...), NF scores none.
         public float? Worth { get; set; }
         // The previous worth: Megametric75 / what maps of its stars average - 1 (a local linear fit of Megametric75 on stars,
         // Gaussian kernel of BalanceTuner.WorthBandwidth stars: BalanceTuner.WorthReference). +0.27 = 27% more than average.
