@@ -124,6 +124,30 @@ namespace portaBLe.Services
         public static string CachePathOf(string dbPath) =>
             Path.Combine(Path.GetDirectoryName(Path.GetFullPath(dbPath)) ?? ".", "cache", Path.GetFileName(dbPath) + ".topscores.bin");
 
+        // Deletes the cache files (wwwroot/cache) of databases that aren't listed (databases.json), and the .tmp files of
+        // saves that didn't finish. Database.db's is kept: it's the database the pipeline works on. Called at startup,
+        // before anything builds a cache.
+        public static void DeleteUnlisted(string webRootPath, IEnumerable<string> dbFileNames)
+        {
+            var dir = Path.Combine(webRootPath, "cache");
+            if (!Directory.Exists(dir)) return;
+            var keep = new HashSet<string>(dbFileNames.Append("Database.db").Select(f => f + ".topscores.bin"), StringComparer.OrdinalIgnoreCase);
+            var stale = Directory.GetFiles(dir, "*.topscores.bin").Where(f => !keep.Contains(Path.GetFileName(f)))
+                .Concat(Directory.GetFiles(dir, "*.topscores.bin.tmp"));
+            foreach (var file in stale)
+            {
+                try
+                {
+                    File.Delete(file);
+                    Console.WriteLine($"Top scores cache: deleted {Path.GetFileName(file)} (not in databases.json)");
+                }
+                catch (Exception e)
+                {
+                    Console.WriteLine($"Top scores cache: couldn't delete {Path.GetFileName(file)}: {e.Message}");
+                }
+            }
+        }
+
         private static (long, long) FileStampOf(string dbPath)
         {
             var info = new FileInfo(dbPath);

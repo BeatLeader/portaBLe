@@ -27,11 +27,11 @@ namespace portaBLe.Pages
         [BindProperty(SupportsGet = true)]
         public bool ModNone { get; set; } = true;
         [BindProperty(SupportsGet = true)]
-        public bool ModSS { get; set; } = true;
+        public bool ModSS { get; set; } = false;
         [BindProperty(SupportsGet = true)]
-        public bool ModFS { get; set; } = true;
+        public bool ModFS { get; set; } = false;
         [BindProperty(SupportsGet = true)]
-        public bool ModSFS { get; set; } = true;
+        public bool ModSFS { get; set; } = false;
 
         // Rolling average window as a share of the filtered scores (%), kept in the URL so it survives switching databases
         [BindProperty(SupportsGet = true)]
@@ -46,7 +46,7 @@ namespace portaBLe.Pages
             await InitializeDatabaseSelectionAsync(db);
         }
 
-        public async Task<IActionResult> OnGetDataAsync(int minYear = 0, int minMonth = 0, int minDay = 0, int maxPlayerRank = 1000, int minRankedPlayCount = 100, string playerId = "", bool modNone = true, bool modSS = true, bool modFS = true, bool modSFS = true, string db = null)
+        public async Task<IActionResult> OnGetDataAsync(int minYear = 0, int minMonth = 0, int minDay = 0, int maxPlayerRank = 1000, int minRankedPlayCount = 100, string playerId = "", bool modNone = true, bool modSS = false, bool modFS = false, bool modSFS = false, string db = null)
         {
             await InitializeDatabaseSelectionAsync(db);
             var result = await TopScoresCache.TryGetAsync(() => GetDbContext());

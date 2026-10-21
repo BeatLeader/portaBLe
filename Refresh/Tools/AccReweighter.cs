@@ -7,10 +7,14 @@ namespace portaBLe.Refresh
     // Acc reweighter: the only tool that uses scores to change ratings. It moves each map's acc rating up or down so the map is
     // worth about as much to players as the other maps of its kind, without changing the balance between kinds of maps.
     //
-    // A map's worth is its Megametric75 (how much it counts in the profiles of the players who play it) relative to what maps
-    // of its stars average (BalanceTuner.Worth: a local linear fit of Megametric75 on stars, WorthReference, so crossing a
-    // range boundary doesn't change what a map is compared with), every score re-scored in memory with the multipliers being tried
-    // (players' weights and every map's worth move when one map changes).
+    // A map's worth is BalanceTuner.Worth in BalanceTuner.WorthMeasure, relative to what maps of its stars average (a local
+    // linear fit on stars, WorthReference, so crossing a range boundary doesn't change what a map is compared with), every
+    // score re-scored in memory with the multipliers being tried (players' weights and every map's worth move when one map
+    // changes). With PlayerAdjusted (the default) it's how much the map pays the same players than their other maps at their
+    // level, with PlayerAdjustedStrengths and the PlayerAdjusted guard tolerances; with Megametric75, how much it counts in
+    // the profiles of the players who play it.
+    // On Dev with tech pp x0.124: held-out worth spread 0.061 -> 0.031 (Megametric75's own spread 0.46 -> 0.31 too), mean
+    // change 2.1% applied, multipliers correlated 0.78 with the last Megametric75 run's.
     //
     // Target: before any change, worth is fitted on the balance tuner's features (pass and tech pp shares at the predicted acc,
     // predicted acc, OneSaber, star range; least squares, as the tuner's slopes). That fitted value is what the map's kind is
@@ -18,7 +22,7 @@ namespace portaBLe.Refresh
     // fix, so they keep what they had. (Without the kinds taken out, the pass share slope went +0.03 -> -0.37 in one step.)
     //
     // Direction: -evidence x log((1 + worth) / (1 + target)) / acc pp share (at least MinAccShare). evidence = n / (n +
-    // EvidenceScores), n the scores its Megametric75 averages, so maps with few scores move less. An acc multiplier moves a
+    // EvidenceScores), n the scores its worth rests on (BalanceTuner.WorthEvidence), so maps with few scores move less. An acc multiplier moves a
     // map's pp in proportion to its acc share, so a tech or pass heavy map needs more to move as much.
     //
     // Passes: in each, Strengths (fractions of the direction) are tried and the pass moves to the lowest worth spread; the next
@@ -50,8 +54,13 @@ namespace portaBLe.Refresh
         public const string FileName = "acc-reweight.json";
 
         public static int Passes { get; set; } = 6;
-        // Fractions of the direction tried in each pass: small, as worth moves about 3-5x as much as the acc rating
+        // Fractions of the direction tried in each pass: small, as Megametric75 moves about 3-5x as much as the acc rating
         public static double[] Strengths { get; set; } = { 0.02, 0.05, 0.08, 0.12, 0.16, 0.2, 0.3 };
+        // With BalanceTuner.WorthMeasures.PlayerAdjusted: worth moves about 0.6x as much as the map's pp (3% more pp on the
+        // tech 8+ maps moved them +1.9%), and pp about 1.2x acc share x the multiplier (acc pp ~ acc rating^AccRatingPower),
+        // so a strength near 1.3 closes a map's gap in one pass
+        public static double[] PlayerAdjustedStrengths { get; set; } = { 0.1, 0.2, 0.35, 0.5, 0.7, 1.0, 1.3 };
+        private static double[] StrengthsFor => IsPlayerAdjusted ? PlayerAdjustedStrengths : Strengths;
         public static double EvidenceScores { get; set; } = 40;
         public static double MinAccShare { get; set; } = 0.3;
         public static double MaxChange { get; set; } = 0.15;
@@ -60,8 +69,23 @@ namespace portaBLe.Refresh
         // early on the held-out path (0.49 -> 0.34 with a 1.7% mean change). Star ranges still average 1, and no map
         // moves more than Applied x MaxChange.
         public static double Applied { get; set; } = 0.5;
+        // When Applied of the change fails the balance guard, the largest fraction under it that passes is stored instead, in
+        // steps of AppliedStep (none passing: nothing changes). The passes are fitted together, the later ones undoing the
+        // drift of the first, so a fraction of the whole can drift more than the whole: with PlayerAdjusted, the full fit
+        // passed (pass slope +0.0052 -> +0.0063) and half of it didn't (+0.0116).
+        public static double AppliedStep { get; set; } = 0.05;
         public static double GuardTolerance { get; set; } = 0.005;
         public static double GapTolerance { get; set; } = 0.02;
+        // With PlayerAdjusted. Scaled by the ratio of the worth spreads (0.46 / 0.059: 0.00065 / 0.0026), nothing passed: the
+        // measure's own noise (half of the players vs the other half, / 2) is about 0.0009 on the pass slope, 0.0022 on the
+        // tech slope, 0.0027 on the OneSaber gap, and correcting single maps moves the slopes by itself (players' skills are
+        // fitted again: the smallest step took the pass slope +0.005 -> +0.007). Halfway between twice the noise (0.002 /
+        // 0.005) and the Megametric75 tolerances (0.005 / 0.02).
+        public static double PlayerAdjustedGuardTolerance { get; set; } = 0.0035;
+        public static double PlayerAdjustedGapTolerance { get; set; } = 0.0125;
+        private static bool IsPlayerAdjusted => BalanceTuner.WorthMeasure == BalanceTuner.WorthMeasures.PlayerAdjusted;
+        private static double GuardToleranceFor => IsPlayerAdjusted ? PlayerAdjustedGuardTolerance : GuardTolerance;
+        private static double GapToleranceFor => IsPlayerAdjusted ? PlayerAdjustedGapTolerance : GapTolerance;
 
         private sealed class Point
         {
@@ -89,7 +113,7 @@ namespace portaBLe.Refresh
         {
             var timer = System.Diagnostics.Stopwatch.StartNew();
             await DbSchema.AddColumnIfMissing(dbContext, "Leaderboards", "AccReweight", "REAL");
-            Console.WriteLine("Acc reweight: loading scores...");
+            Console.WriteLine($"Acc reweight: loading scores (worth measure {BalanceTuner.WorthMeasure})...");
             var loaded = await BalanceTuner.Load(dbContext);
             int mapCount = loaded.Maps.Length;
 
@@ -149,14 +173,30 @@ namespace portaBLe.Refresh
                 Console.WriteLine("Acc reweight: WARNING: no point of phase 2 passes the balance guard, nothing changes (see acc-reweight.json, Rounds)");
             }
 
-            // Only Applied of the kept change is stored
-            var appliedLogM = kept.LogM.Select(v => v * Applied).ToArray();
-            var appliedData = WithMultipliers(loaded, baseAcc, baseModAcc, appliedLogM);
-            var appliedEval = BalanceTuner.Evaluate(appliedData);
-            var appliedBalance = BalanceTuner.MeasureBalance(appliedData, appliedEval, BalanceTuner.Worth(appliedData, appliedEval, out _), context.Unweighted);
-            var applied = new Point { Pass = kept.Pass, Strength = kept.Strength, LogM = appliedLogM, Balance = appliedBalance, GuardOk = GuardOk(start.Balance, appliedBalance) };
+            // Only Applied of the kept change is stored, or the largest fraction under it that passes the balance guard
+            Point? applied = null;
+            double fraction = Applied;
+            if (kept != start)
+            {
+                for (; fraction > 1e-9; fraction = Math.Round(fraction - AppliedStep, 6))
+                {
+                    var logM = kept.LogM.Select(v => v * fraction).ToArray();
+                    var data = WithMultipliers(loaded, baseAcc, baseModAcc, logM);
+                    var eval = BalanceTuner.Evaluate(data);
+                    var balance = BalanceTuner.MeasureBalance(data, eval, BalanceTuner.Worth(data, eval, out _), context.Unweighted);
+                    var point = new Point { Pass = kept.Pass, Strength = kept.Strength, LogM = logM, Balance = balance, GuardOk = GuardOk(start.Balance, balance) };
+                    Console.WriteLine(FormattableString.Invariant(
+                        $"Acc reweight: {fraction:0.00} of it: worth spread {balance.WorthSpread:0.0000}, pass slope {balance.PassShareSlope:+0.000;-0.000}, tech slope {balance.TechShareSlope:+0.000;-0.000}, acc slope {balance.AccShareSlope:+0.000;-0.000}, predicted acc slope {balance.PredictedAccSlope:+0.000;-0.000}{(point.GuardOk ? "" : " (guard)")}"));
+                    if (point.GuardOk) { applied = point; break; }
+                }
+            }
+            if (applied == null)
+            {
+                fraction = 0;
+                applied = new Point { Pass = 0, Strength = 0, LogM = new double[mapCount], Balance = start.Balance, GuardOk = true };
+            }
             Console.WriteLine(FormattableString.Invariant(
-                $"Acc reweight: applying {Applied:0.00} of it: worth spread {applied.Balance.WorthSpread:0.0000}, {applied.LogM.Count(v => Math.Abs(v) > 0.005)} maps changed, mean change {applied.LogM.Average(v => Math.Abs(Math.Exp(v) - 1)) * 100:0.0}%{(applied.GuardOk ? "" : " (guard)")}"));
+                $"Acc reweight: applying {fraction:0.00} of it: worth spread {applied.Balance.WorthSpread:0.0000}, {applied.LogM.Count(v => Math.Abs(v) > 0.005)} maps changed, mean change {applied.LogM.Average(v => Math.Abs(Math.Exp(v) - 1)) * 100:0.0}%"));
 
             // Store the multipliers and the reweighted acc ratings and stars
             var index = new Dictionary<string, int>();
@@ -195,10 +235,11 @@ namespace portaBLe.Refresh
             var result = new AccReweightResult
             {
                 GeneratedAt = DateTime.UtcNow,
-                Settings = new AccReweightSettings { Passes = Passes, Strengths = Strengths, EvidenceScores = EvidenceScores, MinAccShare = MinAccShare, MaxChange = MaxChange, Applied = Applied, GuardTolerance = GuardTolerance, GapTolerance = GapTolerance },
+                Settings = new AccReweightSettings { WorthMeasure = BalanceTuner.WorthMeasure.ToString(), Passes = Passes, Strengths = StrengthsFor, EvidenceScores = EvidenceScores, MinAccShare = MinAccShare, MaxChange = MaxChange, Applied = Applied, GuardTolerance = GuardToleranceFor, GapTolerance = GapToleranceFor },
                 HeldOut = phase1.Select(ToRound).ToList(),
                 Rounds = phase2.Select(ToRound).ToList(),
                 KeptRound = phase2.IndexOf(kept),
+                AppliedFraction = fraction,
                 Applied = ToRound(applied),
                 Maps = Enumerable.Range(0, mapCount)
                     .Select(i => new AccReweightMap
@@ -258,14 +299,15 @@ namespace portaBLe.Refresh
             for (int pass = 1; pass <= passes; pass++)
             {
                 var direction = new double[mapCount];
+                var evidence = BalanceTuner.WorthEvidence(current.Data, current.E, fitPlayers);
                 for (int i = 0; i < mapCount; i++)
                 {
                     if (current.Worth[i] is not double w || w <= -0.99 || target[i] is not double t) continue;
-                    BalanceTuner.Megametric75(current.Data, current.E, i, out int n, fitPlayers);
+                    int n = evidence[i];
                     direction[i] = -n / (n + EvidenceScores) * Math.Log((1 + w) / (1 + t)) / Math.Max(c.AccShare[i], MinAccShare);
                 }
 
-                var strengths = pass == passes && lastStrength is double only ? new[] { only } : Strengths;
+                var strengths = pass == passes && lastStrength is double only ? new[] { only } : StrengthsFor;
                 (BalanceTuner.Data Data, BalanceTuner.Evaluation E, double?[] Worth, Point Point)? best = null;
                 double bestSpread = double.MaxValue;
                 foreach (var strength in strengths)
@@ -306,11 +348,12 @@ namespace portaBLe.Refresh
         private static bool GuardOk(BalanceStats start, BalanceStats b)
         {
             bool Ok(double before, double after, double tolerance) => Math.Abs(after) <= Math.Abs(before) + tolerance;
-            return Ok(start.PassShareSlope, b.PassShareSlope, GuardTolerance) && Ok(start.TechShareSlope, b.TechShareSlope, GuardTolerance)
-                && Ok(start.AccShareSlope, b.AccShareSlope, GuardTolerance) && Ok(start.PredictedAccSlope, b.PredictedAccSlope, GuardTolerance)
-                && Ok(start.OneSaberGap, b.OneSaberGap, GapTolerance)
-                && Ok(start.PassShareGap, b.PassShareGap, GapTolerance) && Ok(start.TechShareGap, b.TechShareGap, GapTolerance)
-                && Ok(start.PredictedAccGap, b.PredictedAccGap, GapTolerance);
+            double guard = GuardToleranceFor, gap = GapToleranceFor;
+            return Ok(start.PassShareSlope, b.PassShareSlope, guard) && Ok(start.TechShareSlope, b.TechShareSlope, guard)
+                && Ok(start.AccShareSlope, b.AccShareSlope, guard) && Ok(start.PredictedAccSlope, b.PredictedAccSlope, guard)
+                && Ok(start.OneSaberGap, b.OneSaberGap, gap)
+                && Ok(start.PassShareGap, b.PassShareGap, gap) && Ok(start.TechShareGap, b.TechShareGap, gap)
+                && Ok(start.PredictedAccGap, b.PredictedAccGap, gap);
         }
 
         // Each map's acc pp share at its predicted acc
@@ -457,7 +500,9 @@ namespace portaBLe.Refresh
                 ScorePlayer = source.ScorePlayer,
                 ScoreAcc = source.ScoreAcc,
                 ScoreModifiers = source.ScoreModifiers,
+                ScoreTime = source.ScoreTime,
                 PlayerScores = source.PlayerScores,
+                PlayerIds = source.PlayerIds,
                 PlayerCount = source.PlayerCount,
             };
         }
@@ -472,6 +517,8 @@ namespace portaBLe.Refresh
         // Phase 2: every player; KeptRound is the index of the multipliers kept (0: none)
         public List<AccReweightRound> Rounds { get; set; } = new();
         public int KeptRound { get; set; }
+        // The fraction of the kept change stored (Applied, or less when that failed the balance guard; 0: nothing)
+        public double AppliedFraction { get; set; }
         // The multipliers stored: Settings.Applied of the kept ones (in log)
         public AccReweightRound? Applied { get; set; }
         // Maps whose acc rating changed, lowest multiplier first
@@ -480,6 +527,8 @@ namespace portaBLe.Refresh
 
     public class AccReweightSettings
     {
+        // BalanceTuner.WorthMeasure the run used (empty: Megametric75, before it could be chosen)
+        public string WorthMeasure { get; set; } = "";
         public int Passes { get; set; }
         public double[] Strengths { get; set; } = Array.Empty<double>();
         public double EvidenceScores { get; set; }

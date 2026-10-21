@@ -6,6 +6,67 @@ model comes from `beatsaber-replays-ai-2`.
 The goal is ratings that never need scores at rating time. Scores, replays and fail attempts are used offline, to fit and
 validate constants. The one exception is the acc reweighter (below), the only tool that changes ratings from scores.
 
+## Player-adjusted worth, high pass buff, tech weight, low stars
+
+### Worth measured with the player held fixed (`BalanceTuner.WorthMeasure`)
+
+- **New default worth: `PlayerAdjusted`.** `log pp = skill(player, half year) + generosity(map)`, fitted on each player's
+  scores near their level (from 2★ under it to 0.5★ above; level = the 5th hardest map in their top 50), then compared
+  with maps of the same stars and maps first played around the same time. How much a map pays the same players than their
+  other maps at their level.
+  - Why: Megametric75 weights each score by where it lands in the player's profile. On pass 14+ maps, players ranked
+    3001-10000 (survivors at low acc, with few high plays) inflated it: worth ≈ 0 overall, but −20% for the top 100 and
+    +31% for #2001-10000. It also overreacts to rating changes (a 0.1% acc shift on tech 7+ maps: −0.02 → +0.19).
+  - A measure against same-star maps only (`InRange`, kept as a diagnostic) barely reacts: stars are what a 96% score
+    pays, so a map that pays more is compared with higher-star maps (pass slope flat from `PassCalibration` 0.656 to 0.888).
+  - Player-adjusted reacts in proportion: 3% more pp on the tech 8+ maps moved them +1.9%. Worth spread 0.46 → 0.059.
+  - Skill per half year: with one skill per player, maps ranked in 2026 looked 2.8% more generous (their scores are set by
+    players at their best). Map age: maps first played in 2022 were 3% more generous (grinded for longer).
+- **`Leaderboard.Worth` is this measure** (`BalanceTuner.StoredWorth`, from `LeaderboardsRefresh.Refresh`); the previous
+  one is kept as `Leaderboard.MegametricWorth`.
+- **`Leaderboard.WorthRank20` … `WorthRank10000`:** pp / top pp by player rank (#1-20, #21-100, #101-1000, #1001-3000,
+  #3001-10000) against maps of the same stars (`LeaderboardsRefresh.RefreshWorthByRank`).
+
+### Acc rating (RatingAPI submodule)
+
+- **Very high pass buff** (`AccRating.HIGH_PASS_BUFF*`): −0.55% effective acc from 14.5 pass, ramped in from 13.5, flat
+  above. Pass 14+ maps were 4.1% under maps of the same stars on pp / top pp in every rank range (best scores 0.25-0.5%
+  under the predicted acc, others 0.1-0.4% over). Superluminal 735 → 761, 4 → 15 of the 22 maps with a 700pp+ play.
+- **Tech correction tried and rejected:** an acc correction above a tech knee overpaid tech maps at every size (the same
+  as noted before in `AccRating.cs`).
+
+### pp formula (RatingAPI submodule)
+
+- **`TechWeight` 0.0891 → 0.124** from the player-adjusted worth: tech-heavy maps paid their players less than others of
+  their stars (tech share slope −0.033, tech 8+ maps −2.7%). Tech pp is 2-5% of a score, so they gain 1-2%: slope −0.007,
+  top 1000 rank correlation 0.991.
+- **Low stars back up** (`LowStarCurveStart` 2 → 7, `LowStarCurveEnd` 5 → 10, `LowStarBonus` 0.0321 → 0.006 up to 9★
+  instead of 4.49): top players' best scores at 3-8★ had fallen 3-6% under prod's against the 10-12★ plateau, most on acc
+  players' 99% scores (ACC | Pandita #10 in prod, #45). Now 3★ 1.046, 5★ 1.060, 7★ 1.018 (prod 1.035, 1.085, 1.020),
+  Pandita #7. 1-2★ maps get less bonus (+10% / +8.5% at 1 / 2★, was +17.6% / +11%) but still rise with the curve power.
+- **`PpMultiplier` 1.0833 → 1.0597:** the top 1000's average at prod's (16395).
+
+### Balance tools
+
+- **Balance tuner keeps constants** whose target is within 0.01 of 0, or moves less than 0.01 over the range tried
+  (`TargetTolerance`, `MinResponse`), and says why on the Balance Tuning page with the worth measure used. With the
+  player-adjusted worth it had cut every pass rating 21% to move a +0.9% slope.
+- **Acc reweighter on the player-adjusted worth:** evidence from the measure's own scores, strengths 0.1-1.3 (worth moves
+  ~0.6x the pp, not 3-5x), guard tolerances 0.0035 / 0.0125 (between twice the measure's noise and Megametric75's). When
+  `Applied` (0.5) of the fit fails the guard, the largest fraction under it that passes is stored (`AppliedStep` 0.05):
+  a fraction of the fit can drift more than the whole fit (full fit pass slope +0.006, half +0.012). On Dev Tech: 0.15
+  stored, 0.6% mean change.
+
+### Pages and tools
+
+- **Leaderboards:** one Worth column (player-adjusted, %), coloured at ±8%. **Leaderboard Statistics:** split into views
+  (Overview, Worth by rank, Profile weights, Megametric, Map traits), all columns sortable, default sort Worth.
+- **Ranking:** Top PP next to Total PP. **Map Outliers:** sorted by Outlier %. **Top Acc, Weighted / Unweighted
+  Scores graphs:** SS, FS and SFS unticked by default. **Database Comparison:** nothing loads until a view is picked.
+- **Pass Comparison page and `PassWindowCheck` removed** (only that page used it).
+- **Top Scores caches of databases not in `databases.json` are deleted at startup**, with unfinished `.tmp` saves.
+- **Databases and caches excluded from the project by wildcard** (`wwwroot\**\*.db`, `wwwroot\cache\**`).
+
 ## Row streams, pass windows, prod scale, acc reweighter
 
 ### Ratings (Analyzer submodule)

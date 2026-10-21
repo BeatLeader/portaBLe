@@ -36,7 +36,7 @@ Everything is driven from `Program.cs` (`Main`): uncomment the steps to run, the
 5. `ModelComparisonExport.Run`: side by side with prod (`wwwroot/model-comparison.json`).
 
 `FullPipeline(dbContext, env, autoreweight, balancer, keepAccReweight)` runs all of it: `autoreweight` adds step 3,
-`balancer` steps 4-5 and the pass window check. Without step 3, `keepAccReweight: false` gives raw acc ratings (the
+`balancer` steps 4-5. Without step 3, `keepAccReweight: false` gives raw acc ratings (the
 stored multipliers are cleared; `Overwrite` / `Refresh` take the same option). After a pp formula change only
 (`RatingAPI/Pp/PpFormula.cs`), skip step 1.
 
@@ -61,14 +61,30 @@ The pp of scores and the stars are computed in RatingAPI (`RatingAPI/Pp`: `PpFor
 `ToStars`, `ModifiersMap`), so a server needs RatingAPI only; portaBLe's `ReplayUtils` just passes its database values
 to them. RatingAPI's response includes `stars` (without the acc reweighter's multipliers, which only portaBLe has).
 
+## Worth
+
+A map's worth (`Leaderboard.Worth`, shown on the Leaderboards, Leaderboard and Leaderboard Statistics pages) is what the
+balance tuner and the acc reweighter balance, in the measure `BalanceTuner.WorthMeasure` picks:
+
+- `PlayerAdjusted` (the default): `log pp = skill(player, half year) + generosity(map)`, fitted on each player's scores
+  near their level (from 2 stars under it to 0.5 above), then compared with maps of the same stars and maps first played
+  around the same time. How much the map pays the same players than their other maps at their level: who plays it and
+  where it lands in their profiles drop out, and a map that pays more shows it (3% more pp, +1.9% worth).
+- `Megametric75`: Megametric75 relative to what maps of its stars average (kept as `Leaderboard.MegametricWorth`). Its
+  profile weight overreacts to rating changes and inflates maps played by players with few high plays (survivors of
+  very high pass maps).
+- `InRange`: pp / top pp of the players who can play the map, against maps of the same stars. Stars are what a 96%
+  score pays, so a map that pays more is compared with higher star maps: it barely reacts to rating changes.
+
+`Leaderboard.WorthRank20` ... `WorthRank10000` split pp / top pp by player rank (Leaderboard Statistics, Worth by rank).
+
 ## Acc reweighter
 
-`Refresh/Tools/AccReweighter.cs`: each map's worth (`Leaderboard.Worth`, its Megametric75 relative to what maps of its
-stars average, shown on the Leaderboards and Leaderboard pages) is compared with what its kind of map is worth (pass /
+`Refresh/Tools/AccReweighter.cs`: each map's worth (above) is compared with what its kind of map is worth (pass /
 tech share, predicted acc, OneSaber, star range), and its acc rating is moved towards it.
 
-- What maps of its stars average is a local linear fit of Megametric75 on stars (`BalanceTuner.WorthReference`,
-  Gaussian kernel of `WorthBandwidth` 0.25 stars), so a map's reference doesn't jump at a star range boundary.
+- What maps of its stars average is a local linear fit on stars (`BalanceTuner.WorthReference`, Gaussian kernel of
+  `WorthBandwidth` 0.25 stars), so a map's reference doesn't jump at a star range boundary.
 - Everything is re-scored in memory for each try, since one map's change moves every player's weights.
 - Maps with few scores move less, and maps without a worth (newly ranked) keep ×1.
 - How far it goes is chosen on held-out players: it fits on one half of the players and checks on the other, and takes
@@ -95,7 +111,7 @@ tech share, predicted acc, OneSaber, star range), and its acc rating is moved to
 | | |
 |---|---|
 | `Refresh/` | the rating / pp pipeline (`RatingsRefresh`, `ScoresPlayersRefresh`, `LeaderboardsRefresh`, `StatsRefresh`, `ReplayUtils`) |
-| `Refresh/Tools/` | `AccReweighter` (writes ratings); read-only: `BalanceTuner`, `ModelComparisonExport`, `PassWindowCheck`, `ParityCheck` (Analyzer parity and directions vs replays), `RatingFitExport` (swings / scores / walls exports used to fit the formulas and the Acc AI's player skills) |
+| `Refresh/Tools/` | `AccReweighter` (writes ratings); read-only: `BalanceTuner`, `ModelComparisonExport`, `ParityCheck` (Analyzer parity and directions vs replays), `RatingFitExport` (swings / scores / walls exports used to fit the formulas and the Acc AI's player skills) |
 | `Pages/` | the website (leaderboards, players, comparisons, Balance Tuning) |
 | `RatingAPI/` | submodule: Analyzer, Acc AI inference, acc rating, pp formula and stars (`Pp/`) |
 | `pp-calculation-example.html` | a worked example of how a score's pp and a map's stars are calculated |

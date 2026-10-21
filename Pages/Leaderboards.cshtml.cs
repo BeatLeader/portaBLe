@@ -64,15 +64,7 @@ namespace portaBLe.Pages
                 "PassRating" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.PassRating) : leaderboardQuery.OrderBy(l => l.PassRating),
                 "TechRating" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.TechRating) : leaderboardQuery.OrderBy(l => l.TechRating),
                 "AccRating" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.AccRating) : leaderboardQuery.OrderBy(l => l.AccRating),
-                // Maps without a worth go last either way
-                "Worth" => SortDescending
-                    ? leaderboardQuery.OrderBy(l => l.Worth == null).ThenByDescending(l => l.Worth)
-                    : leaderboardQuery.OrderBy(l => l.Worth == null).ThenBy(l => l.Worth),
-                "WorthRank20" => SortNullsLast(leaderboardQuery, l => l.WorthRank20),
-                "WorthRank100" => SortNullsLast(leaderboardQuery, l => l.WorthRank100),
-                "WorthRank1000" => SortNullsLast(leaderboardQuery, l => l.WorthRank1000),
-                "WorthRank3000" => SortNullsLast(leaderboardQuery, l => l.WorthRank3000),
-                "WorthRank10000" => SortNullsLast(leaderboardQuery, l => l.WorthRank10000),
+                "Worth" => SortHelpers.NullsLast(leaderboardQuery, l => l.Worth, SortDescending),
                 _ => SortDescending ? leaderboardQuery.OrderByDescending(l => l.Stars) : leaderboardQuery.OrderBy(l => l.Stars),
             };
 
@@ -82,14 +74,6 @@ namespace portaBLe.Pages
             CurrentPage = System.Math.Clamp(currentPage, 1, System.Math.Max(TotalPages, 1));
 
             Leaderboards = await leaderboardQuery.Skip((CurrentPage - 1) * pageSize).Take(pageSize).ToListAsync();
-        }
-
-        // Maps without a value go last either way
-        private IQueryable<Leaderboard> SortNullsLast(IQueryable<Leaderboard> query, System.Linq.Expressions.Expression<System.Func<Leaderboard, float?>> key)
-        {
-            var withNullsLast = query.OrderBy(System.Linq.Expressions.Expression.Lambda<System.Func<Leaderboard, bool>>(
-                System.Linq.Expressions.Expression.Equal(key.Body, System.Linq.Expressions.Expression.Constant(null, typeof(float?))), key.Parameters));
-            return SortDescending ? withNullsLast.ThenByDescending(key) : withNullsLast.ThenBy(key);
         }
     }
 }

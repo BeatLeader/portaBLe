@@ -64,6 +64,9 @@ namespace portaBLe
                                     .ToListAsync();
         }
 
+        // Total and top pp always show; sorted by acc, pass or tech pp, that column shows too
+        public bool ShowsPartColumn => SortBy is "accPP" or "passPP" or "techPP";
+
         public string GetSortColumnHeader()
         {
             return SortBy switch

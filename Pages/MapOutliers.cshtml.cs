@@ -14,7 +14,7 @@ namespace portaBLe.Pages
         public string SearchString { get; set; }
         public string ModeName { get; set; }
         public List<string> ModeNames { get; set; }
-        public string SortBy { get; set; } = "OutlierCount";
+        public string SortBy { get; set; } = "OutlierPercentage";
         public bool SortDescending { get; set; } = true;
         public int CurrentPage { get; set; } = 1;
         public int TotalPages { get; set; }
@@ -26,7 +26,7 @@ namespace portaBLe.Pages
         public async Task<IActionResult> OnGetAsync(
             string searchString, 
             string modeName, 
-            string sortBy = "OutlierCount", 
+            string sortBy = "OutlierPercentage", 
             bool? sortDescending = true, 
             int currentPage = 1,
             string db = null)

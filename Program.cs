@@ -288,6 +288,8 @@ namespace portaBLe
                 // Uncomment to download all databases from S3 based on databases.json
                 var tempDbService = new DynamicDbContextService(builder.Environment);
                 await tempDbService.DownloadAllDatabasesAsync(builder.Environment.WebRootPath);
+                // The Top Scores caches of databases no longer in databases.json
+                TopScoresCache.DeleteUnlisted(builder.Environment.WebRootPath, (await tempDbService.GetAvailableDatabasesAsync()).Select(d => d.FileName));
 
                 var connectionString = $"Data Source={builder.Environment.WebRootPath}/Database.db;";
                 builder.Services.AddDbContextFactory<AppContext>(options => options.UseSqlite(connectionString));
@@ -342,8 +344,7 @@ namespace portaBLe
                     //   -> ModelComparisonExport.Run
                     // (only pp formula changes, RatingAPI/Pp/PpFormula.cs: skip Overwrite)
                     // Run FullPipeline to do all of the above in one pass (about 10-15 minutes and 8-15GB of RAM). autoreweight:
-                    // the acc reweighter and its re-score; balancer: the balance tuner, the model comparison and the pass window
-                    // check.
+                    // the acc reweighter and its re-score; balancer: the balance tuner and the model comparison.
                     // await FullPipeline(dbContext, env, true, true, true);
 
                     // Rate every leaderboard again with RatingAPI (Analyzer + Acc AI). Keeps the acc reweighter's multipliers;
@@ -384,11 +385,6 @@ namespace portaBLe
                     // "BLReplaysPrepare parity <that file>" in beatsaber-replays-ai-2, then compare.
                     // await ParityCheck.WriteSample(dbContext, env.WebRootPath);
                     // await ParityCheck.Run(dbContext, env.WebRootPath, Path.Combine(ReplaysRepo(env), "parity2"));
-
-                    // Pass and tech of every leaderboard with the Analyzer as it is now, next to the pass in this database and in
-                    // prod, from the maps folder, Analyzer only (no Acc AI): the new ordering before re-rating. Writes
-                    // wwwroot/pass-window-check.json for the Pass Rating Comparison page.
-                    // await PassWindowCheck.Run(dbContext, env.WebRootPath, ProdDatabase);
 
                     // Every swing of every ranked map with its scores' accuracy (rating-fit.json / .bin), to fit the pass and
                     // tech formulas.
@@ -442,7 +438,6 @@ namespace portaBLe
             {
                 await BalanceTuner.Run(dbContext, env.WebRootPath);
                 await ModelComparisonExport.Run(env.WebRootPath, ProdDatabase);
-                await PassWindowCheck.Run(dbContext, env.WebRootPath, ProdDatabase);
             }
         }
         public static async Task RefreshEverything(AppContext dbContext)

@@ -250,8 +250,9 @@ namespace portaBLe.Refresh
 
             var updateList = updates.ToList();
 
-            // Worth: Megametric75 relative to what maps of its stars average (as BalanceTuner.Worth, WorthReference)
+            // MegametricWorth: Megametric75 relative to what maps of its stars average (WorthReference)
             await DbSchema.AddColumnIfMissing(dbContext, "Leaderboards", "Worth", "REAL");
+            await DbSchema.AddColumnIfMissing(dbContext, "Leaderboards", "MegametricWorth", "REAL");
             var stars = await dbContext.Leaderboards.AsNoTracking().ToDictionaryAsync(l => l.Id, l => l.Stars);
             float StarsOf(Leaderboard u) => stars.TryGetValue(u.Id, out var s) ? s : 0;
             int StarRange(Leaderboard u) => Math.Clamp((int)MathF.Floor(StarsOf(u)), 0, 13);
@@ -265,8 +266,12 @@ namespace portaBLe.Refresh
             foreach (var u in updateList)
             {
                 double reference = u.Megametric75 > 0 && usedRanges.Contains(StarRange(u)) ? BalanceTuner.WorthReference(points, StarsOf(u)) : 0;
-                u.Worth = reference > 0 ? (float)(u.Megametric75 / reference - 1) : null;
+                u.MegametricWorth = reference > 0 ? (float)(u.Megametric75 / reference - 1) : null;
             }
+
+            // Worth: the balance tuner's worth measure (BalanceTuner.WorthMeasure), from the scores as they are
+            var worth = await BalanceTuner.StoredWorth(dbContext);
+            foreach (var u in updateList) u.Worth = worth.TryGetValue(u.Id, out var w) ? w : null;
 
             Console.WriteLine($"Processed {updates.Count} leaderboards, writing to database...");
             await dbContext.BulkUpdateAsync(updateList, options => options.ColumnInputExpression = c =>
@@ -285,7 +290,8 @@ namespace portaBLe.Refresh
                     c.Megametric40,
                     c.Megametric75,
                     c.Megametric125,
-                    c.Worth
+                    c.Worth,
+                    c.MegametricWorth
                 });
 
             dbContext.ChangeTracker.AutoDetectChangesEnabled = true;

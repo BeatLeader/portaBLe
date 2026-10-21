@@ -52,7 +52,12 @@
             <th>Rank</th>
             <th>Name</th>
             <th>Country</th>
-            <th>@Model.GetSortColumnHeader()</th>
+            <th>Total PP</th>
+            <th>Top PP</th>
+            @if (Model.ShowsPartColumn)
+            {
+                <th>@Model.GetSortColumnHeader()</th>
+            }
         </tr>
     </thead>
     <tbody>
@@ -63,7 +68,12 @@
                 <td>@player.Rank</td>
                 <td><a asp-page="/Player" asp-route-id="@player.Id">@player.Name</a></td>
                 <td>@player.Country</td>
-                <td>@Model.GetSortColumnValue(player).ToString("F2")</td>
+                <td>@player.Pp.ToString("F2")</td>
+                <td>@player.TopPp.ToString("F2")</td>
+                @if (Model.ShowsPartColumn)
+                {
+                    <td>@Model.GetSortColumnValue(player).ToString("F2")</td>
+                }
             </tr>
         }
     </tbody>

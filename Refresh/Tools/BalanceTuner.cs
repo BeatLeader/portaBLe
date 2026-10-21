@@ -42,8 +42,9 @@ namespace portaBLe.Refresh
     // Analyzer constants are applied by hand afterwards.
     //
     // For every value tried, the stored ratings are transformed, stars rebuilt, every score re-scored and every player's
-    // weighted pp rebuilt, in memory. A map's "worth" is its Megametric75 (how much it counts in the profiles of the players
-    // who play it) divided by what maps of its stars average: 0 = average for its stars, +0.2 = 20% more valuable. Each
+    // weighted pp rebuilt, in memory. A map's "worth" is its value in WorthMeasure (PlayerAdjusted: how much it pays the same
+    // players than their other maps at their level) divided by what maps of its stars average: 0 = average for its stars,
+    // +0.2 = 20% more valuable. Each
     // constant is moved until the worth no longer depends on what it controls:
     //   PassCalibration -> share of pass pp at the predicted acc
     //   TechWeight      -> share of tech pp at the predicted acc
@@ -90,7 +91,9 @@ namespace portaBLe.Refresh
             public int[] ScorePlayer = Array.Empty<int>();
             public float[] ScoreAcc = Array.Empty<float>();
             public string[] ScoreModifiers = Array.Empty<string>();
+            public int[] ScoreTime = Array.Empty<int>();   // Score.Timepost (unix seconds)
             public int[][] PlayerScores = Array.Empty<int[]>();
+            public string[] PlayerIds = Array.Empty<string>();   // Player.Id of each player index
             public int PlayerCount;
         }
 
@@ -119,7 +122,7 @@ namespace portaBLe.Refresh
             }
 
             var scores = await dbContext.Scores.AsNoTracking()
-                .Select(s => new { s.LeaderboardId, s.PlayerId, s.Accuracy, s.Modifiers })
+                .Select(s => new { s.LeaderboardId, s.PlayerId, s.Accuracy, s.Modifiers, s.Timepost })
                 .ToListAsync();
 
             var playerIndex = new Dictionary<string, int>();
@@ -128,6 +131,7 @@ namespace portaBLe.Refresh
             var scorePlayer = new List<int>(scores.Count);
             var scoreAcc = new List<float>(scores.Count);
             var scoreModifiers = new List<string>(scores.Count);
+            var scoreTime = new List<int>(scores.Count);
             foreach (var s in scores)
             {
                 if (s.LeaderboardId == null || s.PlayerId == null || !mapIndex.TryGetValue(s.LeaderboardId, out int map)) continue;
@@ -142,6 +146,7 @@ namespace portaBLe.Refresh
                 scorePlayer.Add(player);
                 scoreAcc.Add(s.Accuracy);
                 scoreModifiers.Add(shared);
+                scoreTime.Add(s.Timepost);
             }
 
             var byMap = new List<int>[maps.Length];
@@ -162,7 +167,9 @@ namespace portaBLe.Refresh
                 ScorePlayer = scorePlayer.ToArray(),
                 ScoreAcc = scoreAcc.ToArray(),
                 ScoreModifiers = scoreModifiers.ToArray(),
+                ScoreTime = scoreTime.ToArray(),
                 PlayerScores = byPlayer.Select(l => l.ToArray()).ToArray(),
+                PlayerIds = playerIndex.OrderBy(kv => kv.Value).Select(kv => kv.Key).ToArray(),
                 PlayerCount = playerIndex.Count,
             };
         }
@@ -171,11 +178,12 @@ namespace portaBLe.Refresh
         // Run
         // ------------------------------------------------------------------
 
-        public static async Task Run(AppContext dbContext, string webRootPath, int rounds = 2, RatingConstants? ratedWith = null)
+        // fileName: where in wwwroot the result goes (the Balance Tuning page shows FileName)
+        public static async Task Run(AppContext dbContext, string webRootPath, int rounds = 2, RatingConstants? ratedWith = null, string fileName = FileName)
         {
             ratedWith ??= RatedWith;
             var timer = System.Diagnostics.Stopwatch.StartNew();
-            Console.WriteLine($"Balance tuning: loading scores (rated with {ratedWith})...");
+            Console.WriteLine($"Balance tuning: loading scores (rated with {ratedWith}, worth measure {WorthMeasure})...");
             var data = await Load(dbContext);
             Console.WriteLine($"Balance tuning: {data.Maps.Length} leaderboards, {data.ScoreMap.Length} scores, {data.PlayerCount} players loaded in {timer.Elapsed:mm\\:ss}");
 
@@ -185,6 +193,7 @@ namespace portaBLe.Refresh
                 GeneratedAt = DateTime.UtcNow,
                 RatedWith = ratedWith.Clone(),
                 OneSaberMaps = data.Maps.Count(m => IsOneSaber(m.Leaderboard)),
+                WorthMeasure = WorthMeasure.ToString(),
             };
             result.Current = Score(data, ratedWith, ratedWith, reference);
             Console.WriteLine($"Balance tuning: in code: {Describe(result.Current.Balance)}");
@@ -214,10 +223,16 @@ namespace portaBLe.Refresh
 
                     sweep.Suggested = ZeroCrossing(sweep.Points, out bool atEdge);
                     sweep.AtEdge = atEdge;
+                    sweep.Kept = KeepReason(sweep.Points, knob.Get(best));
+                    if (sweep.Kept != null)
+                    {
+                        sweep.Suggested = knob.Get(best);
+                        sweep.AtEdge = false;
+                    }
                     knob.Set(best, sweep.Suggested);
                     result.Sweeps.Add(sweep);
                     Console.WriteLine(FormattableString.Invariant(
-                        $"Balance tuning: round {round}, {knob.Name} -> {sweep.Suggested:0.#####}{(atEdge ? " (at the edge of the range tried)" : "")} ({timer.Elapsed:mm\\:ss})"));
+                        $"Balance tuning: round {round}, {knob.Name} -> {sweep.Suggested:0.#####}{(sweep.AtEdge ? " (at the edge of the range tried)" : "")}{(sweep.Kept != null ? $" (kept: {sweep.Kept})" : "")} ({timer.Elapsed:mm\\:ss})"));
                 }
             }
 
@@ -225,7 +240,7 @@ namespace portaBLe.Refresh
             result.Suggested = Score(data, ratedWith, best, reference);
             Console.WriteLine($"Balance tuning: suggested {best}: {Describe(result.Suggested.Balance)}");
 
-            var path = Path.Combine(webRootPath, FileName);
+            var path = Path.Combine(webRootPath, fileName);
             await File.WriteAllTextAsync(path, JsonSerializer.Serialize(result, JsonOptions));
             Console.WriteLine($"Balance tuning saved to {path} ({timer.Elapsed:hh\\:mm\\:ss})");
         }
@@ -410,6 +425,27 @@ namespace portaBLe.Refresh
             },
         };
 
+        // A constant stays where it is when its target is already within TargetTolerance of 0, or the target moves less than
+        // MinResponse over the whole range tried (the worth measure barely reacts to it, so the zero crossing is far away
+        // and noise decides where). With the PlayerAdjusted worth, PassCalibration went to 0.607 (the edge, -21% on every
+        // pass rating, top 1000 rank correlation 0.92) to take the pass slope from +0.009 to +0.001, and AccOffset to the
+        // edge with its target flat at -0.006 to -0.008. Null: move it.
+        public static double TargetTolerance { get; set; } = 0.01;
+        public static double MinResponse { get; set; } = 0.01;
+
+        private static string? KeepReason(List<SweepPoint> points, double current)
+        {
+            var finite = points.Where(p => double.IsFinite(p.Target)).ToList();
+            if (finite.Count == 0) return null;
+            var atCurrent = finite.OrderBy(p => Math.Abs(p.Value - current)).First();
+            if (Math.Abs(atCurrent.Target) <= TargetTolerance)
+                return FormattableString.Invariant($"within tolerance, {atCurrent.Target:+0.000;-0.000}");
+            double response = finite.Max(p => p.Target) - finite.Min(p => p.Target);
+            if (response < MinResponse)
+                return FormattableString.Invariant($"barely reacts, {response:0.000} over the range tried");
+            return null;
+        }
+
         // Value where the target crosses 0, by linear interpolation between the two points around it. Without a crossing,
         // the point closest to 0 (atEdge = true when that's the first or last value tried).
         private static double ZeroCrossing(List<SweepPoint> points, out bool atEdge)
@@ -487,7 +523,9 @@ namespace portaBLe.Refresh
                 ScorePlayer = source.ScorePlayer,
                 ScoreAcc = source.ScoreAcc,
                 ScoreModifiers = source.ScoreModifiers,
+                ScoreTime = source.ScoreTime,
                 PlayerScores = source.PlayerScores,
+                PlayerIds = source.PlayerIds,
                 PlayerCount = source.PlayerCount,
             };
         }
@@ -635,13 +673,222 @@ namespace portaBLe.Refresh
             return filtered.Average(s => e.Pp[s] / e.PlayerTopPp[data.ScorePlayer[s]] * e.Weight[s]);
         }
 
-        // Each map's Megametric75 relative to what maps of its stars average (WorthReference). Null when the map has too few
-        // scores, or its star range fewer than 5 maps.
+        // What a map's worth measures (Worth):
+        // - Megametric75: as LeaderboardsRefresh, top 33% by weight of the players with 75+ plays, pp / top pp * weight.
+        //   Mixes everyone who passes the map, weighted by where it lands in their profile: on pass 14+ maps, players ranked
+        //   3001-10000 scored 8% under maps of the same stars (they survive at low acc) where #101-1000 were 1% under, while on
+        //   other 10+ star maps both agree within 0.2%, and survivors' sparse profiles inflate the weight. Overreacts to rating
+        //   changes: a 0.1% acc shift on tech 7+ maps took their worth from -0.02 to +0.19.
+        // - InRange: average pp / top pp of the scores by players the map isn't above (stars at most InRangeMargin above the
+        //   player's level), no weight. Measured against maps of the same stars, but stars are what a 96% score pays, so a
+        //   map that pays more also gets more stars and is compared with higher star maps: it barely reacts to rating
+        //   changes (the pass slope stayed at +0.012 from PassCalibration 0.656 to 0.888). A diagnostic, not a target.
+        // - PlayerAdjusted: log pp = skill(player, half year) + generosity(map), fitted on in-range scores (stars from
+        //   PlayerAdjustedBelow under the player's level to InRangeMargin above), then against maps of the same stars and maps
+        //   first played around the same time. How much a map pays the same players compared with their other maps at their
+        //   level: who plays it and the weight drop out, and generosity is about flat over stars, so more stars don't hide
+        //   more pay (3% more pp on the tech 8+ maps moved them +1.9%). Skill per half year: players improve, so with one
+        //   skill per player maps ranked in 2026 looked 2.8% more generous (their scores are set by players at their best);
+        //   map age: maps first played in 2022 were then 3% more generous than later ones (grinded for longer). Neither is
+        //   something the ratings can fix.
+        // Level: the stars of the InRangeHardest-th hardest map among the player's InRangeTopPlays best scores. The average
+        // stars of the top 20 (tried) put even the top 10 players at 11.5 (their best scores are on maps they can acc), so
+        // only 22 of the 40 13+ star maps kept enough scores; with this, 38. One or two lucky passes don't raise it.
+        // The balance tuner, the acc reweighter and Leaderboard.Worth (LeaderboardsRefresh, StoredWorth) use WorthMeasure.
+        public enum WorthMeasures { Megametric75, InRange, PlayerAdjusted }
+        public static WorthMeasures WorthMeasure { get; set; } = WorthMeasures.PlayerAdjusted;
+
+        // Each leaderboard's worth (WorthMeasure) from the database as it is, ratings and scores: LeaderboardsRefresh stores it
+        // in Leaderboard.Worth. Stars from the ratings, as the tuner's (the stored ones may not be refreshed yet).
+        public static async Task<Dictionary<string, float?>> StoredWorth(AppContext dbContext)
+        {
+            var data = await Load(dbContext);
+            Parallel.ForEach(data.Maps, m =>
+            {
+                var lb = m.Leaderboard;
+                m.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve);
+                m.StarBand = StarBandOf(m.Stars);
+            });
+            var e = Evaluate(data);
+            var worth = Worth(data, e, out _);
+            return Enumerable.Range(0, data.Maps.Length).ToDictionary(i => data.Maps[i].Leaderboard.Id, i => worth[i] is double w ? (float?)w : null);
+        }
+        public static double InRangeMargin { get; set; } = 0.5;
+        public static int InRangeTopPlays { get; set; } = 50;
+        public static int InRangeHardest { get; set; } = 5;
+        public static double PlayerAdjustedBelow { get; set; } = 2;
+        public static int PlayerAdjustedPeriodDays { get; set; } = 182;
+        private const int PlayerAdjustedMinPlayerScores = 30;   // in-range scores of a player
+        private const int PlayerAdjustedMinPeriodScores = 10;   // in-range scores of a player in a half year
+        private const int PlayerAdjustedIterations = 30;
+        public static double PlayerAdjustedAgeBandwidthDays { get; set; } = 180;
+
+        // Each player's level for InRange and PlayerAdjusted (see above)
+        internal static double[] PlayerLevels(Data data, Evaluation e)
+        {
+            var stars = new List<double>[data.PlayerCount];
+            for (int p = 0; p < data.PlayerCount; p++) stars[p] = new List<double>();
+            for (int s = 0; s < data.ScoreMap.Length; s++)
+            {
+                if (e.Position[s] < InRangeTopPlays) stars[data.ScorePlayer[s]].Add(data.Maps[data.ScoreMap[s]].Stars);
+            }
+            return stars.Select(list => list.Count == 0 ? 0 : list.OrderByDescending(v => v).ElementAt(Math.Min(InRangeHardest, list.Count) - 1)).ToArray();
+        }
+
+        // InRange value of a map: average pp / top pp of its scores by players with more than MegametricMinPlays plays whose
+        // level is at least the map's stars - InRangeMargin. count: how many scores it averages (0 when null).
+        internal static double? InRangeValue(Data data, Evaluation e, double[] levels, int m, out int count, bool[]? players = null)
+        {
+            count = 0;
+            double stars = data.Maps[m].Stars, sum = 0;
+            foreach (var s in data.Maps[m].Scores)
+            {
+                int p = data.ScorePlayer[s];
+                if ((players != null && !players[p]) || e.PlayerTopPp[p] <= 0 || data.PlayerScores[p].Length <= MegametricMinPlays) continue;
+                if (stars > levels[p] + InRangeMargin) continue;
+                sum += e.Pp[s] / e.PlayerTopPp[p];
+                count++;
+            }
+            if (count < (players == null ? MinScoresPerMap : MinScoresPerMap / 2)) { count = 0; return null; }
+            return sum / count;
+        }
+
+        // PlayerAdjusted generosity of every map: e^(its map term), the median map 1 (see WorthMeasures). Null with fewer than
+        // MinScoresPerMap in-range scores (half with players).
+        internal static double?[] PlayerAdjustedValues(Data data, Evaluation e, bool[]? players = null) => PlayerAdjustedValues(data, e, out _, players);
+
+        // counts: the in-range scores each map's value is fitted on (0 when null)
+        internal static double?[] PlayerAdjustedValues(Data data, Evaluation e, out int[] counts, bool[]? players = null)
+        {
+            var levels = PlayerLevels(data, e);
+            int t0 = data.ScoreTime.Length > 0 ? data.ScoreTime.Min() : 0;
+            long period = PlayerAdjustedPeriodDays * 86400L;
+
+            // In-range scores of players with more than MegametricMinPlays plays, each in its (player, half year) group
+            var obsScore = new List<int>();
+            var obsGroup = new List<int>();
+            var groups = new Dictionary<(int, int), int>();
+            var inRange = new List<int>();
+            for (int p = 0; p < data.PlayerCount; p++)
+            {
+                if ((players != null && !players[p]) || data.PlayerScores[p].Length <= MegametricMinPlays) continue;
+                inRange.Clear();
+                foreach (var s in data.PlayerScores[p])
+                {
+                    double stars = data.Maps[data.ScoreMap[s]].Stars;
+                    if (e.Pp[s] > 0 && stars >= levels[p] - PlayerAdjustedBelow && stars <= levels[p] + InRangeMargin) inRange.Add(s);
+                }
+                if (inRange.Count < PlayerAdjustedMinPlayerScores) continue;
+                foreach (var s in inRange)
+                {
+                    var key = (p, (int)((data.ScoreTime[s] - (long)t0) / period));
+                    if (!groups.TryGetValue(key, out int g)) groups[key] = g = groups.Count;
+                    obsScore.Add(s);
+                    obsGroup.Add(g);
+                }
+            }
+
+            // Groups with too few scores, then maps with too few, are left out
+            var groupCount = new int[groups.Count];
+            foreach (var g in obsGroup) groupCount[g]++;
+            var mapCount = new int[data.Maps.Length];
+            for (int i = 0; i < obsScore.Count; i++) if (groupCount[obsGroup[i]] >= PlayerAdjustedMinPeriodScores) mapCount[data.ScoreMap[obsScore[i]]]++;
+            int minMapScores = players == null ? MinScoresPerMap : MinScoresPerMap / 2;
+            var keep = Enumerable.Range(0, obsScore.Count)
+                .Where(i => groupCount[obsGroup[i]] >= PlayerAdjustedMinPeriodScores && mapCount[data.ScoreMap[obsScore[i]]] >= minMapScores)
+                .ToArray();
+            var y = keep.Select(i => Math.Log(e.Pp[obsScore[i]])).ToArray();
+            var map = keep.Select(i => data.ScoreMap[obsScore[i]]).ToArray();
+            var group = keep.Select(i => obsGroup[i]).ToArray();
+
+            // Alternating means: skill of each group given the maps, generosity of each map given the groups
+            var skill = new double[groups.Count];
+            var gen = new double[data.Maps.Length];
+            var sum = new double[Math.Max(groups.Count, data.Maps.Length)];
+            var count = new int[sum.Length];
+            for (int it = 0; it < PlayerAdjustedIterations; it++)
+            {
+                Array.Clear(sum); Array.Clear(count);
+                for (int i = 0; i < y.Length; i++) { sum[group[i]] += y[i] - gen[map[i]]; count[group[i]]++; }
+                for (int g = 0; g < skill.Length; g++) skill[g] = count[g] > 0 ? sum[g] / count[g] : 0;
+                Array.Clear(sum); Array.Clear(count);
+                for (int i = 0; i < y.Length; i++) { sum[map[i]] += y[i] - skill[group[i]]; count[map[i]]++; }
+                for (int m = 0; m < gen.Length; m++) gen[m] = count[m] > 0 ? sum[m] / count[m] : 0;
+            }
+
+            var fitted = Enumerable.Range(0, data.Maps.Length).Where(m => count[m] > 0).ToList();
+            var values = new double?[data.Maps.Length];
+            counts = new int[data.Maps.Length];
+            foreach (var m in fitted) counts[m] = count[m];
+            if (fitted.Count == 0) return values;
+            var sorted = fitted.Select(m => gen[m]).OrderBy(v => v).ToArray();
+            double median = sorted[sorted.Length / 2];
+            foreach (var m in fitted) values[m] = Math.Exp(gen[m] - median);
+            return values;
+        }
+
+        // How many scores each map's worth rests on, for WorthMeasure (Megametric75: the scores its average takes; InRange: its
+        // in-range scores; PlayerAdjusted: the in-range scores it's fitted on). The acc reweighter moves maps with few less.
+        internal static int[] WorthEvidence(Data data, Evaluation e, bool[]? players = null)
+        {
+            var counts = new int[data.Maps.Length];
+            switch (WorthMeasure)
+            {
+                case WorthMeasures.PlayerAdjusted:
+                    PlayerAdjustedValues(data, e, out counts, players);
+                    break;
+                case WorthMeasures.InRange:
+                    var levels = PlayerLevels(data, e);
+                    Parallel.For(0, counts.Length, m => { InRangeValue(data, e, levels, m, out int n, players); counts[m] = n; });
+                    break;
+                default:
+                    Parallel.For(0, counts.Length, m => { Megametric75(data, e, m, out int n, players); counts[m] = n; });
+                    break;
+            }
+            return counts;
+        }
+
+        // PlayerAdjusted worth against maps first played around the same time (Gaussian kernel of
+        // PlayerAdjustedAgeBandwidthDays on each map's first score): the map age effect (see WorthMeasures)
+        private static void RemoveMapAge(Data data, double?[] worth)
+        {
+            var first = new double[data.Maps.Length];
+            for (int m = 0; m < first.Length; m++) first[m] = data.Maps[m].Scores.Length > 0 ? data.Maps[m].Scores.Min(s => data.ScoreTime[s]) : 0;
+            var withWorth = Enumerable.Range(0, worth.Length).Where(m => worth[m] != null).ToArray();
+            double h = PlayerAdjustedAgeBandwidthDays * 86400;
+            var reference = new double[worth.Length];
+            Parallel.ForEach(withWorth, m =>
+            {
+                double sw = 0, sy = 0;
+                foreach (var o in withWorth)
+                {
+                    double d = first[o] - first[m];
+                    if (Math.Abs(d) > 4 * h) continue;
+                    double w = Math.Exp(-0.5 * d * d / (h * h));
+                    sw += w; sy += w * worth[o]!.Value;
+                }
+                reference[m] = sw > 0 ? sy / sw : 0;
+            });
+            foreach (var m in withWorth) worth[m] = (1 + worth[m]!.Value) / (1 + reference[m]) - 1;
+        }
+
+        // Each map's value (WorthMeasure) relative to what maps of its stars average (WorthReference). Null when the map has
+        // too few scores, or its star range fewer than 5 maps.
         internal static double?[] Worth(Data data, Evaluation e, out double[] bandMeans, bool[]? players = null)
         {
             int mapCount = data.Maps.Length;
             var megametric = new double?[mapCount];
-            Parallel.For(0, mapCount, m => megametric[m] = Megametric75(data, e, m, out _, players));
+            if (WorthMeasure == WorthMeasures.PlayerAdjusted)
+            {
+                megametric = PlayerAdjustedValues(data, e, players);
+            }
+            else
+            {
+                var levels = WorthMeasure == WorthMeasures.InRange ? PlayerLevels(data, e) : null;
+                Parallel.For(0, mapCount, m => megametric[m] = levels != null
+                    ? InRangeValue(data, e, levels, m, out _, players)
+                    : Megametric75(data, e, m, out _, players));
+            }
 
             var means = new double[StarBandCount];
             var used = new List<IGrouping<int, int>>();
@@ -660,6 +907,7 @@ namespace portaBLe.Refresh
                 double reference = WorthReference(points, data.Maps[m].Stars);
                 if (reference > 0) worth[m] = megametric[m]!.Value / reference - 1;
             });
+            if (WorthMeasure == WorthMeasures.PlayerAdjusted) RemoveMapAge(data, worth);
             bandMeans = means;
             return worth;
         }
@@ -937,6 +1185,8 @@ namespace portaBLe.Refresh
     public class BalanceTuningResult
     {
         public DateTime GeneratedAt { get; set; }
+        // BalanceTuner.WorthMeasure the run used (empty: Megametric75, before it could be chosen)
+        public string WorthMeasure { get; set; } = "";
         public int OneSaberMaps { get; set; }
         public RatingConstants RatedWith { get; set; } = new();
         public RatingConstants SuggestedConstants { get; set; } = new();
@@ -1015,7 +1265,7 @@ namespace portaBLe.Refresh
     public class BalanceStats
     {
         public int Maps { get; set; }
-        // Change of a map's worth (Megametric75 relative to what maps of its stars average) per +10% of pass / acc / tech pp share at the
+        // Change of a map's worth (BalanceTuner.WorthMeasure, relative to what maps of its stars average) per +10% of pass / acc / tech pp share at the
         // predicted acc, and per +1 point of predicted acc. 0 = balanced.
         public double PassShareSlope { get; set; }
         public double AccShareSlope { get; set; }
@@ -1052,6 +1302,8 @@ namespace portaBLe.Refresh
         public int Round { get; set; }
         public double Suggested { get; set; }
         public bool AtEdge { get; set; }
+        // Why the constant was left where it was (KeepReason), null when it was moved
+        public string? Kept { get; set; }
         public List<SweepPoint> Points { get; set; } = new();
     }
 

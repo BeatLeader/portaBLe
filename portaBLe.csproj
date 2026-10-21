@@ -37,11 +37,13 @@
     <None Remove="RatingAPI\**" />
   </ItemGroup>
 
+  <!-- Databases and their Top Scores caches stay out of the project and of publish: they're downloaded from S3 at startup
+       (databases.json). The site reads them from wwwroot on disk, which doesn't depend on these items. -->
   <ItemGroup>
-    <Content Remove="wwwroot\Comparison.db" />
-    <Content Remove="wwwroot\Database.db" />
-    <Content Remove="wwwroot\db-20261007142817-8941.db" />
-    <Content Remove="wwwroot\db-20261012191847-9271.db" />
+    <Content Remove="wwwroot\**\*.db" />
+    <None Remove="wwwroot\**\*.db" />
+    <Content Remove="wwwroot\cache\**" />
+    <None Remove="wwwroot\cache\**" />
     <Content Remove="wwwroot\dump.zip" />
     <Content Remove="wwwroot\export.json" />
   </ItemGroup>

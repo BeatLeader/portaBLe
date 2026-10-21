@@ -166,13 +166,17 @@ namespace portaBLe.DB
         public float Megametric125 { get; set; }
         public float Megametric75 { get; set; }
         public float Megametric40 { get; set; }
-        // How much the map is worth to the players who play it compared with the other maps of its stars: Megametric75 / what
-        // maps of its stars average - 1 (a local linear fit of Megametric75 on stars, Gaussian kernel of
-        // BalanceTuner.WorthBandwidth stars: BalanceTuner.WorthReference). +0.27 = 27% more than average. Null when the map
-        // has no Megametric75 or its star range (0-1 ... 12-13, 13+) fewer than 5 maps. Computed by LeaderboardsRefresh.Refresh from its Megametric75;
-        // the balance tuner and the acc reweighter compute the same measure in memory (BalanceTuner.Worth, players with 75+
-        // scores in the database rather than 75+ ranked plays), so their values can differ slightly.
+        // How much the map pays its players compared with the other maps of its stars, in the balance tuner's worth measure
+        // (BalanceTuner.WorthMeasure, PlayerAdjusted: how much it pays the same players than their other maps at their level,
+        // see BalanceTuner.WorthMeasures). +0.04 = 4% more than average. Null with too few in-range scores. The same value
+        // the balance tuner and the acc reweighter use (LeaderboardsRefresh.Refresh, BalanceTuner.StoredWorth).
         public float? Worth { get; set; }
+        // The previous worth: Megametric75 / what maps of its stars average - 1 (a local linear fit of Megametric75 on stars,
+        // Gaussian kernel of BalanceTuner.WorthBandwidth stars: BalanceTuner.WorthReference). +0.27 = 27% more than average.
+        // Null when the map has no Megametric75 or its star range (0-1 ... 12-13, 13+) fewer than 5 maps. Megametric75
+        // weights each score by where it lands in the player's profile, which overreacts to rating changes and inflates maps
+        // played by players with few high plays; kept for comparison.
+        public float? MegametricWorth { get; set; }
         // Worth by player rank (LeaderboardsRefresh.RefreshWorthByRank): each score's pp / the player's top pp, averaged over
         // the map's scores by the players ranked in that range (#1-20, #21-100, #101-1000, #1001-3000, #3001-10000; more than
         // 75 ranked plays, as Megametric75), divided by what maps of its stars average (BalanceTuner.WorthReference) - 1.

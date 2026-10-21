@@ -18,9 +18,9 @@ namespace portaBLe.Pages
         [BindProperty(SupportsGet = true)] public int MaxPlayerRank { get; set; } = 0;
         [BindProperty(SupportsGet = true)] public string Since { get; set; } = "";
         [BindProperty(SupportsGet = true)] public bool ModNone { get; set; } = true;
-        [BindProperty(SupportsGet = true)] public bool ModSS { get; set; } = true;
-        [BindProperty(SupportsGet = true)] public bool ModFS { get; set; } = true;
-        [BindProperty(SupportsGet = true)] public bool ModSFS { get; set; } = true;
+        [BindProperty(SupportsGet = true)] public bool ModSS { get; set; } = false;
+        [BindProperty(SupportsGet = true)] public bool ModFS { get; set; } = false;
+        [BindProperty(SupportsGet = true)] public bool ModSFS { get; set; } = false;
         [BindProperty(SupportsGet = true)] public int RollingWindow { get; set; } = 400;
         // Another database whose rolling average is drawn on the same graph ("" for none)
         [BindProperty(SupportsGet = true)] public string CompareDb { get; set; } = "";
