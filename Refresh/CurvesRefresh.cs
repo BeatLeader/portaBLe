@@ -5,8 +5,8 @@ using RatingAPI.Controllers;
 namespace portaBLe.Refresh
 {
     // Regenerates only the per-leaderboard acc curves from the predicted acc already stored, with RatingAPI's
-    // Curve.GetCurve and CurveSettings.Current (from the AccCurvePerMap branch). No map is rated again; stars don't change
-    // (they always use the base curve). Run RefreshEverything afterwards to re-score with the new curves.
+    // Curve.GetCurve and CurveSettings.Current (from the AccCurvePerMap branch). No map is rated again. Run RefreshEverything
+    // afterwards to re-score with the new curves (it also recomputes the stars, which use the curves).
     public class CurvesRefresh
     {
         public static async Task Regenerate(AppContext dbContext)

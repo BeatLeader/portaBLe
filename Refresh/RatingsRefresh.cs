@@ -107,7 +107,6 @@ namespace portaBLe.Refresh
                     double reweight = ReplayUtils.AccReweightOf(lb);
                     lb.AccRating = ReplayUtils.Reweighted((float)response["none"].AccRating, reweight);
                     lb.Curve = ReplayUtils.ToCurve(response["none"].PointList);
-                    lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating);
 
                     lb.ModifiersRating.SSPassRating = (float)response["SS"].LackMapCalculation.PassRating;
                     lb.ModifiersRating.SSTechRating = (float)response["SS"].LackMapCalculation.TechRating;
@@ -127,9 +126,8 @@ namespace portaBLe.Refresh
                     lb.ModifiersRating.SFAccRating = ReplayUtils.Reweighted((float)response["SFS"].AccRating, reweight);
                     lb.ModifiersRating.SFCurve = ReplayUtils.ToCurve(response["SFS"].PointList);
 
-                    lb.ModifiersRating.SFStars = ReplayUtils.ToStars(lb.ModifiersRating.SFAccRating, lb.ModifiersRating.SFPassRating, lb.ModifiersRating.SFTechRating);
-                    lb.ModifiersRating.FSStars = ReplayUtils.ToStars(lb.ModifiersRating.FSAccRating, lb.ModifiersRating.FSPassRating, lb.ModifiersRating.FSTechRating);
-                    lb.ModifiersRating.SSStars = ReplayUtils.ToStars(lb.ModifiersRating.SSAccRating, lb.ModifiersRating.SSPassRating, lb.ModifiersRating.SSTechRating);
+                    // Stars: what a 96% score is worth, with each one's curve
+                    ReplayUtils.SetStars(lb);
 
                     lock (lockObj)
                     {
@@ -258,15 +256,13 @@ namespace portaBLe.Refresh
                     if (!applyAccReweight) lb.AccReweight = 0;
                     double reweight = ReplayUtils.AccReweightOf(lb);
                     lb.AccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(lb.PredictedAcc, lb.PassRating, lb.TechRating, lb.HitDistance), reweight);
-                    lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating);
 
                     lb.ModifiersRating.SSAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.SSPredictedAcc, mod.SSPassRating, mod.SSTechRating, lb.HitDistance), reweight);
                     lb.ModifiersRating.FSAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.FSPredictedAcc, mod.FSPassRating, mod.FSTechRating, lb.HitDistance), reweight);
                     lb.ModifiersRating.SFAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.SFPredictedAcc, mod.SFPassRating, mod.SFTechRating, lb.HitDistance), reweight);
 
-                    lb.ModifiersRating.SFStars = ReplayUtils.ToStars(lb.ModifiersRating.SFAccRating, lb.ModifiersRating.SFPassRating, lb.ModifiersRating.SFTechRating);
-                    lb.ModifiersRating.FSStars = ReplayUtils.ToStars(lb.ModifiersRating.FSAccRating, lb.ModifiersRating.FSPassRating, lb.ModifiersRating.FSTechRating);
-                    lb.ModifiersRating.SSStars = ReplayUtils.ToStars(lb.ModifiersRating.SSAccRating, lb.ModifiersRating.SSPassRating, lb.ModifiersRating.SSTechRating);
+                    // Stars: what a 96% score is worth, with each one's curve
+                    ReplayUtils.SetStars(lb);
                 }
                 catch (Exception e)
                 {

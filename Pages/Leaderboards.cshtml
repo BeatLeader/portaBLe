@@ -13,7 +13,7 @@
     }
     <input type="hidden" name="SortBy" value="@Model.SortBy" />
     <input type="hidden" name="SortDescending" value="@(Model.SortDescending ? "true" : "false")" />
-    <input type="search" name="SearchString" id="searchString" class="form-control form-control-sm lb-search" value="@Model.SearchString" placeholder="Search maps..." />
+    <input type="search" name="SearchString" id="searchString" class="form-control form-control-sm lb-search" value="@Model.SearchString" placeholder="Song or mapper..." />
     <select name="ModeName" id="modeName" class="form-select form-select-sm lb-mode" onchange="this.form.submit()">
         <option value="">All characteristics</option>
         @foreach (var mode in Model.ModeNames)

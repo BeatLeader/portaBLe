@@ -1,6 +1,7 @@
 using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using portaBLe.DB;
+using RatingAPI.Pp;
 
 namespace portaBLe.Refresh
 {
@@ -23,7 +24,7 @@ namespace portaBLe.Refresh
     public class RatingConstants
     {
         public double PassCalibration { get; set; } = 0.7721;
-        public double OneSaberNerf { get; set; } = 0.548;
+        public double OneSaberNerf { get; set; } = 0.49;
         public double TechScaler { get; set; } = 20.611;
         // Follows the PpFormula default, since the tuner re-scores everything with the formula in code
         public double TechWeight { get; set; } = new PpFormula().TechWeight;
@@ -262,13 +263,6 @@ namespace portaBLe.Refresh
         {
             new FormulaKnob
             {
-                Name = nameof(PpFormula.InflateExponent),
-                Explanation = "How much more a higher total is worth (1 = linear). Higher = harder maps and high-star profiles count more.",
-                Get = f => f.InflateExponent, Set = (f, v) => f.InflateExponent = v,
-                Values = new[] { 1.1, 1.2, 1.25, 1.3, 1.35, 1.4, 1.5 },
-            },
-            new FormulaKnob
-            {
                 Name = nameof(PpFormula.PassExponent),
                 Explanation = "Pass pp grows with e^(pass^(1/x)). Lower x = pass pp climbs faster on high pass ratings.",
                 Get = f => f.PassExponent, Set = (f, v) => f.PassExponent = v,
@@ -482,7 +476,7 @@ namespace portaBLe.Refresh
                         SSCurve = mod.SSCurve, FSCurve = mod.FSCurve, SFCurve = mod.SFCurve,
                     };
                 }
-                float stars = ReplayUtils.ToStars(copy.AccRating, copy.PassRating, copy.TechRating);
+                float stars = ReplayUtils.ToStars(copy.AccRating, copy.PassRating, copy.TechRating, copy.Curve);
                 maps[i] = new MapInfo { Leaderboard = copy, Stars = stars, StarBand = StarBandOf(stars), Scores = original.Scores };
             });
 
@@ -641,7 +635,8 @@ namespace portaBLe.Refresh
             return filtered.Average(s => e.Pp[s] / e.PlayerTopPp[data.ScorePlayer[s]] * e.Weight[s]);
         }
 
-        // Each map's Megametric75 relative to the average of its star range (null when the map has too few scores)
+        // Each map's Megametric75 relative to what maps of its stars average (WorthReference). Null when the map has too few
+        // scores, or its star range fewer than 5 maps.
         internal static double?[] Worth(Data data, Evaluation e, out double[] bandMeans, bool[]? players = null)
         {
             int mapCount = data.Maps.Length;
@@ -649,16 +644,52 @@ namespace portaBLe.Refresh
             Parallel.For(0, mapCount, m => megametric[m] = Megametric75(data, e, m, out _, players));
 
             var means = new double[StarBandCount];
-            var worth = new double?[mapCount];
+            var used = new List<IGrouping<int, int>>();
             foreach (var band in Enumerable.Range(0, mapCount).Where(m => megametric[m] != null).GroupBy(m => data.Maps[m].StarBand))
             {
                 double mean = band.Average(m => megametric[m]!.Value);
                 means[band.Key] = mean;
                 if (mean <= 0 || band.Count() < 5) continue;
-                foreach (var m in band) worth[m] = megametric[m]!.Value / mean - 1;
+                used.Add(band);
             }
+            var points = used.SelectMany(band => band).Select(m => ((double)data.Maps[m].Stars, megametric[m]!.Value)).ToList();
+
+            var worth = new double?[mapCount];
+            Parallel.ForEach(used.SelectMany(band => band), m =>
+            {
+                double reference = WorthReference(points, data.Maps[m].Stars);
+                if (reference > 0) worth[m] = megametric[m]!.Value / reference - 1;
+            });
             bandMeans = means;
             return worth;
+        }
+
+        // Gaussian kernel width (stars) of WorthReference. 0.25: the ranges' average worth stays within +-0.02 from 3 stars
+        // (wider kernels underrated 3-5 stars by 0.03-0.07 where Megametric75 bends), and maps' position inside a range no
+        // longer matters (-0.07 at the bottom, +0.09 at the top with the step; within +-0.02).
+        public static double WorthBandwidth { get; set; } = 0.25;
+
+        // The Megametric75 a map's worth is measured against: what maps of its stars average, a local linear fit of
+        // Megametric75 on stars (Gaussian kernel of WorthBandwidth stars; points: every map with a worth). Measured against its
+        // own range's average (a step), a map crossing a range boundary was compared with the next range at once, which pushed
+        // the acc reweighter's changes further across: the outer tenth of each range lost ~20% of its maps to the middle.
+        // Interpolating between the ranges' averages instead (tried) underrated whole ranges where Megametric75 bends or a
+        // range has few maps (2-3 stars -0.11 on average, from the 5 maps of 1-2 stars), which moved the balance slopes.
+        public static double WorthReference(IReadOnlyList<(double Stars, double Megametric)> points, double stars)
+        {
+            double h = WorthBandwidth;
+            double sw = 0, sx = 0, sy = 0, sxx = 0, sxy = 0;
+            foreach (var (x, y) in points)
+            {
+                double d = x - stars;
+                if (Math.Abs(d) > 4 * h) continue;
+                double w = Math.Exp(-0.5 * d * d / (h * h));
+                sw += w; sx += w * d; sy += w * y; sxx += w * d * d; sxy += w * d * y;
+            }
+            if (sw <= 0) return 0;
+            double det = sw * sxx - sx * sx;
+            double local = det > 1e-9 * sw * sw ? (sy * sxx - sx * sxy) / det : sy / sw;
+            return local > 0 ? local : sy / sw;
         }
 
         // kinds: the ratings that say what kind each map is (pp shares at the predicted acc), when they differ from data's: the

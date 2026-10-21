@@ -38,7 +38,7 @@ Everything is driven from `Program.cs` (`Main`): uncomment the steps to run, the
 `FullPipeline(dbContext, env, autoreweight, balancer, keepAccReweight)` runs all of it: `autoreweight` adds step 3,
 `balancer` steps 4-5 and the pass window check. Without step 3, `keepAccReweight: false` gives raw acc ratings (the
 stored multipliers are cleared; `Overwrite` / `Refresh` take the same option). After a pp formula change only
-(`Refresh/PpFormula.cs`), skip step 1.
+(`RatingAPI/Pp/PpFormula.cs`), skip step 1.
 
 ## Ratings on prod's scale
 
@@ -50,12 +50,16 @@ are the ones every formula uses:
 | Pass | Analyzer `AnalyzeMap` | `PASS_CALIBRATION_FACTOR` (linear) |
 | Tech | `BALANCED_TECH_SCALER` x (average swing tech x `Ratings.TechPassFactor(pass)`)^`Ratings.TechExponent` | power 0.8015 |
 | Acc | RatingAPI `AccRating`: `ACC_SCALE` x Curve(effective acc + `ACC_OFFSET`)^-`ACC_EXPONENT` | power 0.8222 |
-| Stars | `PpFormula.Stars`: `StarScale` x (pp at 96% / `StarDivisor`)^`StarExponent` | power 0.9039 |
+| Stars | `PpCalculator.ToStars`: `StarScale` x (final pp of a 96% score / `PpMultiplier` / `StarDivisor`)^`StarExponent`, the map's own curve and the low star bonus included | power 1.1751 |
 
 Prod's tech and acc ratings are flatter at the top than acc and tech pp need, so the pp formula takes them to a power
 (`PpFormula.AccRatingPower` 1.2163, `TechRatingPower` 1.2477). With pp proportional to the ratings, a star range's
 acc-heavy maps lost pp against its pass-heavy ones and the balance broke. A server computing pp from RatingAPI's ratings
 needs the same powers.
+
+The pp of scores and the stars are computed in RatingAPI (`RatingAPI/Pp`: `PpFormula`, `PpCalculator.ScorePp` /
+`ToStars`, `ModifiersMap`), so a server needs RatingAPI only; portaBLe's `ReplayUtils` just passes its database values
+to them. RatingAPI's response includes `stars` (without the acc reweighter's multipliers, which only portaBLe has).
 
 ## Acc reweighter
 
@@ -67,7 +71,7 @@ predicted acc, OneSaber, star range), and its acc rating is moved towards it.
 - Maps with few scores move less, and maps without a worth (newly ranked) keep ×1.
 - How far it goes is chosen on held-out players: it fits on one half of the players and checks on the other.
 - The result is only kept if the balance tuner's slopes and gaps don't get worse.
-- Multipliers average 1 within each star range and stay within ±15%.
+- Multipliers average 1 within each star range and stay within ±15% in the fit; only `Applied` (0.5) of that change is stored (in log), so ±7.5% at most.
 
 ## Where the constants are
 
@@ -79,8 +83,8 @@ predicted acc, OneSaber, star range), and its acc rating is moved towards it.
 | Parity | `RatingAPI/Analyzer/.../Algorithm/ParityPredictor.cs` (comfort / rotation / reset costs, `UsePairResets`) |
 | Tech shape | `RatingAPI/Analyzer/.../Data/Ratings.cs` (`TechExponent`, `TechPassBase`) |
 | Acc rating | `RatingAPI/Controllers/AccRating.cs` (`ACC_SCALE`, `ACC_OFFSET`, hard map correction `HARD_MAP_*`, `ACC_EXPONENT`, movement and high pass corrections `HIT_DISTANCE_*` / `HIGH_PASS_*`) |
-| pp formula | `Refresh/PpFormula.cs` (pass / acc / tech pp and their rating powers, inflate, stars `StarDivisor` / `StarScale` / `StarExponent`, `PpMultiplier`, low star bonus `LowStarBonus*`) |
-| Acc reweighter | `Refresh/Tools/AccReweighter.cs` (`Passes`, `Strengths`, `EvidenceScores`, `MaxChange`, guard tolerances) |
+| pp formula | `RatingAPI/Pp/PpFormula.cs` (pass / acc / tech pp and their rating powers, stars `StarDivisor` / `StarScale` / `StarExponent`, `PpMultiplier`, low star bonus `LowStarBonus*`) |
+| Acc reweighter | `Refresh/Tools/AccReweighter.cs` (`Passes`, `Strengths`, `EvidenceScores`, `MaxChange`, `Applied`, guard tolerances) |
 | Constants the tuner assumes | `Refresh/Tools/BalanceTuner.cs` (`RatingConstants`: keep it equal to the values in code) |
 
 ## Layout

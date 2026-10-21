@@ -1,0 +1,439 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>portaBLe Rebalancer Changelog</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Layout: one reading column; an overview and a before/after table up top, then each change as What / Why / Impact. */
+:root {
+  --bg: #f6f7fa;
+  --surface: #ffffff;
+  --fg: #1a1d26;
+  --muted: #5b6273;
+  --line: #dde1ea;
+  --red: #d1344b;      /* left saber */
+  --blue: #2f6fd6;     /* right saber */
+  --code-bg: #eef0f5;
+  --display: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11131a; --surface: #181b24; --fg: #e6e8ef; --muted: #9aa1b2; --line: #2a2f3c;
+  --red: #ff6b7f; --blue: #6fa3ff; --code-bg: #20242f; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #11131a; --surface: #181b24; --fg: #e6e8ef; --muted: #9aa1b2; --line: #2a2f3c;
+  --red: #ff6b7f; --blue: #6fa3ff; --code-bg: #20242f; color-scheme: dark; }
+
+body { background: var(--bg); color: var(--fg); font: 15px/1.6 var(--body); }
+.wrap { max-width: 860px; margin: 0 auto; padding-block: 40px 72px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 44px; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: clamp(2rem, 5vw, 2.8rem); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 1.6rem; font-weight: 600; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 1.2rem; font-weight: 600; }
+p { margin: 0; max-width: 68ch; }
+ul { margin: 0; padding-left: 18px; display: grid; gap: 4px; }
+code { font: 0.86em var(--mono); background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+a { color: var(--blue); }
+a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.eyebrow { font: 600 0.75rem var(--body); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.sabers { display: flex; gap: 6px; }
+.sabers span { height: 4px; width: 56px; border-radius: 2px; }
+.sabers span:first-child { background: var(--red); } .sabers span:last-child { background: var(--blue); }
+
+header { display: grid; gap: 14px; }
+.lede { font-size: 1.08rem; color: var(--muted); }
+.ranges { display: flex; flex-wrap: wrap; gap: 6px 18px; font: 0.82rem var(--mono); color: var(--muted); }
+
+section { display: grid; gap: 22px; min-width: 0; }
+.intro { color: var(--muted); }
+
+.headlines { display: grid; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); gap: 12px; }
+.headlines div { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; display: grid; gap: 6px; align-content: start; min-width: 0; }
+.headlines b { font: 600 1.05rem var(--display); }
+.headlines p { font-size: 0.92rem; color: var(--muted); }
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; min-width: 560px; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 600 0.72rem var(--body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+tr:last-child td { border-bottom: 0; }
+td.num { font: 0.86rem var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.num .arrow { color: var(--muted); padding: 0 4px; }
+
+.change { display: grid; gap: 12px; padding-bottom: 22px; border-bottom: 1px solid var(--line); }
+.change:last-child { border-bottom: 0; padding-bottom: 0; }
+.change .refs { font: 0.78rem var(--mono); color: var(--muted); }
+.row { display: grid; grid-template-columns: 5.5rem 1fr; gap: 14px; min-width: 0; }
+.row > div { min-width: 0; font-size: 0.95rem; }
+.label { font: 600 0.72rem var(--body); letter-spacing: 0.1em; text-transform: uppercase; padding-top: 3px; }
+.label.what { color: var(--muted); }
+.label.why { color: var(--red); }
+.label.impact { color: var(--blue); }
+@media (max-width: 560px) { .row { grid-template-columns: 1fr; gap: 4px; } }
+
+.glossary { display: grid; gap: 28px; }
+.glossary h3 { font-size: 1.05rem; color: var(--muted); letter-spacing: 0.02em; }
+.terms { display: grid; gap: 0; margin: 0; border-top: 1px solid var(--line); }
+.terms > div { display: grid; grid-template-columns: 11rem 1fr; gap: 4px 16px; padding: 12px 0; border-bottom: 1px solid var(--line); min-width: 0; }
+.terms dt { font: 600 1rem var(--display); }
+.terms dd { margin: 0; min-width: 0; font-size: 0.93rem; display: grid; gap: 6px; }
+.terms dd .eg { color: var(--muted); font-size: 0.88rem; }
+.terms > div:target { background: var(--code-bg); }
+@media (max-width: 560px) { .terms > div { grid-template-columns: 1fr; } }
+a.term { color: inherit; text-decoration: underline dotted var(--muted); text-underline-offset: 3px; }
+.tradeoffs { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 16px 18px; }
+footer { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; }
+</style>
+<style>body{margin:0}img{max-width:100%}</style>
+</head>
+<body>
+
+<div class="wrap">
+<header>
+  <div class="sabers" aria-hidden="true"><span></span><span></span></div>
+  <div class="eyebrow">BeatLeader / portaBLe · branch <code>loloppe-rebalancer</code></div>
+  <h1>portaBLe Rebalancer Changelog</h1>
+  <p class="lede">This branch rebuilds BeatLeader's rating system in portaBLe so that every rating change is fitted on, or checked against, real data: top players' replays, all ranked scores and fail attempts. Below is what changed and why.</p>
+  <div class="ranges"><span>portaBLe 5890677 → bbf1e34</span><span>RatingAPI 3955df3 → 493468e</span><span>Analyzer 0d47de6 → 62c59de</span></div>
+</header>
+
+<section aria-labelledby="o">
+  <h2 id="o">The short version</h2>
+  <div class="headlines">
+    <div><b>Analyzer follows real play</b><p>Parity and swing directions are fitted on how top players actually cut. Pass is rated over time windows, and tech counts wrist work only.</p></div>
+    <div><b>A better acc rating</b><p>A retrained Acc AI, a curve per map, and corrections where players fall short of the prediction: the hardest maps, long hand travel, very high pass.</p></div>
+    <div><b>A balanced pp formula</b><p>One tunable class, retuned so no kind of map is worth more than others of the same stars. Ratings, stars and pp sit on prod's scale.</p></div>
+    <div><b>Balance tooling</b><p>An in-memory balance tuner checks every change, and an acc reweighter corrects outlier maps from scores, under guards.</p></div>
+    <div><b>Website</b><p>Top Scores and Top Acc pages, a curve explorer, a pass comparison page, map worth, a redesigned Leaderboards page and much faster graphs.</p></div>
+  </div>
+</section>
+
+<section aria-labelledby="g" class="glossary">
+  <h2 id="g">New terms explained</h2>
+  <p class="intro">Dotted underlines elsewhere on the page link back here. The branch introduces several measures and tools. These are the ones used throughout the page and shown on the website.</p>
+
+  <div>
+    <h3>Measuring balance</h3>
+    <dl class="terms">
+      <div id="worth"><dt>Worth</dt><dd>
+        <span>How much a map pays off for the players who play it, compared with the other maps of the same star rating. 0.00 is average for its stars, +0.27 is 27% more valuable than average, −0.20 is 20% less.</span>
+        <span>It's the map's <a class="term" href="#megametric">Megametric75</a> divided by the average Megametric75 of its <a class="term" href="#star-range">star range</a>, minus 1. A balanced system puts every map near 0.</span>
+        <span class="eg">On the Leaderboard page it always comes from scores without modifiers, so "(no modifier)" appears when you pick SS, FS or SFS. On the Leaderboards list, +0.25 or more is tinted red (overpaying) and −0.25 or less blue (underpaying). It's blank when the map has too few qualifying scores or its star range has fewer than 5 maps.</span></dd></div>
+      <div id="megametric"><dt>Megametric75</dt><dd>
+        <span>How much a map counts in the profiles of the players who play it. For each score: the score's pp divided by that player's top pp, times the score's weight in their profile. A score that is one of a player's best plays and counts fully scores high.</span>
+        <span class="eg">Averaged over the top third of the map's scores by weight, from players with 75 or more ranked plays (hence "75").</span></dd></div>
+      <div id="star-range"><dt>Star range (band)</dt><dd>
+        <span>Maps are grouped by whole stars: 0–1★, 1–2★, … 12–13★, and 13★+. Worth always compares a map with its own range, so a 12★ map isn't judged against 4★ maps.</span></dd></div>
+      <div id="shares"><dt>Pass / acc / tech share</dt><dd>
+        <span>How a map's pp splits between its three parts, for a score at the map's predicted acc. A speed map might be 60% pass pp; a tech map has a large tech share. The three add up to 100%.</span></dd></div>
+      <div id="slopes"><dt>Share slope and gap</dt><dd>
+        <span>The balance tuner's main checks. A <b>slope</b> is how much worth changes per +10% of pass, acc or tech share: a positive pass share slope means pass-heavy maps are worth more than others of their stars. A <b>gap</b> is the average worth of the top 20% of maps minus the bottom 20% on that measure. 0 means balanced for both.</span>
+        <span class="eg">Example: the pass share slope went 0.049 → 0.016, so pass-heavy maps are now barely favoured.</span></dd></div>
+      <div id="onesaber-gap"><dt>OneSaber gap</dt><dd>
+        <span>The average worth of OneSaber maps minus that of Standard maps with the same stars. Only 73 OneSaber maps are ranked, so this one is noisy.</span></dd></div>
+      <div id="spread"><dt>Worth spread</dt><dd>
+        <span>The typical distance of a map's worth from its star range's average. Lower means more even. After the <a class="term" href="#reweight">acc reweighter</a> runs, it's low by construction, so it stops being a fair overall measure.</span></dd></div>
+    </dl>
+  </div>
+
+  <div>
+    <h3>Rating a map</h3>
+    <dl class="terms">
+      <div id="predicted-acc"><dt>Predicted acc (Acc AI)</dt><dd>
+        <span>The accuracy a top player is expected to get on a map, predicted note by note from the map alone by a neural network trained on top replays. It drives the acc rating: the lower the predicted acc, the harder the map is to acc.</span></dd></div>
+      <div id="effective-acc"><dt>Effective acc</dt><dd>
+        <span>The predicted acc after the branch's corrections, which lower it on very hard maps, maps with long hand travel and maps with very high pass. The Acc AI ignores misses and bad cuts, and players lose more to those on such maps. Only the acc rating uses it; the shown predicted acc is unchanged.</span></dd></div>
+      <div id="curve"><dt>Per-map acc curve</dt><dd>
+        <span>The curve that turns a score's accuracy into acc pp. Before, every map shared one curve; now each map gets its own, picked by its predicted acc. That stops easy-to-acc maps from paying a lot for tiny gains near 99%, and hard maps from paying too much just above the prediction.</span>
+        <span class="eg">You can see any curve on the Curve Explorer page, and the map's own curve and pp table on its Leaderboard page.</span></dd></div>
+      <div id="tilt"><dt>Slider tilt</dt><dd>
+        <span>A tweak to the curve on maps with many sliders. The curve is unchanged at the predicted acc, a bit higher above it and a bit lower below it, more so the more sliders the map has. Slider-heavy maps were worth more than others of their stars, and their top scores usually sit about 0.5% under the prediction, so this trims what those scores pay while still rewarding beating the prediction.</span></dd></div>
+      <div id="hit-distance"><dt>Hit distance</dt><dd>
+        <span>The average distance, in meters, a hand travels between consecutive swings. The median map is about 0.62 m. Above that, the acc rating assumes players lose more accuracy.</span></dd></div>
+      <div id="parity"><dt>Parity and resets</dt><dd>
+        <span>Parity is whether a swing is a forehand or backhand. A reset is two swings in a row with the same parity, so the player has to bring the saber back without hitting anything. The Analyzer now predicts these the way top players actually play them.</span></dd></div>
+      <div id="windows"><dt>Pass windows and density</dt><dd>
+        <span>Pass is the difficulty of the hardest stretch of the map, measured over windows of 4, 8, 16 and 32 seconds. Density gives a stretch with more swings per second more weight, up to a cap, so a dense stream counts more than the same swings spread out.</span></dd></div>
+      <div id="powers"><dt>Rating powers</dt><dd>
+        <span>Acc and tech pp take their rating to a power (acc<sup>1.2163</sup>, tech<sup>1.2477</sup>). The ratings were rescaled to look like prod's, which flattened their top end; the powers undo that inside the pp formula so hard acc and tech maps keep their pp.</span></dd></div>
+      <div id="display-curves"><dt>Display curves (removed)</dt><dd>
+        <span>For a while the branch kept "internal" ratings and converted them to prod-like numbers only for display. Those conversions are now built into the formulas, so the rating you see is the one used for pp.</span></dd></div>
+      <div id="low-star"><dt>Low-star bonus</dt><dd>
+        <span>Extra pp on maps under about 4.5★: about +35% at 1★, fading to nothing at 4.5★. Top players push easy maps past 99% while stars are measured at 96%, so without it these maps paid too little.</span></dd></div>
+      <div id="compression"><dt>Pass top compression</dt><dd>
+        <span>Above a pass rating of about 13.4, each extra pass point counts half in pass pp. Maps with unusually high pass were worth more than others of their stars.</span></dd></div>
+    </dl>
+  </div>
+
+  <div>
+    <h3>Tools and pages</h3>
+    <dl class="terms">
+      <div id="tuner"><dt>Balance tuner</dt><dd>
+        <span>A tool that re-scores every score in memory (a few seconds per run) and reports the <a class="term" href="#slopes">slopes and gaps</a> above, so a constant change can be checked before re-rating. Its results are on the Balance Tuning page.</span></dd></div>
+      <div id="reweight"><dt>Acc reweight</dt><dd>
+        <span>A per-map multiplier on the acc rating, chosen by the acc reweighter to move a map's <a class="term" href="#worth">worth</a> towards what maps like it are worth. It averages 1 in each star range and stays within ±7.5%: only half of the fitted change is applied, since the full fit was too strong. 1 or blank means no change.</span>
+        <span class="eg">It's the only rating change that uses scores, and it's kept when maps are re-rated.</span></dd></div>
+      <div id="evidence"><dt>Evidence weighting</dt><dd>
+        <span>Maps with few scores move less under the reweighter, because their worth is mostly noise. Newly ranked maps aren't moved.</span></dd></div>
+      <div id="held-out"><dt>Held-out players</dt><dd>
+        <span>The reweighter splits players into two halves. It fits on one half and checks on the other, and stops where the check stops improving. That keeps it from fitting noise.</span></dd></div>
+      <div id="effective-njs"><dt>Effective NJS</dt><dd>
+        <span>Note jump speed with the speed modifier applied (faster under SS / FS / SFS). The Leaderboard page shows it next to the base NJS when you pick a modifier.</span></dd></div>
+      <div id="cache"><dt>Top Scores cache</dt><dd>
+        <span>A compact file with every score of a database (~56 MB for 4.4M scores), built after each refresh and uploaded with the database. The Top Scores page and the score graphs read it instead of querying the database, which is why they load in about a second.</span></dd></div>
+      <div id="maindb"><dt>Default database</dt><dd>
+        <span><code>MainDB: -1</code> in <code>databases.json</code> makes the last listed database the default, so adding a new database last makes it the default.</span></dd></div>
+    </dl>
+  </div>
+</section>
+
+<section aria-labelledby="k">
+  <h2 id="k">Key numbers, before and after</h2>
+  <div class="table-wrap">
+    <table>
+      <thead><tr><th>Setting</th><th>Change</th><th>Reason</th></tr></thead>
+      <tbody>
+        <tr><td>Pass windows</td><td class="num">8–128 swings<span class="arrow">→</span>4–32 s</td><td>Fast maps were rated on a few seconds of burst</td></tr>
+        <tr><td>Distance falloff</td><td class="num">2.668<span class="arrow">→</span>1.0</td><td>Distance between swings barely mattered</td></tr>
+        <tr><td>Crouch wall buff</td><td class="num">×1.2<span class="arrow">→</span>×2.0</td><td>Fitted on fail attempts</td></tr>
+        <tr><td>Acc AI inputs per note</td><td class="num">49<span class="arrow">→</span>53</td><td>Arc and chain notes looked like normal notes</td></tr>
+        <tr><td>Acc rating</td><td class="num">15.5 / Curve<span class="arrow">→</span>13.5382 × Curve<sup>−0.8222</sup></td><td>Prod's scale, with per-map curves</td></tr>
+        <tr><td>Pass scale (pp)</td><td class="num">15.2<span class="arrow">→</span>12.3</td><td>Balance with the new pass</td></tr>
+        <tr><td>Tech acc exponent</td><td class="num">1.9<span class="arrow">→</span>3.5</td><td>Tech pp goes to high-acc scores</td></tr>
+        <tr><td>pp multiplier</td><td class="num">1.075<span class="arrow">→</span>1.146</td><td>Player totals on prod's scale</td></tr>
+        <tr><td>ONNX batch size</td><td class="num">4<span class="arrow">→</span>512</td><td>Much faster rating</td></tr>
+      </tbody>
+    </table>
+  </div>
+</section>
+
+<section aria-labelledby="a">
+  <h2 id="a">Analyzer: pass and tech ratings</h2>
+
+  <article class="change">
+    <h3>Parity predicted with a cost model fitted on replays</h3>
+    <div class="row"><span class="label what">What</span><div><code>ParityPredictor</code> finds the cheapest forehand / backhand path through each hand's swings. The cost adds up comfort (distance from the parity's natural direction), rotation from the previous swing, a time-based reset cost (cheap after a long gap, very expensive on fast patterns), a table of which arrow pairs players reset on, a lighter reset cost after bombs, and a small backhand cost. The old bomb "parity flip" is gone, and a multi-note swing that contains an arrow follows the arrow.</div></div>
+    <div class="row"><span class="label why">Why</span><div>The weights were fitted on top players' replays (198 maps), and the pair table on 3.88M ranked swings. On maps the fit didn't see, 99.75% of swings match the players (96.1% on reset-heavy maps). Multi-note swings cut against their arrow matched players only 30% of the time.</div></div>
+    <div class="row"><span class="label impact">Impact</span><div>Resets and their pass cost are predicted much more like real play. A variant fitted harder on wrist-roll maps was rejected because it missed resets on speed reset maps.</div></div>
+  </article>
+
+  <article class="change">
+    <h3>Swing directions follow how players cut</h3>
+    <div class="row"><span class="label what">What</span><div><ul>
+      <li><b>Single dots</b> are pulled towards their parity's natural direction, plus a per-position arm-arc offset that moves entry and exit points but isn't wrist work.</li>
+      <li><b>Single arrows</b> used to be bent fully towards the path from the previous swing. Now they keep 0.15 of that bend on the same row, and 0.3–0.85 on a row change, more for faster swings.</li></ul></div></div>
+    <div class="row"><span class="label why">Why</span><div>Fitted on players' recorded cut directions. Dots: mean error 23.8° → 12°. Arrows (3.3M on 3886 maps): 15.9° → 10.2°, and rotation and angle strain follow the players' real wrist roll much better (R² 0.27 → 0.50 and 0.52 → 0.64). The full bend turned bottom-row streams into constant ~50° diagonals.</div></div>
+    <div class="row"><span class="label impact">Impact</span><div>Tech no longer inflates on bottom-row streams and other same-row patterns.</div></div>
+  </article>
+
+  <article class="change">
+    <h3>Pass rated over time windows, with a capped density term</h3>
+    <div class="row"><span class="label what">What</span><div><ul>
+      <li><b>Windows:</b> pass is the hardest stretch over 4, 8, 16 and 32-second windows instead of 8–128-swing windows. A map shorter than a window counts the rest as rest.</li>
+      <li><b>Density:</b> each window's average is weighted by swing density (power 0.25), capped at the reference density.</li>
+      <li><b>Distance:</b> <code>DISTANCE_FALLOFF</code> 2.668 → 1.0, so the distance between swings matters.</li>
+      <li><b>Crouch walls:</b> ×2.0 instead of ×1.2.</li>
+      <li><b>Low-note nerf removed.</b> It multiplied the acc rating by 0.6–1.0 on maps under 200 swings.</li></ul></div></div>
+    <div class="row"><span class="label why">Why</span><div><ul>
+      <li>Windows counted in swings let a few seconds of dense burst set very fast maps' pass. Seconds fit fail difficulty better (out-of-fold R² 0.628 → 0.664).</li>
+      <li>16–128 s was tried first, but it overvalued long dense streams (Ascension to Heaven Expert) and undervalued peak-driven speed maps (The Purple Dimension). 4–32 s balanced better.</li>
+      <li>The uncapped density bonus also overvalued long dense streams.</li>
+      <li>Maps with longer hit distances were worth less than others of their stars.</li>
+      <li>Crouch walls fitted ~2.0 against fail attempts.</li>
+      <li>The low-note nerf was an earlier fix for low-star maps with few notes being worth too much, no longer needed with the rest of the changes.</li></ul></div></div>
+    <div class="row"><span class="label impact">Impact</span><div>Pass tracks fail difficulty and balances better. Shorter windows make a few seconds of burst count somewhat more again, a known trade-off.</div></div>
+  </article>
+
+  <article class="change">
+    <h3>Tech counts wrist work only, on prod's scale</h3>
+    <div class="row"><span class="label what">What</span><div>Swing tech = angle strain + rotation; repositioning moved to pass. Tech = scaler × (average swing tech × pass factor)<sup>0.8015</sup>.</div></div>
+    <div class="row"><span class="label why">Why</span><div>Without repositioning, tech explained ~15% more of the acc players lose beyond the Acc AI's prediction. The power gives prod's tech distribution, whose top end is flatter.</div></div>
+    <div class="row"><span class="label impact">Impact</span><div>Reset- and movement-heavy maps no longer get top tech ratings.</div></div>
+  </article>
+
+  <article class="change">
+    <h3>Reliability fixes</h3>
+    <div class="row"><span class="label what">What</span><div><ul>
+      <li><b>Deterministic ordering:</b> ties in time are sorted by type, position and direction.</li>
+      <li><b>False resets:</b> resets faster than the map's peak sustained EBPM aren't doubled.</li>
+      <li><b>Hit distance:</b> a new <code>Ratings.HitDistance</code>, the mean distance between consecutive swings.</li></ul></div></div>
+    <div class="row"><span class="label why">Why</span><div>The same map now always rates the same, EBPM is no longer inflated (Yggdrasil was the reported case), and the acc rating needs hit distance for its hand-travel correction.</div></div>
+  </article>
+</section>
+
+<section aria-labelledby="r">
+  <h2 id="r">Acc AI and acc rating (RatingAPI)</h2>
+
+  <article class="change">
+    <h3>A retrained Acc AI</h3>
+    <div class="row"><span class="label what">What</span><div><ul>
+      <li><b>First retrain:</b> 53 inputs per note instead of 49 (arc head / tail and chain head note types), trained on the top 50 replays of the ranked AccSaber, ScoreSaber and BeatLeader maps, with player-adjusted targets.</li>
+      <li><b>Deployed model:</b> the same setup, plus training on the horizontal mirror of every map, and left-handed replays mirrored back so their notes line up.</li>
+      <li><b>Inference:</b> the previous model is kept as <code>model_sleep_bl_old.onnx</code>; the layout is detected from the model's input size; speed modifiers pass 75% of their NJS change to the model; the last window is padded instead of dropped.</li></ul></div></div>
+    <div class="row"><span class="label why">Why</span><div><ul>
+      <li>The model couldn't tell arc and chain notes from normal ones.</li>
+      <li>A map's training target depended on who played it: grind maps get the very top players, which overweighted them. With the first retrain, the outlier spread in portaBLe went 0.584 → 0.531.</li>
+      <li>Mirror training cut map-level error on held-out maps from 0.1068 to 0.1015 points of acc, consistent over 5 seeds.</li>
+      <li>4.8% of replays (left-handed) had been mostly dropped note by note.</li>
+      <li>The full NJS change under-predicted SFS acc, none made SFS scores worth about 6.5% less than the same players' no-mod scores, and 75% balanced both.</li>
+      <li>Training on speed-modifier replays, hard unranked maps, or extra weight on hard maps all made the model worse, so they were dropped.</li></ul></div></div>
+    <div class="row"><span class="label impact">Impact</span><div>Every map gets a different predicted acc. The deployed model's map-level error on 1037 held-out maps is 0.096 points of acc. It still rates maps from the map alone; scores only shaped the training targets.</div></div>
+  </article>
+
+  <article class="change">
+    <h3>A curve per map</h3>
+    <div class="row"><span class="label what">What</span><div>Each map gets its own acc curve from its predicted acc, tilted on slider-heavy maps (higher above the prediction, lower below it). The acc rating reads the map's own curve. Curves are stored per leaderboard and per speed modifier, and can be regenerated without re-rating.</div></div>
+    <div class="row"><span class="label why">Why</span><div><ul>
+      <li>9–12★ maps paid too much for scores about 1% above the prediction (the 800pp+ plays).</li>
+      <li>True-acc and acc maps paid too much for tiny gains around 99%.</li>
+      <li>Slider-heavy maps were worth more than others of their stars (+0.48 for the top 3%), while their top scores sat as close to the prediction as elsewhere.</li></ul></div></div>
+    <div class="row"><span class="label impact">Impact</span><div>The 99%+ tail and the slider outliers are tamed. In simulation, scores above 800pp went from 246 to 31.</div></div>
+  </article>
+
+  <article class="change">
+    <h3>Corrections where players fall short of the prediction</h3>
+    <div class="row"><span class="label what">What</span><div>The acc rating uses a lowered "effective" predicted acc:<ul>
+      <li><b>Hard maps:</b> below 96.75% predicted acc, lowered by 1.24 × the distance below, down to 95%.</li>
+      <li><b>Hand travel:</b> 3% per meter of mean hit distance above 0.62 m, capped at 0.8 m, phased out between 97% and 97.5% predicted acc.</li>
+      <li><b>Very high pass:</b> 0.214% per pass point above 14.52.</li></ul>
+      Acc rating = 13.5382 × Curve(effective acc + 0.0019)<sup>−0.8222</sup>, replacing 15.5 / Curve(predicted + 0.0022) × low-note nerf.</div></div>
+    <div class="row"><span class="label why">Why</span><div>All fitted on top players' scores after removing each player's own level. They fell further behind the prediction on the hardest maps (their pp stopped rising past ~12★) and on maps where misses and bad cuts cost more, which the Acc AI can't see because its training targets exclude misses. A tech term was rejected because tech pp already pays for it. The power gives prod's acc-rating distribution.</div></div>
+    <div class="row"><span class="label impact">Impact</span><div>The Purple Dimension and similar maps are no longer under-rated, without overvaluing Godspeed.</div></div>
+  </article>
+
+  <article class="change">
+    <h3>API changes</h3>
+    <div class="row"><span class="label what">What</span><div>The legacy <code>star_rating</code> and <code>low_note_nerf</code> fields are removed; <code>slider_percentage</code>, <code>njs</code> and hit distance are added. Rating can be limited to the requested modifiers and difficulty, and ONNX batches went from 4 to 512.</div></div>
+    <div class="row"><span class="label why">Why</span><div>portaBLe computes stars itself, the new fields feed the per-map curves and the acc corrections, and whole maps are predicted in a few calls instead of many.</div></div>
+    <div class="row"><span class="label impact">Impact</span><div>Any other consumer of <code>star_rating</code> breaks.</div></div>
+  </article>
+</section>
+
+<section aria-labelledby="p">
+  <h2 id="p">pp formula, stars and scale</h2>
+
+  <article class="change">
+    <h3>The pp formula in one tunable class</h3>
+    <div class="row"><span class="label what">What</span><div>The pp formula moved from hard-coded <code>ReplayUtils</code> into <code>PpFormula</code>, which lives in RatingAPI (<code>RatingAPI/Pp</code>, with <code>PpCalculator</code> for score pp and stars) so the server can use it without portaBLe. Net changes:<ul>
+      <li><b>Pass pp:</b> <code>PassScale</code> 15.2 → 12.3, and each pass point above 13.4 counts half.</li>
+      <li><b>Acc and tech pp</b> take the rating to a power: acc<sup>1.2163</sup>, tech<sup>1.2477</sup>.</li>
+      <li><b>Tech pp</b> = e<sup>3.5 × acc</sup> × weight × tech<sup>1.2477</sup>; the exponent on accuracy went 1.9 → 3.5.</li>
+      <li><b>Low-star bonus:</b> maps under ~4.5★ pay more (about +35% at 1★, fading to nothing at 4.5★).</li>
+      <li><b>No inflation:</b> pp is the sum of pass, acc and tech pp times the pp multiplier (it was raised to the power 1.3 around 650, which made harder maps count disproportionately more).</li>
+      <li><b>Stars</b> = 1.2131 × (final pp of a 96% score / 1.0786 / 83.69)<sup>1.1751</sup>: what a 96% is actually worth, with the map's own acc curve and the low-star bonus (the same stars as before the inflation was removed). <b>pp multiplier</b> 1.0786.</li></ul></div></div>
+    <div class="row"><span class="label why">Why</span><div><ul>
+      <li><b>Pass compression:</b> maps with more pass than others of their stars were worth more above ~10★.</li>
+      <li><b>Low-star bonus:</b> top players farm the easiest maps past 99% while stars are measured at 96%, so pp fell off steeply under 4★. An earlier soft floor on the acc rating squeezed those maps into 2.5–4★, so it was replaced.</li>
+      <li><b>Rating powers:</b> with pp proportional to the prod-scaled ratings, acc-heavy maps lost pp against pass-heavy ones of the same stars, and no weight combination undid it.</li>
+      <li><b>Tech exponent 3.5:</b> tech pp should go mostly to high-acc scores on tech maps, not almost as much to any pass. A 90% score now gets about 19% less tech pp than a 96% one (11% before), and tech pp is about twice as large at 96%. This departs from prod's 1.9.</li></ul></div></div>
+    <div class="row"><span class="label impact">Impact</span><div>Over the last development round the balance tuner's metrics improved: pass share slope 0.049 → 0.016, tech share gap 0.033 → 0.004.</div></div>
+  </article>
+
+  <article class="change">
+    <h3>Ratings and stars on prod's scale</h3>
+    <div class="row"><span class="label what">What</span><div>Pass, tech, acc and stars match prod's distributions. Medians and 99th percentiles, now vs prod: stars 6.86 / 13.34 (6.97 / 13.19), pass 4.47 / 13.03 (4.44 / 13.39). The stored values are exactly what the formulas use.</div></div>
+    <div class="row"><span class="label why">Why</span><div>Comparing with prod was hard when the scales differed. An intermediate version used "display curves" over internal values; those were folded into the formulas themselves.</div></div>
+    <div class="row"><span class="label impact">Impact</span><div>No hidden conversions. A server computing pp from RatingAPI's ratings must use the same rating powers.</div></div>
+  </article>
+
+  <article class="change">
+    <h3>Speed modifiers</h3>
+    <div class="row"><span class="label what">What</span><div>Modifier multipliers apply to the ratings directly, and each modifier has its own curve and NJS shown on pages.</div></div>
+    <div class="row"><span class="label impact">Impact</span><div>SS, FS and SFS scores use their own curves and ratings consistently.</div></div>
+  </article>
+</section>
+
+<section aria-labelledby="b">
+  <h2 id="b">Balance tooling</h2>
+
+  <article class="change">
+    <h3>Balance tuner and Balance Tuning page</h3>
+    <div class="row"><span class="label what">What</span><div><code>BalanceTuner</code> re-scores every score in memory and measures each map's <a class="term" href="#worth">worth</a> (<a class="term" href="#megametric">Megametric75</a> relative to its star range). It reports slopes and gaps by pass, acc and tech share, predicted acc and OneSaber, suggests constants, and can sweep parts of the pp formula.</div></div>
+    <div class="row"><span class="label why">Why</span><div>So no kind of map is systematically worth more than others of the same stars.</div></div>
+    <div class="row"><span class="label impact">Impact</span><div>Every constant change on the branch was checked with it. Its pass-calibration suggestion proved unreliable (often at the edge of its range).</div></div>
+  </article>
+
+  <article class="change">
+    <h3>Acc reweighter</h3>
+    <div class="row"><span class="label what">What</span><div><code>AccReweighter</code> moves each map's acc rating towards what its kind of map is worth:<ul>
+      <li><b>Target</b> fitted on pass / tech share, predicted acc, OneSaber and star band.</li>
+      <li><b>Evidence-weighted:</b> maps with few scores move less, newly ranked maps stay ×1.</li>
+      <li><b>Line search</b> over several passes, with how far to go chosen on held-out players.</li>
+      <li><b>Guards:</b> balance metrics must hold, multipliers average 1 per star band and stay within ±15%. Only half of that change (in log) is applied, so ±7.5% at most: players found the full fit too strong.</li>
+      <li><b>Stored</b> in <code>Leaderboard.AccReweight</code> and kept across re-rating. It replaces the old <code>Autoreweight</code> tools.</li></ul></div></div>
+    <div class="row"><span class="label why">Why</span><div>The old tools were one-shot, unguarded and lost on re-rating. About half of each map's worth deviation reproduces across independent halves of the players (held-out spread 0.49 → 0.24); the other half is noise and is left alone. Simpler versions (correcting whole kinds of maps, fixed step sizes) broke the balance.</div></div>
+    <div class="row"><span class="label impact">Impact</span><div>Outliers are corrected with balance kept: Ascension to Heaven Expert goes from +1.32 to −0.10 worth; 3585 maps move, 4.1% on average. It's the only rating change that uses scores.</div></div>
+  </article>
+
+  <article class="change">
+    <h3>Research exports</h3>
+    <div class="row"><span class="label what">What</span><div><code>ParityCheck</code>, <code>RatingFitExport</code>, <code>ModelComparisonExport</code> and <code>PassWindowCheck</code> in <code>Refresh/Tools/</code>, plus the Python scripts <code>hard_map_offset_fit.py</code> and <code>modifier_check.py</code>.</div></div>
+    <div class="row"><span class="label why">Why</span><div>They produced the fits cited throughout this page. All are read-only.</div></div>
+  </article>
+</section>
+
+<section aria-labelledby="w">
+  <h2 id="w">Website</h2>
+
+  <article class="change">
+    <h3>New pages</h3>
+    <div class="row"><span class="label what">What</span><div><ul>
+      <li><b>Top Scores:</b> every score with filters and sorts, from a compact cache (~56 MB for 4.4M scores, loads in about a second) uploaded with its database.</li>
+      <li><b>Top Acc per Map:</b> top accuracies against stars, with an optional comparison database.</li>
+      <li><b>Curve Explorer:</b> the acc curve for any predicted acc.</li>
+      <li><b>Pass Comparison:</b> pass ordering, current vs database vs prod.</li>
+      <li><b>Balance Tuning</b> (above).</li></ul></div></div>
+    <div class="row"><span class="label why">Why</span><div>Each one makes a part of the rework visible: where top scores land, how curves behave, and how pass ordering moved against prod.</div></div>
+  </article>
+
+  <article class="change">
+    <h3>Improved pages</h3>
+    <div class="row"><span class="label what">What</span><div><ul>
+      <li><b>Leaderboard:</b> NJS (including <a class="term" href="#effective-njs">effective NJS</a> with speed modifiers), a modifier selector, the map's <a class="term" href="#curve">acc curve</a>, a pp table and <a class="term" href="#worth">worth</a>.</li>
+      <li><b>Leaderboards:</b> all ratings, sortable headers, difficulty badges, <a class="term" href="#worth">worth</a> tinted when far from its star range, search by song or mapper name, 25 per page.</li>
+      <li><b>Score graphs</b> read from the Top Scores cache, with rolling averages and modifier filters. The <b>Players pp graph</b> loads asynchronously.</li>
+      <li><b>Database Metrics</b> shows a neutral difference instead of declaring a winner, since whether higher is better depends on the metric.</li></ul></div></div>
+    <div class="row"><span class="label impact">Impact</span><div>Graph pages load much faster. The old Batch Players Balancing and Players Balancing Graphs pages are removed, superseded by the balance tuner.</div></div>
+  </article>
+
+  <article class="change">
+    <h3>Database selection</h3>
+    <div class="row"><span class="label what">What</span><div><code>MainDB: -1</code> makes the last listed database the default, and a saved browser selection that's no longer listed is forgotten.</div></div>
+    <div class="row"><span class="label impact">Impact</span><div>A new database becomes the default by adding it last.</div></div>
+  </article>
+</section>
+
+<section aria-labelledby="x">
+  <h2 id="x">Pipeline and project</h2>
+  <article class="change">
+    <div class="row"><span class="label what">What</span><div><ul>
+      <li><b>Faster refresh:</b> scores and players recompute in one pass (about 3× faster), <code>Overwrite</code> rates only the stored modifiers, and columns are checked before being added.</li>
+      <li><b>One pipeline:</b> <code>FullPipeline</code> runs Overwrite → refresh → acc reweighter → refresh → balance tuner and comparisons. NJS and curves can be filled without re-rating.</li>
+      <li><b>New columns:</b> <code>Njs</code>, <code>HitDistance</code>, <code>AccReweight</code>, <code>Worth</code> and per-modifier curves.</li>
+      <li><b>Project:</b> <code>Program.cs</code> organized into sections, README and <code>CHANGELOG.md</code> added, a wider <code>.gitignore</code>, and <code>UploadDatabaseAsync</code> commented out by default.</li></ul></div></div>
+  </article>
+</section>
+
+<section aria-labelledby="t">
+  <h2 id="t">Trade-offs</h2>
+  <div class="tradeoffs">
+    <ul>
+      <li><b>Fitted to this data:</b> many constants (pair table, dot offsets, acc corrections, rating powers) are fitted on today's ranked set and replays, and should be refitted when the model or data change much.</li>
+      <li><b>Burst sensitivity:</b> the 4–32 s windows bring back some sensitivity to short bursts.</li>
+      <li><b>Scores in the ratings:</b> the acc reweighter uses scores by design, adds a second re-score to the pipeline, and makes worth spread unusable as an overall balance measure afterwards.</li>
+      <li><b>RatingAPI consumers:</b> <code>star_rating</code> is gone, and pp computed from its ratings needs the new rating powers.</li>
+      <li><b>Small samples:</b> OneSaber (73 maps) and the 13+★ band are small, so their metrics are noisy.</li>
+    </ul>
+  </div>
+</section>
+
+<footer>Based on <a href="https://github.com/BeatLeader/portaBLe/blob/loloppe-rebalancer/BRANCH_CHANGELOG.md">BRANCH_CHANGELOG.md</a> and the code on <code>loloppe-rebalancer</code>, with the RatingAPI and Analyzer submodules.</footer>
+</div>
+</body>
+</html>

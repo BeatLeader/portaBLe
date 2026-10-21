@@ -1,101 +1,25 @@
 ﻿using portaBLe.DB;
-using System.ComponentModel;
+using RatingAPI.Pp;
 using System.Numerics;
-using System.Reflection;
 
 namespace portaBLe.Refresh
 {
+    // The pp of scores and the stars of maps are RatingAPI's (RatingAPI/Pp: PpCalculator, PpFormula), as on the server.
+    // These only read the ratings and curves from portaBLe's models.
     static class ReplayUtils
     {
-        static List<(double, double)> pointList2 = new List<(double, double)> { 
-                (1.0, 7.424),
-                (0.999, 6.241),
-                (0.9975, 5.158),
-                (0.995, 4.010),
-                (0.9925, 3.241),
-                (0.99, 2.700),
-                (0.9875, 2.303),
-                (0.985, 2.007),
-                (0.9825, 1.786),
-                (0.98, 1.618),
-                (0.9775, 1.490),
-                (0.975, 1.392),
-                (0.9725, 1.315),
-                (0.97, 1.256),
-                (0.965, 1.167),
-                (0.96, 1.094),
-                (0.955, 1.039),
-                (0.95, 1.000),
-                (0.94, 0.931),
-                (0.93, 0.867),
-                (0.92, 0.813),
-                (0.91, 0.768),
-                (0.9, 0.729),
-                (0.875, 0.650),
-                (0.85, 0.581),
-                (0.825, 0.522),
-                (0.8, 0.473),
-                (0.75, 0.404),
-                (0.7, 0.345),
-                (0.65, 0.296),
-                (0.6, 0.256),
-                (0.0, 0.000), };
-
         // Value of a per-leaderboard curve (points from 100% down, see RatingAPI Curve.GetCurve). Null or empty: the base curve.
-        public static float Curve2(float acc, IReadOnlyList<Vector2>? curve)
-        {
-            if (curve == null || curve.Count < 2)
-            {
-                return Curve2(acc);
-            }
+        public static float Curve2(float acc, IReadOnlyList<Vector2>? curve) => PpCalculator.CurveValue(acc, curve);
 
-            int i = 0;
-            for (; i < curve.Count; i++)
-            {
-                if (curve[i].X <= acc) {
-                    break;
-                }
-            }
-
-            if (i == 0) {
-                i = 1;
-            }
-            if (i >= curve.Count) {
-                i = curve.Count - 1;
-            }
-
-            double middle_dis = (acc - curve[i - 1].X) / (double)(curve[i].X - curve[i - 1].X);
-            return (float)(curve[i - 1].Y + middle_dis * (curve[i].Y - curve[i - 1].Y));
-        }
+        public static float Curve2(float acc) => PpCalculator.CurveValue(acc);
 
         // RatingAPI's curve points as stored in the database
-        public static List<Vector2> ToCurve(IEnumerable<global::RatingAPI.Controllers.Point>? points) =>
-            points?.Select(p => new Vector2((float)p.x, (float)p.y)).ToList() ?? new List<Vector2>();
-
-        public static float Curve2(float acc)
-        {
-            int i = 0;
-            for (; i < pointList2.Count; i++)
-            {
-                if (pointList2[i].Item1 <= acc) {
-                    break;
-                }
-            }
-    
-            if (i == 0) {
-                i = 1;
-            }
-    
-            double middle_dis = (acc - pointList2[i-1].Item1) / (pointList2[i].Item1 - pointList2[i-1].Item1);
-            return (float)(pointList2[i-1].Item2 + middle_dis * (pointList2[i].Item2 - pointList2[i-1].Item2));
-        }
+        public static List<Vector2> ToCurve(IEnumerable<global::RatingAPI.Controllers.Point>? points) => PpCalculator.ToCurve(points);
 
         // Same as RatingAPI (AccRating.GetRating), so the constants only live in one place
         // hitDistance: the map's Leaderboard.HitDistance (the same with speed modifiers)
         public static float AccRating(float? predictedAcc, float? passRating, float? techRating, float hitDistance = 0) =>
             (float)new global::RatingAPI.Controllers.AccRating().GetRating(predictedAcc, passRating, techRating, hitDistance);
-
-        private static float Inflate(float peepee) => PpFormula.Current.Inflate(peepee);
 
         // The acc reweighter's multiplier of a leaderboard (Leaderboard.AccReweight, 0 = none)
         public static double AccReweightOf(Leaderboard lb) => lb.AccReweight > 0 ? lb.AccReweight : 1;
@@ -103,75 +27,55 @@ namespace portaBLe.Refresh
         // An acc rating times the acc reweighter's multiplier
         public static float Reweighted(float accRating, double multiplier) => (float)(accRating * multiplier);
 
-        // curve: the leaderboard's own acc curve (null: the base curve). Stars always use the base curve (ToStars).
-        private static (float, float, float) GetPp(float accuracy, float accRating, float passRating, float techRating, IReadOnlyList<Vector2>? curve = null) {
-            var formula = PpFormula.Current;
-            return (formula.PassPp(passRating), formula.AccPp(Curve2(accuracy, curve), accRating), formula.TechPp(accuracy, techRating));
+        // What a 96% score is worth on the star scale (PpCalculator.ToStars). curve: the leaderboard's (null: the base curve).
+        public static float ToStars(float accRating, float passRating, float techRating, IReadOnlyList<Vector2>? curve = null) =>
+            PpCalculator.ToStars(accRating, passRating, techRating, curve);
+
+        // Stars of a leaderboard and of its SS / FS / SF ratings, each with its own curve
+        public static void SetStars(Leaderboard lb)
+        {
+            lb.Stars = ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve);
+            var mod = lb.ModifiersRating;
+            if (mod == null) return;
+            mod.SSStars = PpCalculator.ToStars(SpeedRatings(mod, "SS", lb.Curve)!.Value);
+            mod.FSStars = PpCalculator.ToStars(SpeedRatings(mod, "FS", lb.Curve)!.Value);
+            mod.SFStars = PpCalculator.ToStars(SpeedRatings(mod, "SF", lb.Curve)!.Value);
         }
 
-        public static float ToStars(float accRating, float passRating, float techRating) {
-            (float passPP, float accPP, float techPP) = GetPp(0.96f, accRating, passRating, techRating);
-
-            return PpFormula.Current.Stars(Inflate(passPP + accPP + techPP) / (float)PpFormula.Current.PpMultiplier);
+        // A speed modifier's ratings and curve (the leaderboard's curve when the modifier has none). Null: not a speed modifier.
+        public static MapRatings? SpeedRatings(ModifiersRating mod, string modifier, IReadOnlyList<Vector2>? curve)
+        {
+            var own = mod.GetCurve(modifier);
+            var used = own != null && own.Count >= 2 ? own : curve;
+            return modifier switch
+            {
+                "SS" => new MapRatings(mod.SSAccRating, mod.SSPassRating, mod.SSTechRating, used),
+                "FS" => new MapRatings(mod.FSAccRating, mod.FSPassRating, mod.FSTechRating, used),
+                "SF" => new MapRatings(mod.SFAccRating, mod.SFPassRating, mod.SFTechRating, used),
+                _ => null
+            };
         }
 
+        // PpCalculator.ScorePp with a leaderboard's ratings: (pp, bonus pp, pass pp, acc pp, tech pp)
         public static (float, float, float, float, float) PpFromScore(
-            float accuracy, 
-            string modifiers, 
+            float accuracy,
+            string modifiers,
             ModifiersRating? modifiersRating,
-            float accRating, 
-            float passRating, 
+            float accRating,
+            float passRating,
             float techRating,
             IReadOnlyList<Vector2>? curve = null)   // the leaderboard's acc curve (null: the base curve)
         {
-            if (accuracy <= 0 || accuracy > 1) return (0, 0, 0, 0, 0);
-
-            float mp = ModifiersMap.RankedMap().GetTotalMultiplier(modifiers, modifiersRating == null);
-
-            if (accuracy < 0) {
-                accuracy = 0;
-            }
-
-            float rawPP = 0; float fullPP = 0; float passPP = 0; float accPP = 0; float techPP = 0; float increase = 0; 
-            if (!modifiers.Contains("NF"))
-            {
-                (passPP, accPP, techPP) = GetPp(accuracy, accRating, passRating, techRating, curve);
-
-                // Low star bonus (PpFormula.LowStarMultiplier), from the stars of the ratings each pp uses
-                rawPP = Inflate(passPP + accPP + techPP) * PpFormula.Current.LowStarMultiplier(ToStars(accRating, passRating, techRating));
-                var scoreCurve = curve;
-                // Only scores with modifiers can use the modifier ratings (skips the reflection for every other score)
-                if (modifiersRating != null && !string.IsNullOrEmpty(modifiers)) {
-                    var modifiersMap = modifiersRating.ToDictionary<float>();
-                    foreach (var modifier in modifiers.ToUpper().Split(","))
-                    {
-                        if (modifiersMap.ContainsKey(modifier + "AccRating")) { 
-                            accRating = modifiersMap[modifier + "AccRating"]; 
-                            passRating = modifiersMap[modifier + "PassRating"]; 
-                            techRating = modifiersMap[modifier + "TechRating"];
-                            var modifierCurve = modifiersRating.GetCurve(modifier);
-                            if (modifierCurve != null && modifierCurve.Count >= 2) { scoreCurve = modifierCurve; }
-
-                            break;
-                        }
-                    }
-                }
-                (passPP, accPP, techPP) = GetPp(accuracy, accRating * mp, passRating * mp, techRating * mp, scoreCurve);
-                fullPP = Inflate(passPP + accPP + techPP) * PpFormula.Current.LowStarMultiplier(ToStars(accRating, passRating, techRating));
-                if (passPP + accPP + techPP > 0) {
-                    increase = fullPP / (passPP + accPP + techPP);
+            MapRatings? speedRatings = null;
+            // Only scores with modifiers can use the modifier ratings: the first speed modifier
+            if (modifiersRating != null && !string.IsNullOrEmpty(modifiers)) {
+                foreach (var modifier in modifiers.ToUpper().Split(","))
+                {
+                    speedRatings = SpeedRatings(modifiersRating, modifier, curve);
+                    if (speedRatings != null) break;
                 }
             }
-
-            if (float.IsInfinity(rawPP) || float.IsNaN(rawPP) || float.IsNegativeInfinity(rawPP)) {
-                rawPP = 0;
-            }
-
-            if (float.IsInfinity(fullPP) || float.IsNaN(fullPP) || float.IsNegativeInfinity(fullPP)) {
-                fullPP = 0;
-            }
-
-            return (fullPP, fullPP - rawPP, passPP * increase, accPP * increase, techPP * increase);
+            return PpCalculator.ScorePp(accuracy, modifiers, new MapRatings(accRating, passRating, techRating, curve), speedRatings, modifiersRating != null);
         }
 
         public static int MaxScoreForNote(int count) {
@@ -185,73 +89,6 @@ namespace portaBLe.Refresh
               return note_score * (9 + (count - 5) * 4);
           // x8
           return note_score * (41 + (count - 13) * 8);
-        }
-
-        private static readonly PropertyInfo[] aModifiers = typeof(ModifiersMap).GetProperties().Where(p => p.PropertyType == typeof(float) && p.Name.Length == 2).ToArray();
-
-        public static float GetTotalMultiplier(this ModifiersMap modifiersObject, string modifiers, bool speedModifiers)
-		{
-			float multiplier = 1;
-
-            foreach (PropertyInfo modifierProp in aModifiers)
-            {
-                if (!speedModifiers && modifierProp.Name is "SF" or "SS" or "FS")
-                    continue;
-
-                if (modifiers.Contains(modifierProp.Name, StringComparison.Ordinal))
-                {
-                    multiplier += (float)modifierProp.GetValue(modifiersObject)!;
-                }
-            }
-            
-
-			return multiplier;
-		}
-
-        public static float GetPositiveMultiplier(this ModifiersMap modifiersObject, string modifiers)
-        {
-            float multiplier = 1;
-
-            var modifiersMap = modifiersObject.ToDictionary<float>();
-            foreach (var modifier in modifiersMap.Keys)
-            {
-                if (modifiers.Contains(modifier) && modifiersMap[modifier] > 0) { multiplier += modifiersMap[modifier]; }
-            }
-
-            return multiplier;
-        }
-
-        public static float GetNegativeMultiplier(this ModifiersMap modifiersObject, string modifiers, bool ignoreNF = false)
-        {
-            float multiplier = 1;
-
-            var modifiersMap = modifiersObject.ToDictionary<float>();
-            foreach (var modifier in modifiersMap.Keys)
-            {
-                if (ignoreNF && modifier == "NF") continue;
-                if (modifiers.Contains(modifier) && modifiersMap[modifier] < 0) { multiplier += modifiersMap[modifier]; }
-            }
-
-            return multiplier;
-        }
-
-        public static (string, float) GetNegativeMultipliers(this ModifiersMap modifiersObject, string modifiers)
-        {
-            float multiplier = 1;
-            List<string> modifierArray = new List<string>();
-
-            var modifiersMap = modifiersObject.ToDictionary<float>();
-            foreach (var modifier in modifiersMap.Keys)
-            {
-                if (modifiers.Contains(modifier)) {
-                    if (modifiersMap[modifier] < 0) {
-                        multiplier += modifiersMap[modifier]; 
-                        modifierArray.Add(modifier);
-                    }
-                }
-            }
-
-            return (string.Join(",", modifierArray), multiplier);
         }
 
         public static int ScoreForRank(int rank) {
@@ -274,7 +111,7 @@ namespace portaBLe.Refresh
             }
             result += ScoreForRank(newRank);
 
-            return result; 
+            return result;
         }
 
         public static string SafeSubstring(this string text, int start, int length)
@@ -282,83 +119,6 @@ namespace portaBLe.Refresh
             return text.Length <= start ? ""
                 : text.Length - start <= length ? text.Substring(start)
                 : text.Substring(start, length);
-        }
-    }
-
-    public class ModifiersMap
-    {
-        public int ModifierId { get; set; }
-
-        public float DA { get; set; } = 0.0f;
-        public float FS { get; set; } = 0.0f;
-        public float SF { get; set; } = 0.0f;
-        public float SS { get; set; } = 0.0f;
-        public float GN { get; set; } = 0.0f;
-        public float NA { get; set; } = -0.3f;
-        public float NB { get; set; } = -0.2f;
-        public float NF { get; set; } = -0.5f;
-        public float NO { get; set; } = -0.2f;
-        public float PM { get; set; } = 0.0f;
-        public float SC { get; set; } = 0.0f;
-        public float SA { get; set; } = 0.0f;
-        public float OP { get; set; } = -0.5f;
-
-        public static ModifiersMap RankedMap() {
-            return new ModifiersMap {
-                DA = 0.0f,
-                FS = 0.0f,
-                SF = 0.0f,
-                SS = 0.0f,
-                GN = 0.0f,
-                NA = -0.3f,
-                NB = -0.2f,
-                NF = -1.0f,
-                NO = -0.2f,
-                PM = 0.0f,
-                SC = 0.0f,
-                SA = 0.0f,
-                OP = -0.5f,
-            };
-        }
-
-        public bool EqualTo(ModifiersMap? other) {
-            return other != null && DA == other.DA && FS == other.FS && SS == other.SS && SF == other.SF && GN == other.GN && NA == other.NA && NB == other.NB && NF == other.NF && NO == other.NO && PM == other.PM && SC == other.SC && SA == other.SA && OP == other.OP;
-        }
-    }
-
-    public static class ObjectToDictionaryHelper
-    {
-        public static IDictionary<string, object> ToDictionary(this object source)
-        {
-            return source.ToDictionary<object>();
-        }
-
-        public static IDictionary<string, T> ToDictionary<T>(this object source)
-        {
-            if (source == null)
-                ThrowExceptionWhenSourceArgumentIsNull();
-
-            var dictionary = new Dictionary<string, T>();
-            foreach (PropertyDescriptor property in TypeDescriptor.GetProperties(source))
-                AddPropertyToDictionary(property, source, dictionary);
-            return dictionary;
-        }
-
-        private static void AddPropertyToDictionary<T>(PropertyDescriptor property, object source, Dictionary<string, T> dictionary)
-        {
-            object value = property.GetValue(source);
-            if (IsOfType<T>(value))
-                dictionary.Add(property.Name, (T)value);
-        }
-
-        private static bool IsOfType<T>(object value)
-        {
-            return value is T;
-        }
-
-        private static void ThrowExceptionWhenSourceArgumentIsNull()
-        {
-            throw new ArgumentNullException("source", "Unable to convert object to a dictionary. The source object is null.");
         }
     }
 }

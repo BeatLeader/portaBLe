@@ -24,7 +24,7 @@ namespace portaBLe.Pages
             [nameof(RatingConstants.PassCalibration)] = "PASS_CALIBRATION_FACTOR in Analyzer AnalyzeMap.cs",
             [nameof(RatingConstants.OneSaberNerf)] = "ONE_SABER_NERF in Analyzer AnalyzeMap.cs",
             [nameof(RatingConstants.TechScaler)] = "BALANCED_TECH_SCALER in Analyzer AnalyzeMap.cs (not tuned: keeps tech ratings on their usual scale)",
-            [nameof(RatingConstants.TechWeight)] = "TechWeight in portaBLe Refresh/PpFormula.cs (tech pp per tech rating)",
+            [nameof(RatingConstants.TechWeight)] = "TechWeight in RatingAPI Pp/PpFormula.cs (tech pp per tech rating)",
             [nameof(RatingConstants.AccScale)] = "ACC_SCALE in RatingAPI AccRating.cs (reference, not tuned)",
             [nameof(RatingConstants.AccOffset)] = "ACC_OFFSET in RatingAPI AccRating.cs",
         };

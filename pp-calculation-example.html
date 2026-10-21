@@ -1,0 +1,236 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>How pp is calculated: a worked example</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Same look as portaBLe-rebalancer-changelog.html: one reading column, each step as a card with its formula and the example. */
+:root {
+  --bg: #f6f7fa;
+  --surface: #ffffff;
+  --fg: #1a1d26;
+  --muted: #5b6273;
+  --line: #dde1ea;
+  --red: #d1344b;      /* left saber */
+  --blue: #2f6fd6;     /* right saber */
+  --code-bg: #eef0f5;
+  --display: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11131a; --surface: #181b24; --fg: #e6e8ef; --muted: #9aa1b2; --line: #2a2f3c;
+  --red: #ff6b7f; --blue: #6fa3ff; --code-bg: #20242f; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #11131a; --surface: #181b24; --fg: #e6e8ef; --muted: #9aa1b2; --line: #2a2f3c;
+  --red: #ff6b7f; --blue: #6fa3ff; --code-bg: #20242f; color-scheme: dark; }
+
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 var(--body); }
+.wrap { max-width: 860px; margin: 0 auto; padding-block: 40px 72px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 44px; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: clamp(2rem, 5vw, 2.8rem); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 1.6rem; font-weight: 600; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 1.2rem; font-weight: 600; }
+p { margin: 0; max-width: 68ch; }
+ul, ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+code { font: 0.86em var(--mono); background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+a { color: var(--blue); }
+a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.eyebrow { font: 600 0.75rem var(--body); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.sabers { display: flex; gap: 6px; }
+.sabers span { height: 4px; width: 56px; border-radius: 2px; }
+.sabers span:first-child { background: var(--red); } .sabers span:last-child { background: var(--blue); }
+
+header { display: grid; gap: 14px; }
+.lede { font-size: 1.08rem; color: var(--muted); }
+section { display: grid; gap: 22px; min-width: 0; }
+.intro { color: var(--muted); }
+
+.map { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.map div { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; display: grid; gap: 2px; }
+.map b { font: 600 1.25rem var(--mono); font-variant-numeric: tabular-nums; }
+.map span { font-size: 0.8rem; color: var(--muted); }
+
+.flow { counter-reset: step; display: grid; gap: 6px; padding: 0; list-style: none; }
+.flow li { display: grid; grid-template-columns: 2rem 1fr; gap: 10px; align-items: baseline; }
+.flow li::before { counter-increment: step; content: counter(step); font: 600 0.9rem var(--mono); color: var(--blue); text-align: right; }
+
+.step { display: grid; gap: 12px; padding-bottom: 22px; border-bottom: 1px solid var(--line); }
+.step:last-child { border-bottom: 0; padding-bottom: 0; }
+.step .refs { font: 0.78rem var(--mono); color: var(--muted); }
+pre.formula { margin: 0; font: 0.84rem/1.55 var(--mono); background: var(--code-bg); border-radius: 8px; padding: 12px 14px; overflow-x: auto; white-space: pre; }
+.example { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--blue); border-radius: 8px; padding: 12px 16px; display: grid; gap: 6px; }
+.example .label { font: 600 0.72rem var(--body); letter-spacing: 0.1em; text-transform: uppercase; color: var(--blue); }
+.note { background: var(--surface); border: 1px solid var(--line); border-left: 4px solid var(--red); border-radius: 8px; padding: 12px 16px; display: grid; gap: 6px; }
+.note .label { font: 600 0.72rem var(--body); letter-spacing: 0.1em; text-transform: uppercase; color: var(--red); }
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; min-width: 560px; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 600 0.72rem var(--body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; }
+td.num { font: 0.86rem var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.total { font-weight: 600; }
+footer { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+<header>
+  <div class="sabers" aria-hidden="true"><span></span><span></span></div>
+  <div class="eyebrow">BeatLeader / portaBLe · branch <code>loloppe-rebalancer</code></div>
+  <h1>How pp is calculated: a worked example</h1>
+  <p class="lede">From the map file to a player's total: ratings, the map's own acc curve, the acc rating, stars and the pp formula. One real map from the database is followed through every step.</p>
+</header>
+
+<section aria-labelledby="map">
+  <h2 id="map">The example map</h2>
+  <p class="intro">Chapter 99: Afterword ExpertPlus (Standard), from <code>wwwroot/Database.db</code> as rated on 2026-10-20, without the acc reweighter.</p>
+  <div class="map">
+    <div><b>97.995%</b><span>Predicted accuracy</span></div>
+    <div><b>5.267</b><span>Pass rating</span></div>
+    <div><b>3.157</b><span>Tech rating</span></div>
+    <div><b>8.862</b><span>Acc rating</span></div>
+    <div><b>7.005</b><span>Stars</span></div>
+    <div><b>0.508 m</b><span>Hit distance</span></div>
+  </div>
+</section>
+
+<section aria-labelledby="overview">
+  <h2 id="overview">The chain at a glance</h2>
+  <ol class="flow">
+    <li><span><b>Map ratings</b> (from the map only): pass, tech and the predicted accuracy.</span></li>
+    <li><span><b>The map's acc curve</b>, shaped by the predicted accuracy and the map's sliders.</span></li>
+    <li><span><b>Acc rating</b>, read off the map's curve at its effective predicted accuracy.</span></li>
+    <li><span><b>The three pp parts</b> at a score's accuracy: pass pp, acc pp, tech pp.</span></li>
+    <li><span><b>Stars</b>: what a 96% score is worth, on the star scale.</span></li>
+    <li><span><b>Score pp</b>: the sum of the parts, the pp multiplier and the low star bonus, with modifiers.</span></li>
+    <li><span><b>Player pp</b>: the weighted sum of a player's scores.</span></li>
+  </ol>
+</section>
+
+<section aria-labelledby="steps">
+  <h2 id="steps">Step by step</h2>
+
+  <article class="step">
+    <h3>1. Map ratings</h3>
+    <p>The Analyzer reads every swing of the map. The Acc AI (an ONNX model) predicts top players' accuracy on each note, and those predictions are combined into one number for the map.</p>
+    <pre class="formula">pass = PASS_CALIBRATION_FACTOR (0.7721) × difficulty of the hardest 4–32 s windows
+       OneSaber maps: × (1 − (1 − hands ratio) × 0.49)
+tech = 20.611 × (average swing tech × (1 − 1.25408^−pass))^0.8015</pre>
+    <div class="example"><span class="label">Example</span><p>Pass 5.267, tech 3.157, predicted accuracy 97.995%.</p></div>
+    <p>Speed modifiers (SS / FS / SFS) get their own complete set: the Analyzer and the Acc AI are run again at that speed, giving their own pass, tech, predicted accuracy, acc rating and curve.</p>
+    <div class="refs">RatingAPI/Analyzer/…/Algorithm/AnalyzeMap.cs · Data/Ratings.cs · RatingAPI/Controllers/InferPublish.cs</div>
+  </article>
+
+  <article class="step">
+    <h3>2. The map's acc curve</h3>
+    <p>Every map gets its own acc curve, built from the base curve (1.094 at 96%, 2.700 at 99%, 7.424 at 100%):</p>
+    <ol>
+      <li><b>Shape by predicted accuracy:</b> a table (<code>CurveSettings.Table</code>) picks the curve parameters from the predicted accuracy. The curve is base × modified / default, and never goes above the base curve.</li>
+      <li><b>Slider tilt:</b> the curve is multiplied by e<sup>0.2 × slider share × (acc − predicted acc) in %</sup>, within ±1.5% of the predicted accuracy. Slider-heavy maps get a steeper curve around their prediction: higher above it, lower under it.</li>
+      <li>The curve is stored as sampled points (<code>Leaderboard.Curve</code>), which the pp formula interpolates.</li>
+    </ol>
+    <div class="example"><span class="label">Example</span><p>The map's curve is 1.074 at 96% (base 1.094) and 2.511 at 99% (base 2.700).</p></div>
+    <div class="refs">RatingAPI/Controllers/Curve.cs</div>
+  </article>
+
+  <article class="step">
+    <h3>3. Acc rating</h3>
+    <p>The predicted accuracy is first lowered where top players fall further behind the prediction, then the acc rating is read off the map's curve:</p>
+    <pre class="formula">effective acc = predicted acc
+              − 1.24 × (96.75% − predicted acc)      hard maps, floored at 95%
+              − 0.03 × (hit distance − 0.62 m)       capped at 0.8 m, only under 97–97.5% predicted
+              − 0.00214 × (pass − 14.52)             very high pass only
+
+acc rating    = 13.5382 × map curve(effective acc + 0.19%)^−0.8222</pre>
+    <div class="example"><span class="label">Example</span><p>No correction applies: the predicted accuracy is above 96.75%, the hit distance is 0.508 m and the pass is low. The curve at 98.185% is 1.6743, so the acc rating is 13.5382 × 1.6743<sup>−0.8222</sup> = <b>8.862</b>.</p></div>
+    <div class="note"><span class="label">Two details</span>
+      <p><b>The slider tilt isn't used for the acc rating.</b> The acc rating reads the curve through <code>Curve.PerMapValue</code>, which applies the shape from the predicted-accuracy table without the tilt. Two maps with the same predicted accuracy, pass and hit distance get the same acc rating however many sliders they have. The tilt is only in the stored curve, which score pp and stars read. Stars can feel it: they read the curve at 96%, and on a slider-heavy map predicted at 97–98%, 96% is inside the tilt's ±1.5% range.</p>
+      <p><b>The acc reweighter's multiplier is portaBLe only.</b> The acc reweighter is a portaBLe tool that uses scores. It stores one multiplier per map (<code>Leaderboard.AccReweight</code>), and when portaBLe rates maps it multiplies RatingAPI's acc ratings (base and SS / FS / SF) by it. It changes acc pp at every accuracy, and therefore stars. A missing value or 0 means ×1, as for this database. RatingAPI never sees these multipliers: a server calling RatingAPI directly gets the acc rating and stars without them.</p>
+    </div>
+    <div class="refs">RatingAPI/Controllers/AccRating.cs · Refresh/RatingsRefresh.cs · Refresh/Tools/AccReweighter.cs</div>
+  </article>
+
+  <article class="step">
+    <h3>4. The three pp parts</h3>
+    <p>At a score's accuracy:</p>
+    <pre class="formula">pass pp = 12.3 × e^(0.85966 × pass'^(1/2.62)) − 30     pass' = pass, but above 10.4 each point counts half; min 0
+acc pp  = curve' × 21.584 × acc rating^1.2163
+tech pp = e^(3.5 × acc) × 0.0891 × tech^1.2477
+
+curve'  = curve(96%) × (curve(acc) / curve(96%))^power
+power   = 1.0 up to 2★, linearly to 0.9 at 5★ and above</pre>
+    <p>The power is anchored at 96%: there the ratio is 1, so a 96% score gets the same acc pp whatever the power. It only changes how acc pp grows above 96% and falls below it. Accuracy matters only in acc and tech pp; pass pp is the same at any accuracy.</p>
+    <div class="refs">RatingAPI/Pp/PpFormula.cs (PassPp, AccPp, TechPp, CurvePowerAt, AccCurve) · RatingAPI/Pp/PpCalculator.cs (GetPp)</div>
+  </article>
+
+  <article class="step">
+    <h3>5. Stars</h3>
+    <p>Stars are the final pp of a 96% score without modifiers (step 6), on the star scale:</p>
+    <pre class="formula">final pp of a 96% score = (pass + acc + tech pp at 96%) × 1.0833 × low star multiplier
+stars = 1.2131 × (final pp of a 96% score / 1.0833 / 83.6925)^1.17507</pre>
+    <ul>
+      <li><b>The low star bonus is in the stars.</b> The low star multiplier (step 6) depends on stars itself, so this is solved for the one consistent value.</li>
+      <li><b>The pp multiplier cancels out.</b> It's included and divided back out, which is the same as leaving it out. That's on purpose: it only sets the overall pp level (fitted on top players' totals), so it can be retuned without moving any map's stars. Keeping it in would only change the constant (83.6925 × 1.0833 = 90.66 gives the same stars).</li>
+      <li><b>The curve power has no effect at 96%</b> (step 4).</li>
+    </ul>
+    <div class="example"><span class="label">Example</span><p>At 96%: 32.2 + 329.2 + 10.8 = 372.2, so the final pp is 372.2 × 1.0833 × 1.000 = 403.2 (above 4.49★ there's no low star bonus). Stars: 1.2131 × (403.2 / 1.0833 / 83.6925)<sup>1.17507</sup> = 1.2131 × (372.2 / 83.6925)<sup>1.17507</sup> = <b>7.005</b>.</p></div>
+    <div class="refs">RatingAPI/Pp/PpCalculator.cs (ToStars) · RatingAPI/Pp/PpFormula.cs (Stars, StarsFromPp)</div>
+  </article>
+
+  <article class="step">
+    <h3>6. Score pp</h3>
+    <pre class="formula">pp = (pass + acc + tech pp) × 1.0833 × low star multiplier
+low star multiplier = 1 + 0.0321 × (4.49 − stars)^1.36     only under 4.49★; 1 above</pre>
+    <p>There's no inflation power any more: pp is linear in the sum of the parts.</p>
+    <div class="example"><span class="label">Example</span><p>7.005★, so no low star bonus and a curve power of 0.9:</p></div>
+    <div class="table-wrap">
+      <table>
+        <thead><tr><th>Accuracy</th><th class="num">Base curve</th><th class="num">Map curve</th><th class="num">Curve used</th><th class="num">Pass</th><th class="num">Acc</th><th class="num">Tech</th><th class="num">Sum</th><th class="num">pp</th></tr></thead>
+        <tbody>
+          <tr><td>96%</td><td class="num">1.094</td><td class="num">1.074</td><td class="num">1.074</td><td class="num">32.2</td><td class="num">329.2</td><td class="num">10.8</td><td class="num">372.2</td><td class="num total">403</td></tr>
+          <tr><td>97.5%</td><td class="num">1.392</td><td class="num">1.351</td><td class="num">1.321</td><td class="num">32.2</td><td class="num">404.9</td><td class="num">11.3</td><td class="num">448.5</td><td class="num total">486</td></tr>
+          <tr><td>99%</td><td class="num">2.700</td><td class="num">2.511</td><td class="num">2.307</td><td class="num">32.2</td><td class="num">707.3</td><td class="num">12.0</td><td class="num">751.5</td><td class="num total">814</td></tr>
+        </tbody>
+      </table>
+    </div>
+    <p>On this map, acc pp is almost all of it. Pass-heavy maps have a much bigger flat pass part.</p>
+    <p><b>Modifiers:</b></p>
+    <ul>
+      <li><b>Speed modifiers:</b> SS / FS / SF use that speed's ratings, curve and stars instead.</li>
+      <li><b>Other modifiers</b> multiply all three ratings by (1 + their values): NA −0.3, NB −0.2, NO −0.2, OP −0.5, and the rest 0.</li>
+      <li><b>NF</b> gives 0pp.</li>
+      <li><b>Bonus pp</b> is the score's pp minus what it would get without modifiers.</li>
+    </ul>
+    <div class="refs">RatingAPI/Pp/PpCalculator.cs (ScorePp) · RatingAPI/Pp/ModifiersMap.cs · Refresh/ReplayUtils.cs (PpFromScore)</div>
+  </article>
+
+  <article class="step">
+    <h3>7. Player pp</h3>
+    <p>A player's scores are sorted by pp, and the i-th best counts × 0.965<sup>i</sup>: the best × 1, the 2nd × 0.965, the 3rd × 0.931, and so on. The player's pp is the sum.</p>
+    <div class="refs">Refresh/ScoresPlayersRefresh.cs</div>
+  </article>
+</section>
+
+<section aria-labelledby="where">
+  <h2 id="where">Where each part lives</h2>
+  <ul>
+    <li><b>Steps 1–3</b> are rating, in RatingAPI and its Analyzer.</li>
+    <li><b>Steps 4–6</b> are <code>RatingAPI/Pp/PpFormula.cs</code> and <code>PpCalculator.cs</code>, which the server can use without portaBLe.</li>
+    <li><b>Step 7, and the acc reweighter's multiplier,</b> are portaBLe's (<code>ScoresPlayersRefresh</code>, <code>AccReweighter</code>).</li>
+  </ul>
+</section>
+
+<footer>Constants as of 2026-10-20 (<code>PpFormula</code> defaults, <code>AccRating</code>, <code>AnalyzeMap</code>). The example values were computed with RatingAPI's own code on <code>wwwroot/Database.db</code>.</footer>
+</div>
+
+</body>
+</html>

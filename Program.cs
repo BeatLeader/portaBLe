@@ -340,11 +340,11 @@ namespace portaBLe
                     // Usual order after changing the Analyzer, the Acc AI model or a constant:
                     //   RatingsRefresh.Overwrite -> RefreshEverything -> AccReweighter.Run -> RefreshEverything -> BalanceTuner.Run
                     //   -> ModelComparisonExport.Run
-                    // (only pp formula changes, Refresh/PpFormula.cs: skip Overwrite)
+                    // (only pp formula changes, RatingAPI/Pp/PpFormula.cs: skip Overwrite)
                     // Run FullPipeline to do all of the above in one pass (about 10-15 minutes and 8-15GB of RAM). autoreweight:
                     // the acc reweighter and its re-score; balancer: the balance tuner, the model comparison and the pass window
                     // check.
-                    // await FullPipeline(dbContext, env, false, false, false);
+                    // await FullPipeline(dbContext, env, true, true, true);
 
                     // Rate every leaderboard again with RatingAPI (Analyzer + Acc AI). Keeps the acc reweighter's multipliers;
                     // Overwrite(dbContext, false) for raw acc ratings (multipliers cleared)
@@ -371,7 +371,7 @@ namespace portaBLe
                     // BalanceTuner.RatedWith must hold the constants the database was rated with. About 30 full re-scorings.
                     // await BalanceTuner.Run(dbContext, env.WebRootPath);
 
-                    // The parts of the pp formula (Refresh/PpFormula.cs) one at a time, in memory only. Writes
+                    // The parts of the pp formula (RatingAPI/Pp/PpFormula.cs) one at a time, in memory only. Writes
                     // wwwroot/pp-formula.json, shown on the Balance Tuning page. About 25 full re-scorings.
                     // await BalanceTuner.RunPpFormula(dbContext, env.WebRootPath);
 
@@ -429,7 +429,7 @@ namespace portaBLe
         // autoreweight: run the acc reweighter (and re-score after it). keepAccReweight: when it doesn't run, keep the
         // multipliers of the last run on the acc ratings; false = raw acc ratings, multipliers cleared. (When it runs, it
         // starts again from the raw acc ratings either way.)
-        public static async Task FullPipeline(AppContext dbContext, IWebHostEnvironment env, bool autoreweight, bool balancer, bool keepAccReweight = true)
+        public static async Task FullPipeline(AppContext dbContext, IWebHostEnvironment env, bool autoreweight, bool balancer, bool keepAccReweight)
         {
             await RatingsRefresh.Overwrite(dbContext, keepAccReweight);
             await RefreshEverything(dbContext);

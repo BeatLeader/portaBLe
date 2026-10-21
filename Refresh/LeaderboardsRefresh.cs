@@ -250,18 +250,22 @@ namespace portaBLe.Refresh
 
             var updateList = updates.ToList();
 
-            // Worth: Megametric75 relative to the average of its star range (as BalanceTuner.Worth)
+            // Worth: Megametric75 relative to what maps of its stars average (as BalanceTuner.Worth, WorthReference)
             await DbSchema.AddColumnIfMissing(dbContext, "Leaderboards", "Worth", "REAL");
             var stars = await dbContext.Leaderboards.AsNoTracking().ToDictionaryAsync(l => l.Id, l => l.Stars);
-            int StarRange(Leaderboard u) => Math.Clamp((int)MathF.Floor(stars.TryGetValue(u.Id, out var s) ? s : 0), 0, 13);
-            var rangeMeans = updateList.Where(u => u.Megametric75 > 0).GroupBy(StarRange)
-                .Where(g => g.Count() >= 5)
-                .ToDictionary(g => g.Key, g => g.Average(u => (double)u.Megametric75));
+            float StarsOf(Leaderboard u) => stars.TryGetValue(u.Id, out var s) ? s : 0;
+            int StarRange(Leaderboard u) => Math.Clamp((int)MathF.Floor(StarsOf(u)), 0, 13);
+            var usedRanges = updateList.Where(u => u.Megametric75 > 0).GroupBy(StarRange)
+                .Where(g => g.Count() >= 5 && g.Average(u => (double)u.Megametric75) > 0)
+                .Select(g => g.Key)
+                .ToHashSet();
+            var points = updateList.Where(u => u.Megametric75 > 0 && usedRanges.Contains(StarRange(u)))
+                .Select(u => ((double)StarsOf(u), (double)u.Megametric75))
+                .ToList();
             foreach (var u in updateList)
             {
-                u.Worth = u.Megametric75 > 0 && rangeMeans.TryGetValue(StarRange(u), out var mean) && mean > 0
-                    ? (float)(u.Megametric75 / mean - 1)
-                    : null;
+                double reference = u.Megametric75 > 0 && usedRanges.Contains(StarRange(u)) ? BalanceTuner.WorthReference(points, StarsOf(u)) : 0;
+                u.Worth = reference > 0 ? (float)(u.Megametric75 / reference - 1) : null;
             }
 
             Console.WriteLine($"Processed {updates.Count} leaderboards, writing to database...");
@@ -351,49 +355,20 @@ namespace portaBLe.Refresh
         public static async Task RefreshStars(AppContext dbContext)
         {
             Console.WriteLine("Recalculating Star Ratings");
+            // Stars use each one's curve (a 96% score's pp), so the curves are loaded too
             var lbs = dbContext
                 .Leaderboards
                 .AsNoTracking()
-                .Select(s => new Leaderboard
-                {
-                    Id = s.Id,
-                    AccRating = s.AccRating,
-                    PassRating = s.PassRating,
-                    TechRating = s.TechRating
-                })
+                .Include(s => s.ModifiersRating)
                 .ToList();
             foreach (var lb in lbs)
             {
-                lb.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating);
+                ReplayUtils.SetStars(lb);
             }
 
             await dbContext.BulkUpdateAsync(lbs, options => options.ColumnInputExpression = c => new { c.Stars });
 
-            var mods = dbContext
-                .ModifiersRating
-                .AsNoTracking()
-                .Select(s => new ModifiersRating
-                {
-                    Id = s.Id,
-                    SSAccRating = s.SSAccRating,
-                    SSPassRating = s.SSPassRating,
-                    SSTechRating = s.SSTechRating,
-                    SFAccRating = s.SFAccRating,
-                    SFPassRating = s.SFPassRating,
-                    SFTechRating = s.SFTechRating,
-                    FSAccRating = s.FSAccRating,
-                    FSPassRating = s.FSPassRating,
-                    FSTechRating = s.FSTechRating
-                })
-                .ToList();
-
-            foreach (var mod in mods)
-            {
-                mod.SSStars = ReplayUtils.ToStars(mod.SSAccRating, mod.SSPassRating, mod.SSTechRating);
-                mod.SFStars = ReplayUtils.ToStars(mod.SFAccRating, mod.SFPassRating, mod.SFTechRating);
-                mod.FSStars = ReplayUtils.ToStars(mod.FSAccRating, mod.FSPassRating, mod.FSTechRating);
-            }
-
+            var mods = lbs.Select(lb => lb.ModifiersRating).Where(mod => mod != null).Select(mod => mod!).ToList();
             await dbContext.BulkUpdateAsync(mods, options => options.ColumnInputExpression = c => new { c.SSStars, c.SFStars, c.FSStars });
             Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
         }

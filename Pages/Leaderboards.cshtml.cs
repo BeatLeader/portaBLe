@@ -48,7 +48,9 @@ namespace portaBLe.Pages
 
             if (!string.IsNullOrEmpty(SearchString))
             {
-                leaderboardQuery = leaderboardQuery.Where(l => EF.Functions.Like(l.Name.ToLower(), $"%{SearchString.ToLower()}%"));
+                string pattern = $"%{SearchString.ToLower()}%";
+                leaderboardQuery = leaderboardQuery.Where(l => EF.Functions.Like(l.Name.ToLower(), pattern)
+                    || EF.Functions.Like(l.Mapper.ToLower(), pattern));
             }
 
             if (!string.IsNullOrEmpty(ModeName))
