@@ -38,6 +38,10 @@
             @SortHeader("AccRating", "Acc", "Acc rating")
             @SortHeader("TechRating", "Tech", "Tech rating")
             @SortHeader("Worth", "Worth", "How much the map is worth to its players compared with the other maps of its stars: Megametric75 / what maps of its stars average - 1 (+0.27 = 27% more)")
+            @for (int i = 0; i < WorthRanges.Length; i++)
+            {
+                @SortHeader(WorthRanges[i].SortBy, WorthRanges[i].Label, $"Players ranked {WorthRanges[i].Label}: the pp of their scores on this map / their top pp, compared with maps of the same stars (+4% = their scores here are worth 4% more of their top play than on the average map of its stars; no profile weight). Blank under 5 scores.")
+            }
         </tr>
     </thead>
     <tbody>
@@ -61,11 +65,16 @@
                 <td class="lb-num">@leaderboard.AccRating.ToString("0.00")</td>
                 <td class="lb-num">@leaderboard.TechRating.ToString("0.00")</td>
                 <td class="lb-num"><span class="lb-worth @WorthClass(leaderboard.Worth)">@WorthText(leaderboard.Worth)</span></td>
+                @foreach (var range in WorthRanges)
+                {
+                    var value = range.Get(leaderboard);
+                    <td class="lb-num"><span class="lb-worth lb-worth-rank @RankWorthClass(value)">@RankWorthText(value)</span></td>
+                }
             </tr>
         }
         @if (Model.Leaderboards.Count == 0)
         {
-            <tr><td colspan="8" class="text-center text-muted py-4">No maps found</td></tr>
+            <tr><td colspan="13" class="text-center text-muted py-4">No maps found</td></tr>
         }
     </tbody>
 </table>
@@ -94,6 +103,22 @@
 
     // A quarter or more above / below what maps of its stars average
     static string WorthClass(float? worth) => worth is float w ? (w >= 0.25f ? "worth-high" : w <= -0.25f ? "worth-low" : "worth-even") : "worth-none";
+
+    // Worth by player rank (Leaderboard.WorthRank*), in the order of the columns
+    static readonly (string SortBy, string Label, Func<portaBLe.DB.Leaderboard, float?> Get)[] WorthRanges =
+    {
+        ("WorthRank20", "#1-20", l => l.WorthRank20),
+        ("WorthRank100", "#21-100", l => l.WorthRank100),
+        ("WorthRank1000", "#101-1000", l => l.WorthRank1000),
+        ("WorthRank3000", "#1001-3000", l => l.WorthRank3000),
+        ("WorthRank10000", "#3001-10000", l => l.WorthRank10000),
+    };
+
+    static string RankWorthText(float? worth) => worth is float w ? w.ToString("+0.0%;-0.0%;0.0%", System.Globalization.CultureInfo.InvariantCulture) : "—";
+
+    // 8% or more above / below what maps of its stars average, about the outer 10% each side for #1-100 (pp / top pp moves
+    // much less than Worth)
+    static string RankWorthClass(float? worth) => worth is float w ? (w >= 0.08f ? "worth-high" : w <= -0.08f ? "worth-low" : "worth-even") : "worth-none";
 
     static string DifficultyLabel(string? difficulty) => difficulty == "ExpertPlus" ? "Expert+" : difficulty ?? "";
 
@@ -223,6 +248,11 @@
         border-radius: 0.3rem;
         text-align: center;
         font-weight: 600;
+    }
+
+    .lb-worth-rank {
+        min-width: 3.8rem;
+        font-weight: 500;
     }
 
     .worth-high { background: #fde2e1; color: #b02a37; }

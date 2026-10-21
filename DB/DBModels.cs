@@ -173,6 +173,17 @@ namespace portaBLe.DB
         // the balance tuner and the acc reweighter compute the same measure in memory (BalanceTuner.Worth, players with 75+
         // scores in the database rather than 75+ ranked plays), so their values can differ slightly.
         public float? Worth { get; set; }
+        // Worth by player rank (LeaderboardsRefresh.RefreshWorthByRank): each score's pp / the player's top pp, averaged over
+        // the map's scores by the players ranked in that range (#1-20, #21-100, #101-1000, #1001-3000, #3001-10000; more than
+        // 75 ranked plays, as Megametric75), divided by what maps of its stars average (BalanceTuner.WorthReference) - 1.
+        // Without Worth's weight: the weight depends on how full each player's top plays are, so maps played by players
+        // with few high plays (survivors of very high pass maps) looked worth more than what they give. Null with fewer
+        // than LeaderboardsRefresh.WorthRankMinScores scores in the range.
+        public float? WorthRank20 { get; set; }
+        public float? WorthRank100 { get; set; }
+        public float? WorthRank1000 { get; set; }
+        public float? WorthRank3000 { get; set; }
+        public float? WorthRank10000 { get; set; }
         public int DodgeWalls { get; set; }
         public int CrouchWalls { get; set; }
         public float LinearPercent { get; set; }

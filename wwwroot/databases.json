@@ -13,13 +13,8 @@
     },
     {
       "Name": "Dev",
-      "FileName": "db-20261021023257-5357.db",
+      "FileName": "db-20261021142531-5251.db",
       "Description": "Dev"
-    },
-    {
-      "Name": "Dev Autoreweighted",
-      "FileName": "db-20261021030151-8155.db",
-      "Description": "Dev + new autoreweight"
     }
   ]
 }

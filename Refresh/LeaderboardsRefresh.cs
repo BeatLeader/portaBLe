@@ -291,7 +291,74 @@ namespace portaBLe.Refresh
             dbContext.ChangeTracker.AutoDetectChangesEnabled = true;
             Console.WriteLine($"Complete! Total time: {Program.Stopwatch.ElapsedMilliseconds / 1000} seconds");
 
+            await RefreshWorthByRank(dbContext);
             await DetermineTags(dbContext);
+        }
+
+        // Rank ranges of Leaderboard.WorthRank*: up to each rank, from the previous one
+        public static readonly int[] WorthRanks = { 20, 100, 1000, 3000, 10000 };
+        public const int WorthRankMinScores = 5;
+        private const int WorthRankMinPlays = 75;   // as Megametric75
+        private const int WorthRankMinNeighbours = 5;   // other maps with a value within WorthRankNeighbourStars stars
+        private const double WorthRankNeighbourStars = 0.5;
+
+        // Leaderboard.WorthRank20 ... WorthRank10000 only (Refresh runs it; also on its own, it changes nothing else)
+        public static async Task RefreshWorthByRank(AppContext dbContext)
+        {
+            Console.WriteLine("Recalculating worth by player rank");
+            dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
+            foreach (int rank in WorthRanks)
+            {
+                await DbSchema.AddColumnIfMissing(dbContext, "Leaderboards", $"WorthRank{rank}", "REAL");
+            }
+
+            var scores = await dbContext.Scores
+                .Where(s => s.Player.TopPp > 0 && s.Player.RankedPlayCount > WorthRankMinPlays && s.Player.Rank > 0 && s.Player.Rank <= 10000)
+                .Select(s => new { s.LeaderboardId, s.Pp, s.Player.TopPp, s.Player.Rank })
+                .ToListAsync();
+            var stars = await dbContext.Leaderboards.AsNoTracking().ToDictionaryAsync(l => l.Id, l => l.Stars);
+
+            // Per map and rank range: sum of pp / top pp, and how many scores
+            var sums = new Dictionary<string, (double Sum, int Count)[]>();
+            foreach (var s in scores)
+            {
+                int range = Array.FindIndex(WorthRanks, r => s.Rank <= r);
+                if (range < 0 || s.LeaderboardId == null || !stars.ContainsKey(s.LeaderboardId)) continue;
+                if (!sums.TryGetValue(s.LeaderboardId, out var ranges)) sums[s.LeaderboardId] = ranges = new (double, int)[WorthRanks.Length];
+                ranges[range] = (ranges[range].Sum + s.Pp / s.TopPp, ranges[range].Count + 1);
+            }
+
+            var worth = stars.Keys.ToDictionary(id => id, _ => new float?[WorthRanks.Length]);
+            for (int range = 0; range < WorthRanks.Length; range++)
+            {
+                var means = sums
+                    .Where(m => m.Value[range].Count >= WorthRankMinScores)
+                    .ToDictionary(m => m.Key, m => m.Value[range].Sum / m.Value[range].Count);
+                var points = means.Select(m => ((double)stars[m.Key], m.Value)).ToList();
+                Parallel.ForEach(means, m =>
+                {
+                    // Without enough other maps of its stars (the highest star maps), the reference is mostly the map itself
+                    double mapStars = stars[m.Key];
+                    if (points.Count(p => Math.Abs(p.Item1 - mapStars) <= WorthRankNeighbourStars) - 1 < WorthRankMinNeighbours) return;
+                    double reference = BalanceTuner.WorthReference(points, mapStars);
+                    if (reference > 0) worth[m.Key][range] = (float)(m.Value / reference - 1);
+                });
+            }
+
+            var updates = worth.Select(w => new Leaderboard
+            {
+                Id = w.Key,
+                WorthRank20 = w.Value[0],
+                WorthRank100 = w.Value[1],
+                WorthRank1000 = w.Value[2],
+                WorthRank3000 = w.Value[3],
+                WorthRank10000 = w.Value[4],
+            }).ToList();
+            await dbContext.BulkUpdateAsync(updates, options => options.ColumnInputExpression = c =>
+                new { c.WorthRank20, c.WorthRank100, c.WorthRank1000, c.WorthRank3000, c.WorthRank10000 });
+
+            dbContext.ChangeTracker.AutoDetectChangesEnabled = true;
+            Console.WriteLine($"Worth by player rank: {scores.Count} scores of the top 10000 players");
         }
 
         private static async Task DetermineTags(AppContext dbContext)

@@ -42,16 +42,7 @@
     <Content Remove="wwwroot\Database.db" />
     <Content Remove="wwwroot\db-20261007142817-8941.db" />
     <Content Remove="wwwroot\db-20261012191847-9271.db" />
-    <Content Remove="wwwroot\db-20261015031039-9347.db" />
-    <Content Remove="wwwroot\db-20261017041713-6103.db" />
-    <Content Remove="wwwroot\db-20261019021312-7862.db" />
-    <Content Remove="wwwroot\db-20261020015519-1202.db" />
-    <Content Remove="wwwroot\db-20261020212853-2956.db" />
-    <Content Remove="wwwroot\db-20261020213552-3050.db" />
-    <Content Remove="wwwroot\db-20261020223115-2133.db" />
-    <Content Remove="wwwroot\db-20261020224729-8121.db" />
-    <Content Remove="wwwroot\db-20261021023257-5357.db" />
-    <Content Remove="wwwroot\db-20261021024056-9803.db" />    <Content Remove="wwwroot\dump.zip" />
+    <Content Remove="wwwroot\dump.zip" />
     <Content Remove="wwwroot\export.json" />
   </ItemGroup>
 
