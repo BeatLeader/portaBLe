@@ -167,9 +167,9 @@ namespace portaBLe.DB
         public float Megametric75 { get; set; }
         public float Megametric40 { get; set; }
         // How much the map is worth to the players who play it compared with the other maps of its stars: Megametric75 / what
-        // maps of its stars average - 1 (the star ranges' averages 0-1 ... 12-13, 13+, interpolated by stars:
-        // BalanceTuner.WorthReference). +0.27 = 27% more than average. Null when the map
-        // has no Megametric75 or its range fewer than 5 maps. Computed by LeaderboardsRefresh.Refresh from its Megametric75;
+        // maps of its stars average - 1 (a local linear fit of Megametric75 on stars, Gaussian kernel of
+        // BalanceTuner.WorthBandwidth stars: BalanceTuner.WorthReference). +0.27 = 27% more than average. Null when the map
+        // has no Megametric75 or its star range (0-1 ... 12-13, 13+) fewer than 5 maps. Computed by LeaderboardsRefresh.Refresh from its Megametric75;
         // the balance tuner and the acc reweighter compute the same measure in memory (BalanceTuner.Worth, players with 75+
         // scores in the database rather than 75+ ranked plays), so their values can differ slightly.
         public float? Worth { get; set; }

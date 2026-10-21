@@ -63,13 +63,16 @@ to them. RatingAPI's response includes `stars` (without the acc reweighter's mul
 
 ## Acc reweighter
 
-`Refresh/Tools/AccReweighter.cs`: each map's worth (`Leaderboard.Worth`, its Megametric75 relative to its star range,
-shown on the Leaderboards and Leaderboard pages) is compared with what its kind of map is worth (pass / tech share,
-predicted acc, OneSaber, star range), and its acc rating is moved towards it.
+`Refresh/Tools/AccReweighter.cs`: each map's worth (`Leaderboard.Worth`, its Megametric75 relative to what maps of its
+stars average, shown on the Leaderboards and Leaderboard pages) is compared with what its kind of map is worth (pass /
+tech share, predicted acc, OneSaber, star range), and its acc rating is moved towards it.
 
+- What maps of its stars average is a local linear fit of Megametric75 on stars (`BalanceTuner.WorthReference`,
+  Gaussian kernel of `WorthBandwidth` 0.25 stars), so a map's reference doesn't jump at a star range boundary.
 - Everything is re-scored in memory for each try, since one map's change moves every player's weights.
 - Maps with few scores move less, and maps without a worth (newly ranked) keep ×1.
-- How far it goes is chosen on held-out players: it fits on one half of the players and checks on the other.
+- How far it goes is chosen on held-out players: it fits on one half of the players and checks on the other, and takes
+  the lowest held-out spread among the points that pass the balance guard.
 - The result is only kept if the balance tuner's slopes and gaps don't get worse.
 - Multipliers average 1 within each star range and stay within ±15% in the fit; only `Applied` (0.5) of that change is stored (in log), so ±7.5% at most.
 
@@ -83,15 +86,16 @@ predicted acc, OneSaber, star range), and its acc rating is moved towards it.
 | Parity | `RatingAPI/Analyzer/.../Algorithm/ParityPredictor.cs` (comfort / rotation / reset costs, `UsePairResets`) |
 | Tech shape | `RatingAPI/Analyzer/.../Data/Ratings.cs` (`TechExponent`, `TechPassBase`) |
 | Acc rating | `RatingAPI/Controllers/AccRating.cs` (`ACC_SCALE`, `ACC_OFFSET`, hard map correction `HARD_MAP_*`, `ACC_EXPONENT`, movement and high pass corrections `HIT_DISTANCE_*` / `HIGH_PASS_*`) |
-| pp formula | `RatingAPI/Pp/PpFormula.cs` (pass / acc / tech pp and their rating powers, stars `StarDivisor` / `StarScale` / `StarExponent`, `PpMultiplier`, low star bonus `LowStarBonus*`) |
+| pp formula | `RatingAPI/Pp/PpFormula.cs` (pass / acc / tech pp and their rating powers, pass top compression `PassTopKnee` / `PassTopSlope`, acc curve power `AccCurvePower` / `LowStarCurve*`, stars `StarDivisor` / `StarScale` / `StarExponent`, `PpMultiplier`, low star bonus `LowStarBonus*`) |
 | Acc reweighter | `Refresh/Tools/AccReweighter.cs` (`Passes`, `Strengths`, `EvidenceScores`, `MaxChange`, `Applied`, guard tolerances) |
-| Constants the tuner assumes | `Refresh/Tools/BalanceTuner.cs` (`RatingConstants`: keep it equal to the values in code) |
+| Constants the tuner assumes, worth reference | `Refresh/Tools/BalanceTuner.cs` (`RatingConstants`: keep it equal to the values in code; `WorthBandwidth`) |
 
 ## Layout
 
 | | |
 |---|---|
-| `Refresh/` | the rating / pp pipeline (`RatingsRefresh`, `ScoresPlayersRefresh`, `LeaderboardsRefresh`, `StatsRefresh`, `ReplayUtils`, `PpFormula`) |
+| `Refresh/` | the rating / pp pipeline (`RatingsRefresh`, `ScoresPlayersRefresh`, `LeaderboardsRefresh`, `StatsRefresh`, `ReplayUtils`) |
 | `Refresh/Tools/` | `AccReweighter` (writes ratings); read-only: `BalanceTuner`, `ModelComparisonExport`, `PassWindowCheck`, `ParityCheck` (Analyzer parity and directions vs replays), `RatingFitExport` (swings / scores / walls exports used to fit the formulas and the Acc AI's player skills) |
 | `Pages/` | the website (leaderboards, players, comparisons, Balance Tuning) |
-| `RatingAPI/` | submodule: Analyzer, Acc AI inference, acc rating |
+| `RatingAPI/` | submodule: Analyzer, Acc AI inference, acc rating, pp formula and stars (`Pp/`) |
+| `pp-calculation-example.html` | a worked example of how a score's pp and a map's stars are calculated |

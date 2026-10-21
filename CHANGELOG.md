@@ -124,19 +124,23 @@ validate constants. The one exception is the acc reweighter (below), the only to
     of each range by ~20%. Now within ±0.02 by position. Interpolating between the ranges' averages (tried first)
     underrated whole ranges (2–3★ −0.11, from the 5 maps of 1–2★) and moved the balance slopes. Same in
     `LeaderboardsRefresh`'s Worth.
+  - **Guard fix:** the held-out search picked the lowest held-out spread overall. With a balanced start that was pass 2,
+    where every point of the full run failed the balance guard, so nothing was kept. It now picks the lowest held-out
+    spread among the points that pass the guard (the lowest overall only when none do), and warns when nothing is kept.
+    `acc-reweight.json` also records the stored (halved) multipliers (`Applied`).
   - Examples: Ascension to Heaven Expert +1.32 → −0.10, Godspeed ExpertPlus +0.83 → +0.06.
   - Balance after it: pass share slope / gap 0.016 / 0.024, tech share slope / gap −0.020 / 0.004, predicted acc gap
     +0.002, OneSaber gap +0.012.
 - **Stored in `Leaderboard.AccReweight`** and kept when ratings are recomputed (`RatingsRefresh.Overwrite` / `Refresh`).
   Report in `wwwroot/acc-reweight.json`.
-- **`FullPipeline(dbContext, env, autoreweight, balancer)`** runs it (and the re-score after it) when `autoreweight` is
-  true.
+- **`FullPipeline(dbContext, env, autoreweight, balancer, keepAccReweight)`** runs it (and the re-score after it) when
+  `autoreweight` is true. `keepAccReweight` no longer has a default.
 - **The old `ScoresRefresh.Autoreweight` / `Autoreweight3` are removed.**
 
 ### Pages and tools
 
-- **Worth on the Leaderboards and Leaderboard pages:** `Leaderboard.Worth` (Megametric75 relative to the map's star range,
-  +0.27 = 27% more than average), computed by `LeaderboardsRefresh`.
+- **Worth on the Leaderboards and Leaderboard pages:** `Leaderboard.Worth` (Megametric75 relative to what maps of its
+  stars average, +0.27 = 27% more than average), computed by `LeaderboardsRefresh`.
 - **Leaderboards page redesigned:**
   - stars, pass, acc, tech and worth side by side, with sortable column headers;
   - difficulty badges, mapper under the name, characteristic tag;
@@ -145,6 +149,7 @@ validate constants. The one exception is the acc reweighter (below), the only to
   - 25 maps per page, and the selected database kept in every link.
 - **Balance tuner:** works on internal ratings, can classify maps by other ratings than the ones scored (used by the
   reweighter), and can measure worth on a subset of players.
+- **New `pp-calculation-example.html`:** a worked example of how a score's pp and a map's stars are calculated.
 - **`ParityCheck` exports** each swing's tech parts and the players' controller roll (research).
 
 ## Parity, pass refit, pp retune

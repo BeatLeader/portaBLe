@@ -141,7 +141,7 @@
             </div>
         </div>
         <div class="predicted-acc">Predicted acc: @((Model.Leaderboard.PredictedAcc * 100).ToString("0.00"))%</div>
-        <div class="predicted-acc" title="How much the map is worth to its players compared with the other maps of its stars (Megametric75 / its star range's average - 1; from the scores without modifiers)">Worth: @WorthText(Model.Leaderboard.Worth)@(Model.Modifier != "none" ? " (no modifier)" : "")</div>
+        <div class="predicted-acc" title="How much the map is worth to its players compared with the other maps of its stars (Megametric75 / what maps of its stars average - 1; from the scores without modifiers)">Worth: @WorthText(Model.Leaderboard.Worth)@(Model.Modifier != "none" ? " (no modifier)" : "")</div>
         @if (Model.NjsText(Model.Njs) is string njsText)
         {
             <div class="predicted-acc">@njsText</div>
@@ -214,7 +214,7 @@
                 </div>
             </div>
             <div class="predicted-acc">Predicted acc: @((Model.CompareLeaderboard.PredictedAcc * 100).ToString("0.00"))%</div>
-            <div class="predicted-acc" title="How much the map is worth to its players compared with the other maps of its stars (Megametric75 / its star range's average - 1; from the scores without modifiers)">Worth: @WorthText(Model.CompareLeaderboard.Worth)@(Model.Modifier != "none" ? " (no modifier)" : "")</div>
+            <div class="predicted-acc" title="How much the map is worth to its players compared with the other maps of its stars (Megametric75 / what maps of its stars average - 1; from the scores without modifiers)">Worth: @WorthText(Model.CompareLeaderboard.Worth)@(Model.Modifier != "none" ? " (no modifier)" : "")</div>
             @if (Model.NjsText(Model.CompareNjs) is string compareNjsText)
             {
                 <div class="predicted-acc">@compareNjsText</div>

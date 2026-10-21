@@ -1,7 +1,7 @@
 # Branch Changelog
 
-**Range:** `5890677` ("New model + auto-rebalancer", included) through `bbf1e34` on `loloppe-rebalancer`, plus the matching
-commits in the submodules: RatingAPI `3955df3 → 493468e` (15 commits) and Analyzer `0d47de6 → 62c59de` (9 commits). The
+**Range:** `5890677` ("New model + auto-rebalancer", included) through `263dc0b` on `loloppe-rebalancer`, plus the matching
+commits in the submodules: RatingAPI `3955df3 → 3484ca5` (16 commits) and Analyzer `0d47de6 → 43229f6` (10 commits). The
 Parser submodule is unchanged.
 
 ## Overview
@@ -13,8 +13,9 @@ real data: top players' replays, all ranked scores and fail attempts. The most i
   uses time-based windows, and tech only counts wrist work.
 - **Acc rating:** a new Acc AI model, per-map acc curves, and corrections for the maps where players fall short of the
   Acc AI's prediction (the hardest maps, maps where the hands travel far, maps with very high pass).
-- **pp formula:** moved into one tunable class and re-balanced so no kind of map is systematically worth more than others
-  of the same stars. Ratings, stars and players' pp are on prod's scale.
+- **pp formula:** moved into one tunable class in RatingAPI, made linear (no inflation power) and re-balanced so no kind of
+  map is systematically worth more than others of the same stars. Stars are what a 96% score is worth. Ratings, stars and
+  players' pp are on prod's scale.
 - **Tools:** a balance tuner, and an acc reweighter that corrects individual maps from scores, under balance guards.
 - **Website:** new Top Scores and Top Acc pages, a curve explorer, a pass comparison page, a worth column, a redesigned
   Leaderboards page, and much faster graph pages.
@@ -146,28 +147,38 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
 - **Impact:** The Purple Dimension and similar maps are no longer under-rated, without overvaluing Godspeed.
 
 ### API changes
-- **Removed:** the legacy `star_rating` (and `low_note_nerf`) fields of RatingAPI's response. portaBLe computes stars
-  itself.
-- **Added:** `slider_percentage`, `njs` and the hit distance.
+- **Removed:** the legacy `star_rating` (and `low_note_nerf`) fields of RatingAPI's response.
+- **Added:** `stars` (from RatingAPI's own pp formula, below, without the acc reweighter's multipliers, which only
+  portaBLe has), `slider_percentage`, `njs` and the hit distance.
+- **pp and stars in RatingAPI** (`3484ca5`): `RatingAPI/Pp` holds `PpFormula`, `PpCalculator` (score pp, stars, curve
+  lookup) and `ModifiersMap`, so a server needs RatingAPI only. portaBLe's `ReplayUtils` just passes its database values.
 - **Faster rating:** an overload rates only the requested modifiers, only the requested difficulty is parsed, and ONNX
   batches went from 4 to 512.
-- **Impact:** a breaking change for any other consumer of `star_rating`.
+- **Impact:** a breaking change for any other consumer of `star_rating` (`stars` replaces it, on the new scale).
 
 ---
 
 ## pp formula, stars and scale (portaBLe)
 
 ### pp formula centralized and retuned
-- **What:** the pp formula moved from hard-coded `ReplayUtils` into `PpFormula`, with a `PpMultiplier` (`5890677`). Net
-  changes from the start:
-  - **Pass pp:** `PassScale` 15.2 → 12.3, plus a top compression (each point above pass 13.4 counts half).
+- **What:** the pp formula moved from hard-coded `ReplayUtils` into `PpFormula`, with a `PpMultiplier` (`5890677`), and
+  then into RatingAPI (`RatingAPI/Pp`, `263dc0b`). Net changes from the start:
+  - **Pass pp:** `PassScale` 15.2 → 12.3, plus a top compression (each point above pass 10.4 counts half; 13.4 before the
+    inflation was removed).
   - **Acc and tech pp:** take the rating to a power, acc^1.2163 and tech^1.2477.
+  - **Acc curve power:** acc pp follows curve(96%) × (curve(acc) / curve(96%))^0.9, so it grows a little less above 96%
+    while stars don't move. The power is 1.0 up to 2★ and goes linearly to 0.9 at 5★.
   - **Tech:** tech pp = e^(`TechAccExponent` × acc) × `TechWeight` × tech^`TechRatingPower`. The exponent on accuracy,
     `TechAccExponent`, went 1.9 → 3.5 (`e90b2bb`); the power on the tech rating, `TechRatingPower` (1.2477), is a separate
-    and later change (below).
-  - **Low-star bonus:** maps under ~4.5★ get up to +40%.
-  - **Stars:** 1.2131 × (pp at 96% / 45.25)^0.9039.
-  - **`PpMultiplier`:** 1.146.
+    and later change (below). `TechWeight` is 0.0891.
+  - **No inflation:** pp is (pass + acc + tech) × `PpMultiplier`; it was 650 × (sum / 650)^1.3.
+  - **Low-star bonus:** maps under ~4.5★ get up to about +18% (0.0321 × (4.49 − stars)^1.36; twice that before the
+    inflation was removed).
+  - **Stars:** what a 96% score is worth: 1.2131 × (final pp of a 96% score / `PpMultiplier` / 83.69)^1.1751, with the
+    map's own curve (slider tilt included) and the low-star bonus (solved as a fixed point, since the bonus depends on
+    stars). SS / FS / SFS stars use their own curves.
+  - **`PpMultiplier`:** 1.0833.
+  - **One saber nerf** (Analyzer `ONE_SABER_NERF`): 0.49.
 - **Why:**
   - **Pass top compression:** maps with more pass than others of their stars were worth more above ~10★.
   - **Low-star bonus:** top players farm the easiest maps past 99% while stars are measured at 96%, so pp fell off steeply
@@ -179,6 +190,16 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
     a 90% score gets about 22% less tech pp than a 96% one (11% with 1.9), and tech pp is about twice as large at 96%. It
     departs from prod's 1.9. The reason is confirmed by the author; the effect is computed from the formulas at that
     commit.
+  - **No inflation:** most scores' sum is under 650, so their pp rose (×1.44 under 3★, ×1.26 at 7–9★, ×1.15 at 13★+; the
+    highest score 949 → 897) and harder maps count relatively less. `StarDivisor` / `StarExponent` were converted so every
+    map keeps its stars (exactly above 4.49★), and `PpMultiplier` keeps the top 1000 players' totals on average.
+  - **Rebalance after it** (acc curve power 0.9, `PassTopKnee` 13.375 → 10.4, `TechWeight` 0.0938 → 0.0891,
+    `LowStarBonus` halved, one saber nerf 0.548 → 0.49): with pp linear, pass-heavy maps were worth more than others of
+    their stars, and pp at the predicted acc was higher on 1–3★ maps than on 3–5★ maps. Pass share slope / gap
+    +0.036 / +0.019 → 0.000 / 0.000, OneSaber gap −0.009 → −0.003, pp at the predicted acc 578, 548, 525, 522 → 466, 464,
+    473, 490 from 1★. The 0.9 power cut top players' scores most on easy maps, so the low-star curve power brings part of
+    it back (top 100's median pp at 1–2 … 4–5★: 398, 404, 443, 478 before, 325, 362, 412, 456 with 0.9, 362, 385, 424,
+    460 now).
 - **Impact:** over the last development round (`e90b2bb` → `1b5d6d0`), the balance tuner's metrics improved: pass share
   slope 0.049 → 0.016, tech share gap 0.033 → 0.004. The range's starting point was never measured with the tuner, so there
   are no figures from the very start.
@@ -201,7 +222,7 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
 
 ### Balance tuner and Balance Tuning page
 - **What:** `BalanceTuner` re-scores every score in memory (~6 s per pass) and measures each map's worth: Megametric75
-  relative to its star band. It reports slopes and gaps by pass / acc / tech share, predicted acc and OneSaber, and
+  relative to what maps of its stars average (`WorthReference`, below). It reports slopes and gaps by pass / acc / tech share, predicted acc and OneSaber, and
   suggests constants. A separate sweep explores pp formula parts. Shown on a new Balance Tuning page. (`5890677` onward)
 - **Why:** confirmed: so no kind of map is systematically worth more than others of the same stars.
 - **Impact:** every constant change in the range was checked with it. Its pass-calibration suggestion proved unreliable
@@ -213,6 +234,12 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
   - **Scaling:** evidence-weighted (maps with few scores move less, newly ranked maps stay ×1).
   - **Search:** a line search over several passes, with how far to go chosen on held-out players.
   - **Guards:** balance guards must pass, multipliers average 1 within each star band and stay within ±15%.
+  - **Halved** (`Applied` 0.5, `263dc0b`): only half of the fitted change (in log) is stored, so ±7.5% at most.
+  - **Smooth worth reference** (`263dc0b`): a map's Megametric75 is compared with a local linear fit of Megametric75 on
+    stars (Gaussian kernel, `BalanceTuner.WorthBandwidth` 0.25★) instead of its star range's average. Also used for
+    `Leaderboard.Worth`.
+  - **Guard fix** (`263dc0b`): the held-out search now picks the lowest held-out spread among the points that pass the
+    balance guard, and warns when nothing is kept.
   - **Storage:** `Leaderboard.AccReweight`, kept by `Overwrite` / `Refresh`, which can also return raw acc ratings.
   - **Replaces:** the old `Autoreweight` / `Autoreweight3` tools, which are removed.
 - **Why:** confirmed.
@@ -221,6 +248,14 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
     0.24); the other half is noise and is left alone.
   - Several naive versions broke the balance: correcting kinds of maps, fixed step sizes, and slopes measured on the
     reweighted shares.
+  - **Halved:** players found the full fit too strong and the database better without it. Most of the worth spread goes
+    early on the held-out path (0.49 → 0.34 with a 1.7% mean change).
+  - **Smooth reference:** with the step, maps at the top of a range looked overworth (+0.09 in the top fifth) and maps at
+    the bottom underworth (−0.07), and a map crossing a range boundary changed reference at once, so the reweighter
+    emptied the outer tenth of each range by ~20%. Now within ±0.02 by position. Interpolating between the ranges'
+    averages (tried first) underrated whole ranges (2–3★ −0.11, from the 5 maps of 1–2★).
+  - **Guard fix:** with a balanced start, the lowest held-out spread overall was at pass 2, where every point of the full
+    run failed the guard, so nothing was kept.
 - **Impact:** outliers corrected (Ascension to Heaven Expert worth +1.32 → −0.10; 3585 maps, 4.1% on average) with balance
   kept. Worth spread is no longer a fair overall balance measure afterwards.
 
@@ -245,6 +280,7 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
 - **Curve Explorer:** the acc curve for any predicted acc.
 - **Pass Comparison:** pass ordering, current vs database vs prod.
 - **Balance Tuning page** (see above).
+- **`pp-calculation-example.html`:** a worked example of how a score's pp and a map's stars are calculated.
 
 ### Improved pages
 - **Leaderboard:**
@@ -252,8 +288,8 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
   - a modifier selector;
   - the map's acc curve and a pp table;
   - worth.
-- **Leaderboards:** redesigned with all ratings, sortable headers, difficulty badges, worth tinted when far from the band,
-  and 25 per page.
+- **Leaderboards:** redesigned with all ratings, sortable headers, difficulty badges, worth tinted when far from average,
+  search by song or mapper name, and 25 per page.
 - **Weighted / Unweighted Scores graphs:** read from the Top Scores cache instead of the scores table
   (`Services/ScoresGraphData`), with rolling averages over every score and speed-modifier filters.
 - **Players pp graph:** loads its points asynchronously, reading only the columns drawn.
@@ -279,7 +315,7 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
   - `Overwrite` rates only the stored modifiers.
   - Columns are checked before being added (`DbSchema`), so failed `ALTER TABLE` errors no longer fill the log.
 - **`FullPipeline(autoreweight, balancer, keepAccReweight)`:** Overwrite → RefreshEverything → AccReweighter →
-  RefreshEverything → BalanceTuner / comparisons. `RatingsRefresh.RefreshNjs` and `CurvesRefresh.Regenerate` fill new
+  RefreshEverything → BalanceTuner / comparisons. `keepAccReweight` no longer has a default. `RatingsRefresh.RefreshNjs` and `CurvesRefresh.Regenerate` fill new
   columns without re-rating.
 - **New database columns:** `Njs`, `HitDistance`, `AccReweight`, `Worth`, and per-modifier curves.
 - **Project:**
@@ -304,5 +340,6 @@ sit on prod's scale.
 - **Burst sensitivity:** the 4–32 s windows bring back some sensitivity to short bursts.
 - **Scores in the ratings:** the acc reweighter uses scores (by design, as the only exception), adds a second re-score to
   the pipeline, and makes worth spread unusable as an overall balance measure afterwards.
-- **For consumers of RatingAPI:** `star_rating` is gone, and pp computed from its ratings needs the new rating powers.
+- **For consumers of RatingAPI:** `star_rating` is gone (replaced by `stars`), and pp should be computed with
+  `RatingAPI/Pp` (rating powers, acc curve power, no inflation) rather than prod's formula.
 - **Small samples:** OneSaber (73 maps) and the 13+★ band are small, so their metrics are noisy.

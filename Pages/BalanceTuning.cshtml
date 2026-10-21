@@ -28,7 +28,7 @@
 
 <div class="alert alert-secondary small">
     <strong>How balance is measured.</strong> A map's <em>worth</em> is its Megametric75 (how much it counts in the profiles of the players
-    who play it) relative to the average map of its star range: 0 = average, +0.10 = 10% more valuable. Each constant is moved until the
+    who play it) relative to what maps of its stars average: 0 = average, +0.10 = 10% more valuable. Each constant is moved until the
     worth no longer depends on what it controls: the pass calibration against the share of pass pp at the predicted acc, the tech pp
     weight against the share of tech pp (the tech scaler stays as it is, so tech ratings keep their usual scale), the one saber nerf against OneSaber vs Standard maps of the same stars, and the acc offset against the
     20% easiest-acc maps vs the 20% hardest. The acc scale is the reference and isn't tuned (the three shares add up to 100%, and scaling
@@ -83,7 +83,7 @@
                 <tr><td>Most minus least pass-heavy 20%</td><td class="text-end">@Signed(a.PassShareGap)</td><td class="text-end">@Signed(b.PassShareGap)</td></tr>
                 <tr><td>Most minus least tech-heavy 20%</td><td class="text-end">@Signed(a.TechShareGap)</td><td class="text-end">@Signed(b.TechShareGap)</td></tr>
                 <tr><td>OneSaber vs Standard of the same stars (@a.OneSaberMaps maps)</td><td class="text-end">@Signed(a.OneSaberGap)</td><td class="text-end">@Signed(b.OneSaberGap)</td></tr>
-                <tr class="table-light"><td>Typical distance from the star range's average ↓</td><td class="text-end">@a.WorthSpread.ToString("0.000")</td><td class="text-end">@b.WorthSpread.ToString("0.000")</td></tr>
+                <tr class="table-light"><td>Typical distance from the average for the map's stars ↓</td><td class="text-end">@a.WorthSpread.ToString("0.000")</td><td class="text-end">@b.WorthSpread.ToString("0.000")</td></tr>
             </tbody>
         </table>
     </div>

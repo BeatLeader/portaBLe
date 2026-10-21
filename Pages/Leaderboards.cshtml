@@ -37,7 +37,7 @@
             @SortHeader("PassRating", "Pass", "Pass rating")
             @SortHeader("AccRating", "Acc", "Acc rating")
             @SortHeader("TechRating", "Tech", "Tech rating")
-            @SortHeader("Worth", "Worth", "How much the map is worth to its players compared with the other maps of its stars: Megametric75 / its star range's average - 1 (+0.27 = 27% more)")
+            @SortHeader("Worth", "Worth", "How much the map is worth to its players compared with the other maps of its stars: Megametric75 / what maps of its stars average - 1 (+0.27 = 27% more)")
         </tr>
     </thead>
     <tbody>
@@ -92,7 +92,7 @@
 @functions {
     static string WorthText(float? worth) => worth is float w ? w.ToString("+0.00;-0.00;0.00", System.Globalization.CultureInfo.InvariantCulture) : "—";
 
-    // A quarter or more above / below its star range
+    // A quarter or more above / below what maps of its stars average
     static string WorthClass(float? worth) => worth is float w ? (w >= 0.25f ? "worth-high" : w <= -0.25f ? "worth-low" : "worth-even") : "worth-none";
 
     static string DifficultyLabel(string? difficulty) => difficulty == "ExpertPlus" ? "Expert+" : difficulty ?? "";

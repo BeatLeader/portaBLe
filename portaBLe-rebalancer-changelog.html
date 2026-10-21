@@ -100,7 +100,7 @@ footer { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--li
   <div class="eyebrow">BeatLeader / portaBLe · branch <code>loloppe-rebalancer</code></div>
   <h1>portaBLe Rebalancer Changelog</h1>
   <p class="lede">This branch rebuilds BeatLeader's rating system in portaBLe so that every rating change is fitted on, or checked against, real data: top players' replays, all ranked scores and fail attempts. Below is what changed and why.</p>
-  <div class="ranges"><span>portaBLe 5890677 → bbf1e34</span><span>RatingAPI 3955df3 → 493468e</span><span>Analyzer 0d47de6 → 62c59de</span></div>
+  <div class="ranges"><span>portaBLe 5890677 → 263dc0b</span><span>RatingAPI 3955df3 → 3484ca5</span><span>Analyzer 0d47de6 → 43229f6</span></div>
 </header>
 
 <section aria-labelledby="o">
@@ -123,13 +123,13 @@ footer { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--li
     <dl class="terms">
       <div id="worth"><dt>Worth</dt><dd>
         <span>How much a map pays off for the players who play it, compared with the other maps of the same star rating. 0.00 is average for its stars, +0.27 is 27% more valuable than average, −0.20 is 20% less.</span>
-        <span>It's the map's <a class="term" href="#megametric">Megametric75</a> divided by the average Megametric75 of its <a class="term" href="#star-range">star range</a>, minus 1. A balanced system puts every map near 0.</span>
+        <span>It's the map's <a class="term" href="#megametric">Megametric75</a> divided by what maps of its stars average, minus 1. That average is a smooth fit of Megametric75 against stars (each map weighted by how close its stars are, within about a quarter of a star), so a 5.9★ map and a 6.1★ map are compared with nearly the same reference. A balanced system puts every map near 0.</span>
         <span class="eg">On the Leaderboard page it always comes from scores without modifiers, so "(no modifier)" appears when you pick SS, FS or SFS. On the Leaderboards list, +0.25 or more is tinted red (overpaying) and −0.25 or less blue (underpaying). It's blank when the map has too few qualifying scores or its star range has fewer than 5 maps.</span></dd></div>
       <div id="megametric"><dt>Megametric75</dt><dd>
         <span>How much a map counts in the profiles of the players who play it. For each score: the score's pp divided by that player's top pp, times the score's weight in their profile. A score that is one of a player's best plays and counts fully scores high.</span>
         <span class="eg">Averaged over the top third of the map's scores by weight, from players with 75 or more ranked plays (hence "75").</span></dd></div>
       <div id="star-range"><dt>Star range (band)</dt><dd>
-        <span>Maps are grouped by whole stars: 0–1★, 1–2★, … 12–13★, and 13★+. Worth always compares a map with its own range, so a 12★ map isn't judged against 4★ maps.</span></dd></div>
+        <span>Maps are grouped by whole stars: 0–1★, 1–2★, … 12–13★, and 13★+. The balance tuner reports by range, and the acc reweighter keeps each range's average multiplier at 1. Worth used to compare a map with its own range's average, which made maps at the top of a range look overworth and maps at the bottom underworth; it now uses the smooth reference above, but only for ranges with at least 5 maps.</span></dd></div>
       <div id="shares"><dt>Pass / acc / tech share</dt><dd>
         <span>How a map's pp splits between its three parts, for a score at the map's predicted acc. A speed map might be 60% pass pp; a tech map has a large tech share. The three add up to 100%.</span></dd></div>
       <div id="slopes"><dt>Share slope and gap</dt><dd>
@@ -165,9 +165,13 @@ footer { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--li
       <div id="display-curves"><dt>Display curves (removed)</dt><dd>
         <span>For a while the branch kept "internal" ratings and converted them to prod-like numbers only for display. Those conversions are now built into the formulas, so the rating you see is the one used for pp.</span></dd></div>
       <div id="low-star"><dt>Low-star bonus</dt><dd>
-        <span>Extra pp on maps under about 4.5★: about +35% at 1★, fading to nothing at 4.5★. Top players push easy maps past 99% while stars are measured at 96%, so without it these maps paid too little.</span></dd></div>
+        <span>Extra pp on maps under about 4.5★: about +18% at 1★, fading to nothing at 4.5★ (it was twice that before the inflation was removed, which already raised low-star pp the most). Top players push easy maps past 99% while stars are measured at 96%, so without it these maps paid too little.</span></dd></div>
       <div id="compression"><dt>Pass top compression</dt><dd>
-        <span>Above a pass rating of about 13.4, each extra pass point counts half in pass pp. Maps with unusually high pass were worth more than others of their stars.</span></dd></div>
+        <span>Above a pass rating of 10.4, each extra pass point counts half in pass pp (13.4 before the inflation was removed). Maps with unusually high pass were worth more than others of their stars.</span></dd></div>
+      <div id="curve-power"><dt>Acc curve power</dt><dd>
+        <span>Acc pp follows a slightly flatter version of the map's curve around 96%: curve(96%) × (curve(acc) / curve(96%))<sup>0.9</sup>. A 96% score pays the same, so stars don't move; scores above 96% gain a little less acc pp. On easy maps, where top players score far above 96%, the power is 1.0 up to 2★ and goes to 0.9 at 5★.</span></dd></div>
+      <div id="inflation"><dt>Inflation (removed)</dt><dd>
+        <span>pp used to be 650 × ((pass + acc + tech) / 650)<sup>1.3</sup>, which made a higher total worth disproportionately more. pp is now just the sum times the pp multiplier, so most scores rose (×1.44 under 3★, ×1.15 at 13★+) and harder maps count relatively less.</span></dd></div>
     </dl>
   </div>
 
@@ -182,7 +186,7 @@ footer { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--li
       <div id="evidence"><dt>Evidence weighting</dt><dd>
         <span>Maps with few scores move less under the reweighter, because their worth is mostly noise. Newly ranked maps aren't moved.</span></dd></div>
       <div id="held-out"><dt>Held-out players</dt><dd>
-        <span>The reweighter splits players into two halves. It fits on one half and checks on the other, and stops where the check stops improving. That keeps it from fitting noise.</span></dd></div>
+        <span>The reweighter splits players into two halves. It fits on one half and checks on the other, and stops where the check is best among the points that keep the balance metrics. That keeps it from fitting noise.</span></dd></div>
       <div id="effective-njs"><dt>Effective NJS</dt><dd>
         <span>Note jump speed with the speed modifier applied (faster under SS / FS / SFS). The Leaderboard page shows it next to the base NJS when you pick a modifier.</span></dd></div>
       <div id="cache"><dt>Top Scores cache</dt><dd>
@@ -206,7 +210,11 @@ footer { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--li
         <tr><td>Acc rating</td><td class="num">15.5 / Curve<span class="arrow">→</span>13.5382 × Curve<sup>−0.8222</sup></td><td>Prod's scale, with per-map curves</td></tr>
         <tr><td>Pass scale (pp)</td><td class="num">15.2<span class="arrow">→</span>12.3</td><td>Balance with the new pass</td></tr>
         <tr><td>Tech acc exponent</td><td class="num">1.9<span class="arrow">→</span>3.5</td><td>Tech pp goes to high-acc scores</td></tr>
-        <tr><td>pp multiplier</td><td class="num">1.075<span class="arrow">→</span>1.146</td><td>Player totals on prod's scale</td></tr>
+        <tr><td>pp inflation power</td><td class="num">1.3<span class="arrow">→</span>none</td><td>Harder maps counted disproportionately more</td></tr>
+        <tr><td>Acc curve power</td><td class="num">1<span class="arrow">→</span>0.9 (1.0 under 2★)</td><td>Pass-heavy maps were worth more after the inflation was removed</td></tr>
+        <tr><td>Pass top knee</td><td class="num">13.375<span class="arrow">→</span>10.4</td><td>The highest-pass maps were worth more</td></tr>
+        <tr><td>pp multiplier</td><td class="num">1.075<span class="arrow">→</span>1.0833</td><td>Player totals on prod's scale, linear pp</td></tr>
+        <tr><td>Acc reweight limit</td><td class="num">±15%<span class="arrow">→</span>±7.5%</td><td>Only half of the fit is applied</td></tr>
         <tr><td>ONNX batch size</td><td class="num">4<span class="arrow">→</span>512</td><td>Much faster rating</td></tr>
       </tbody>
     </table>
@@ -309,9 +317,9 @@ footer { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--li
 
   <article class="change">
     <h3>API changes</h3>
-    <div class="row"><span class="label what">What</span><div>The legacy <code>star_rating</code> and <code>low_note_nerf</code> fields are removed; <code>slider_percentage</code>, <code>njs</code> and hit distance are added. Rating can be limited to the requested modifiers and difficulty, and ONNX batches went from 4 to 512.</div></div>
-    <div class="row"><span class="label why">Why</span><div>portaBLe computes stars itself, the new fields feed the per-map curves and the acc corrections, and whole maps are predicted in a few calls instead of many.</div></div>
-    <div class="row"><span class="label impact">Impact</span><div>Any other consumer of <code>star_rating</code> breaks.</div></div>
+    <div class="row"><span class="label what">What</span><div>The legacy <code>star_rating</code> and <code>low_note_nerf</code> fields are removed; <code>stars</code>, <code>slider_percentage</code>, <code>njs</code> and hit distance are added. The pp formula and stars now live in RatingAPI (<code>RatingAPI/Pp</code>: <code>PpFormula</code>, <code>PpCalculator</code>, <code>ModifiersMap</code>). Rating can be limited to the requested modifiers and difficulty, and ONNX batches went from 4 to 512.</div></div>
+    <div class="row"><span class="label why">Why</span><div>A server can compute pp and stars with RatingAPI alone, without portaBLe. The new fields feed the per-map curves and the acc corrections, and whole maps are predicted in a few calls instead of many.</div></div>
+    <div class="row"><span class="label impact">Impact</span><div>Any other consumer of <code>star_rating</code> breaks; <code>stars</code> replaces it (without the acc reweighter's multipliers, which only portaBLe has).</div></div>
   </article>
 </section>
 
@@ -321,18 +329,21 @@ footer { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--li
   <article class="change">
     <h3>The pp formula in one tunable class</h3>
     <div class="row"><span class="label what">What</span><div>The pp formula moved from hard-coded <code>ReplayUtils</code> into <code>PpFormula</code>, which lives in RatingAPI (<code>RatingAPI/Pp</code>, with <code>PpCalculator</code> for score pp and stars) so the server can use it without portaBLe. Net changes:<ul>
-      <li><b>Pass pp:</b> <code>PassScale</code> 15.2 → 12.3, and each pass point above 13.4 counts half.</li>
+      <li><b>Pass pp:</b> <code>PassScale</code> 15.2 → 12.3, and each pass point above 10.4 counts half.</li>
       <li><b>Acc and tech pp</b> take the rating to a power: acc<sup>1.2163</sup>, tech<sup>1.2477</sup>.</li>
-      <li><b>Tech pp</b> = e<sup>3.5 × acc</sup> × weight × tech<sup>1.2477</sup>; the exponent on accuracy went 1.9 → 3.5.</li>
-      <li><b>Low-star bonus:</b> maps under ~4.5★ pay more (about +35% at 1★, fading to nothing at 4.5★).</li>
+      <li><b>Acc pp</b> follows the map's curve to the <a class="term" href="#curve-power">power 0.9</a> around 96% (1.0 under 2★).</li>
+      <li><b>Tech pp</b> = e<sup>3.5 × acc</sup> × 0.0891 × tech<sup>1.2477</sup>; the exponent on accuracy went 1.9 → 3.5.</li>
+      <li><b>Low-star bonus:</b> maps under ~4.5★ pay more (about +18% at 1★, fading to nothing at 4.5★).</li>
       <li><b>No inflation:</b> pp is the sum of pass, acc and tech pp times the pp multiplier (it was raised to the power 1.3 around 650, which made harder maps count disproportionately more).</li>
-      <li><b>Stars</b> = 1.2131 × (final pp of a 96% score / 1.0786 / 83.69)<sup>1.1751</sup>: what a 96% is actually worth, with the map's own acc curve and the low-star bonus (the same stars as before the inflation was removed). <b>pp multiplier</b> 1.0786.</li></ul></div></div>
+      <li><b>Stars</b> = 1.2131 × (final pp of a 96% score / pp multiplier / 83.69)<sup>1.1751</sup>: what a 96% is actually worth, with the map's own acc curve and the low-star bonus (the same stars as before the inflation was removed). <b>pp multiplier</b> 1.0833.</li>
+      <li><b>One saber nerf</b> (Analyzer): 0.49.</li></ul></div></div>
     <div class="row"><span class="label why">Why</span><div><ul>
       <li><b>Pass compression:</b> maps with more pass than others of their stars were worth more above ~10★.</li>
       <li><b>Low-star bonus:</b> top players farm the easiest maps past 99% while stars are measured at 96%, so pp fell off steeply under 4★. An earlier soft floor on the acc rating squeezed those maps into 2.5–4★, so it was replaced.</li>
       <li><b>Rating powers:</b> with pp proportional to the prod-scaled ratings, acc-heavy maps lost pp against pass-heavy ones of the same stars, and no weight combination undid it.</li>
-      <li><b>Tech exponent 3.5:</b> tech pp should go mostly to high-acc scores on tech maps, not almost as much to any pass. A 90% score now gets about 19% less tech pp than a 96% one (11% before), and tech pp is about twice as large at 96%. This departs from prod's 1.9.</li></ul></div></div>
-    <div class="row"><span class="label impact">Impact</span><div>Over the last development round the balance tuner's metrics improved: pass share slope 0.049 → 0.016, tech share gap 0.033 → 0.004.</div></div>
+      <li><b>Tech exponent 3.5:</b> tech pp should go mostly to high-acc scores on tech maps, not almost as much to any pass. A 90% score now gets about 19% less tech pp than a 96% one (11% before), and tech pp is about twice as large at 96%. This departs from prod's 1.9.</li>
+      <li><b>Rebalance after the inflation was removed:</b> with pp linear, pass-heavy maps were worth more than others of their stars, and pp at the predicted acc was higher on 1–3★ maps than on 3–5★ maps. The acc curve power, the pass knee at 10.4, <code>TechWeight</code> 0.0938 → 0.0891, a halved low-star bonus and the one saber nerf 0.548 → 0.49 fixed both (pass share slope / gap +0.036 / +0.019 → 0.000 / 0.000; pp at the predicted acc 578, 548, 525, 522 → 466, 464, 473, 490 from 1★). The 0.9 power cut top players' scores most on easy maps, so it fades in from 2★ to 5★ (top 100's median pp at 1–2 … 4–5★: 398, 404, 443, 478 before, 362, 385, 424, 460 now).</li></ul></div></div>
+    <div class="row"><span class="label impact">Impact</span><div>Over the last development round the balance tuner's metrics improved: pass share slope 0.049 → 0.016, tech share gap 0.033 → 0.004. Without inflation the leaderboard is more compressed: harder maps count relatively less.</div></div>
   </article>
 
   <article class="change">
@@ -354,7 +365,7 @@ footer { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--li
 
   <article class="change">
     <h3>Balance tuner and Balance Tuning page</h3>
-    <div class="row"><span class="label what">What</span><div><code>BalanceTuner</code> re-scores every score in memory and measures each map's <a class="term" href="#worth">worth</a> (<a class="term" href="#megametric">Megametric75</a> relative to its star range). It reports slopes and gaps by pass, acc and tech share, predicted acc and OneSaber, suggests constants, and can sweep parts of the pp formula.</div></div>
+    <div class="row"><span class="label what">What</span><div><code>BalanceTuner</code> re-scores every score in memory and measures each map's <a class="term" href="#worth">worth</a> (<a class="term" href="#megametric">Megametric75</a> relative to what maps of its stars average). It reports slopes and gaps by pass, acc and tech share, predicted acc and OneSaber, suggests constants, and can sweep parts of the pp formula.</div></div>
     <div class="row"><span class="label why">Why</span><div>So no kind of map is systematically worth more than others of the same stars.</div></div>
     <div class="row"><span class="label impact">Impact</span><div>Every constant change on the branch was checked with it. Its pass-calibration suggestion proved unreliable (often at the edge of its range).</div></div>
   </article>
@@ -364,10 +375,14 @@ footer { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--li
     <div class="row"><span class="label what">What</span><div><code>AccReweighter</code> moves each map's acc rating towards what its kind of map is worth:<ul>
       <li><b>Target</b> fitted on pass / tech share, predicted acc, OneSaber and star band.</li>
       <li><b>Evidence-weighted:</b> maps with few scores move less, newly ranked maps stay ×1.</li>
-      <li><b>Line search</b> over several passes, with how far to go chosen on held-out players.</li>
+      <li><b>Line search</b> over several passes, with how far to go chosen on held-out players: the best held-out point among those that pass the balance guards.</li>
       <li><b>Guards:</b> balance metrics must hold, multipliers average 1 per star band and stay within ±15%. Only half of that change (in log) is applied, so ±7.5% at most: players found the full fit too strong.</li>
+      <li><b>Smooth worth reference:</b> each map is compared with what maps of its stars average (a smooth fit on stars) instead of its range's average.</li>
       <li><b>Stored</b> in <code>Leaderboard.AccReweight</code> and kept across re-rating. It replaces the old <code>Autoreweight</code> tools.</li></ul></div></div>
-    <div class="row"><span class="label why">Why</span><div>The old tools were one-shot, unguarded and lost on re-rating. About half of each map's worth deviation reproduces across independent halves of the players (held-out spread 0.49 → 0.24); the other half is noise and is left alone. Simpler versions (correcting whole kinds of maps, fixed step sizes) broke the balance.</div></div>
+    <div class="row"><span class="label why">Why</span><div><ul>
+      <li>The old tools were one-shot, unguarded and lost on re-rating. About half of each map's worth deviation reproduces across independent halves of the players (held-out spread 0.49 → 0.24); the other half is noise and is left alone. Simpler versions (correcting whole kinds of maps, fixed step sizes) broke the balance.</li>
+      <li><b>Smooth reference:</b> against its range's average, a map at the top of a range looked overworth (+0.09 in the top fifth) and one at the bottom underworth (−0.07), and crossing a boundary changed a map's reference at once, so the reweighter emptied the outer tenth of each range by ~20%. Now within ±0.02 whatever the position.</li>
+      <li><b>Guard fix:</b> it used to pick the best held-out point overall. With a balanced start that point failed the balance guard on the full run, so nothing was kept at all.</li></ul></div></div>
     <div class="row"><span class="label impact">Impact</span><div>Outliers are corrected with balance kept: Ascension to Heaven Expert goes from +1.32 to −0.10 worth; 3585 maps move, 4.1% on average. It's the only rating change that uses scores.</div></div>
   </article>
 
@@ -388,7 +403,8 @@ footer { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--li
       <li><b>Top Acc per Map:</b> top accuracies against stars, with an optional comparison database.</li>
       <li><b>Curve Explorer:</b> the acc curve for any predicted acc.</li>
       <li><b>Pass Comparison:</b> pass ordering, current vs database vs prod.</li>
-      <li><b>Balance Tuning</b> (above).</li></ul></div></div>
+      <li><b>Balance Tuning</b> (above).</li>
+      <li><b>pp calculation example</b> (<code>pp-calculation-example.html</code>): a worked example of how a score's pp and a map's stars are calculated.</li></ul></div></div>
     <div class="row"><span class="label why">Why</span><div>Each one makes a part of the rework visible: where top scores land, how curves behave, and how pass ordering moved against prod.</div></div>
   </article>
 
@@ -427,7 +443,7 @@ footer { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--li
       <li><b>Fitted to this data:</b> many constants (pair table, dot offsets, acc corrections, rating powers) are fitted on today's ranked set and replays, and should be refitted when the model or data change much.</li>
       <li><b>Burst sensitivity:</b> the 4–32 s windows bring back some sensitivity to short bursts.</li>
       <li><b>Scores in the ratings:</b> the acc reweighter uses scores by design, adds a second re-score to the pipeline, and makes worth spread unusable as an overall balance measure afterwards.</li>
-      <li><b>RatingAPI consumers:</b> <code>star_rating</code> is gone, and pp computed from its ratings needs the new rating powers.</li>
+      <li><b>RatingAPI consumers:</b> <code>star_rating</code> is gone (replaced by <code>stars</code>), and pp should be computed with <code>RatingAPI/Pp</code> (rating powers, acc curve power, no inflation) rather than prod's formula.</li>
       <li><b>Small samples:</b> OneSaber (73 maps) and the 13+★ band are small, so their metrics are noisy.</li>
     </ul>
   </div>

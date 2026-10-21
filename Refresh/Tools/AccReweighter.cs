@@ -8,8 +8,8 @@ namespace portaBLe.Refresh
     // worth about as much to players as the other maps of its kind, without changing the balance between kinds of maps.
     //
     // A map's worth is its Megametric75 (how much it counts in the profiles of the players who play it) relative to what maps
-    // of its stars average (BalanceTuner.Worth: star range averages interpolated by stars, so crossing a range boundary
-    // doesn't change what a map is compared with), every score re-scored in memory with the multipliers being tried
+    // of its stars average (BalanceTuner.Worth: a local linear fit of Megametric75 on stars, WorthReference, so crossing a
+    // range boundary doesn't change what a map is compared with), every score re-scored in memory with the multipliers being tried
     // (players' weights and every map's worth move when one map changes).
     //
     // Target: before any change, worth is fitted on the balance tuner's features (pass and tech pp shares at the predicted acc,

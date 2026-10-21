@@ -43,7 +43,7 @@ namespace portaBLe.Refresh
     //
     // For every value tried, the stored ratings are transformed, stars rebuilt, every score re-scored and every player's
     // weighted pp rebuilt, in memory. A map's "worth" is its Megametric75 (how much it counts in the profiles of the players
-    // who play it) divided by the average of its star range: 0 = average for its stars, +0.2 = 20% more valuable. Each
+    // who play it) divided by what maps of its stars average: 0 = average for its stars, +0.2 = 20% more valuable. Each
     // constant is moved until the worth no longer depends on what it controls:
     //   PassCalibration -> share of pass pp at the predicted acc
     //   TechWeight      -> share of tech pp at the predicted acc
@@ -1015,7 +1015,7 @@ namespace portaBLe.Refresh
     public class BalanceStats
     {
         public int Maps { get; set; }
-        // Change of a map's worth (Megametric75 relative to its star range) per +10% of pass / acc / tech pp share at the
+        // Change of a map's worth (Megametric75 relative to what maps of its stars average) per +10% of pass / acc / tech pp share at the
         // predicted acc, and per +1 point of predicted acc. 0 = balanced.
         public double PassShareSlope { get; set; }
         public double AccShareSlope { get; set; }
@@ -1028,7 +1028,7 @@ namespace portaBLe.Refresh
         // OneSaber maps' average worth minus Standard maps' of the same stars (0 = balanced)
         public int OneSaberMaps { get; set; }
         public double OneSaberGap { get; set; }
-        // Typical distance of a map's worth from its star range's average (lower = more even)
+        // Typical distance of a map's worth from what maps of its stars average (lower = more even)
         public double WorthSpread { get; set; }
         // Where the top 1000 players' weighted pp comes from
         public double Top1000PassShare { get; set; }
