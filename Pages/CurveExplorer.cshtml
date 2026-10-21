@@ -8,7 +8,8 @@
 <p class="ce-note">
     The acc curve a map gets for a given predicted acc, with the settings in use (RatingAPI <code>CurveSettings</code>, the
     same code <code>CurvesRefresh.Regenerate</code> uses). Move the slider to change the predicted acc. Changing the
-    settings needs a rebuild of RatingAPI and portaBLe.
+    settings needs a rebuild of RatingAPI and portaBLe. The corrections below are applied on the page only, to try values
+    without rebuilding.
 </p>
 
 <div class="ce-controls">
@@ -23,6 +24,36 @@
     <div id="params" class="ce-params"></div>
 </div>
 
+<fieldset class="ce-corr">
+    <legend>Corrections on top of the curve</legend>
+    <div class="ce-corr-row">
+        <label class="ce-check"><input type="checkbox" id="usePerMap" checked onchange="draw()" /> <b>Per-map curve</b></label>
+        <span class="ce-hint">CurveSettings.Table by predicted acc; off: the base curve</span>
+    </div>
+    <div class="ce-corr-row">
+        <label class="ce-check"><input type="checkbox" id="useTilt" onchange="draw()" /> <b>Slider tilt</b></label>
+        <label>strength <input type="number" id="tiltStrength" step="0.01" oninput="draw()" /></label>
+        <label>slider share <input type="number" id="tiltShare" step="1" min="0" oninput="draw()" />%</label>
+        <label>range &plusmn; <input type="number" id="tiltRange" step="0.1" min="0" oninput="draw()" />%</label>
+        <span class="ce-hint">curve &times; e<sup>strength &times; share &times; (acc &minus; predicted, in %)</sup>, the distance capped at the range
+            (CurveSettings.SliderTilt / SliderTiltRange; share = sliders and curved sliders per swing)</span>
+    </div>
+    <div class="ce-corr-row">
+        <label class="ce-check"><input type="checkbox" id="usePower" onchange="draw()" /> <b>Acc curve power</b></label>
+        <label>map stars <input type="number" id="powStars" step="0.5" min="0" oninput="draw()" /></label>
+        <label>power <input type="number" id="powHigh" step="0.01" oninput="draw()" /></label>
+        <label>low star power <input type="number" id="powLow" step="0.01" oninput="draw()" /></label>
+        <label>from <input type="number" id="powStart" step="0.5" oninput="draw()" /></label>
+        <label>to <input type="number" id="powEnd" step="0.5" oninput="draw()" /> stars</label>
+        <span class="ce-hint">curve(96%) &times; (curve / curve(96%))<sup>power</sup>, the power by stars (PpFormula.AccCurvePower,
+            LowStarCurvePower / Start / End): <b id="powValue"></b></span>
+    </div>
+    <div class="ce-corr-row">
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="resetCorrections()">Reset to the values in use</button>
+        <span class="ce-hint">The base curve is always shown without corrections.</span>
+    </div>
+</fieldset>
+
 <div class="ce-chart">
     <canvas id="curveChart"></canvas>
 </div>
@@ -30,7 +61,7 @@
 <h5>Acc pp relative to the base curve at the predicted acc</h5>
 <table class="table table-sm ce-table">
     <thead>
-        <tr><th>Accuracy</th><th>Base curve</th><th>This curve</th><th>This / base</th><th>Acc pp vs base at predicted</th></tr>
+        <tr><th>Accuracy</th><th>Base curve</th><th>Without corrections</th><th>This curve</th><th>This / base</th><th>Acc pp vs base at predicted</th></tr>
     </thead>
     <tbody id="ppTable"></tbody>
 </table>
@@ -65,6 +96,12 @@
     .ce-params { margin-top: 0.6em; font-size: 0.9em; }
     .ce-chart { position: relative; height: 420px; max-width: 900px; }
     .ce-table { max-width: 900px; font-size: 0.85em; }
+    .ce-corr { max-width: 900px; margin: 0 0 1em; padding: 0.5em 0.8em; border: 1px solid rgba(128, 128, 128, 0.4); border-radius: 4px; }
+    .ce-corr legend { font-size: 0.95em; width: auto; padding: 0 0.3em; margin: 0; float: none; }
+    .ce-corr-row { display: flex; gap: 0.75em; align-items: center; flex-wrap: wrap; margin: 0.35em 0; font-size: 0.85em; }
+    .ce-corr-row label { margin: 0; }
+    .ce-corr-row input[type=number] { width: 5em; }
+    .ce-hint { opacity: 0.7; font-size: 0.95em; }
 </style>
 
 @section Scripts {
@@ -76,6 +113,64 @@
         // Start at 97% predicted acc (or the closest step)
         slider.value = data.curves.reduce((best, c, i) => Math.abs(c.predicted - 97) < Math.abs(data.curves[best].predicted - 97) ? i : best, 0);
         let chart = null;
+        const corr = data.corrections;
+
+        // Sampling of Curve.GetCurve (in %): the base table, 0.5% steps from 60% to 95%, 0.05% steps from 95% to 100%
+        const grid = Array.from(new Set(data.basePoints.map(q => q[0])
+            .concat(Array.from({ length: 71 }, (_, i) => +(60 + i * 0.5).toFixed(4)))
+            .concat(Array.from({ length: 101 }, (_, i) => +(95 + i * 0.05).toFixed(4)))))
+            .sort((a, b) => a - b);
+
+        const fields = {
+            tiltStrength: () => corr.sliderTilt, tiltShare: () => 30, tiltRange: () => corr.sliderTiltRange,
+            powStars: () => 8, powHigh: () => corr.accCurvePower, powLow: () => corr.lowStarCurvePower,
+            powStart: () => corr.lowStarCurveStart, powEnd: () => corr.lowStarCurveEnd,
+        };
+        function resetCorrections() {
+            for (const [id, def] of Object.entries(fields)) document.getElementById(id).value = +def().toFixed(4);
+            draw();
+        }
+        function num(id) { const v = parseFloat(document.getElementById(id).value); return isNaN(v) ? fields[id]() : v; }
+        function checked(id) { return document.getElementById(id).checked; }
+
+        // PpFormula.CurvePowerAt
+        function curvePowerAt(stars, high, low, start, end) {
+            if (low === high || !(stars < end)) return high;
+            if (stars <= start) return low;
+            return low + (high - low) * (stars - start) / (end - start);
+        }
+        function power() { return curvePowerAt(num('powStars'), num('powHigh'), num('powLow'), num('powStart'), num('powEnd')); }
+
+        // The map's curve with the corrections turned on: slider tilt as in Curve.GetCurve (on its sampled points), then the
+        // acc curve power as in PpCalculator.GetPp (PpFormula.AccCurve, pivot at the star accuracy)
+        function corrected(cur) {
+            const source = checked('usePerMap') ? cur.points : data.basePoints;
+            const p = cur.predicted;
+            const xs = Array.from(new Set(grid.concat(source.map(q => q[0])))).sort((a, b) => a - b);
+            let pts = xs.map(x => [x, interp(source, x)]);
+            if (checked('useTilt') && p > 60 && p < 99.95) {
+                const tilt = num('tiltStrength') * num('tiltShare') / 100, range = Math.max(num('tiltRange'), 0);
+                if (tilt !== 0) pts = pts.map(([x, y]) => [x, y * Math.exp(tilt * Math.min(Math.max(x - p, -range), range))]);
+            }
+            if (checked('usePower')) {
+                const pow = power(), at96 = interp(pts, corr.starAccuracy);
+                if (pow !== 1 && at96 > 0) pts = pts.map(([x, y]) => [x, y > 0 ? at96 * Math.pow(y / at96, pow) : y]);
+            }
+            return pts;
+        }
+
+        function correctionsText(cur) {
+            const parts = [];
+            if (!checked('usePerMap')) parts.push('base curve (per-map curve off)');
+            if (checked('useTilt')) {
+                const tilt = num('tiltStrength') * num('tiltShare') / 100, r = Math.max(num('tiltRange'), 0);
+                parts.push(cur.predicted < 99.95
+                    ? `slider tilt ${fmt(tilt, 4)} per 1% (&times;${fmt(Math.exp(-tilt * r), 3)} at &minus;${fmt(r, 2)}%, &times;${fmt(Math.exp(tilt * r), 3)} at +${fmt(r, 2)}%)`
+                    : 'slider tilt: none at 99.95%+ predicted');
+            }
+            if (checked('usePower')) parts.push(`acc curve power ${fmt(power(), 3)}`);
+            return parts.length ? '<br/>Corrections: ' + parts.join(' &middot; ') : '';
+        }
 
         function interp(points, x) {
             if (x <= points[0][0]) return points[0][1];
@@ -106,21 +201,29 @@
                 (cur.tapered ? `a = ${fmt(cur.a, 2)}%, c = ${fmt(cur.c, 2)}` : 'a = 100% (no taper)') +
                 ` &middot; middle (60-95%): ${param('k', cur.k, d.k)}, ${param('w', cur.w, d.w)}` +
                 ` &middot; upper (95% to a): ${param('k2', cur.k2, d.k2)}, ${param('p2', cur.p2, d.p2)}` +
-                (cur.isDefault ? ' &middot; same as the base curve' : '');
+                (cur.isDefault ? ' &middot; same as the base curve' : '') +
+                correctionsText(cur);
+            document.getElementById('powValue').textContent = fmt(power(), 3);
+
+            const corrPoints = corrected(cur);
+            const anyCorrection = !checked('usePerMap') || checked('useTilt') || checked('usePower');
 
             const ratio = document.getElementById('showRatio').checked;
             const minX = document.getElementById('autoZoom').checked ? Math.max(60, Math.floor(p) - 3) : 60;
-            const xs = Array.from(new Set(cur.points.map(q => q[0]).concat(data.basePoints.map(q => q[0])))).filter(x => x >= minX).sort((a, b) => a - b);
-            const thisLine = xs.map(x => ({ x, y: ratio ? interp(cur.points, x) / Math.max(interp(data.basePoints, x), 1e-9) : interp(cur.points, x) }));
+            const xs = Array.from(new Set(corrPoints.map(q => q[0]).concat(cur.points.map(q => q[0])))).filter(x => x >= minX).sort((a, b) => a - b);
+            const value = (pts, x) => ratio ? interp(pts, x) / Math.max(interp(data.basePoints, x), 1e-9) : interp(pts, x);
+            const thisLine = xs.map(x => ({ x, y: value(corrPoints, x) }));
+            const rawLine = anyCorrection ? xs.map(x => ({ x, y: value(cur.points, x) })) : [];
             const baseLine = xs.map(x => ({ x, y: ratio ? 1 : interp(data.basePoints, x) }));
-            const markers = [{ x: p, y: ratio ? interp(cur.points, p) / interp(data.basePoints, p) : interp(cur.points, p), label: 'Predicted acc' }];
-            if (cur.tapered && cur.a < 100) markers.push({ x: cur.a, y: ratio ? interp(cur.points, cur.a) / interp(data.basePoints, cur.a) : interp(cur.points, cur.a), label: 'a (taper start)' });
+            const markers = [{ x: p, y: value(corrPoints, p), label: 'Predicted acc' }];
+            if (checked('usePerMap') && cur.tapered && cur.a < 100) markers.push({ x: cur.a, y: value(corrPoints, cur.a), label: 'a (taper start)' });
 
             const config = {
                 type: 'line',
                 data: {
                     datasets: [
-                        { label: 'Curve for this predicted acc', data: thisLine, borderColor: 'rgb(75, 192, 192)', backgroundColor: 'rgba(75, 192, 192, 0.15)', pointRadius: 0, borderWidth: 2, tension: 0 },
+                        { label: anyCorrection ? 'Curve with corrections' : 'Curve for this predicted acc', data: thisLine, borderColor: 'rgb(75, 192, 192)', backgroundColor: 'rgba(75, 192, 192, 0.15)', pointRadius: 0, borderWidth: 2, tension: 0 },
+                        { label: 'Per-map curve without corrections', data: rawLine, hidden: !anyCorrection, borderColor: 'rgba(75, 192, 192, 0.6)', borderDash: [2, 3], pointRadius: 0, borderWidth: 1, tension: 0 },
                         { label: 'Base curve', data: baseLine, borderColor: 'rgba(160, 160, 160, 0.9)', borderDash: [6, 4], pointRadius: 0, borderWidth: 1, tension: 0 },
                         { type: 'scatter', label: 'Predicted acc / a', data: markers, borderColor: 'rgb(255, 160, 40)', backgroundColor: 'rgb(255, 160, 40)', pointRadius: 5 },
                     ]
@@ -145,12 +248,12 @@
             const rows = [['Predicted', p], ['+0.25', p + 0.25], ['+0.5', p + 0.5], ['+1', p + 1], ['+2', p + 2], ['SSS', 100]]
                 .filter(([lbl, x]) => x <= 100.0001 && (lbl === 'SSS' || x < 99.99));
             document.getElementById('ppTable').innerHTML = rows.map(([lbl, x]) => {
-                const b = interp(data.basePoints, x), t = interp(cur.points, x);
-                return `<tr><td>${lbl} (${fmt(x, 2)}%)</td><td>${fmt(b, 3)}</td><td>${fmt(t, 3)}</td><td>${fmt(t / b, 3)}</td><td>${fmt(b / baseAtPred, 2)}x &rarr; ${fmt(t / baseAtPred, 2)}x</td></tr>`;
+                const b = interp(data.basePoints, x), r = interp(cur.points, x), t = interp(corrPoints, x);
+                return `<tr><td>${lbl} (${fmt(x, 2)}%)</td><td>${fmt(b, 3)}</td><td>${fmt(r, 3)}</td><td>${fmt(t, 3)}</td><td>${fmt(t / b, 3)}</td><td>${fmt(b / baseAtPred, 2)}x &rarr; ${fmt(t / baseAtPred, 2)}x</td></tr>`;
             }).join('');
         }
 
         slider.addEventListener('input', draw);
-        draw();
+        resetCorrections();
     </script>
 }

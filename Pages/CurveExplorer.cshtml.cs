@@ -7,6 +7,8 @@ namespace portaBLe.Pages
     // Per-map acc curve for any predicted acc, as RatingAPI builds it now (Curve.GetCurve with RC.CurveSettings.Current).
     // Every curve on the slider's range is computed here with the same code CurvesRefresh uses, so the page shows exactly
     // the logic in use. Nothing is read from or written to a database.
+    // The corrections on top of it (slider tilt, acc curve power) depend on the map, so the page applies them itself
+    // with the same formulas (Curve.GetCurve, PpFormula.AccCurve / CurvePowerAt), from the values set on the page.
     public class CurveExplorerModel : PageModel
     {
         public const double MinPredicted = 0.940;
@@ -21,6 +23,7 @@ namespace portaBLe.Pages
             var generator = new RC.Curve();
             var lack = new RC.LackMapCalculation();
             var settings = RC.CurveSettings.Current;
+            var formula = global::RatingAPI.Pp.PpFormula.Current;
             Table = settings.Table.OrderBy(r => r.PredictedAcc).ToList();
 
             var basePoints = generator.GetCurve(lack)
@@ -60,6 +63,17 @@ namespace portaBLe.Pages
                 enabled = settings.Enabled,
                 basePoints,
                 defaults = new { k = 4.86, w = 0.6, k2 = 2.88, p2 = 2.46 },
+                // Corrections applied on top of the per-map curve (off by default on the page, the fields start at these)
+                corrections = new
+                {
+                    sliderTilt = settings.SliderTilt,
+                    sliderTiltRange = settings.SliderTiltRange * 100,
+                    accCurvePower = formula.AccCurvePower,
+                    lowStarCurvePower = formula.LowStarCurvePower,
+                    lowStarCurveStart = formula.LowStarCurveStart,
+                    lowStarCurveEnd = formula.LowStarCurveEnd,
+                    starAccuracy = Math.Round(global::RatingAPI.Pp.PpCalculator.StarAccuracy * 100.0, 4),
+                },
                 curves,
             });
         }
