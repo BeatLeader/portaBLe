@@ -8,21 +8,9 @@
 <p class="ce-note">
     The acc curve a map gets for a given predicted acc, with the settings in use (RatingAPI <code>CurveSettings</code>, the
     same code <code>CurvesRefresh.Regenerate</code> uses). Move the slider to change the predicted acc. Changing the
-    settings needs a rebuild of RatingAPI and portaBLe. The corrections below are applied on the page only, to try values
+    settings needs a rebuild of RatingAPI and portaBLe. The corrections are applied on the page only, to try values
     without rebuilding.
 </p>
-
-<div class="ce-controls">
-    <label for="predSlider">Predicted acc: <b><span id="predValue"></span>%</b></label>
-    <input type="range" id="predSlider" min="0" max="0" step="1" value="0" />
-    <div class="ce-buttons">
-        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="nudge(-1)">&minus; 0.05</button>
-        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="nudge(1)">+ 0.05</button>
-        <label class="ce-check"><input type="checkbox" id="autoZoom" checked onchange="draw()" /> zoom around the predicted acc</label>
-        <label class="ce-check"><input type="checkbox" id="showRatio" onchange="draw()" /> show the curve as a share of the base curve</label>
-    </div>
-    <div id="params" class="ce-params"></div>
-</div>
 
 <fieldset class="ce-corr">
     <legend>Corrections on top of the curve</legend>
@@ -53,6 +41,18 @@
         <span class="ce-hint">The base curve is always shown without corrections.</span>
     </div>
 </fieldset>
+
+<div class="ce-controls">
+    <label for="predSlider">Predicted acc: <b><span id="predValue"></span>%</b></label>
+    <input type="range" id="predSlider" min="0" max="0" step="1" value="0" />
+    <div class="ce-buttons">
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="nudge(-1)">&minus; 0.05</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="nudge(1)">+ 0.05</button>
+        <label class="ce-check"><input type="checkbox" id="autoZoom" checked onchange="draw()" /> zoom around the predicted acc</label>
+        <label class="ce-check"><input type="checkbox" id="showRatio" onchange="draw()" /> show the curve as a share of the base curve</label>
+    </div>
+    <div id="params" class="ce-params"></div>
+</div>
 
 <div class="ce-chart">
     <canvas id="curveChart"></canvas>
