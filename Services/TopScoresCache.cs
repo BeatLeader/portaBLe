@@ -232,6 +232,35 @@ namespace portaBLe.Services
             }
         }
 
+        // Makes a database's cache file match it, building it when it's missing or for another version of the database (true:
+        // built). Before uploading: a cache uploaded next to a database it doesn't match is rejected by the server, which then
+        // builds it on the first visit after every deploy (Dev's, 22 Oct, was Database.db's after the acc reweight).
+        public static async Task<bool> EnsureCurrentAsync(DbContext context)
+        {
+            string content = await ContentStampAsync(context);
+            if (StampOf(CachePathOf(DbPathOf(context))) == content) return false;
+            Console.WriteLine($"Top scores cache: {Path.GetFileName(DbPathOf(context))}'s is missing or for another version, building it");
+            await BuildAndSaveAsync(context);
+            return true;
+        }
+
+        // The content stamp a cache file was built for (null: no file, or another format)
+        private static string? StampOf(string path)
+        {
+            if (!File.Exists(path)) return null;
+            try
+            {
+                using var file = File.OpenRead(path);
+                using var header = new BinaryReader(file, System.Text.Encoding.UTF8);
+                if (header.ReadString() != Magic || header.ReadInt32() != FormatVersion) return null;
+                return header.ReadString();
+            }
+            catch (Exception)
+            {
+                return null;
+            }
+        }
+
         // Builds from the database, saves the file and keeps it in memory (RefreshEverything, background builds)
         public static async Task<Snapshot> BuildAndSaveAsync(DbContext context)
         {

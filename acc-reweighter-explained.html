@@ -1,0 +1,664 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>The acc reweighter, explained</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Barlow+Semi+Condensed:wght@500;600;700&family=Public+Sans:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap">
+<style>
+/* Same look as pp-calculation-example.html and portaBLe-rebalancer-changelog.html. */
+:root {
+  --bg: #f6f7fa;
+  --surface: #ffffff;
+  --fg: #1a1d26;
+  --muted: #5b6273;
+  --line: #dde1ea;
+  --red: #d1344b;      /* left saber */
+  --blue: #2f6fd6;     /* right saber */
+  --green: #1f8a5a;
+  --code-bg: #eef0f5;
+  --display: "Barlow Semi Condensed", "Arial Narrow", system-ui, sans-serif;
+  --body: "Public Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --mono: "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #11131a; --surface: #181b24; --fg: #e6e8ef; --muted: #9aa1b2; --line: #2a2f3c;
+  --red: #ff6b7f; --blue: #6fa3ff; --green: #4cc38a; --code-bg: #20242f; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #11131a; --surface: #181b24; --fg: #e6e8ef; --muted: #9aa1b2; --line: #2a2f3c;
+  --red: #ff6b7f; --blue: #6fa3ff; --green: #4cc38a; --code-bg: #20242f; color-scheme: dark; }
+
+body { margin: 0; background: var(--bg); color: var(--fg); font: 15px/1.6 var(--body); }
+.wrap { max-width: 860px; margin: 0 auto; padding-block: 40px 72px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: 44px; }
+h1, h2, h3 { font-family: var(--display); text-wrap: balance; margin: 0; line-height: 1.15; }
+h1 { font-size: clamp(2rem, 5vw, 2.8rem); font-weight: 700; letter-spacing: -0.01em; }
+h2 { font-size: 1.6rem; font-weight: 600; padding-bottom: 8px; border-bottom: 1px solid var(--line); }
+h3 { font-size: 1.2rem; font-weight: 600; }
+p { margin: 0; max-width: 68ch; }
+ul, ol { margin: 0; padding-left: 20px; display: grid; gap: 4px; }
+code { font: 0.86em var(--mono); background: var(--code-bg); padding: 1px 5px; border-radius: 4px; overflow-wrap: anywhere; }
+a { color: var(--blue); }
+a:focus-visible { outline: 2px solid var(--blue); outline-offset: 2px; }
+.eyebrow { font: 600 0.75rem var(--body); letter-spacing: 0.1em; text-transform: uppercase; color: var(--muted); }
+.sabers { display: flex; gap: 6px; }
+.sabers span { height: 4px; width: 56px; border-radius: 2px; }
+.sabers span:first-child { background: var(--red); } .sabers span:last-child { background: var(--blue); }
+
+header { display: grid; gap: 14px; }
+.lede { font-size: 1.08rem; color: var(--muted); }
+section { display: grid; gap: 22px; min-width: 0; }
+.intro { color: var(--muted); }
+nav ol { columns: 2; column-gap: 32px; display: block; }
+nav li { margin-bottom: 4px; break-inside: avoid; }
+
+.map { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 10px; }
+.map div { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 10px 14px; display: grid; gap: 2px; }
+.map b { font: 600 1.05rem var(--mono); font-variant-numeric: tabular-nums; }
+.map span { font-size: 0.8rem; color: var(--muted); }
+
+.flow { counter-reset: step; display: grid; gap: 6px; padding: 0; list-style: none; }
+.flow li { display: grid; grid-template-columns: 2rem 1fr; gap: 10px; align-items: baseline; }
+.flow li::before { counter-increment: step; content: counter(step); font: 600 0.9rem var(--mono); color: var(--blue); text-align: right; }
+
+.step { display: grid; gap: 12px; padding-bottom: 22px; border-bottom: 1px solid var(--line); }
+.step:last-child { border-bottom: 0; padding-bottom: 0; }
+.step .refs { font: 0.78rem var(--mono); color: var(--muted); }
+pre.formula { margin: 0; font: 0.84rem/1.55 var(--mono); background: var(--code-bg); border-radius: 8px; padding: 12px 14px; overflow-x: auto; white-space: pre; }
+.example, .note, .why { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; display: grid; gap: 6px; }
+.example { border-left: 4px solid var(--blue); }
+.note { border-left: 4px solid var(--red); }
+.why { border-left: 4px solid var(--green); }
+.example .label, .note .label, .why .label { font: 600 0.72rem var(--body); letter-spacing: 0.1em; text-transform: uppercase; }
+.example .label { color: var(--blue); } .note .label { color: var(--red); } .why .label { color: var(--green); }
+
+.pros, .cons { display: grid; gap: 12px; }
+.item { background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 12px 16px; display: grid; gap: 6px; }
+.pros .item { border-left: 4px solid var(--green); }
+.cons .item { border-left: 4px solid var(--red); }
+.item h3 { font-size: 1.08rem; }
+.item .reason { color: var(--muted); }
+.item .reason b { color: var(--fg); font-weight: 600; }
+
+.table-wrap { overflow-x: auto; border: 1px solid var(--line); border-radius: 8px; background: var(--surface); }
+table { border-collapse: collapse; width: 100%; font-size: 0.9rem; min-width: 560px; }
+th, td { text-align: left; padding: 8px 12px; border-bottom: 1px solid var(--line); vertical-align: top; }
+th { font: 600 0.72rem var(--body); letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
+tr:last-child td { border-bottom: 0; }
+td.num, th.num { text-align: right; }
+td.num { font: 0.86rem var(--mono); font-variant-numeric: tabular-nums; white-space: nowrap; }
+td.bad { color: var(--red); font-weight: 600; }
+tr.kept td { font-weight: 600; }
+
+figure { margin: 0; display: grid; gap: 8px; background: var(--surface); border: 1px solid var(--line); border-radius: 8px; padding: 14px 16px; }
+figcaption { font-size: 0.85rem; color: var(--muted); }
+.hist { width: 100%; height: auto; display: block; }
+.hist .grid { stroke: var(--line); stroke-width: 1; }
+.hist .base { stroke: var(--muted); stroke-width: 1; }
+.hist .ax { fill: var(--muted); font: 11px var(--mono); }
+.hist .bar path { fill: var(--blue); }
+.hist .bar.cap path { fill: var(--red); }
+.hist .bar:hover path { opacity: 0.75; }
+details summary { cursor: pointer; font-size: 0.85rem; color: var(--muted); }
+footer { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--line); padding-top: 16px; }
+@media (max-width: 640px) { nav ol { columns: 1; } }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+<header>
+  <div class="sabers" aria-hidden="true"><span></span><span></span></div>
+  <div class="eyebrow">portaBLe rebalancer · Refresh/Tools/AccReweighter.cs</div>
+  <h1>The acc reweighter, explained</h1>
+  <p class="lede">What it does, how each step works, what it does well, where it falls short, and why it was built this
+  way. Updated for the new defaults (22 Oct 2026, Dev Autoreweighted <code>db-20261022183614-2775.db</code>).</p>
+</header>
+
+<nav aria-label="Contents">
+  <ol>
+    <li><a href="#tldr">The short version</a></li>
+    <li><a href="#update">Update: what changed on 22 Oct</a></li>
+    <li><a href="#worth">The key idea: a map's worth</a></li>
+    <li><a href="#overview">The pipeline at a glance</a></li>
+    <li><a href="#steps">Step by step</a></li>
+    <li><a href="#run">The last run in numbers</a></li>
+    <li><a href="#pros">Upsides, and why</a></li>
+    <li><a href="#cons">Downsides, and why</a></li>
+    <li><a href="#tried">Tried and switched off</a></li>
+    <li><a href="#knobs">Settings reference</a></li>
+  </ol>
+</nav>
+
+<!-- ============================================================ -->
+<section id="tldr">
+  <h2>1. The short version</h2>
+  <p>The ratings (pass, acc, tech) come from analyzing the map, and the acc rating is a prediction made by the Acc AI. Some
+  maps end up paying players more than other maps of the same star rating, and some pay less. The acc reweighter is
+  <b>the only tool that uses scores to change ratings</b>. It looks at how much each map actually pays the players who
+  play it, and it multiplies the map's <b>acc rating</b> by a small factor (between ×0.885 and ×1.130) so that the map
+  pays about as much as other maps of its kind.</p>
+  <p>It doesn't try to fix whole <i>kinds</i> of maps, like "pass-heavy maps pay too much". That job belongs to the pp
+  formula and the balance tuner. The reweighter only fixes single maps that stand out from maps like them. A
+  <b>balance guard</b> rejects any result that shifts the balance between kinds of maps.</p>
+  <div class="map">
+    <div><b>0.0456 → 0.0231</b><span>worth spread (rms), all players</span></div>
+    <div><b>927 → 79</b><span>maps more than ±5% off</span></div>
+    <div><b>152 → 12</b><span>maps pushed past 0 by more than 0.01</span></div>
+    <div><b>2.7%</b><span>mean change of the acc rating</span></div>
+    <div><b>2,635</b><span>maps changed by more than 0.5%</span></div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="update">
+  <h2>Update: what changed on 22 Oct</h2>
+  <p>Players reported two things: <b>small buffs and nerfs that were unnecessary or too large</b>, and <b>maps that are
+  clearly off not moving enough</b>. Both were real. The cause was how the strength was chosen, not the worth metric.</p>
+  <div class="note"><span class="label">The cause</span>
+    <p>Each map's target is part of the way to its kind's worth (<code>Applied</code>). But each pass picked its strength by
+    the worth spread around <b>0</b>, not by each map's distance to <b>its own target</b>. So strength 2.0 (the top of the
+    range tried) won, and maps went much further than planned, more so the higher the stars. On top of that, every map
+    with a gap moved by the same share of it, so small, noisy gaps moved about 2%, and the ±8% cap held back the maps
+    furthest off.</p>
+  </div>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Share of the planned move made</th><th class="num">0–5★</th><th class="num">5–9★</th><th class="num">9–11★</th><th class="num">11+★</th></tr></thead>
+    <tbody>
+      <tr><td>Before</td><td class="num">0.83</td><td class="num">1.13</td><td class="num">1.75</td><td class="num bad">2.14</td></tr>
+      <tr><td>Now</td><td class="num">0.80</td><td class="num">0.94</td><td class="num">0.95</td><td class="num">1.18</td></tr>
+    </tbody>
+  </table></div>
+  <p>Four changes, all settings in <code>AccReweighter.cs</code>:</p>
+  <ul>
+    <li><b><code>TargetMetric</code>:</b> each strength, in the passes and in the held-out choice, is judged by each map's
+      distance to its own target.</li>
+    <li><b><code>StarResponse</code>:</b> a probe before the fit measured how much worth moves with the multiplier. At the
+      fit's base stars it's flat (about 1.1× the acc share), but at the real stars it's only 0.47–0.62 up to 7 stars and
+      1.0–1.2 from 11. The stored multipliers are scaled by base over real, so low- and mid-star maps actually reach their
+      targets.</li>
+    <li><b><code>NoiseDeadZone = 2</code>:</b> each gap is shrunk by <code>gap² / (gap² + (2·noise)²)</code>, with noise =
+      0.28 / √scores, in place of <code>n/(n+40)</code>. Gaps within the noise barely move; large, well-measured gaps
+      move almost fully.</li>
+    <li><b><code>Applied</code> 0.5 → 0.7, <code>MaxChange</code> 0.15 → 0.11, <code>LargeGapMaxChange = 0.16</code>:</b> since
+      maps no longer overshoot, more of each gap is closed. Normal maps keep the old bounds (×0.922–×1.085), and
+      only maps with a large gap (0.04–0.08 and beyond) may go to ×0.885–×1.130.</li>
+  </ul>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Dev, same data</th><th class="num">Before</th><th class="num">Now</th></tr></thead>
+    <tbody>
+      <tr><td>Maps pushed past 0 by &gt; 0.01 (of which 11+★)</td><td class="num">152 (118)</td><td class="num">12 (8)</td></tr>
+      <tr><td>Gaps of 0.01–0.03 moved more than 2%</td><td class="num">655</td><td class="num">204</td></tr>
+      <tr><td>Share of large gaps (&gt; 0.1) closed</td><td class="num">44%</td><td class="num">57%</td></tr>
+      <tr><td>Maps beyond ±0.05 after</td><td class="num">132</td><td class="num">79</td></tr>
+      <tr><td>Worth spread, all players</td><td class="num">0.0226</td><td class="num">0.0231</td></tr>
+      <tr><td>Multiplier range</td><td class="num">×0.922–×1.085</td><td class="num">×0.885–×1.130</td></tr>
+      <tr><td>Largest star change</td><td class="num">+1.32</td><td class="num">+1.91</td></tr>
+      <tr><td>Pass-share slope guard margin left</td><td class="num">2%</td><td class="num">3%</td></tr>
+    </tbody>
+  </table></div>
+  <p class="intro">The overall spread is about the same; the gain is in <i>which</i> maps move. Sections 4–9 below describe
+  the mechanism and the run as they were before this update. The steps still apply, with these four changes on top.</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="worth">
+  <h2>2. The key idea: a map's worth</h2>
+  <p class="intro">Everything the reweighter does is aimed at one number per map, its <b>worth</b>
+  (<code>BalanceTuner.Worth</code>, with the <code>PlayerAdjusted</code> measure, which is the only measure the
+  reweighter runs with).</p>
+  <pre class="formula">log pp(score) = skill(player, half-year) + generosity(map) + distance(map stars − player level)
+
+worth(map) = generosity(map) / reference(map's stars) − 1     (then the map-age effect is removed)</pre>
+  <ul>
+    <li><b>skill per half-year:</b> players improve over time. With one skill value per player, maps ranked in 2026
+      looked 2.8% more generous, because their scores were set by players at their best.</li>
+    <li><b>distance:</b> a map 1.5–2.5 stars under a player's level pays them about 4% more than a map at their level,
+      and a map 8 stars under pays about 11% less. This term is fitted out so that a map's generosity doesn't depend on
+      how far under its players it sits.</li>
+    <li><b>in-range scores only:</b> scores on maps more than 0.5 stars above the player's level are ignored. A map
+      that's too hard for a player says little about what it pays.</li>
+    <li><b>reference:</b> what maps of the same stars average, from a local linear fit with a Gaussian kernel 0.25
+      stars wide (<code>WorthReference</code>). It isn't a per-range average, so a map that crosses a whole-star
+      boundary isn't suddenly compared with a different group of maps.</li>
+    <li><b>map age:</b> maps first played in 2022 looked about 3% more generous because they were grinded for longer.
+      That effect is removed against maps first played around the same time.</li>
+  </ul>
+  <p>A worth of <code>0</code> means the map pays what an average map of its stars pays. <code>+0.10</code> means it pays
+  10% more to the same players. Maps with fewer than 20 usable scores have no worth, and the reweighter leaves them at ×1.</p>
+  <div class="why"><span class="label">Why this measure</span>
+    <p>The older measure (Megametric75, how much a map counts in its players' profiles) reacted 3–5× as strongly as the
+    acc rating did, and it inflated maps played by "survivors" with few high plays. The player-adjusted measure takes
+    out <i>who</i> plays the map and where the map lands in their profiles, so what's left is how much it pays. 3% more
+    pp on the tech 8+ maps moved their worth +1.9%, which is a stable and readable response.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="overview">
+  <h2>3. The pipeline at a glance</h2>
+  <ol class="flow">
+    <li><span><b>Reset:</b> divide every acc rating by its stored multiplier, so each run starts from the raw AI ratings.</span></li>
+    <li><span><b>Measure the start:</b> re-score every score in memory and compute each map's worth and the balance stats.</span></li>
+    <li><span><b>Set targets:</b> fit worth on the map's "kind". Each map's target is halfway (in log) from its worth to its kind's.</span></li>
+    <li><span><b>Phase 1, held out:</b> 3 random splits. On each, fit on half of the players and measure on the other half, to find how far the data supports going.</span></li>
+    <li><span><b>Phase 2, all players:</b> fit on everyone up to the chosen pass and strength.</span></li>
+    <li><span><b>Slope correction:</b> a Newton search that puts the pass, tech and predicted-acc slopes back where they started.</span></li>
+    <li><span><b>Worth limiter:</b> stop the reweight from making any map an outlier (past ±0.03).</span></li>
+    <li><span><b>Final balance guard at the real stars,</b> with a fallback to lower strengths if it fails.</span></li>
+    <li><span><b>Store</b> <code>Leaderboards.AccReweight</code>, the reweighted acc and SS/FS/SF acc ratings, and the stars. Write <code>wwwroot/acc-reweight.json</code>. Then re-score (<code>RefreshEverything</code>).</span></li>
+  </ol>
+  <p class="intro">In <code>FullPipeline</code> it runs after <code>RatingsRefresh.Overwrite → RefreshEverything</code> and
+  before the balance tuner (<code>autoreweight: true</code>). A full pipeline takes about 3.5 minutes in Release and
+  8–15 GB of RAM.</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="steps">
+  <h2>4. Step by step</h2>
+
+  <div class="step">
+    <h3>4.1 Reset to the raw ratings</h3>
+    <div class="refs">Run(): baseAcc[i] = lb.AccRating / AccReweightOf(lb)</div>
+    <p>The multiplier stored from the last run is divided out of the acc rating and the SS / FS / SF acc ratings. Each
+    map's star range is also recomputed without it. Nothing builds on the previous run: <b>each run is a fresh fit from
+    the AI's ratings</b>, so there's no drift that compounds from run to run.</p>
+  </div>
+
+  <div class="step">
+    <h3>4.2 What every map is aiming for (targets)</h3>
+    <div class="refs">Path(): Residuals(Features(...)) · Applied = 0.5 · WorthLimit clamp</div>
+    <p>Before anything changes, worth is regressed (least squares) on the same features the balance tuner balances:</p>
+    <pre class="formula">worth ≈ b₁·passShare + b₂·techShare + b₃·predictedAcc + b₄·OneSaber + Σ (one intercept per star range)
+         (pp shares measured at the map's predicted acc)</pre>
+    <p>The fitted value is what <i>maps of this kind</i> are worth. The residual is how far this particular map
+    stands out from them. The target then closes only <b>half</b> of that gap, in log:</p>
+    <pre class="formula">log(1 + target) = 0.5·log(1 + worth) + 0.5·log(1 + kindFit)
+target is then clamped to [min(worth, −0.03), max(worth, +0.03)]</pre>
+    <div class="why"><span class="label">Why</span>
+      <p><b>Kind fit, not 0:</b> if the target were 0 for every map, the reweighter would also "fix" kinds of maps,
+      which is the formula's and the balance tuner's job. Without this, the pass-share slope went from +0.03 to −0.37 in
+      a single step. <b>Half, not all:</b> the full fit (mean change 4.1%, 76 maps at ±15%) was too strong for players,
+      who preferred the database without it. The half is built into the fit itself, not applied as a fraction
+      afterwards. When a fraction of the full result was stored afterwards, it drifted more than the full result, and
+      every fraction from 0.5 down to 0.15 failed the guard. <b>Clamp:</b> a map whose worth is already past ±0.03
+      isn't pushed any further out.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <h3>4.3 Which way, and how hard, to move each map (direction)</h3>
+    <div class="refs">Path(): direction[i] = −evidence × log((1+w)/(1+t)) / (Prior × relative)</div>
+    <pre class="formula">direction = − n/(n + 40) × log((1 + worth) / (1 + target)) / ( max(accShare, 0.3) × response )</pre>
+    <ul>
+      <li><b>Evidence, <code>n/(n+40)</code>:</b> <i>n</i> is how many scores the map's worth rests on. A map with 40 scores
+        moves at half speed, and one with 400 scores at about 91%. This shrinks noisy maps towards ×1.</li>
+      <li><b>Acc share:</b> an acc multiplier moves a map's pp in proportion to its acc pp share. A pass-heavy or
+        tech-heavy map needs a larger multiplier to move as much. The floor of 0.3 stops the multiplier from exploding
+        on maps that are almost all pass or tech.</li>
+      <li><b>Response</b> (from pass 2 on): how much this map's worth actually moved per unit of multiplier, relative to
+        other maps of its acc share, kept within ×⅓ to ×3. The median map's worth moves 0.6× its multiplier and the
+        90th percentile 0.98×. Godspeed ExpertPlus moved 1.3× because its stars jumped from 13.72 to 14.86 at ×1.072.</li>
+    </ul>
+  </div>
+
+  <div class="step">
+    <h3>4.4 Passes and strengths (a line search)</h3>
+    <div class="refs">Passes = 3 · Strengths = {0.1, 0.2, 0.35, 0.5, 0.7, 1.0, 1.3, 1.6, 2.0}</div>
+    <p>In each pass, every strength × direction is tried as a candidate (4 at a time, each re-scoring every score in
+    memory, about 150 MB each). The candidate whose worth lands closest to the targets wins, and the next pass
+    restarts from there with a freshly measured worth.</p>
+    <div class="why"><span class="label">Why not a fixed step</span>
+      <p>Worth isn't linear in the multiplier. A map moves within its players' sorted profiles, and every other map's
+      worth shifts too, because worth is relative and players' weights change. Fixed steps oscillated. A line search
+      measures the real effect instead of predicting it.</p>
+    </div>
+    <p><b>Fit at base stars</b> (<code>FitAtBaseStars = true</code>): during the fit, each map keeps the stars and star
+    range it had without reweighting. Then the reference a map is compared with doesn't move with its own multiplier,
+    and worth follows the map's pp only. At the real stars, the slopes are far from linear, one Newton step overshot,
+    almost every candidate failed the guard, and the held-out spread only reached 0.0385 (vs 0.0203).</p>
+  </div>
+
+  <div class="step">
+    <h3>4.5 Cleaning each candidate</h3>
+    <div class="refs">Clean(): remove each star range's mean (log), then clamp to ±0.5·log(1/0.85)</div>
+    <ul>
+      <li><b>Mean 1 per star range</b> (geometric): each range keeps its overall level and players' total pp keeps its
+        scale. The reweighter moves maps <i>within</i> a range and never moves a whole range.</li>
+      <li><b>Bounds:</b> <code>Applied × ±log(1/(1−MaxChange))</code>, which gives ×0.922 to ×1.085, the same distance
+        both ways in log. The older asymmetric bounds (×0.922 to ×1.072) held 182 maps at the buff cap that weren't
+        noise (median 634 scores).</li>
+    </ul>
+  </div>
+
+  <div class="step">
+    <h3>4.6 Slope correction</h3>
+    <div class="refs">SlopeTerms() · MeasureJacobian() · CorrectSlopes() (Newton + Broyden)</div>
+    <p>Fixing single maps moves the balance between kinds by itself. On 21 Oct, the pass-share slope went from +0.006 to
+    +0.007, +0.009 and +0.011 as the first pass's strength rose. None of the obvious explanations removed it, so three
+    extra "kind" terms are added to every map:</p>
+    <pre class="formula">logM += Σ_f β_f · u_f      u_f = −(feature_f − range mean) / within-range sd / max(accShare, 0.3)
+f ∈ { pass share, tech share, predicted acc }</pre>
+    <p>The β values are chosen so the three balance slopes go back to where they started. The Jacobian (how the
+    slopes respond to each β) is measured once at the start. Every candidate in every pass gets one Newton step
+    <i>before</i> it's judged, so the passes choose between already-corrected points. After phase 2, a Newton search
+    with Broyden updates (up to 5 steps) gets the slopes within 0.0005. In the last run the β values were tiny
+    (about ±0.0006), so the passes had already done almost all of the work.</p>
+    <div class="why"><span class="label">Why correct inside the passes</span>
+      <p>When the correction was applied only after phase 2, it raised the worth spread from 0.0248 to 0.0298, and the
+      choice of point never saw that cost.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <h3>4.7 How far to go: held-out players</h3>
+    <div class="refs">Phase 1: HeldOutSplits = 3, seeds 6969+split · Phase 2: every player</div>
+    <p>If the fit runs all the way to convergence, worth spread drops from 0.48 to 0.07, and much of that is fitting
+    score noise. So the players are split randomly in two. Phase 1 fits on one half and measures the spread on the
+    other half. The (pass, strength) with the lowest <b>average held-out spread across 3 splits</b> that also passes the
+    guard on <b>all</b> of them is chosen. Phase 2 then fits on every player, up to that point.</p>
+    <div class="why"><span class="label">Why 3 splits</span>
+      <p>With one split, the choice depended on which players happened to land in which half.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <h3>4.8 The balance guard</h3>
+    <div class="refs">GuardMargins(): |start| + tolerance − |now| ≥ 0 for all 8</div>
+    <p>A point is only kept if none of the balance tuner's measures has moved further from 0 than at the start, beyond a
+    tolerance:</p>
+    <ul>
+      <li><b>Slopes</b> (tolerance 0.004): pass share, tech share, acc share and predicted acc. Each is the slope of worth
+        against that feature.</li>
+      <li><b>Gaps</b> (tolerance 0.0075): top fifth vs bottom fifth by pass share, tech share and predicted acc, and
+        OneSaber vs Standard.</li>
+    </ul>
+    <p>Maps are classified by their shares <i>without</i> reweighting. Otherwise nerfing a map's acc would raise its pass
+    share, and the slopes would end up measuring the reweighting itself.</p>
+    <div class="why"><span class="label">Why those tolerances</span>
+      <p>The measure's own noise (rms over 10 splits) is about 0.0004 on the pass slope, 0.0010 on the tech slope and
+      0.0020 on the OneSaber gap. 0.004 / 0.0075 is about 4× the noisiest of them. 0.003 / 0.005 only allowed pass 1 at
+      strength 1.0, and 0.002 / 0.004 allowed nothing. The tolerance is in effect a dial for "how much tilt we accept in
+      exchange for fixing single maps".</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <h3>4.9 The worth limiter</h3>
+    <div class="refs">LimitWorth(): WorthLimit = 0.03, up to 8 rounds, at the real stars</div>
+    <p>With the kept multipliers and the <b>real</b> stars, no map may end above <code>max(its start worth, +0.03)</code>
+    or below <code>min(its start worth, −0.03)</code>. If a map overshot because of its own multiplier, the multiplier
+    is cut by the share of the move that overshot. If it was pushed by its neighbours (multiplier ×1, or the other
+    way), it's moved against the overshoot. Then the other maps in its star range take back the mean, and everything
+    is measured again.</p>
+    <div class="why"><span class="label">Why</span>
+      <p>Without it, 66 maps already above +0.03 were buffed, and Godspeed ExpertPlus went from +0.010 to +0.107 (13.72
+      → 14.86 stars). A map whose stars jump climbs past its neighbours, so its worth moves more than its multiplier
+      would suggest.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <h3>4.10 Final guard at the real stars, and the fallback</h3>
+    <div class="refs">Finish() · FallbackStrengths · GuardMarginWarning = 0.25</div>
+    <p>The point that will actually be stored (after the limiter, at the real stars) has to pass the guard too. If it
+    fails, the fit runs again at the lower strengths of the last pass, highest first, and the first one that passes is
+    stored. If none passes, nothing changes. The margin of each guard measure is written out, with a warning when it's
+    within 25% of its tolerance.</p>
+    <div class="why"><span class="label">Why</span>
+      <p>Because the fit runs at the base stars, this was once the only check at the real stars, and it used to be
+      skipped. On 22 Oct, Applied 0.45, 0.4 and 0.35 all failed it (pass slope +0.0080 to +0.0082 where 0.0079 was
+      allowed) and were stored anyway. The fallback makes a change in balance <i>weaken</i> the reweight instead of
+      throwing it away.</p>
+    </div>
+  </div>
+
+  <div class="step">
+    <h3>4.11 Storage and how it survives re-rating</h3>
+    <div class="refs">Leaderboards.AccReweight (REAL; 0 or 1 = none) · RatingsRefresh.Overwrite / Refresh</div>
+    <p>The multiplier is stored per leaderboard and applied to the acc rating and to the SS / FS / SF acc ratings. Stars
+    are recomputed (<code>ReplayUtils.SetStars</code>). When <code>RatingsRefresh</code> re-rates from RatingAPI, it
+    re-applies the stored multiplier, so the reweight survives. <code>Refresh(dbContext, false)</code> clears it to get raw
+    ratings. RatingAPI's own <code>stars</code> don't include the multiplier, because only portaBLe has it.</p>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="run">
+  <h2>5. The previous run in numbers (before the update)</h2>
+  <p class="intro">From <code>wwwroot/acc-reweight.json</code>, generated 2026-10-22 15:29 UTC: pass 1, strength 2.0,
+  Applied 0.5, slope correction on, no fallback needed.</p>
+
+  <figure>
+    <svg viewBox="0 0 800 240" role="img" aria-labelledby="histT" class="hist"><title id="histT">Number of maps per acc multiplier, 1% bins</title><line x1="44" x2="792" y1="210.0" y2="210.0" class="grid"/><text x="38" y="214.0" class="ax" text-anchor="end">0</text><line x1="44" x2="792" y1="160.5" y2="160.5" class="grid"/><text x="38" y="164.5" class="ax" text-anchor="end">100</text><line x1="44" x2="792" y1="111.0" y2="111.0" class="grid"/><text x="38" y="115.0" class="ax" text-anchor="end">200</text><line x1="44" x2="792" y1="61.5" y2="61.5" class="grid"/><text x="38" y="65.5" class="ax" text-anchor="end">300</text><line x1="44" x2="792" y1="12.0" y2="12.0" class="grid"/><text x="38" y="16.0" class="ax" text-anchor="end">400</text><g class="bar cap"><rect x="45.0" y="12" width="42.0" height="198" fill="transparent"/><path d="M45.0 210.0 V155.1 Q45.0 151.1 49.0 151.1 H83.0 Q87.0 151.1 87.0 155.1 V210.0 Z"/><title>-8%: 119 maps (includes the cap)</title></g><text x="66.0" y="230" class="ax" text-anchor="middle">-8%</text><g class="bar"><rect x="89.0" y="12" width="42.0" height="198" fill="transparent"/><path d="M89.0 210.0 V174.4 Q89.0 170.4 93.0 170.4 H127.0 Q131.0 170.4 131.0 174.4 V210.0 Z"/><title>-7%: 80 maps</title></g><text x="110.0" y="230" class="ax" text-anchor="middle">-7%</text><g class="bar"><rect x="133.0" y="12" width="42.0" height="198" fill="transparent"/><path d="M133.0 210.0 V143.7 Q133.0 139.7 137.0 139.7 H171.0 Q175.0 139.7 175.0 143.7 V210.0 Z"/><title>-6%: 142 maps</title></g><text x="154.0" y="230" class="ax" text-anchor="middle">-6%</text><g class="bar"><rect x="177.0" y="12" width="42.0" height="198" fill="transparent"/><path d="M177.0 210.0 V130.3 Q177.0 126.3 181.0 126.3 H215.0 Q219.0 126.3 219.0 130.3 V210.0 Z"/><title>-5%: 169 maps</title></g><text x="198.0" y="230" class="ax" text-anchor="middle">-5%</text><g class="bar"><rect x="221.0" y="12" width="42.0" height="198" fill="transparent"/><path d="M221.0 210.0 V74.4 Q221.0 70.4 225.0 70.4 H259.0 Q263.0 70.4 263.0 74.4 V210.0 Z"/><title>-4%: 282 maps</title></g><text x="242.0" y="230" class="ax" text-anchor="middle">-4%</text><g class="bar"><rect x="265.0" y="12" width="42.0" height="198" fill="transparent"/><path d="M265.0 210.0 V53.6 Q265.0 49.6 269.0 49.6 H303.0 Q307.0 49.6 307.0 53.6 V210.0 Z"/><title>-3%: 324 maps</title></g><text x="286.0" y="230" class="ax" text-anchor="middle">-3%</text><g class="bar"><rect x="309.0" y="12" width="42.0" height="198" fill="transparent"/><path d="M309.0 210.0 V32.8 Q309.0 28.8 313.0 28.8 H347.0 Q351.0 28.8 351.0 32.8 V210.0 Z"/><title>-2%: 366 maps</title></g><text x="330.0" y="230" class="ax" text-anchor="middle">-2%</text><g class="bar"><rect x="353.0" y="12" width="42.0" height="198" fill="transparent"/><path d="M353.0 210.0 V25.9 Q353.0 21.9 357.0 21.9 H391.0 Q395.0 21.9 395.0 25.9 V210.0 Z"/><title>-1%: 380 maps</title></g><text x="374.0" y="230" class="ax" text-anchor="middle">-1%</text><g class="bar"><rect x="397.0" y="12" width="42.0" height="198" fill="transparent"/><path d="M397.0 210.0 V51.1 Q397.0 47.1 401.0 47.1 H435.0 Q439.0 47.1 439.0 51.1 V210.0 Z"/><title>0%: 329 maps</title></g><text x="418.0" y="230" class="ax" text-anchor="middle">0%</text><g class="bar"><rect x="441.0" y="12" width="42.0" height="198" fill="transparent"/><path d="M441.0 210.0 V35.8 Q441.0 31.8 445.0 31.8 H479.0 Q483.0 31.8 483.0 35.8 V210.0 Z"/><title>+1%: 360 maps</title></g><text x="462.0" y="230" class="ax" text-anchor="middle">+1%</text><g class="bar"><rect x="485.0" y="12" width="42.0" height="198" fill="transparent"/><path d="M485.0 210.0 V64.5 Q485.0 60.5 489.0 60.5 H523.0 Q527.0 60.5 527.0 64.5 V210.0 Z"/><title>+2%: 302 maps</title></g><text x="506.0" y="230" class="ax" text-anchor="middle">+2%</text><g class="bar"><rect x="529.0" y="12" width="42.0" height="198" fill="transparent"/><path d="M529.0 210.0 V100.6 Q529.0 96.6 533.0 96.6 H567.0 Q571.0 96.6 571.0 100.6 V210.0 Z"/><title>+3%: 229 maps</title></g><text x="550.0" y="230" class="ax" text-anchor="middle">+3%</text><g class="bar"><rect x="573.0" y="12" width="42.0" height="198" fill="transparent"/><path d="M573.0 210.0 V117.0 Q573.0 113.0 577.0 113.0 H611.0 Q615.0 113.0 615.0 117.0 V210.0 Z"/><title>+4%: 196 maps</title></g><text x="594.0" y="230" class="ax" text-anchor="middle">+4%</text><g class="bar"><rect x="617.0" y="12" width="42.0" height="198" fill="transparent"/><path d="M617.0 210.0 V135.3 Q617.0 131.3 621.0 131.3 H655.0 Q659.0 131.3 659.0 135.3 V210.0 Z"/><title>+5%: 159 maps</title></g><text x="638.0" y="230" class="ax" text-anchor="middle">+5%</text><g class="bar"><rect x="661.0" y="12" width="42.0" height="198" fill="transparent"/><path d="M661.0 210.0 V148.2 Q661.0 144.2 665.0 144.2 H699.0 Q703.0 144.2 703.0 148.2 V210.0 Z"/><title>+6%: 133 maps</title></g><text x="682.0" y="230" class="ax" text-anchor="middle">+6%</text><g class="bar"><rect x="705.0" y="12" width="42.0" height="198" fill="transparent"/><path d="M705.0 210.0 V183.3 Q705.0 179.3 709.0 179.3 H743.0 Q747.0 179.3 747.0 183.3 V210.0 Z"/><title>+7%: 62 maps</title></g><text x="726.0" y="230" class="ax" text-anchor="middle">+7%</text><g class="bar cap"><rect x="749.0" y="12" width="42.0" height="198" fill="transparent"/><path d="M749.0 210.0 V81.3 Q749.0 77.3 753.0 77.3 H787.0 Q791.0 77.3 791.0 81.3 V210.0 Z"/><title>+8%: 268 maps (includes the cap)</title></g><text x="770.0" y="230" class="ax" text-anchor="middle">+8%</text><line x1="44" x2="792" y1="210.0" y2="210.0" class="base"/></svg>
+    <figcaption>Number of maps per acc multiplier (1% bins; hover a bar for its count). The red end bins hold the caps:
+    215 maps sit exactly at ×1.085 and 46 at ×0.922. The pile-up at +8% means many buffs wanted to go further than the
+    bounds allow.</figcaption>
+    <details><summary>Table view</summary>
+      <div class="table-wrap"><table>
+        <thead><tr><th>Bin</th><th class="num">−8</th><th class="num">−7</th><th class="num">−6</th><th class="num">−5</th><th class="num">−4</th><th class="num">−3</th><th class="num">−2</th><th class="num">−1</th><th class="num">0</th><th class="num">+1</th><th class="num">+2</th><th class="num">+3</th><th class="num">+4</th><th class="num">+5</th><th class="num">+6</th><th class="num">+7</th><th class="num">+8</th></tr></thead>
+        <tbody><tr><td>Maps</td><td class="num">119</td><td class="num">80</td><td class="num">142</td><td class="num">169</td><td class="num">282</td><td class="num">324</td><td class="num">366</td><td class="num">380</td><td class="num">329</td><td class="num">360</td><td class="num">302</td><td class="num">229</td><td class="num">196</td><td class="num">159</td><td class="num">133</td><td class="num">62</td><td class="num">268</td></tr></tbody>
+      </table></div>
+    </details>
+  </figure>
+
+  <h3>Held-out spread by pass and strength (average of 3 splits)</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Pass</th><th class="num">0.1</th><th class="num">0.35</th><th class="num">0.7</th><th class="num">1.0</th><th class="num">1.3</th><th class="num">1.6</th><th class="num">2.0</th></tr></thead>
+    <tbody>
+      <tr><td>0 (start)</td><td class="num" colspan="7" style="text-align:center">0.0467</td></tr>
+      <tr class="kept"><td>1</td><td class="num">0.0447</td><td class="num">0.0398</td><td class="num">0.0332</td><td class="num">0.0283</td><td class="num">0.0246</td><td class="num">0.0223</td><td class="num">0.0214 ✓</td></tr>
+      <tr><td>2</td><td class="num">0.0283</td><td class="num">0.0282</td><td class="num">0.0280</td><td class="num">0.0280</td><td class="num">0.0279</td><td class="num">0.0279</td><td class="num">0.0279</td></tr>
+      <tr><td>3</td><td class="num">0.0279</td><td class="num">0.0279</td><td class="num">0.0279</td><td class="num">0.0278</td><td class="num">0.0278</td><td class="num">0.0278</td><td class="num">0.0278</td></tr>
+    </tbody>
+  </table></div>
+  <p class="intro">Every point passed the guard on all splits. Pass 1 at the largest strength won. Passes 2 and 3 start
+  from the best point of pass 1 on each split's <i>fitted</i> half, and they make the held-out spread worse (0.0279):
+  past pass 1, the fit starts learning noise.</p>
+
+  <h3>Balance guard, start vs stored</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Measure</th><th class="num">Start</th><th class="num">Stored</th><th class="num">Tolerance</th><th class="num">Margin left</th></tr></thead>
+    <tbody>
+      <tr><td>Pass share slope</td><td class="num">+0.0037</td><td class="num">+0.0077</td><td class="num">0.004</td><td class="num bad">0.00008 (2%)</td></tr>
+      <tr><td>Tech share slope</td><td class="num">−0.0017</td><td class="num">+0.0008</td><td class="num">0.004</td><td class="num">0.0049</td></tr>
+      <tr><td>Acc share slope</td><td class="num">−0.0009</td><td class="num">−0.0031</td><td class="num">0.004</td><td class="num">0.0018</td></tr>
+      <tr><td>Predicted acc slope</td><td class="num">+0.0002</td><td class="num">−0.0019</td><td class="num">0.004</td><td class="num">0.0023</td></tr>
+      <tr><td>OneSaber gap</td><td class="num">−0.0039</td><td class="num">−0.0009</td><td class="num">0.0075</td><td class="num">0.0105</td></tr>
+      <tr><td>Pass share gap</td><td class="num">+0.0040</td><td class="num">+0.0082</td><td class="num">0.0075</td><td class="num">0.0032</td></tr>
+      <tr><td>Tech share gap</td><td class="num">−0.0031</td><td class="num">+0.0006</td><td class="num">0.0075</td><td class="num">0.0100</td></tr>
+      <tr><td>Predicted acc gap</td><td class="num">−0.0001</td><td class="num">−0.0034</td><td class="num">0.0075</td><td class="num">0.0042</td></tr>
+    </tbody>
+  </table></div>
+
+  <h3>The worth limiter's 9 maps</h3>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Map</th><th class="num">Multiplier</th><th class="num">Worth before</th><th class="num">Worth after</th></tr></thead>
+    <tbody>
+      <tr><td>Rushiest Rush ExpertPlus</td><td class="num">×1.057</td><td class="num">−0.065</td><td class="num">+0.029</td></tr>
+      <tr><td>Theme for Psychopath Justice ExpertPlus</td><td class="num">×1.073</td><td class="num">−0.058</td><td class="num">+0.027</td></tr>
+      <tr><td>zeke didn't "invent dariacore", i did ExpertPlus</td><td class="num">×1.078</td><td class="num">−0.059</td><td class="num">+0.029</td></tr>
+      <tr><td>Flashback Flicker ExpertPlus</td><td class="num">×1.081</td><td class="num">−0.058</td><td class="num">+0.030</td></tr>
+      <tr><td>Naughty little demon Easy</td><td class="num">×1.085</td><td class="num">−0.137</td><td class="num">−0.161</td></tr>
+      <tr><td>Start menu Easy</td><td class="num">×1.085</td><td class="num">−0.086</td><td class="num">−0.111</td></tr>
+      <tr><td>RTX 20000 Normal</td><td class="num">×1.085</td><td class="num">−0.067</td><td class="num">−0.084</td></tr>
+      <tr><td>Sleeping With Roses Easy</td><td class="num">×1.085</td><td class="num">−0.055</td><td class="num">−0.072</td></tr>
+      <tr><td>Ori, Lost in the Storm Easy</td><td class="num">×1.032</td><td class="num">−0.022</td><td class="num">−0.028</td></tr>
+    </tbody>
+  </table></div>
+  <p class="intro">Two different stories. The four ExpertPlus maps were buffed too far and got cut back to about +0.03.
+  The low-difficulty maps were already undervalued, sit at the buff cap, and <i>still</i> lost worth, because their
+  neighbours moved more than they did (see the downsides).</p>
+</section>
+
+<!-- ============================================================ -->
+<section id="pros">
+  <h2>6. Upsides, and why</h2>
+  <div class="pros">
+    <div class="item"><h3>It fixes what analysis can't see</h3>
+      <p class="reason"><b>Why:</b> the acc rating is a <i>prediction</i> (the Acc AI). Some maps really are easier or
+      harder to acc than their patterns suggest, and only scores show that. On the held-out players, the worth spread
+      halves (0.0467 → 0.0214), and maps more than ±5% off go from 927 to 132.</p></div>
+    <div class="item"><h3>It moves the right knob</h3>
+      <p class="reason"><b>Why:</b> acc pp is about 80% of the top 1000's weighted pp, so the acc rating is the lever
+      with the most reach. It's also the most uncertain rating. Pass and tech ratings, which mean "can you pass it" and
+      "how technical is it", are left untouched.</p></div>
+    <div class="item"><h3>It doesn't fight the balance tuner</h3>
+      <p class="reason"><b>Why:</b> targets are the <i>kind's</i> worth, not 0, and the slope correction plus the
+      balance guard keep the pass / tech / predicted-acc balance where the formula left it. Single-map errors and
+      whole-kind errors stay separate jobs.</p></div>
+    <div class="item"><h3>How far it goes is chosen by the data</h3>
+      <p class="reason"><b>Why:</b> the held-out half of the players says where fitting stops helping and starts
+      fitting noise. The fully converged fit (spread 0.07, from 0.48) was mostly noise. Averaging over 3 splits stops
+      one lucky split from deciding.</p></div>
+    <div class="item"><h3>It's cautious with weak evidence</h3>
+      <p class="reason"><b>Why:</b> the <code>n/(n+40)</code> shrinkage, Applied = 0.5, symmetric ±8% bounds, and ×1
+      for maps without a worth. A map with few scores can't be swung by a handful of lucky plays.</p></div>
+    <div class="item"><h3>Star ranges and the pp scale are preserved</h3>
+      <p class="reason"><b>Why:</b> multipliers average 1 (in log) inside each star range. No range gets richer or
+      poorer as a whole, and players' total pp stays on the same scale.</p></div>
+    <div class="item"><h3>It doesn't create new outliers</h3>
+      <p class="reason"><b>Why:</b> the worth limiter caps any map the reweight would push past ±0.03. That's the case
+      of Godspeed ExpertPlus, whose stars jumped and whose worth reached +0.107.</p></div>
+    <div class="item"><h3>Stateless and reversible</h3>
+      <p class="reason"><b>Why:</b> every run starts again from the raw ratings, so errors don't build up across runs.
+      <code>AccReweight = 1</code> (or <code>Refresh(…, false)</code>) undoes it completely, and it survives re-rating
+      on purpose.</p></div>
+    <div class="item"><h3>It degrades gracefully, and it's auditable</h3>
+      <p class="reason"><b>Why:</b> if the stored point fails the guard, the next lower strength is tried instead of
+      dropping everything. <code>acc-reweight.json</code> records every round, every split, the guard margins, the
+      rejected point and the per-map before/after worth.</p></div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="cons">
+  <h2>7. Downsides, and why</h2>
+  <p class="intro">As of before the update. The update addresses "it only half-closes the gaps, and many maps hit the
+  cap" (only 53 maps are at a bound now), part of "pass- and tech-heavy maps are under-corrected", and "the chosen
+  strength sits at the edge of the grid" (strength 1.3 in pass 2 is chosen now). The guard margin is still tight.</p>
+  <div class="cons">
+    <div class="item"><h3>It's one breath away from failing the guard</h3>
+      <p class="reason"><b>Why:</b> the pass-share slope has 0.00008 of margin left, 2% of its tolerance. A new batch
+      of maps, a constant change or new scores can easily push it over. The fallback would then store a weaker
+      reweight (on 22 Oct with a 0.0037 tolerance, it fell back to strength 0.7: spread 0.0333 instead of 0.0211). The
+      result isn't stable from run to run.</p></div>
+    <div class="item"><h3>It tilts the balance, within what's allowed</h3>
+      <p class="reason"><b>Why:</b> the pass-share slope doubles (+0.0037 → +0.0077) and the pass-share gap goes from
+      +0.0040 to +0.0082. In practice, pass-heavy maps gain a little on acc-heavy ones. Any spread of multipliers, even
+      a random one, does this: a buffed map climbs its players' profiles more than a nerfed one falls. The guard limits
+      it but doesn't remove it.</p></div>
+    <div class="item"><h3>It only half-closes the gaps, and many maps hit the cap</h3>
+      <p class="reason"><b>Why:</b> Applied = 0.5 and ±8% bounds are deliberate (players disliked the full fit), but 215
+      maps sit at ×1.085 and 46 at ×0.922, so those are still off. The pile-up at the buff cap says the
+      undervalued tail is larger than what the bounds allow.</p></div>
+    <div class="item"><h3>Some maps get worse, through no fault of their own</h3>
+      <p class="reason"><b>Why:</b> worth is <i>relative</i>. When neighbours move, a map's worth moves too. 252 maps
+      ended further from 0 than they started. Low-star Easy maps like <i>Naughty little demon</i> (−0.137 → −0.161)
+      are at the buff cap and still dropped. Their worth barely responds to their own acc rating, so the limiter
+      can't help them either.</p></div>
+    <div class="item"><h3>Pass- and tech-heavy maps are under-corrected</h3>
+      <p class="reason"><b>Why:</b> an acc multiplier moves a map's pp by roughly its acc share. With the 0.3 floor in
+      the direction, maps with a lower acc share get a smaller step than they'd need. The per-map response factor that
+      would compensate only kicks in from pass 2, and pass 1 is the one kept.</p></div>
+    <div class="item"><h3>The fit and the stored result live in slightly different worlds</h3>
+      <p class="reason"><b>Why:</b> the fit runs at the base stars, but the stored ratings change the stars. The real
+      stars' slopes drift from the fitted ones (pass share +0.0039 fitted, +0.0077 stored). Every attempt to close
+      that gap (real-stars correction, drift compensation, frozen stars) made other things worse and is switched off
+      (see <a href="#tried">tried</a>).</p></div>
+    <div class="item"><h3>The chosen strength sits at the edge of the grid</h3>
+      <p class="reason"><b>Why:</b> every split picks pass 1 at 2.0, the largest strength tried, and the held-out spread
+      is still falling there (0.0223 → 0.0214). The best point may be past the grid. It isn't explored, because higher
+      strengths would add guard drift.</p></div>
+    <div class="item"><h3>Scores reflect player behaviour, not only map difficulty</h3>
+      <p class="reason"><b>Why:</b> a map that's farmed (popular, good for a top play) collects better scores and looks
+      generous. Half-year skill and the map-age correction remove the biggest effects, but not all of them. A buff can
+      also attract more grinding, which raises the worth the next run sees. There's a feedback loop across runs, even
+      though each run starts fresh.</p></div>
+    <div class="item"><h3>New maps are treated differently</h3>
+      <p class="reason"><b>Why:</b> a newly ranked map (fewer than 20 usable scores) stays at ×1 while its older
+      neighbours are corrected, so its acc rating means something slightly different until the next run.</p></div>
+    <div class="item"><h3>Stars no longer come from the map alone</h3>
+      <p class="reason"><b>Why:</b> the stored stars include the multiplier, but RatingAPI's <code>stars</code> don't.
+      Two systems can show different stars for the same map, and a map's rating can change without the map
+      changing.</p></div>
+    <div class="item"><h3>Complex, heavy, and tuned on one snapshot</h3>
+      <p class="reason"><b>Why:</b> about 20 settings, nearly all chosen from runs on one Dev database around 21–22 Oct.
+      They may not carry over as the database changes. Each candidate re-scores every score (about 150 MB each), and the
+      full pipeline needs 8–15 GB of RAM. It's hard to explain to a player why a given map moved 4%.</p></div>
+  </div>
+</section>
+
+<!-- ============================================================ -->
+<section id="tried">
+  <h2>8. Tried and switched off</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Idea</th><th>What happened (Dev, 22 Oct)</th></tr></thead>
+    <tbody>
+      <tr><td><code>RealStarsSlopeCorrection</code><br>run the slope search again at the real stars</td>
+          <td>It got the stored slopes back (pass share +0.0077 → +0.0044), but it moved maps by their kind instead of
+          their gap. Spread went 0.0211 → 0.0247, and 236 maps went past the worth limit. Pass-heavy, low-tech, high-acc
+          maps were buffed to the cap (2cf6391 went to 10.85 stars), which players found too high.</td></tr>
+      <tr><td><code>DriftCompensationRounds</code><br>aim the fit at the start minus the real-stars drift</td>
+          <td>The correction terms grew from about ±0.0015 to +0.04–0.07, and the real-stars slopes overshot about 3×.
+          Spread 0.0211 → 0.0436. The terms move the stars, so the drift grows with them.</td></tr>
+      <tr><td><code>FrozenStarsRounds</code><br>refit with the stars frozen at the last fit's real ones</td>
+          <td>The slopes came within 0.0008 of the start, but by moving maps that had no gap. Mean change went 3.3% →
+          5.1%, with 614 maps at the buff cap. It found a different, much stronger point.</td></tr>
+      <tr><td>Megametric75 as the worth</td>
+          <td>It moved 3–5× as much as the acc rating and inflated "survivor" maps. Replaced by PlayerAdjusted.</td></tr>
+      <tr><td>Full fit (Applied = 1), 6 passes</td>
+          <td>Mean change 4.1%, 76 maps at ±15%, and players preferred the database without it. Passes 2–6 only took the
+          spread from 0.0260 to 0.0248.</td></tr>
+      <tr><td>Pass-share-only slope correction</td>
+          <td>After TechWeight 0.1612 balanced the tech slope, the correction pushed the tech slope from −0.0011 to
+          +0.008, past the guard, so nothing was corrected.</td></tr>
+    </tbody>
+  </table></div>
+</section>
+
+<!-- ============================================================ -->
+<section id="knobs">
+  <h2>9. Settings reference</h2>
+  <div class="table-wrap"><table>
+    <thead><tr><th>Setting</th><th class="num">Value</th><th>What it does</th></tr></thead>
+    <tbody>
+      <tr><td><code>Applied</code></td><td class="num">0.7</td><td>Fraction of each map's gap to its kind's worth the fit closes (in log). Was 0.5.</td></tr>
+      <tr><td><code>MaxChange</code></td><td class="num">0.11</td><td>Bounds: Applied × ±log(1/(1−MaxChange)), so ×0.922 to ×1.085. Was 0.15 (same bounds with Applied 0.5).</td></tr>
+      <tr><td><code>LargeGapMaxChange</code></td><td class="num">0.16</td><td>Wider bounds (×0.885 to ×1.130) for maps whose gap is beyond <code>LargeGapFrom</code> 0.04, fully from <code>LargeGapFull</code> 0.08.</td></tr>
+      <tr><td><code>TargetMetric</code></td><td class="num">true</td><td>Strengths judged by each map's distance to its own target, not the spread around 0.</td></tr>
+      <tr><td><code>StarResponse</code></td><td class="num">true</td><td>Probe of the response at the base and real stars; first step and stored multipliers scaled by it.</td></tr>
+      <tr><td><code>NoiseDeadZone</code> / <code>NoisePerScore</code></td><td class="num">2 / 0.28</td><td>Gaps shrunk by gap²/(gap² + (2·noise)²), noise = 0.28/√scores. Replaces <code>EvidenceScores</code> in the step.</td></tr>
+      <tr><td><code>Passes</code></td><td class="num">3</td><td>Line-search passes. Each re-measures worth.</td></tr>
+      <tr><td><code>Strengths</code></td><td class="num">0.1 … 2.0</td><td>Fractions of the direction tried in each pass.</td></tr>
+      <tr><td><code>EvidenceScores</code></td><td class="num">40</td><td>Shrinkage n/(n+40) of the step, only when <code>NoiseDeadZone</code> is 0.</td></tr>
+      <tr><td><code>MinAccShare</code></td><td class="num">0.3</td><td>Floor of the acc share the step is divided by.</td></tr>
+      <tr><td><code>HeldOutSplits</code></td><td class="num">3</td><td>Random player splits in phase 1.</td></tr>
+      <tr><td><code>GuardTolerance</code> / <code>GapTolerance</code></td><td class="num">0.004 / 0.0075</td><td>How much worse than the start the slopes / gaps may get.</td></tr>
+      <tr><td><code>GuardMarginWarning</code></td><td class="num">0.25</td><td>Warn when a margin is under 25% of its tolerance.</td></tr>
+      <tr><td><code>FallbackStrengths</code></td><td class="num">true</td><td>Retry lower strengths when the stored point fails the guard.</td></tr>
+      <tr><td><code>SlopeCorrection</code></td><td class="num">true</td><td>The pass / tech / predicted-acc kind terms and their Newton search.</td></tr>
+      <tr><td><code>SlopeCorrectionTolerance</code></td><td class="num">0.0005</td><td>How close to the start's slopes the search aims.</td></tr>
+      <tr><td><code>SlopeCorrectionStep</code> / <code>Max</code> / <code>Steps</code></td><td class="num">0.005 / 0.1 / 5</td><td>Jacobian step, largest term, and most Newton steps.</td></tr>
+      <tr><td><code>FitAtBaseStars</code></td><td class="num">true</td><td>Fit with each map's stars without reweighting.</td></tr>
+      <tr><td><code>ResponseNoise</code> / <code>ResponseRange</code></td><td class="num">0.02 / 3</td><td>When a map's measured response counts, and its allowed range (×⅓ to ×3).</td></tr>
+      <tr><td><code>WorthLimit</code> / <code>WorthLimitRounds</code></td><td class="num">0.03 / 8</td><td>The worth limiter's bound and rounds.</td></tr>
+      <tr><td><code>CandidateParallelism</code></td><td class="num">4</td><td>Candidates measured at once (about 150 MB each).</td></tr>
+      <tr><td><code>RealStarsSlopeCorrection</code>, <code>DriftCompensationRounds</code>, <code>FrozenStarsRounds</code></td><td class="num">off</td><td>See <a href="#tried">tried and switched off</a>.</td></tr>
+    </tbody>
+  </table></div>
+  <div class="note"><span class="label">Docs mismatch</span>
+    <p>The README's acc reweighter section still gives the guard tolerances as 0.0065 / 0.0125. The code (and the last
+    run) use 0.004 / 0.0075.</p>
+  </div>
+</section>
+
+<footer>Sources: <code>Refresh/Tools/AccReweighter.cs</code>, <code>Refresh/Tools/BalanceTuner.cs</code> (Worth,
+WorthReference, MeasureBalance), <code>README.md</code>, and <code>wwwroot/acc-reweight.json</code> (generated
+2026-10-22 15:29 UTC).</footer>
+
+</div>
+</body>
+</html>

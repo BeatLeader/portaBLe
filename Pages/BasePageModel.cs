@@ -21,15 +21,8 @@ namespace portaBLe.Pages
         {
             AvailableDatabases = await _dbService.GetAvailableDatabasesAsync();
             
-            // If no database is selected, use the main database
-            if (string.IsNullOrEmpty(selectedDb))
-            {
-                SelectedDatabase = _dbService.GetMainDatabaseFileName();
-            }
-            else
-            {
-                SelectedDatabase = selectedDb;
-            }
+            // No database asked for, or one that isn't listed or present anymore (an old link): the main database
+            SelectedDatabase = _dbService.ResolveDatabaseFileName(selectedDb);
         }
 
         protected DbContext GetDbContext()

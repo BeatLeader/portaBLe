@@ -17,6 +17,13 @@ namespace portaBLe.Refresh
     // On Dev (22 Oct, TechWeight 0.1612): held-out worth spread 0.0452 -> 0.0203, all players 0.0443 -> 0.0211, mean change
     // 3.3% on 3902 maps (x0.922-x1.085, 160 at x1.085 and 32 at x0.922); pass share slope +0.0039 -> +0.0077 (the guard
     // allowing 0.0079), the other slopes and gaps within 0.004 of the start's.
+    // Players found small gaps moved for nothing and the maps furthest off not moved enough: the strengths were judged by
+    // the worth spread around 0, not by each map's distance to its target, so strength 2.0 took maps 0.83x the way to their
+    // target at 0-5 stars and 2.14x at 11+ (152 maps past 0, 118 of them 11+ stars). Since 22 Oct: TargetMetric,
+    // StarResponse, NoiseDeadZone 2, Applied 0.7, MaxChange 0.11 and LargeGapMaxChange 0.16 (Dev, same data): 0.80x to
+    // 1.18x the way, 12 maps past 0 (8 of them 11+), 204 maps within +-0.01 to +-0.03 moved over 2% (655), the maps beyond
+    // +-0.1 closed 57% of their worth (44%), 79 maps beyond +-0.05 after (132), x0.885-x1.130, held-out spread to the
+    // targets 0.0183, pass share slope +0.0076 (3% of its tolerance left).
     //
     // Target: before any change, worth is fitted on the balance tuner's features (pass and tech pp shares at the predicted acc,
     // predicted acc, OneSaber, star range; least squares, as the tuner's slopes). That fitted value is what the map's kind is
@@ -101,12 +108,13 @@ namespace portaBLe.Refresh
     //
     // Applied: each map's target is Applied of the way from its worth before any change to the fitted value (in log), so the
     // fit closes only part of each map's gap; kinds of maps keep the same average target, so the later passes still pull
-    // them back. The passes pick the strength that brings worth closest to these targets.
+    // them back. The passes pick the strength that brings worth closest to these targets (TargetMetric).
     //
     // Maps without a worth (fewer than 20 scores, or 10 or fewer of them from players with more than 75 scores: newly ranked
     // maps) keep 1.
     // Multipliers average 1 (in log) within each star range (ranges keep their level, players' pp its scale), stay within
-    // Applied x +-log(1 / (1 - MaxChange)) (the same distance both ways in log), and multiply the acc rating. Stored in
+    // Applied x +-log(1 / (1 - MaxChange)) (the same distance both ways in log; LargeGapMaxChange's for large gaps), and
+    // multiply the acc rating. Stored in
     // Leaderboards.AccReweight (0 or 1 = none) and applied by RatingsRefresh (Overwrite and Refresh) to the acc rating and the
     // SS / FS / SF acc ratings, so they survive re-rating. Each run starts again from the ratings without them. Then re-score
     // (Program.RefreshEverything). Writes wwwroot/acc-reweight.json.
@@ -131,14 +139,19 @@ namespace portaBLe.Refresh
         // [log(1 - MaxChange), log(1 + MaxChange)], x0.922 to x1.072, tighter for buffs in log: 182 maps sat at x1.072 and 14
         // at x0.922 (Dev, 22 Oct), and those at x1.072 weren't noise (median 634 scores, the other maps 879; worth -0.078 ->
         // -0.035, still under)
-        public static double MaxChange { get; set; } = 0.15;
+        // 0.15 -> 0.11 with Applied 0.7 (x0.892-x1.121 otherwise; Applied 0.7 x 0.15's bounds took Break Expert 12.09 -> 14.92
+        // stars), the same bounds as before, x0.922-x1.085 (x0.885-x1.130 with LargeGapMaxChange)
+        public static double MaxChange { get; set; } = 0.11;
         // Fraction of each map's gap to its target the fit closes (in log): 1 = all of it, 0 = none. The full fit (mean change
         // 4.1%, 76 maps at +-15%) was too strong for players, who found the database better without it.
         // Part of the fit, not a fraction of the full fit stored afterwards: the passes are fitted together, the later ones
         // undoing the drift of the first, so a fraction of the whole drifted more than the whole. The full fit passed the
         // balance guard (pass slope +0.0049 -> +0.0068) but every fraction from 0.5 to 0.15 failed it, and only 0.1 was
         // stored (mean change 0.43%, worth spread 0.0615 -> 0.056).
-        public static double Applied { get; set; } = 0.5;
+        // 0.5 -> 0.7 with TargetMetric (22 Oct): before it, strength 2.0 took the maps past their targets anyway (0.83x to 2.14x
+        // the way); with it and 0.5 they went 0.48x to 0.68x, the maps beyond +-0.1 closed 28% of their worth, 449 maps beyond
+        // +-0.05 after (132 without it)
+        public static double Applied { get; set; } = 0.7;
         // Scaled by the ratio of the worth spreads to Megametric75's (0.46 / 0.059: 0.00065 / 0.0026), nothing passed: the
         // measure's own noise (half of the players vs the other half, / 2) was about 0.0009 on the pass slope, 0.0022 on the
         // tech slope, 0.0027 on the OneSaber gap, and correcting single maps moves the slopes by itself (players' skills are
@@ -212,6 +225,42 @@ namespace portaBLe.Refresh
         // Without the target clamp and without moving maps against the overshoot, 53 maps were still past their limit by the
         // maps around them (multiplier 1, 48 above: Calamitous Demise ExpertPlus +0.054 -> +0.071)
         public static int WorthLimitRounds { get; set; } = 8;
+        // Star response: before the fit, a probe (random +-StarResponseProbe log multipliers) measures how much each map's
+        // worth moves with its multiplier, over its acc share, at the base and at the real stars, smoothed over stars
+        // (StarResponseBandwidth). The responses (Responses) only count from pass 2, and pass 1 is usually the one kept. On
+        // Dev (22 Oct) the base stars' response was about flat (1.07-1.17x acc share from 1 to 14 stars), the real stars'
+        // 0.47-0.50 up to 5 stars, 0.62 at 7, 0.87 at 9 and 1.02-1.22 from 11 (a map's stars move with its acc rating): the
+        // fit, at the base stars, moved low and mid star maps half as far as it meant to. With it the first pass's step is
+        // divided by the base stars' response (relative to the median map's), and the multipliers to store are scaled by the
+        // base stars' response over the real stars' (0.5x to 2x, FitAtBaseStars), so they move worth at the real stars as
+        // the fit did at the base stars.
+        public static bool StarResponse { get; set; } = true;
+        // Target metric: the strengths (each pass's and phase 1's held-out choice) are judged by each map's distance to its
+        // own target, instead of the worth spread without the part of its gap a map keeps (worth - keep: the kind's worth
+        // left in, so the choice pulled every map towards 0, past the target of maps whose kind is worth more or less than
+        // average). Without it (Dev, 22 Oct) the stored point moved maps 0.83x the way to their target at 0-5 stars, 2.14x
+        // at 11+ (all of the way to their kind's worth, Applied 0.5), and 89 of the 118 11+ star maps that went past 0 had
+        // their kind's worth on the other side.
+        public static bool TargetMetric { get; set; } = true;
+        public static double StarResponseProbe { get; set; } = 0.03;
+        public static double StarResponseBandwidth { get; set; } = 1.0;
+        // Noise dead zone: each map's gap to its kind's worth (log) is shrunk by gap² / (gap² + (NoiseDeadZone x noise)²),
+        // noise = NoisePerScore / sqrt(the scores its worth rests on, WorthEvidence), instead of the step's n / (n +
+        // EvidenceScores): a gap within the noise barely moves and a large, well measured one moves almost fully (n / (n +
+        // 40) moved every map with 800 scores 95% of the way, 1354 maps within +-0.01 to +-0.03 about 2% each). 0 = off.
+        // NoisePerScore 0.28: what EvidenceScores 40 implies with the start's spread (0.0445 x sqrt 40); the start's spread
+        // with every player and with half of them gave 0.010 at the median map, 0.28 / sqrt(880) 0.0094.
+        // 2: with 1, 443 maps within +-0.01 to +-0.03 still moved over 2% (Applied 0.7), with 2 204
+        public static double NoiseDeadZone { get; set; } = 2;
+        public static double NoisePerScore { get; set; } = 0.28;
+        // Large gaps: a map whose gap (log, after the dead zone) is beyond LargeGapFrom may go past MaxChange's bounds, up to
+        // LargeGapMaxChange's (Applied x +-log(1 / (1 - LargeGapMaxChange))) from LargeGapFull on, in proportion in between.
+        // MaxChange's held the maps furthest off: those beyond +-0.1 closed 40-50% of their gap, the others about 68%. 0 = off.
+        // 0.16 (x0.885-x1.130 with Applied 0.7, the other maps x0.922-x1.085): with 0.22 (x0.840-x1.190) the maps furthest off closed
+        // 66% of their worth instead of 57%, but stars jumped up to +2.83 and 135 maps went past x1.1 (111)
+        public static double LargeGapMaxChange { get; set; } = 0.16;
+        public static double LargeGapFrom { get; set; } = 0.04;
+        public static double LargeGapFull { get; set; } = 0.08;
 
         private sealed class Point
         {
@@ -250,10 +299,17 @@ namespace portaBLe.Refresh
             // Phase 2's worth before any change, its targets' base (null: measured at FitStars; frozen stars: the start's)
             public double?[]? TargetWorth;
             public double Lo, Hi;
+            // Each map's bounds (Lo, Hi, or wider with LargeGapMaxChange), set by each fit (Path)
+            public double[] MapLo = Array.Empty<double>(), MapHi = Array.Empty<double>();
+            // StarResponse: each map's base stars' response relative to the median map's (1: off), and the scale of its
+            // multiplier to store, the base stars' response over the real stars' (1: off)
+            public double[] StarRelative = Array.Empty<double>(), StarScale = Array.Empty<double>();
+            // The last fit on every player's: each map's kind's worth and its target (Applied of the way there)
+            public double?[] KindWorth = Array.Empty<double?>(), Target = Array.Empty<double?>();
             public System.Diagnostics.Stopwatch Timer = null!;
         }
 
-        private sealed record Measured(BalanceTuner.Data Data, BalanceTuner.Evaluation E, double?[] Worth, Point Point);
+        private sealed record Measured(BalanceTuner.Data Data, BalanceTuner.Evaluation E, double?[] Worth, Point Point, double?[]? HeldOutWorth = null);
 
         public static async Task Run(AppContext dbContext, string webRootPath)
         {
@@ -298,6 +354,10 @@ namespace portaBLe.Refresh
                 BandFeatures = BandFeatures(baseBand),
                 Lo = -bound,
                 Hi = bound,
+                MapLo = Enumerable.Repeat(-bound, mapCount).ToArray(),
+                MapHi = Enumerable.Repeat(bound, mapCount).ToArray(),
+                StarRelative = Enumerable.Repeat(1.0, mapCount).ToArray(),
+                StarScale = Enumerable.Repeat(1.0, mapCount).ToArray(),
                 Timer = timer,
             };
             context.FitStars = context.Unweighted;
@@ -309,6 +369,7 @@ namespace portaBLe.Refresh
             context.HasWorth = context.StartWorth.Select(w => w != null ? 1.0 : 0.0).ToArray();
             context.U = SlopeTerms(context);
             if (SlopeCorrection) context.Jacobian = MeasureJacobian(context, null, context.StartBalance, FitAtBaseStars, "start");
+            if (StarResponse) StarResponses(context);
 
             // Phase 1: fit on half the players, check on the other half, for each split
             var splits = new List<List<Point>>();
@@ -439,6 +500,9 @@ namespace portaBLe.Refresh
             (Point Point, bool[] Limited, double?[]? Worth) Finish(Point p)
             {
                 if (p == start) return (p, new bool[mapCount], null);
+                // StarResponse: scaled so they move worth at the real stars as the fit did at the base stars
+                if (StarResponse && FitAtBaseStars)
+                    p = new Point { Pass = p.Pass, Strength = p.Strength, SlopeCorrection = p.SlopeCorrection, LogM = Clean(context, p.LogM.Select((v, i) => v * context.StarScale[i]).ToArray(), context.HasWorth), Balance = p.Balance, GuardOk = p.GuardOk };
                 if (WorthLimit > 0) return LimitWorth(context, p);
                 if (!FitAtBaseStars) return (p, new bool[mapCount], null);
                 var real = Measure(context, p.LogM, false);
@@ -540,7 +604,7 @@ namespace portaBLe.Refresh
             var result = new AccReweightResult
             {
                 GeneratedAt = DateTime.UtcNow,
-                Settings = new AccReweightSettings { WorthMeasure = BalanceTuner.WorthMeasure.ToString(), Passes = Passes, Strengths = Strengths, EvidenceScores = EvidenceScores, MinAccShare = MinAccShare, MaxChange = MaxChange, Applied = Applied, GuardTolerance = GuardTolerance, GapTolerance = GapTolerance, SlopeCorrection = SlopeCorrection, SlopeCorrectionTolerance = SlopeCorrectionTolerance, WorthLimit = WorthLimit, HeldOutSplits = HeldOutSplits, FitAtBaseStars = FitAtBaseStars, ResponseNoise = ResponseNoise, DriftCompensationRounds = DriftCompensationRounds, FrozenStarsRounds = FrozenStarsRounds, GuardMarginWarning = GuardMarginWarning, FallbackStrengths = FallbackStrengths },
+                Settings = new AccReweightSettings { WorthMeasure = BalanceTuner.WorthMeasure.ToString(), Passes = Passes, Strengths = Strengths, EvidenceScores = EvidenceScores, MinAccShare = MinAccShare, MaxChange = MaxChange, Applied = Applied, GuardTolerance = GuardTolerance, GapTolerance = GapTolerance, SlopeCorrection = SlopeCorrection, SlopeCorrectionTolerance = SlopeCorrectionTolerance, WorthLimit = WorthLimit, HeldOutSplits = HeldOutSplits, FitAtBaseStars = FitAtBaseStars, ResponseNoise = ResponseNoise, DriftCompensationRounds = DriftCompensationRounds, FrozenStarsRounds = FrozenStarsRounds, GuardMarginWarning = GuardMarginWarning, FallbackStrengths = FallbackStrengths, StarResponse = StarResponse, TargetMetric = TargetMetric, NoiseDeadZone = NoiseDeadZone, NoisePerScore = NoisePerScore, LargeGapMaxChange = LargeGapMaxChange },
                 MapsLimited = limited.Count(l => l),
                 HeldOut = splits.SelectMany(s => s).Select(ToRound).ToList(),
                 Rounds = phase2.Select(ToRound).ToList(),
@@ -562,6 +626,8 @@ namespace portaBLe.Refresh
                         Mode = loaded.Maps[i].Leaderboard.ModeName,
                         Multiplier = Math.Round(Math.Exp(applied.LogM[i]), 4),
                         WorthBefore = context.StartWorth[i] is double b ? Math.Round(b, 4) : null,
+                        KindWorth = context.KindWorth.Length > 0 && context.KindWorth[i] is double k ? Math.Round(k, 4) : null,
+                        Target = context.Target.Length > 0 && context.Target[i] is double t ? Math.Round(t, 4) : null,
                         WorthAfter = worthAfter?[i] is double a ? Math.Round(a, 4) : null,
                         Limited = limited[i],
                     })
@@ -598,7 +664,59 @@ namespace portaBLe.Refresh
         private static double[] Clean(Context c, double[] logM, double[] weight)
         {
             var cleaned = Residuals(c.BandFeatures, logM.Select(v => (double?)v).ToArray(), weight);
-            return cleaned.Select(v => Math.Clamp(v ?? 0, c.Lo, c.Hi)).ToArray();
+            return cleaned.Select((v, i) => Math.Clamp(v ?? 0, c.MapLo[i], c.MapHi[i])).ToArray();
+        }
+
+        // StarResponse (see above): the probe, at the base stars and at the real ones
+        private static void StarResponses(Context c)
+        {
+            int mapCount = c.Loaded.Maps.Length;
+            var random = new Random(4242);
+            var probe = c.HasWorth.Select(h => h > 0 ? (random.Next(2) == 0 ? -StarResponseProbe : StarResponseProbe) : 0).ToArray();
+            probe = Clean(c, probe, c.HasWorth);
+            var stars = c.Unweighted.Maps.Select(m => (double)m.Stars).ToArray();
+
+            // Each map's response (log worth change / log multiplier / Prior), then their kernel mean over stars at each map's
+            double[] Smoothed(double?[] worth)
+            {
+                var used = new List<(double Stars, double Ratio)>();
+                for (int i = 0; i < mapCount; i++)
+                {
+                    if (Math.Abs(probe[i]) < 1e-6 || worth[i] is not double w || c.StartWorth[i] is not double w0 || w <= -0.99 || w0 <= -0.99) continue;
+                    used.Add((stars[i], Math.Clamp(Math.Log((1 + w) / (1 + w0)) / probe[i] / c.Prior[i], -1, 4)));
+                }
+                var result = new double[mapCount];
+                double h = StarResponseBandwidth;
+                Parallel.For(0, mapCount, i =>
+                {
+                    double sw = 0, sy = 0;
+                    foreach (var (s, r) in used)
+                    {
+                        double d = (s - stars[i]) / h;
+                        if (Math.Abs(d) > 4) continue;
+                        double w = Math.Exp(-0.5 * d * d);
+                        sw += w;
+                        sy += w * r;
+                    }
+                    result[i] = sw > 0 ? sy / sw : 0;
+                });
+                return result;
+            }
+            var baseResponse = Smoothed(Measure(c, probe, true).Worth);
+            var realResponse = FitAtBaseStars ? Smoothed(Measure(c, probe, false).Worth) : baseResponse;
+            var withWorth = Enumerable.Range(0, mapCount).Where(i => c.HasWorth[i] > 0).Select(i => baseResponse[i]).OrderBy(v => v).ToList();
+            double median = withWorth.Count > 0 ? withWorth[withWorth.Count / 2] : 0;
+            for (int i = 0; i < mapCount; i++)
+            {
+                c.StarRelative[i] = median > 0 && baseResponse[i] > 0 ? Math.Clamp(baseResponse[i] / median, 1 / ResponseRange, ResponseRange) : 1;
+                c.StarScale[i] = baseResponse[i] > 0 && realResponse[i] > 0 ? Math.Clamp(baseResponse[i] / realResponse[i], 0.5, 2) : 1;
+            }
+            string Table(double[] v) => string.Join(", ", new[] { 1, 3, 5, 7, 9, 11, 12, 13, 14 }.Select(s =>
+            {
+                int nearest = Enumerable.Range(0, mapCount).Where(i => c.HasWorth[i] > 0).OrderBy(i => Math.Abs(stars[i] - s)).First();
+                return FormattableString.Invariant($"{s}* {v[nearest]:0.00}");
+            }));
+            Console.WriteLine($"Acc reweight: star response (x acc share), base stars: {Table(baseResponse)}; real stars: {Table(realResponse)} ({c.Timer.Elapsed:mm\\:ss})");
         }
 
         // logM plus the slope correction's terms
@@ -710,14 +828,17 @@ namespace portaBLe.Refresh
             int mapCount = c.Loaded.Maps.Length;
             var ones = Enumerable.Repeat(1.0, mapCount).ToArray();
             var points = new List<Point>();
+            // Each map's target (set below, after the start is measured)
+            var target = new double?[mapCount];
 
             // A point measured (Compute: on its own, so a pass's candidates can be measured at once), then recorded in order
             Measured Compute(double[] logM, int pass, double strength, double[] beta)
             {
                 var (data, e, worthAll, balance) = Measure(c, logM, FitAtBaseStars);
                 var fitWorth = fitPlayers == null ? worthAll : BalanceTuner.Worth(data, e, out _, fitPlayers);
-                double? heldOut = checkPlayers == null ? null : Spread(BalanceTuner.Worth(data, e, out _, checkPlayers));
-                return new Measured(data, e, fitWorth, new Point { Pass = pass, Strength = strength, SlopeCorrection = beta, LogM = logM, Balance = balance, HeldOutSpread = heldOut });
+                var heldOutWorth = checkPlayers == null ? null : BalanceTuner.Worth(data, e, out _, checkPlayers);
+                double? heldOut = heldOutWorth == null || TargetMetric ? null : Spread(heldOutWorth);
+                return new Measured(data, e, fitWorth, new Point { Pass = pass, Strength = strength, SlopeCorrection = beta, LogM = logM, Balance = balance, HeldOutSpread = heldOut }, heldOutWorth);
             }
             // A candidate with one Newton step of the slope correction (the start's Jacobian) before it's measured
             Measured Corrected(double[] logM, int pass, double strength, double[] weight)
@@ -732,6 +853,8 @@ namespace portaBLe.Refresh
             Measured Record(Measured measured)
             {
                 var point = measured.Point;
+                // TargetMetric: the held-out players' worth against each map's target
+                if (TargetMetric && measured.HeldOutWorth != null) point.HeldOutSpread = Spread(measured.HeldOutWorth.Select((w, i) => w - target[i]).ToArray());
                 var (balance, logM, pass, strength, heldOut) = (point.Balance, point.LogM, point.Pass, point.Strength, point.HeldOutSpread);
                 point.GuardOk = GuardOk(c.StartBalance, balance);
                 points.Add(point);
@@ -741,27 +864,47 @@ namespace portaBLe.Refresh
             }
 
             var logM = new double[mapCount];
-            var current = Record(Compute(logM, 0, 0, Array.Empty<double>()));
+            var current = Compute(logM, 0, 0, Array.Empty<double>());
 
             // Each map's target: what the balance features predict for its worth before any change (fitted players' scores)
-            var target = new double?[mapCount];
             var linear0 = (fitPlayers == null && c.TargetWorth != null ? c.TargetWorth : current.Worth).Select(w => w is double v && v > -0.99 ? (double?)v : null).ToArray();
             var residual0 = Residuals(Features(c.Unweighted, c.BaseBand), linear0, ones);
             for (int i = 0; i < mapCount; i++) if (linear0[i] is double v && residual0[i] is double r) target[i] = Math.Max(v - r, -0.9);
             // Only Applied of the way there (in log). keep: the part of its gap a map keeps, which the strengths are compared
             // without (0 with Applied = 1, so they minimize the worth spread itself)
             var keep = new double[mapCount];
+            var evidence0 = NoiseDeadZone > 0 ? BalanceTuner.WorthEvidence(current.Data, current.E, fitPlayers) : null;
+            // Each map's bounds: MaxChange's, wider for large gaps (LargeGapMaxChange)
+            c.MapLo = Enumerable.Repeat(c.Lo, mapCount).ToArray();
+            c.MapHi = Enumerable.Repeat(c.Hi, mapCount).ToArray();
+            double large = LargeGapMaxChange > 0 ? Math.Max(c.Hi, Applied * -Math.Log(1 - LargeGapMaxChange)) : c.Hi;
             for (int i = 0; i < mapCount; i++)
             {
                 if (linear0[i] is not double w || target[i] is not double t) continue;
-                double partial = Math.Exp((1 - Applied) * Math.Log(1 + w) + Applied * Math.Log(1 + t)) - 1;
+                // Its gap to its kind's worth (log), shrunk within its noise (NoiseDeadZone)
+                double gap = Math.Log((1 + w) / (1 + t));
+                if (evidence0 != null)
+                {
+                    double noise = NoiseDeadZone * NoisePerScore / Math.Sqrt(Math.Max(evidence0[i], 1));
+                    gap *= gap * gap / (gap * gap + noise * noise);
+                }
+                double partial = Math.Exp(Math.Log(1 + w) - Applied * gap) - 1;
+                double bound = c.Hi + (large - c.Hi) * Math.Clamp((Math.Abs(gap) - LargeGapFrom) / (LargeGapFull - LargeGapFrom), 0, 1);
+                c.MapLo[i] = -bound;
+                c.MapHi[i] = bound;
                 // Not past the worth limit (WorthLimit): a map already past it isn't pushed further
                 if (WorthLimit > 0) partial = Math.Clamp(partial, Math.Min(w, -WorthLimit), Math.Max(w, WorthLimit));
                 keep[i] = partial - t;
                 target[i] = partial;
             }
+            if (fitPlayers == null)
+            {
+                c.KindWorth = linear0.Select((w, i) => w is double v && residual0[i] is double r ? (double?)Math.Max(v - r, -0.9) : null).ToArray();
+                c.Target = (double?[])target.Clone();
+            }
             // Maps without a worth (too few scores, e.g. newly ranked) stay at 1 and don't count in their star range's mean
             var hasTarget = target.Select(t => t != null ? 1.0 : 0.0).ToArray();
+            Record(current);
 
             for (int pass = 1; pass <= passes; pass++)
             {
@@ -778,7 +921,10 @@ namespace portaBLe.Refresh
                 {
                     if (current.Worth[i] is not double w || w <= -0.99 || target[i] is not double t) continue;
                     int n = evidence[i];
-                    direction[i] = -n / (n + EvidenceScores) * Math.Log((1 + w) / (1 + t)) / (c.Prior[i] * relative[i]);
+                    // The dead zone (NoiseDeadZone) is the evidence then; the first pass by the star response (StarResponse),
+                    // the later ones by each map's own (Responses)
+                    double weight = NoiseDeadZone > 0 ? (n > 0 ? 1 : 0) : (double)n / (n + EvidenceScores);
+                    direction[i] = -weight * Math.Log((1 + w) / (1 + t)) / (c.Prior[i] * relative[i] * (pass == 1 ? c.StarRelative[i] : 1));
                 }
 
                 var strengths = pass == passes && lastStrength is double only ? new[] { only } : Strengths;
@@ -797,7 +943,9 @@ namespace portaBLe.Refresh
                 {
                     var measured = Record(one);
                     // Moves on the fitted players' worth spread, without the part of each map's gap it keeps
-                    double spread = Spread(measured.Worth.Select((w, i) => w - keep[i]).ToArray());
+                    double spread = TargetMetric
+                        ? Spread(measured.Worth.Select((w, i) => w - target[i]).ToArray())
+                        : Spread(measured.Worth.Select((w, i) => w - keep[i]).ToArray());
                     if (spread < bestSpread)
                     {
                         bestSpread = spread;
@@ -910,7 +1058,7 @@ namespace portaBLe.Refresh
                     if (round == WorthLimitRounds) continue;
                     double moved = Math.Log((1 + w) / (1 + s)), allowed = Math.Log((1 + limit) / (1 + s));
                     if (logM[i] * moved > 1e-12) logM[i] *= Math.Clamp(allowed / moved, 0, 1);
-                    else logM[i] = Math.Clamp(logM[i] - (moved - allowed) / (global * c.Prior[i] * relative[i]), c.Lo, c.Hi);
+                    else logM[i] = Math.Clamp(logM[i] - (moved - allowed) / (global * c.Prior[i] * relative[i]), c.MapLo[i], c.MapHi[i]);
                     limited[i] = true;
                 }
                 Console.WriteLine(FormattableString.Invariant(
@@ -930,7 +1078,7 @@ namespace portaBLe.Refresh
                     if (c.StartWorth[i] == null || limited[i]) continue;
                     var (sum, free) = bands[c.BaseBand[i]];
                     if (free == 0) continue;
-                    logM[i] = Math.Clamp(logM[i] - sum / free, c.Lo, c.Hi);
+                    logM[i] = Math.Clamp(logM[i] - sum / free, c.MapLo[i], c.MapHi[i]);
                 }
             }
 
@@ -1196,6 +1344,11 @@ namespace portaBLe.Refresh
         public int FrozenStarsRounds { get; set; }
         public double GuardMarginWarning { get; set; }
         public bool FallbackStrengths { get; set; }
+        public bool StarResponse { get; set; }
+        public bool TargetMetric { get; set; }
+        public double NoiseDeadZone { get; set; }
+        public double NoisePerScore { get; set; }
+        public double LargeGapMaxChange { get; set; }
     }
 
     // A round of the drift compensation: pass share, tech share and predicted acc slopes
@@ -1236,6 +1389,10 @@ namespace portaBLe.Refresh
         // Worth without reweighting and with the multiplier stored (null: no worth, or older runs)
         public double? WorthBefore { get; set; }
         public double? WorthAfter { get; set; }
+        // What its kind of map is worth (the balance features' fit) and its target, Applied of the way there from WorthBefore
+        // (null: no worth, or older runs)
+        public double? KindWorth { get; set; }
+        public double? Target { get; set; }
         // The worth limiter cut its multiplier
         public bool Limited { get; set; }
     }

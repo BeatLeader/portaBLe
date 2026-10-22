@@ -55,7 +55,7 @@
                     <div class="d-flex align-items-center">
                         @{
                             var availableDatabases = await DbService.GetAvailableDatabasesAsync();
-                            var currentDb = Context.Request.Query["db"].FirstOrDefault() ?? DbService.GetMainDatabaseFileName();
+                            var currentDb = DbService.ResolveDatabaseFileName(Context.Request.Query["db"].FirstOrDefault());
                         }
                         <label class="me-2 mb-0 text-nowrap" for="dbSelector" style="font-size: 0.9rem;">Database:</label>
                         <select id="dbSelector" class="form-select form-select-sm" style="width: auto; min-width: 200px;" onchange="switchDatabase(this.value)">
@@ -107,6 +107,20 @@
                     urlParams.set('db', savedDb);
                     const newUrl = window.location.pathname + '?' + urlParams.toString();
                     window.location.href = newUrl;
+                    return;
+                }
+
+                // A db parameter that isn't listed (an old link or bookmark) isn't saved: the saved database instead when
+                // there is one, else the page shows the default database and it's taken out of the URL
+                if (urlDb && selector && !Array.from(selector.options).some(o => o.value === urlDb)) {
+                    if (savedDb) {
+                        urlParams.set('db', savedDb);
+                        window.location.replace(window.location.pathname + '?' + urlParams.toString() + window.location.hash);
+                        return;
+                    }
+                    urlParams.delete('db');
+                    const query = urlParams.toString();
+                    history.replaceState(null, '', window.location.pathname + (query ? '?' + query : '') + window.location.hash);
                     return;
                 }
 

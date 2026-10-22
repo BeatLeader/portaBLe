@@ -10,6 +10,8 @@ namespace portaBLe.Services
         Task<List<DatabaseConfig>> GetAvailableDatabasesAsync();
         DbContext CreateContext(string fileName);
         string GetMainDatabaseFileName();
+        string? Listed(string? fileName);
+        string ResolveDatabaseFileName(string? requested);
         Task DownloadAllDatabasesAsync(string webRootPath);
         Task<bool> IsDatabaseDownloadedAsync(string fileName, string webRootPath);
     }
@@ -84,12 +86,24 @@ namespace portaBLe.Services
             return _config.Databases[index].FileName;
         }
 
+        // The file name when it's a database listed in databases.json and present on disk, else null: a ?db= from an old link
+        // or bookmark (database files are renamed each time one is replaced) or one that wasn't downloaded
+        public string? Listed(string? fileName) =>
+            !string.IsNullOrEmpty(fileName) && _config.Databases.Any(d => d.FileName == fileName) && File.Exists(Path.Combine(_webRootPath, fileName))
+                ? fileName : null;
+
+        // The database a page shows: the one asked for when it's listed and present, else the main one
+        public string ResolveDatabaseFileName(string? requested) => Listed(requested) ?? GetMainDatabaseFileName();
+
         public DbContext CreateContext(string fileName)
         {
+            // Never a file that isn't there: SQLite would create it empty ("no such table" on the page), and the next startup
+            // would take it for the downloaded database
+            fileName = ResolveDatabaseFileName(fileName);
             var options = _contextOptionsCache.GetOrAdd(fileName, fn =>
             {
                 var builder = new DbContextOptionsBuilder<DynamicDbContext>();
-                var connectionString = $"Data Source={Path.Combine(_webRootPath, fn)};";
+                var connectionString = $"Data Source={Path.Combine(_webRootPath, fn)};Mode=ReadWrite;";
                 builder.UseSqlite(connectionString);
                 return builder.Options;
             });

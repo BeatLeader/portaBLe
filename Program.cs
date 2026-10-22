@@ -144,17 +144,16 @@ namespace portaBLe
 
             return dbName;
         }
-        // Uploads wwwroot/cache/<db>.topscores.bin as "<dbKey>.topscores.bin", next to the database in S3. Built by
+        // Uploads wwwroot/cache/<db>.topscores.bin as "<dbKey>.topscores.bin", next to the database in S3, built first when
+        // it does not match the database (TopScoresCache.EnsureCurrentAsync). Built by
         // RefreshEverything (or the Top Scores page). It's matched to a database by content, so a cache built from
         // Database.db works for the same database uploaded under another name.
         public static async Task UploadTopScoresCacheAsync(string dbPath, string dbKey)
         {
             var cachePath = TopScoresCache.CachePathOf(dbPath);
-            if (!File.Exists(cachePath))
-            {
-                Console.WriteLine($"No top scores cache for {Path.GetFileName(dbPath)} (open the Top Scores page or run RefreshEverything to build it)");
-                return;
-            }
+            // Built first when it's missing or for another version of the database: the server would reject it
+            var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(dbPath)};").Options;
+            using (var context = new AppContext(options)) await TopScoresCache.EnsureCurrentAsync(context);
             await new TransferUtility(GetS3Client()).UploadAsync(cachePath, "portabledbs", dbKey + ".topscores.bin");
             Console.WriteLine($"Uploaded {Path.GetFileName(cachePath)} as {dbKey}.topscores.bin");
         }
@@ -254,6 +253,48 @@ namespace portaBLe
         public static async Task Main(string[] args)
         {
             Stopwatch = Stopwatch.StartNew();
+            // dotnet run -c Release -- accreweight [Setting=value ...] [rescore]: the acc reweighter alone on wwwroot/Database.db,
+            // with any of its settings (e.g. NoiseDeadZone=1 StarResponse=false), without the website or the database
+            // downloads; rescore: RefreshEverything after it
+            // dotnet run -c Release -- upload <wwwroot/file.db>: UploadDatabaseAsync on that database alone (and its Top Scores
+            // cache); the S3 name it gets is written to wwwroot/current_db_name.txt
+            if (args.Length > 1 && args[0] == "upload")
+            {
+                Console.WriteLine($"Uploaded {args[1]} as {await UploadDatabaseAsync(args[1])}");
+                return;
+            }
+            // dotnet run -c Release -- cache <wwwroot/file.db> [upload]: that database's Top Scores cache built when it doesn't
+            // match it; upload: then uploaded next to it in S3, under its file name
+            if (args.Length > 1 && args[0] == "cache")
+            {
+                if (args.Contains("upload")) await UploadTopScoresCacheAsync(args[1], Path.GetFileName(args[1]));
+                else
+                {
+                    var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};").Options;
+                    using var context = new AppContext(options);
+                    Console.WriteLine(await TopScoresCache.EnsureCurrentAsync(context) ? "Built" : "Already current");
+                }
+                return;
+            }
+            if (args.Length > 0 && args[0] == "accreweight")
+            {
+                bool rescore = args.Contains("rescore");
+                foreach (var setting in args.Skip(1).Where(a => a != "rescore"))
+                {
+                    var parts = setting.Split('=', 2);
+                    var property = typeof(AccReweighter).GetProperty(parts[0]) ?? throw new ArgumentException($"No acc reweighter setting {parts[0]}");
+                    property.SetValue(null, property.PropertyType.IsEnum
+                        ? Enum.Parse(property.PropertyType, parts[1], true)
+                        : Convert.ChangeType(parts[1], property.PropertyType, System.Globalization.CultureInfo.InvariantCulture));
+                    Console.WriteLine($"Acc reweight: {parts[0]} = {parts[1]}");
+                }
+                var webRoot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={webRoot}/Database.db;").Options;
+                using var reweightContext = new AppContext(options);
+                await AccReweighter.Run(reweightContext, webRoot);
+                if (rescore) await RefreshEverything(reweightContext);
+                return;
+            }
             // Run this line in terminal once to clone submodules:
             // git submodule update --init --recursive
             // For this to run properly, make sure to target those submodules:

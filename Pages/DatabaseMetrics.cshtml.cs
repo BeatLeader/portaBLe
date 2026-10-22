@@ -26,6 +26,9 @@ namespace portaBLe.Pages
         public async Task<IActionResult> OnGetAsync(string db1 = null, string db2 = null, string characteristic = "")
         {
             AllDatabases = await _dbService.GetAvailableDatabasesAsync();
+            // Not listed or present anymore (an old link): the defaults below
+            db1 = _dbService.Listed(db1);
+            db2 = _dbService.Listed(db2);
             
             // Default to first two databases if not specified
             if (string.IsNullOrEmpty(db1) && AllDatabases.Count > 0)

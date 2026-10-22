@@ -92,14 +92,18 @@ tech share, predicted acc, OneSaber, star range), and its acc rating is moved to
 - What maps of its stars average is a local linear fit on stars (`BalanceTuner.WorthReference`, Gaussian kernel of
   `WorthBandwidth` 0.25 stars), so a map's reference doesn't jump at a star range boundary.
 - Everything is re-scored in memory for each try, since one map's change moves every player's weights.
-- Maps with few scores move less, and maps without a worth (newly ranked) keep ×1.
+- Gaps within a map's measurement noise barely move (`NoiseDeadZone`: noise = 0.28 / √scores), and maps without a worth
+  (newly ranked) keep ×1.
+- Each try is judged by each map's distance to its own target (`TargetMetric`), and the stored multipliers are scaled so
+  they move worth at the real stars as much as the fit meant to (`StarResponse`: low and mid star maps respond about half
+  as much once their stars move).
 - How far it goes is chosen on held-out players: it fits on one half of the players and checks on the other, and takes
-  the lowest held-out spread among the points that pass the balance guard.
-- The result is only kept if the balance tuner's slopes and gaps get no worse than the guard tolerances allow (with the
-  player-adjusted worth: 0.0065 on the slopes, 0.0125 on the gaps). It lets a small tilt through: pass-heavy and low
-  predicted acc maps gain about a point on acc-heavy ones.
-- Multipliers average 1 within each star range. The fit only closes `Applied` (0.5) of each map's gap to its target (in
-  log), so ±7.5% at most, and the kept point is stored as is.
+  the lowest held-out distance to the targets among the points that pass the balance guard.
+- The result is only kept if the balance tuner's slopes and gaps get no worse than the guard tolerances allow (0.004 on
+  the slopes, 0.0075 on the gaps). It lets a small tilt through: pass-heavy and low predicted acc maps gain a little on
+  acc-heavy ones.
+- Multipliers average 1 within each star range. The fit closes `Applied` (0.7) of each map's gap to its target (in log),
+  within ×0.922-×1.085 (`MaxChange`), or ×0.885-×1.130 for maps with a large gap (`LargeGapMaxChange`).
 
 ## Where the constants are
 
@@ -112,7 +116,7 @@ tech share, predicted acc, OneSaber, star range), and its acc rating is moved to
 | Tech shape | `RatingAPI/Analyzer/.../Data/Ratings.cs` (`TechExponent`, `TechPassBase`) |
 | Acc rating | `RatingAPI/Controllers/AccRating.cs` (`ACC_SCALE`, `ACC_OFFSET`, hard map correction `HARD_MAP_*`, `ACC_EXPONENT`, movement and high pass corrections `HIT_DISTANCE_*` / `HIGH_PASS_*`) |
 | pp formula | `RatingAPI/Pp/PpFormula.cs` (pass / acc / tech pp and their rating powers, pass top compression `PassTopKnee` / `PassTopSlope`, acc curve power `AccCurvePower` / `LowStarCurve*` / `VeryLowStarCurve*`, stars `StarDivisor` / `StarScale` / `StarExponent`, `PpMultiplier`, low star bonus `LowStarBonus*`) |
-| Acc reweighter | `Refresh/Tools/AccReweighter.cs` (`Passes`, `Strengths`, `EvidenceScores`, `MaxChange`, `Applied`, guard tolerances, `HeldOutSplits`, `FitAtBaseStars`, `WorthLimit`, `FallbackStrengths`, `GuardMarginWarning`) |
+| Acc reweighter | `Refresh/Tools/AccReweighter.cs` (`Passes`, `Strengths`, `TargetMetric`, `StarResponse`, `NoiseDeadZone`, `MaxChange`, `LargeGapMaxChange`, `Applied`, guard tolerances, `HeldOutSplits`, `FitAtBaseStars`, `WorthLimit`, `FallbackStrengths`, `GuardMarginWarning`) |
 | Constants the tuner assumes, worth reference | `Refresh/Tools/BalanceTuner.cs` (`RatingConstants`: keep it equal to the values in code; `WorthBandwidth`) |
 
 ## Layout

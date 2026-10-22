@@ -35,8 +35,8 @@ namespace portaBLe.Pages
             AvailableDatabases = await _dbService.GetAvailableDatabasesAsync();
 
             // Set default selections
-            SelectedMainDb = mainDb ?? _dbService.GetMainDatabaseFileName();
-            SelectedComparisonDb = comparisonDb ?? AvailableDatabases.FirstOrDefault(db => db.FileName != SelectedMainDb)?.FileName
+            SelectedMainDb = _dbService.Listed(mainDb) ?? _dbService.GetMainDatabaseFileName();
+            SelectedComparisonDb = _dbService.Listed(comparisonDb) ?? AvailableDatabases.FirstOrDefault(db => db.FileName != SelectedMainDb)?.FileName
                                    ?? AvailableDatabases.FirstOrDefault()?.FileName;
 
             if (SelectedMainDb == null || SelectedComparisonDb == null)
@@ -109,8 +109,8 @@ namespace portaBLe.Pages
             var availableDatabases = await _dbService.GetAvailableDatabasesAsync();
 
             // Set default selections
-            var selectedMainDb = mainDb ?? _dbService.GetMainDatabaseFileName();
-            var selectedComparisonDb = comparisonDb ?? availableDatabases.FirstOrDefault(db => db.FileName != selectedMainDb)?.FileName
+            var selectedMainDb = _dbService.Listed(mainDb) ?? _dbService.GetMainDatabaseFileName();
+            var selectedComparisonDb = _dbService.Listed(comparisonDb) ?? availableDatabases.FirstOrDefault(db => db.FileName != selectedMainDb)?.FileName
                                        ?? availableDatabases.FirstOrDefault()?.FileName;
 
             if (selectedMainDb == null || selectedComparisonDb == null)
@@ -198,8 +198,8 @@ namespace portaBLe.Pages
         {
             var availableDatabases = await _dbService.GetAvailableDatabasesAsync();
 
-            var selectedMainDb = mainDb ?? _dbService.GetMainDatabaseFileName();
-            var selectedComparisonDb = comparisonDb ?? availableDatabases.FirstOrDefault(db => db.FileName != selectedMainDb)?.FileName
+            var selectedMainDb = _dbService.Listed(mainDb) ?? _dbService.GetMainDatabaseFileName();
+            var selectedComparisonDb = _dbService.Listed(comparisonDb) ?? availableDatabases.FirstOrDefault(db => db.FileName != selectedMainDb)?.FileName
                                        ?? availableDatabases.FirstOrDefault()?.FileName;
 
             if (selectedMainDb == null || selectedComparisonDb == null)
@@ -245,8 +245,8 @@ namespace portaBLe.Pages
         {
             var availableDatabases = await _dbService.GetAvailableDatabasesAsync();
 
-            var selectedMainDb = mainDb ?? _dbService.GetMainDatabaseFileName();
-            var selectedComparisonDb = comparisonDb ?? availableDatabases.FirstOrDefault(db => db.FileName != selectedMainDb)?.FileName
+            var selectedMainDb = _dbService.Listed(mainDb) ?? _dbService.GetMainDatabaseFileName();
+            var selectedComparisonDb = _dbService.Listed(comparisonDb) ?? availableDatabases.FirstOrDefault(db => db.FileName != selectedMainDb)?.FileName
                                        ?? availableDatabases.FirstOrDefault()?.FileName;
 
             if (selectedMainDb == null || selectedComparisonDb == null)
@@ -295,8 +295,8 @@ namespace portaBLe.Pages
         {
             var availableDatabases = await _dbService.GetAvailableDatabasesAsync();
 
-            var selectedMainDb = mainDb ?? _dbService.GetMainDatabaseFileName();
-            var selectedComparisonDb = comparisonDb ?? availableDatabases.FirstOrDefault(db => db.FileName != selectedMainDb)?.FileName
+            var selectedMainDb = _dbService.Listed(mainDb) ?? _dbService.GetMainDatabaseFileName();
+            var selectedComparisonDb = _dbService.Listed(comparisonDb) ?? availableDatabases.FirstOrDefault(db => db.FileName != selectedMainDb)?.FileName
                                        ?? availableDatabases.FirstOrDefault()?.FileName;
 
             if (selectedMainDb == null || selectedComparisonDb == null)
@@ -365,8 +365,8 @@ namespace portaBLe.Pages
         {
             var availableDatabases = await _dbService.GetAvailableDatabasesAsync();
 
-            var selectedMainDb = mainDb ?? _dbService.GetMainDatabaseFileName();
-            var selectedComparisonDb = comparisonDb ?? availableDatabases.FirstOrDefault(db => db.FileName != selectedMainDb)?.FileName
+            var selectedMainDb = _dbService.Listed(mainDb) ?? _dbService.GetMainDatabaseFileName();
+            var selectedComparisonDb = _dbService.Listed(comparisonDb) ?? availableDatabases.FirstOrDefault(db => db.FileName != selectedMainDb)?.FileName
                                        ?? availableDatabases.FirstOrDefault()?.FileName;
 
             if (selectedMainDb == null || selectedComparisonDb == null)
@@ -405,8 +405,8 @@ namespace portaBLe.Pages
         {
             var availableDatabases = await _dbService.GetAvailableDatabasesAsync();
 
-            var selectedMainDb = mainDb ?? _dbService.GetMainDatabaseFileName();
-            var selectedComparisonDb = comparisonDb ?? availableDatabases.FirstOrDefault(db => db.FileName != selectedMainDb)?.FileName
+            var selectedMainDb = _dbService.Listed(mainDb) ?? _dbService.GetMainDatabaseFileName();
+            var selectedComparisonDb = _dbService.Listed(comparisonDb) ?? availableDatabases.FirstOrDefault(db => db.FileName != selectedMainDb)?.FileName
                                        ?? availableDatabases.FirstOrDefault()?.FileName;
 
             if (selectedMainDb == null || selectedComparisonDb == null)
@@ -440,8 +440,8 @@ namespace portaBLe.Pages
         {
             var availableDatabases = await _dbService.GetAvailableDatabasesAsync();
 
-            var selectedMainDb = mainDb ?? _dbService.GetMainDatabaseFileName();
-            var selectedComparisonDb = comparisonDb ?? availableDatabases.FirstOrDefault(db => db.FileName != selectedMainDb)?.FileName
+            var selectedMainDb = _dbService.Listed(mainDb) ?? _dbService.GetMainDatabaseFileName();
+            var selectedComparisonDb = _dbService.Listed(comparisonDb) ?? availableDatabases.FirstOrDefault(db => db.FileName != selectedMainDb)?.FileName
                                        ?? availableDatabases.FirstOrDefault()?.FileName;
 
             if (selectedMainDb == null || selectedComparisonDb == null)
