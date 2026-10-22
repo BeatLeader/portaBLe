@@ -21,13 +21,15 @@ namespace portaBLe.Refresh
             Console.WriteLine($"Regenerating acc curves ({FormattableString.Invariant($"A and C by predicted acc: {string.Join(", ", CurveSettings.Current.Table.Select(r => $"{r.PredictedAcc * 100}%: a {r.A}, c {r.C}"))}")})");
             var lbs = await dbContext.Leaderboards.Include(lb => lb.ModifiersRating).ToListAsync();
             var generator = new global::RatingAPI.Controllers.Curve();
-            // The curve depends on the predicted acc, and on the slider share with CurveSettings.SliderTilt (not stored: from
-            // the maps folder, Analyzer only)
-            var sliders = CurveSettings.Current.SliderTilt != 0 ? await SliderPercentages(lbs) : new Dictionary<string, double>();
+            // The curve depends on the predicted acc, on the slider share with CurveSettings.SliderTilt and on the note count with
+            // the low note nerf (CurveSettings.LowNoteStart) (not stored: from the maps folder)
+            var settings = CurveSettings.Current;
+            var maps = settings.SliderTilt != 0 || settings.LowNoteStart > 0 ? await MapCounts(lbs) : new Dictionary<string, (double, int)>();
 
             foreach (var lb in lbs)
             {
-                var lack = new LackMapCalculation { SliderPercentage = sliders.GetValueOrDefault(lb.Id) };
+                var (sliders, notes) = maps.GetValueOrDefault(lb.Id);
+                var lack = new LackMapCalculation { SliderPercentage = sliders, NoteCount = notes };
                 lb.Curve = ReplayUtils.ToCurve(generator.GetCurve(lack, lb.PredictedAcc));
                 var mod = lb.ModifiersRating;
                 if (mod != null)
@@ -43,10 +45,10 @@ namespace portaBLe.Refresh
             Console.WriteLine($"Curves regenerated in {timer.Elapsed:mm\\:ss}");
         }
 
-        // Slider share of every leaderboard (no modifier), from the maps folder (downloaded when missing)
-        private static async Task<Dictionary<string, double>> SliderPercentages(List<Leaderboard> lbs)
+        // Slider share and color note count of every leaderboard (no modifier), from the maps folder (downloaded when missing)
+        private static async Task<Dictionary<string, (double sliders, int notes)>> MapCounts(List<Leaderboard> lbs)
         {
-            var result = new System.Collections.Concurrent.ConcurrentDictionary<string, double>();
+            var result = new System.Collections.Concurrent.ConcurrentDictionary<string, (double, int)>();
             var downloader = new Downloader("maps");
             await Parallel.ForEachAsync(lbs, new ParallelOptions { MaxDegreeOfParallelism = Program.CoreCount }, async (lb, ct) =>
             {
@@ -60,11 +62,11 @@ namespace portaBLe.Refresh
                         && (d.BeatMap._difficultyRank == diffCode || d.BeatMap._difficulty == lb.DifficultyName));
                     if (set == null) return;
                     var ratings = new beatleader_analyzer.Analyze().GetRating(set.Data, lb.ModeName, lb.DifficultyName, (float)mapset!.Info._beatsPerMinute);
-                    if (ratings != null) result[lb.Id] = global::RatingAPI.Controllers.Curve.SliderPercentage(ratings);
+                    result[lb.Id] = (ratings != null ? global::RatingAPI.Controllers.Curve.SliderPercentage(ratings) : 0, set.Data.Notes.Count);
                 }
                 catch { }
             });
-            return new Dictionary<string, double>(result);
+            return new Dictionary<string, (double, int)>(result);
         }
     }
 }
