@@ -8,12 +8,12 @@ namespace portaBLe.Refresh
     // worth about as much to players as the other maps of its kind, changing the balance between kinds of maps no more than
     // the balance guard allows. Nomod worth (BalanceTuner.Worth): the multiplier also applies to the SS / FS / SF ratings.
     //
-    // A map's worth is BalanceTuner.Worth in BalanceTuner.WorthMeasure, relative to what maps of its stars average (a local
-    // linear fit on stars, WorthReference, so crossing a range boundary doesn't change what a map is compared with), every
-    // score re-scored in memory with the multipliers being tried (players' weights and every map's worth move when one map
-    // changes). With PlayerAdjusted (the default) it's how much the map pays the same players than their other maps at their
-    // level, with PlayerAdjustedStrengths and the PlayerAdjusted guard tolerances; with Megametric75, how much it counts in
-    // the profiles of the players who play it.
+    // A map's worth is BalanceTuner.Worth with BalanceTuner.WorthMeasures.PlayerAdjusted (the only measure it runs with): how
+    // much the map pays the same players than their other maps at their level, relative to what maps of its stars average (a
+    // local linear fit on stars, WorthReference, so crossing a range boundary doesn't change what a map is compared with),
+    // every score re-scored in memory with the multipliers being tried (players' weights and every map's worth move when one
+    // map changes). (Megametric75, how much a map counts in the profiles of its players, moved 3-5x as much as the acc
+    // rating; its strengths and tolerances were removed on 22 Oct.)
     // On Dev with tech pp x0.124, Applied 0.5 in the fit: held-out worth spread 0.063 -> 0.042, all players 0.062 -> 0.035,
     // mean change 2.3% on 3084 maps (0.922-1.072); kinds of maps within +-0.8% of each other instead of +-0.4% (the
     // balance tuner on the databases with and without it).
@@ -23,9 +23,13 @@ namespace portaBLe.Refresh
     // worth, and it stays each map's target: kinds of maps worth more or less than others are the formula's and the tuner's to
     // fix, so they keep what they had. (Without the kinds taken out, the pass share slope went +0.03 -> -0.37 in one step.)
     //
-    // Direction: -evidence x log((1 + worth) / (1 + target)) / acc pp share (at least MinAccShare). evidence = n / (n +
-    // EvidenceScores), n the scores its worth rests on (BalanceTuner.WorthEvidence), so maps with few scores move less. An acc multiplier moves a
-    // map's pp in proportion to its acc share, so a tech or pass heavy map needs more to move as much.
+    // Direction: -evidence x log((1 + worth) / (1 + target)) / response. evidence = n / (n + EvidenceScores), n the scores
+    // its worth rests on (BalanceTuner.WorthEvidence), so maps with few scores move less. response: the acc pp share (at
+    // least MinAccShare; an acc multiplier moves a map's pp in proportion to it, so a tech or pass heavy map needs more to
+    // move as much), times how much more or less than other maps of that share the map's worth has moved with its
+    // multiplier so far (Responses: from the second pass). Maps don't respond alike: the median map's worth moved 0.6x its
+    // multiplier (in log), the 90th percentile 0.98x, and Godspeed ExpertPlus 1.3x (its stars jumped 13.72 -> 14.86 at
+    // x1.072). With the acc share alone those overshot and the limiter (below) cut them back.
     //
     // Passes: in each, Strengths (fractions of the direction) are tried and the pass moves to the lowest worth spread; the next
     // pass starts again from the new worth. Fixed steps oscillated (worth moves about 3-5x as much as the acc rating, and not
@@ -33,29 +37,57 @@ namespace portaBLe.Refresh
     // of acc heavy maps (a buffed map climbs its players' profiles more than a nerfed one falls: random 4% multipliers moved
     // the pass share slope +0.034 -> -0.065); the later passes pull every map back to its target, kinds included.
     //
+    // FitAtBaseStars: during the fit (the passes and the slope correction), each map keeps its stars and star range without
+    // reweighting, so the reference a map's worth is measured against and its players' distance to it don't move with its
+    // multiplier: worth follows the map's pp alone. The worth limiter and the balance stored measure the real stars. At the
+    // real stars (Dev, 22 Oct) the slopes aren't close to linear in the slope correction's terms (a map's stars and range
+    // move with its multiplier): one Newton step overshot (mean change 0.8% at strength 0.1, tech slope -0.012), nearly
+    // every candidate failed the guard, and the held-out spread only reached 0.0385 (0.0203 at the base stars). The real
+    // stars' slopes drift from the fit's: pass share slope +0.0077 stored for +0.0039 fitted (start +0.0039).
+    //
     // How far: fitted to convergence, worth spread went 0.48 -> 0.07, score noise included. So the players are split in two
     // halves: phase 1 fits on one half's scores and measures the worth spread on the other half's; the point (pass, strength)
     // where that held-out spread is lowest is how far the data supports going. Phase 2 fits on every player up to that point.
+    // Phase 1 runs on HeldOutSplits random splits, and each (pass, strength) is judged by its average held-out spread over
+    // them, passing the balance guard on all of them (one split's choice rested on which players fell in which half).
     //
     // Balance guard: the point kept must have the balance tuner's slopes (pass, acc and tech shares, predicted acc) no worse
     // than without reweighting (by GuardTolerance at most), and its gaps by GapTolerance: the gaps between fifths compare the
     // average worth of the top and bottom fifths of maps, outliers included, so they move when outliers are corrected; the
-    // OneSaber gap compares 73 maps with the rest, as noisy (at GuardTolerance it rejected points by 0.002). Maps are classified by their pp shares without reweighting there (nerfing a map's acc raises its pass
-    // share, and the slopes would measure the reweighting itself). When phase 2's end point doesn't pass, the point of phase 2
-    // with the lowest worth spread that does is kept; without one, nothing changes.
+    // OneSaber gap compares 73 maps with the rest, as noisy. Maps are classified by their pp shares without reweighting there
+    // (nerfing a map's acc raises its pass share, and the slopes would measure the reweighting itself). When phase 2's end
+    // point doesn't pass, the point of phase 2 with the lowest worth spread that does is kept; without one, nothing changes.
     //
     // Slope correction (SlopeCorrection): correcting single maps moves the slopes by itself, steadily with the strength of
     // the very first pass (Dev, 21 Oct: pass share slope 0.1 -> +0.007, 0.35 -> +0.009, 1.3 -> +0.011 from +0.006), and
     // neither the targets nor the multipliers explain it: multipliers without their kind part (+0.0119), a separate kind
-    // direction (+0.011) and pass / tech shares per star range in the targets (+0.011) left it. So after phase 2 every map
-    // also gets exp(sum of beta_f x u_f), u_f = -(its feature f - its star range's mean) / the within-range sd / its acc share
-    // (at least MinAccShare), for its pass share, tech share and predicted acc, the betas found by a Newton search on the
-    // pass share, tech share and predicted acc slopes until all three are back at the start's (within
-    // SlopeCorrectionTolerance; the acc share slope follows, the shares adding up to 1). Of the points tried, the one
-    // closest to the start's slopes that passes the balance guard is kept, else the uncorrected point if it does. With it,
-    // the path's balance guard leaves these three slopes out (this corrects them). The pass share alone (until 22 Oct)
-    // took the tech slope -0.0011 -> +0.008 once TechWeight 0.1612 had balanced it, past the guard, so nothing was corrected
-    // (pass slope +0.0087 from +0.0039).
+    // direction (+0.011) and pass / tech shares per star range in the targets (+0.011) left it. So every map also gets
+    // exp(sum of beta_f x u_f), u_f = -(its feature f - its star range's mean) / the within-range sd / its acc share (at
+    // least MinAccShare), for its pass share, tech share and predicted acc, the betas sized so those three slopes are back
+    // at the start's. The Jacobian of the slopes on the betas is measured once, at the start. Every candidate of every pass
+    // gets one Newton step of it before it's measured, so the passes and phase 1 choose among corrected points (corrected
+    // after phase 2 only, the correction raised the worth spread 0.0248 -> 0.0298, which the choice didn't see). After phase
+    // 2 a Newton search (Broyden updates) takes the slopes within SlopeCorrectionTolerance of the start's; of the points
+    // tried, the one closest to the start's slopes that passes the balance guard is kept, else the uncorrected point if it
+    // does. With FitAtBaseStars the base stars' slopes aren't the stored ones (pass share slope +0.0077 stored for +0.0039
+    // fitted, start +0.0039, the guard allowing 0.0079). RealStarsSlopeCorrection runs the search again at the real stars,
+    // from a Jacobian measured at the kept point; it's off (see there). The pass share alone (until 22 Oct) took the tech slope -0.0011 -> +0.008 once TechWeight 0.1612 had balanced
+    // it, past the guard, so nothing was corrected (pass slope +0.0087 from +0.0039).
+    //
+    // Worth limiter (WorthLimit): the reweight may not make a map an outlier. A map's worth may not end above max(its worth
+    // without reweighting, +WorthLimit), nor below min(it, -WorthLimit). Its target is clamped to that range first, so a
+    // map already past it isn't pushed further (Dev, 22 Oct: no map's target was, the path didn't change). Then, last,
+    // with the kept multipliers and the real stars: the band mean removal and the slope correction move maps that are on
+    // target, a map whose stars jump climbs past its neighbours (its worth moves more than its multiplier), and maps that
+    // don't change move with the maps around them (worth is relative). A map past its limit by its own multiplier has it
+    // cut by the part of its worth change it overshot (in log); one whose multiplier is 1 or the other way is moved against
+    // the overshoot (over its response, Responses). The other maps of its star range take back the mean, and it's measured
+    // again (WorthLimitRounds at most).
+    //
+    // The point to store, after the limiter and at the real stars, must pass the balance guard too, else nothing changes
+    // (acc-reweight.json, Rejected). It used to be kept anyway: with FitAtBaseStars that's the only check at the real
+    // stars, so the guard was never applied to what was stored (Dev, 22 Oct: Applied 0.45, 0.4 and 0.35 all failed it,
+    // pass share slope +0.0080 to +0.0082 for the 0.0079 allowed, and were stored).
     //
     // Applied: each map's target is Applied of the way from its worth before any change to the fitted value (in log), so the
     // fit closes only part of each map's gap; kinds of maps keep the same average target, so the later passes still pull
@@ -64,7 +96,7 @@ namespace portaBLe.Refresh
     // Maps without a worth (fewer than 20 scores, or 10 or fewer of them from players with more than 75 scores: newly ranked
     // maps) keep 1.
     // Multipliers average 1 (in log) within each star range (ranges keep their level, players' pp its scale), stay within
-    // Applied x [log(1 - MaxChange), log(1 + MaxChange)], and multiply the acc rating. Stored in
+    // Applied x +-log(1 / (1 - MaxChange)) (the same distance both ways in log), and multiply the acc rating. Stored in
     // Leaderboards.AccReweight (0 or 1 = none) and applied by RatingsRefresh (Overwrite and Refresh) to the acc rating and the
     // SS / FS / SF acc ratings, so they survive re-rating. Each run starts again from the ratings without them. Then re-score
     // (Program.RefreshEverything). Writes wwwroot/acc-reweight.json.
@@ -72,31 +104,33 @@ namespace portaBLe.Refresh
     {
         public const string FileName = "acc-reweight.json";
 
-        public static int Passes { get; set; } = 6;
-        // Fractions of the direction tried in each pass: small, as Megametric75 moves about 3-5x as much as the acc rating
-        public static double[] Strengths { get; set; } = { 0.02, 0.05, 0.08, 0.12, 0.16, 0.2, 0.3 };
-        // With BalanceTuner.WorthMeasures.PlayerAdjusted: worth moves about 0.6x as much as the map's pp (3% more pp on the
-        // tech 8+ maps moved them +1.9%), and pp about 1.2x acc share x the multiplier (acc pp ~ acc rating^AccRatingPower),
-        // so a strength near 1.3 closes a map's gap in one pass
-        public static double[] PlayerAdjustedStrengths { get; set; } = { 0.1, 0.2, 0.35, 0.5, 0.7, 1.0, 1.3 };
-        private static double[] StrengthsFor => IsPlayerAdjusted ? PlayerAdjustedStrengths : Strengths;
+        // 6 -> 3 with Strengths up to 2.0: pass 1 took the largest strength then (1.3, worth spread 0.0293 at 1.0 -> 0.0260,
+        // still falling), and passes 2-6 only took it 0.0260 -> 0.0248
+        public static int Passes { get; set; } = 3;
+        // Fractions of the direction tried in each pass. Worth moves about 0.6x as much as the map's pp (3% more pp on the tech
+        // 8+ maps moved them +1.9%), and pp about 1.2x acc share x the multiplier (acc pp ~ acc rating^AccRatingPower), so a
+        // strength near 1.3 closes a map's gap in one pass; 1.6 and 2.0 so pass 1 isn't held at the edge of the range. With
+        // the base stars and the slope correction in the passes (Dev, 22 Oct) every split chose pass 1 at 2.0 (held out 0.0211
+        // at 1.6, 0.0202 at 2.0; passes 2-3 raised it), still the edge
+        public static double[] Strengths { get; set; } = { 0.1, 0.2, 0.35, 0.5, 0.7, 1.0, 1.3, 1.6, 2.0 };
         public static double EvidenceScores { get; set; } = 40;
         // How many of a pass's candidate strengths are measured at once (each re-scores every score in memory: ~150 MB)
         public static int CandidateParallelism { get; set; } = 4;
         public static double MinAccShare { get; set; } = 0.3;
+        // The bounds are Applied x +-log(1 / (1 - MaxChange)): x0.922 to x1.085 with Applied 0.5. They were Applied x
+        // [log(1 - MaxChange), log(1 + MaxChange)], x0.922 to x1.072, tighter for buffs in log: 182 maps sat at x1.072 and 14
+        // at x0.922 (Dev, 22 Oct), and those at x1.072 weren't noise (median 634 scores, the other maps 879; worth -0.078 ->
+        // -0.035, still under)
         public static double MaxChange { get; set; } = 0.15;
         // Fraction of each map's gap to its target the fit closes (in log): 1 = all of it, 0 = none. The full fit (mean change
-        // 4.1%, 76 maps at +-15%) was too strong for players, who found the database better without it. No map moves more
-        // than Applied x MaxChange (in log).
+        // 4.1%, 76 maps at +-15%) was too strong for players, who found the database better without it.
         // Part of the fit, not a fraction of the full fit stored afterwards: the passes are fitted together, the later ones
-        // undoing the drift of the first, so a fraction of the whole drifted more than the whole. With PlayerAdjusted the full
-        // fit passed the balance guard (pass slope +0.0049 -> +0.0068) but every fraction from 0.5 to 0.15 failed it, and
-        // only 0.1 was stored (mean change 0.43%, worth spread 0.0615 -> 0.056).
+        // undoing the drift of the first, so a fraction of the whole drifted more than the whole. The full fit passed the
+        // balance guard (pass slope +0.0049 -> +0.0068) but every fraction from 0.5 to 0.15 failed it, and only 0.1 was
+        // stored (mean change 0.43%, worth spread 0.0615 -> 0.056).
         public static double Applied { get; set; } = 0.5;
-        public static double GuardTolerance { get; set; } = 0.005;
-        public static double GapTolerance { get; set; } = 0.02;
-        // With PlayerAdjusted. Scaled by the ratio of the worth spreads (0.46 / 0.059: 0.00065 / 0.0026), nothing passed: the
-        // measure's own noise (half of the players vs the other half, / 2) is about 0.0009 on the pass slope, 0.0022 on the
+        // Scaled by the ratio of the worth spreads to Megametric75's (0.46 / 0.059: 0.00065 / 0.0026), nothing passed: the
+        // measure's own noise (half of the players vs the other half, / 2) was about 0.0009 on the pass slope, 0.0022 on the
         // tech slope, 0.0027 on the OneSaber gap, and correcting single maps moves the slopes by itself (players' skills are
         // fitted again: the smallest step took the pass slope +0.005 -> +0.007). Halfway between twice the noise (0.002 /
         // 0.005) and the Megametric75 tolerances (0.005 / 0.02) was 0.0035; with Applied in the fit nothing passed it (the
@@ -110,22 +144,45 @@ namespace portaBLe.Refresh
         // +0.0059 by pass 6, all but the OneSaber gap far above the noise), so the tolerance is how strong a reweight is let
         // through: 0.004 / 0.0075 (about 4x the noise of the noisiest, tech slope and OneSaber gap) kept the full fit, 0.003 /
         // 0.005 pass 1 at strength 1.0 (worth spread 0.0296 instead of 0.0255), 0.002 / 0.004 nothing.
-        public static double PlayerAdjustedGuardTolerance { get; set; } = 0.004;
-        public static double PlayerAdjustedGapTolerance { get; set; } = 0.0075;
-        // The slope correction after phase 2 (see above): on, how close to the start's slopes it must get, the step of each
-        // term the Jacobian is measured with (log multiplier per within-range sd, over the acc share), the largest size of a
-        // term, and how many Newton steps it takes at most
+        public static double GuardTolerance { get; set; } = 0.004;
+        public static double GapTolerance { get; set; } = 0.0075;
+        // Phase 1's random splits of the players (see above)
+        public static int HeldOutSplits { get; set; } = 3;
+        // Responses: how much of its own worth change a map's multiplier must make before its response counts (in log: a map
+        // moved by ResponseNoise counts half, the rest is the maps around it), and how far its response may be from other
+        // maps' of its acc share (times or over)
+        public static double ResponseNoise { get; set; } = 0.02;
+        public static double ResponseRange { get; set; } = 3;
+        // The fit at each map's stars without reweighting (see above)
+        public static bool FitAtBaseStars { get; set; } = true;
+        // The slope correction (see above): on, how close to the start's slopes the search after phase 2 must get, the step
+        // of each term the Jacobian is measured with (log multiplier per within-range sd, over the acc share), the largest
+        // size of a term, and how many Newton steps the search takes at most
         public static bool SlopeCorrection { get; set; } = true;
         public static double SlopeCorrectionTolerance { get; set; } = 0.0005;
         public static double SlopeCorrectionStep { get; set; } = 0.005;
         public static double SlopeCorrectionMax { get; set; } = 0.1;
         public static int SlopeCorrectionSteps { get; set; } = 5;
-        private static bool IsPlayerAdjusted => BalanceTuner.WorthMeasure == BalanceTuner.WorthMeasures.PlayerAdjusted;
-        private static double GuardToleranceFor => IsPlayerAdjusted ? PlayerAdjustedGuardTolerance : GuardTolerance;
-        private static double GapToleranceFor => IsPlayerAdjusted ? PlayerAdjustedGapTolerance : GapTolerance;
+        // The search again at the real stars (see above). Off: on Dev (22 Oct) it took the stored slopes back to the start's
+        // (pass share +0.0077 -> +0.0044, predicted acc -0.0021 -> -0.0007) but moved maps by their kind, not their gap:
+        // worth spread 0.0211 -> 0.0247, maps beyond +-0.05 112 -> 152, 236 maps past the worth limit before the limiter
+        // (9 without it), the OneSaber gap +0.0019 -> +0.0044, and pass heavy low tech maps with a high predicted acc buffed
+        // to the cap: 2cf6391 (pass 14.3, tech 2.9, 97.95%) x1.056 -> x1.085, 10.51 -> 10.85 stars, worth -0.006 -> +0.014
+        // (-0.044 without reweighting), which players found too high
+        public static bool RealStarsSlopeCorrection { get; set; } = false;
+        // The worth limiter, last (see above): how far past average (worth 0) a change may take a map's worth (0 = off), and
+        // how many times the multipliers are measured and cut at most. 0.03: about the worth spread after the reweight. Without
+        // it (Dev, 22 Oct), 66 maps already worth more than +0.03 were buffed, and the most pass heavy 13+ star maps went past
+        // their neighbours: Godspeed ExpertPlus (pass 17) +0.010 -> +0.107 at x1.072, 13.72 -> 14.86 stars (its worth moved
+        // 1.3x its multiplier, the median map 0.6x).
+        public static double WorthLimit { get; set; } = 0.03;
+        // Without the target clamp and without moving maps against the overshoot, 53 maps were still past their limit by the
+        // maps around them (multiplier 1, 48 above: Calamitous Demise ExpertPlus +0.054 -> +0.071)
+        public static int WorthLimitRounds { get; set; } = 8;
 
         private sealed class Point
         {
+            public int Split = -1;   // phase 1's split (-1: every player)
             public int Pass;
             public double Strength;
             public double[] SlopeCorrection = Array.Empty<double>();   // pass, tech, predicted acc terms (empty: none)
@@ -143,16 +200,31 @@ namespace portaBLe.Refresh
             public int[] BaseBand = Array.Empty<int>();
             public BalanceTuner.Data Unweighted = null!;
             public double[] AccShare = Array.Empty<double>();
+            // max(acc share, MinAccShare): the part of each map's response its acc share explains
+            public double[] Prior = Array.Empty<double>();
             public double[][] BandFeatures = Array.Empty<double[]>();
             public double?[] StartWorth = Array.Empty<double?>();
+            public double[] HasWorth = Array.Empty<double>();
+            public BalanceStats StartBalance = new();
+            // The slope correction's terms (pass, tech, predicted acc) and the Jacobian of the slopes on them at the start
+            public double[][] U = Array.Empty<double[]>();
+            public double[,] Jacobian = new double[0, 0];
+            public double Lo, Hi;
             public System.Diagnostics.Stopwatch Timer = null!;
         }
 
+        private sealed record Measured(BalanceTuner.Data Data, BalanceTuner.Evaluation E, double?[] Worth, Point Point);
+
         public static async Task Run(AppContext dbContext, string webRootPath)
         {
+            if (BalanceTuner.WorthMeasure != BalanceTuner.WorthMeasures.PlayerAdjusted)
+            {
+                Console.WriteLine($"Acc reweight: only runs with BalanceTuner.WorthMeasures.PlayerAdjusted (is {BalanceTuner.WorthMeasure}), nothing done");
+                return;
+            }
             var timer = System.Diagnostics.Stopwatch.StartNew();
             await DbSchema.AddColumnIfMissing(dbContext, "Leaderboards", "AccReweight", "REAL");
-            Console.WriteLine($"Acc reweight: loading scores (worth measure {BalanceTuner.WorthMeasure})...");
+            Console.WriteLine("Acc reweight: loading scores...");
             var loaded = await BalanceTuner.Load(dbContext);
             int mapCount = loaded.Maps.Length;
 
@@ -175,6 +247,7 @@ namespace portaBLe.Refresh
                 baseBand[i] = BalanceTuner.StarBandOf(ReplayUtils.ToStars((float)(baseAcc[i]), lb.PassRating, lb.TechRating, lb.Curve));
             }
 
+            double bound = Applied * -Math.Log(1 - MaxChange);
             var context = new Context
             {
                 Loaded = loaded,
@@ -183,24 +256,44 @@ namespace portaBLe.Refresh
                 BaseBand = baseBand,
                 Unweighted = WithMultipliers(loaded, baseAcc, baseModAcc, new double[mapCount]),
                 BandFeatures = BandFeatures(baseBand),
+                Lo = -bound,
+                Hi = bound,
                 Timer = timer,
             };
             context.AccShare = AccShares(context.Unweighted);
-            context.StartWorth = BalanceTuner.Worth(context.Unweighted, BalanceTuner.Evaluate(context.Unweighted), out _);
+            context.Prior = context.AccShare.Select(a => Math.Max(a, MinAccShare)).ToArray();
+            var startMeasure = Measure(context, new double[mapCount], false);
+            context.StartWorth = startMeasure.Worth;
+            context.StartBalance = startMeasure.Balance;
+            context.HasWorth = context.StartWorth.Select(w => w != null ? 1.0 : 0.0).ToArray();
+            context.U = SlopeTerms(context);
+            if (SlopeCorrection) context.Jacobian = MeasureJacobian(context, null, context.StartBalance, FitAtBaseStars, "start");
 
-            // Phase 1: fit on half the players, check on the other half
-            var random = new Random(6969);
-            var half = Enumerable.Range(0, loaded.PlayerCount).Select(_ => random.Next(2) == 0).ToArray();
-            var other = half.Select(h => !h).ToArray();
-            var phase1 = Path(context, "held out", half, other, Passes, null);
-            // The point with the lowest held-out spread among those that pass the balance guard (the early passes push kinds of
-            // maps apart and the later ones pull them back: with a balanced start, the lowest held-out spread overall was at pass
-            // 2, where the guard failed on every point of phase 2, so nothing was kept). Without one, the lowest overall.
-            var measured = phase1.Where(p => p.HeldOutSpread != null).ToList();
-            var chosen = measured.Where(p => p.Pass > 0 && p.GuardOk).OrderBy(p => p.HeldOutSpread).FirstOrDefault()
-                ?? measured.OrderBy(p => p.HeldOutSpread).First();
+            // Phase 1: fit on half the players, check on the other half, for each split
+            var splits = new List<List<Point>>();
+            for (int split = 0; split < HeldOutSplits; split++)
+            {
+                var random = new Random(6969 + split);
+                var half = Enumerable.Range(0, loaded.PlayerCount).Select(_ => random.Next(2) == 0).ToArray();
+                var other = half.Select(h => !h).ToArray();
+                var path = Path(context, $"held out {split + 1}/{HeldOutSplits}", half, other, Passes, null);
+                foreach (var p in path) p.Split = split;
+                splits.Add(path);
+            }
+            // Each (pass, strength) measured on every split: its average held-out spread, and whether it passes the guard on all.
+            // The lowest that passes (the early passes push kinds of maps apart and the later ones pull them back: with a
+            // balanced start, the lowest held-out spread overall was at pass 2, where the guard failed on every point of phase 2,
+            // so nothing was kept); without one, the lowest overall.
+            var summary = splits[0].Where(p => p.HeldOutSpread != null).Select(p => (p.Pass, p.Strength)).Distinct()
+                .Select(key => (Key: key, Points: splits.Select(s => s.FirstOrDefault(p => p.Pass == key.Pass && p.Strength == key.Strength && p.HeldOutSpread != null)).ToList()))
+                .Where(k => k.Points.All(p => p != null))
+                .Select(k => (k.Key.Pass, k.Key.Strength, HeldOut: k.Points.Average(p => p!.HeldOutSpread!.Value), GuardOk: k.Points.All(p => p!.GuardOk)))
+                .ToList();
+            var chosen = summary.Where(k => k.Pass > 0 && k.GuardOk).OrderBy(k => k.HeldOut).Cast<(int Pass, double Strength, double HeldOut, bool GuardOk)?>().FirstOrDefault()
+                ?? summary.OrderBy(k => k.HeldOut).First();
+            double startHeldOut = summary.First(k => k.Pass == 0).HeldOut;
             Console.WriteLine(FormattableString.Invariant(
-                $"Acc reweight: held-out worth spread lowest at pass {chosen.Pass} strength {chosen.Strength:0.00}{(chosen.GuardOk ? "" : " (no point passes the guard)")} ({phase1[0].HeldOutSpread:0.0000} -> {chosen.HeldOutSpread:0.0000}, lowest overall {measured.Min(p => p.HeldOutSpread):0.0000})"));
+                $"Acc reweight: held-out worth spread (average of {HeldOutSplits} splits) lowest at pass {chosen.Pass} strength {chosen.Strength:0.00}{(chosen.GuardOk ? "" : " (no point passes the guard)")} ({startHeldOut:0.0000} -> {chosen.HeldOut:0.0000}, lowest overall {summary.Min(k => k.HeldOut):0.0000}; each split: {string.Join(", ", splits.Select(s => FormattableString.Invariant($"pass {s.Where(p => p.HeldOutSpread != null && p.GuardOk && p.Pass > 0).OrderBy(p => p.HeldOutSpread).FirstOrDefault()?.Pass} strength {s.Where(p => p.HeldOutSpread != null && p.GuardOk && p.Pass > 0).OrderBy(p => p.HeldOutSpread).FirstOrDefault()?.Strength:0.00}")))})"));
 
             // Phase 2: every player, up to that point
             var phase2 = Path(context, "all players", null, null, chosen.Pass, chosen.Pass > 0 ? chosen.Strength : null);
@@ -213,14 +306,50 @@ namespace portaBLe.Refresh
                 Console.WriteLine("Acc reweight: WARNING: no point of phase 2 passes the balance guard, nothing changes (see acc-reweight.json, Rounds)");
             }
 
-            // The pass slope correction, on the kept point
+            // The slope correction's search, on the kept point
             var uncorrected = kept;
             var corrections = new List<Point>();
-            if (SlopeCorrection && kept != start) kept = CorrectSlopes(context, kept, start.Balance, corrections);
+            if (SlopeCorrection && kept != start) kept = CorrectSlopes(context, kept, corrections, FitAtBaseStars, context.Jacobian, "slope correction");
+            // Again at the real stars (the base stars' slopes aren't the stored ones), from a Jacobian measured at the kept point
+            if (SlopeCorrection && RealStarsSlopeCorrection && FitAtBaseStars && kept != start)
+            {
+                var real = Measure(context, kept.LogM, false).Balance;
+                var atReal = new Point { Pass = kept.Pass, Strength = kept.Strength, SlopeCorrection = kept.SlopeCorrection, LogM = kept.LogM, Balance = real, GuardOk = GuardOk(context.StartBalance, real) };
+                Console.WriteLine(FormattableString.Invariant(
+                    $"Acc reweight: at the real stars: pass slope {real.PassShareSlope:+0.0000;-0.0000}, tech slope {real.TechShareSlope:+0.0000;-0.0000}, predicted acc slope {real.PredictedAccSlope:+0.0000;-0.0000}, worth spread {real.WorthSpread:0.0000}{(atReal.GuardOk ? "" : " (guard)")}"));
+                kept = CorrectSlopes(context, atReal, corrections, false, MeasureJacobian(context, kept.LogM, real, false, "kept point, real stars"), "real stars");
+            }
+
+            // The worth limiter, on what is kept
+            var limited = new bool[mapCount];
+            double?[]? worthAfter = null;
+            if (WorthLimit > 0 && kept != start) (kept, limited, worthAfter) = LimitWorth(context, kept);
+            // The balance guard at the real stars, on what would be stored (the limiter measured it; without the limiter and
+            // with FitAtBaseStars, measured here): when it fails, nothing changes
+            if (kept != start && WorthLimit <= 0 && FitAtBaseStars)
+            {
+                var real = Measure(context, kept.LogM, false);
+                worthAfter = real.Worth;
+                kept = new Point { Pass = kept.Pass, Strength = kept.Strength, SlopeCorrection = kept.SlopeCorrection, LogM = kept.LogM, Balance = real.Balance, GuardOk = GuardOk(context.StartBalance, real.Balance) };
+            }
+            bool guardFailed = kept != start && !kept.GuardOk;
+            if (guardFailed)
+            {
+                var b = kept.Balance;
+                Console.WriteLine(FormattableString.Invariant(
+                    $"Acc reweight: WARNING: the point to store fails the balance guard at the real stars (pass slope {b.PassShareSlope:+0.0000;-0.0000}, tech slope {b.TechShareSlope:+0.0000;-0.0000}, acc slope {b.AccShareSlope:+0.0000;-0.0000}, predicted acc slope {b.PredictedAccSlope:+0.0000;-0.0000}; gaps pass share {b.PassShareGap:+0.0000;-0.0000}, tech share {b.TechShareGap:+0.0000;-0.0000}, predicted acc {b.PredictedAccGap:+0.0000;-0.0000}, OneSaber {b.OneSaberGap:+0.0000;-0.0000}), nothing changes (see acc-reweight.json, Rejected)"));
+            }
+            var rejected = guardFailed ? kept : null;
+            if (guardFailed)
+            {
+                kept = start;
+                limited = new bool[mapCount];
+                worthAfter = null;
+            }
 
             // Applied is part of the fit (the targets), so the kept point is stored as is
             var applied = kept;
-            double fraction = uncorrected != start ? Applied : 0;
+            double fraction = kept != start ? Applied : 0;
 
             // Store the multipliers and the reweighted acc ratings and stars
             var index = new Dictionary<string, int>();
@@ -248,6 +377,7 @@ namespace portaBLe.Refresh
 
             AccReweightRound ToRound(Point p) => new()
             {
+                Split = p.Split,
                 Round = p.Pass,
                 Strength = p.Strength,
                 SlopeCorrection = p.SlopeCorrection,
@@ -260,13 +390,15 @@ namespace portaBLe.Refresh
             var result = new AccReweightResult
             {
                 GeneratedAt = DateTime.UtcNow,
-                Settings = new AccReweightSettings { WorthMeasure = BalanceTuner.WorthMeasure.ToString(), Passes = Passes, Strengths = StrengthsFor, EvidenceScores = EvidenceScores, MinAccShare = MinAccShare, MaxChange = MaxChange, Applied = Applied, GuardTolerance = GuardToleranceFor, GapTolerance = GapToleranceFor, SlopeCorrection = SlopeCorrection, SlopeCorrectionTolerance = SlopeCorrectionTolerance },
-                HeldOut = phase1.Select(ToRound).ToList(),
+                Settings = new AccReweightSettings { WorthMeasure = BalanceTuner.WorthMeasure.ToString(), Passes = Passes, Strengths = Strengths, EvidenceScores = EvidenceScores, MinAccShare = MinAccShare, MaxChange = MaxChange, Applied = Applied, GuardTolerance = GuardTolerance, GapTolerance = GapTolerance, SlopeCorrection = SlopeCorrection, SlopeCorrectionTolerance = SlopeCorrectionTolerance, WorthLimit = WorthLimit, HeldOutSplits = HeldOutSplits, FitAtBaseStars = FitAtBaseStars, ResponseNoise = ResponseNoise },
+                MapsLimited = limited.Count(l => l),
+                HeldOut = splits.SelectMany(s => s).Select(ToRound).ToList(),
                 Rounds = phase2.Select(ToRound).ToList(),
                 KeptRound = phase2.IndexOf(uncorrected),
                 SlopeCorrections = corrections.Select(ToRound).ToList(),
                 AppliedFraction = fraction,
                 Applied = ToRound(applied),
+                Rejected = rejected == null ? null : ToRound(rejected),
                 Maps = Enumerable.Range(0, mapCount)
                     .Select(i => new AccReweightMap
                     {
@@ -275,14 +407,133 @@ namespace portaBLe.Refresh
                         Difficulty = loaded.Maps[i].Leaderboard.DifficultyName,
                         Mode = loaded.Maps[i].Leaderboard.ModeName,
                         Multiplier = Math.Round(Math.Exp(applied.LogM[i]), 4),
+                        WorthBefore = context.StartWorth[i] is double b ? Math.Round(b, 4) : null,
+                        WorthAfter = worthAfter?[i] is double a ? Math.Round(a, 4) : null,
+                        Limited = limited[i],
                     })
                     .Where(m => Math.Abs(m.Multiplier - 1) > 0.0005)
                     .OrderBy(m => m.Multiplier)
                     .ToList(),
             };
-            var path = System.IO.Path.Combine(webRootPath, FileName);
-            await File.WriteAllTextAsync(path, JsonSerializer.Serialize(result));
-            Console.WriteLine($"Acc reweight saved to {path} ({timer.Elapsed:mm\\:ss}). Re-score next (RefreshEverything).");
+            var path2 = System.IO.Path.Combine(webRootPath, FileName);
+            await File.WriteAllTextAsync(path2, JsonSerializer.Serialize(result));
+            Console.WriteLine($"Acc reweight saved to {path2} ({timer.Elapsed:mm\\:ss}). Re-score next (RefreshEverything).");
+        }
+
+        // Every score re-scored with these multipliers: every player's worth and the balance. baseStars: each map at its stars
+        // and star range without reweighting (FitAtBaseStars)
+        private static (BalanceTuner.Data Data, BalanceTuner.Evaluation E, double?[] Worth, BalanceStats Balance) Measure(Context c, double[] logM, bool baseStars)
+        {
+            var data = WithMultipliers(c.Loaded, c.BaseAcc, c.BaseModAcc, logM, baseStars ? c.Unweighted : null);
+            var e = BalanceTuner.Evaluate(data);
+            var worth = BalanceTuner.Worth(data, e, out _);
+            return (data, e, worth, BalanceTuner.MeasureBalance(data, e, worth, c.Unweighted));
+        }
+
+        // Without each star range's mean (log, over the maps with weight), then the bounds
+        private static double[] Clean(Context c, double[] logM, double[] weight)
+        {
+            var cleaned = Residuals(c.BandFeatures, logM.Select(v => (double?)v).ToArray(), weight);
+            return cleaned.Select(v => Math.Clamp(v ?? 0, c.Lo, c.Hi)).ToArray();
+        }
+
+        // logM plus the slope correction's terms
+        private static double[] WithCorrection(Context c, double[] logM, double[] beta)
+        {
+            var result = (double[])logM.Clone();
+            for (int f = 0; f < beta.Length; f++)
+                for (int i = 0; i < result.Length; i++) result[i] += beta[f] * c.U[f][i];
+            return result;
+        }
+
+        // The three slopes the slope correction corrects, minus the start's
+        private static double[] SlopesOff(BalanceStats start, BalanceStats b) => new[]
+        {
+            b.PassShareSlope - start.PassShareSlope,
+            b.TechShareSlope - start.TechShareSlope,
+            b.PredictedAccSlope - start.PredictedAccSlope,
+        };
+
+        // How much each map's worth has moved with its multiplier, relative to other maps of its acc share: (change in log
+        // worth) / (log multiplier) / Prior, over the median of the maps that moved more than ResponseNoise (global), shrunk
+        // towards 1 by how little the map moved (a map moved by ResponseNoise counts half) and within ResponseRange. 1 for a
+        // map that hasn't moved or has no worth. global: the median itself (the response of a map with Prior 1).
+        private static double[] Responses(Context c, double[] logM, double?[] worth, double?[] worth0, out double global)
+        {
+            int mapCount = logM.Length;
+            var ratio = new double?[mapCount];
+            for (int i = 0; i < mapCount; i++)
+            {
+                if (Math.Abs(logM[i]) < 1e-6 || worth[i] is not double w || worth0[i] is not double w0 || w <= -0.99 || w0 <= -0.99) continue;
+                ratio[i] = Math.Log((1 + w) / (1 + w0)) / logM[i] / c.Prior[i];
+            }
+            var sure = Enumerable.Range(0, mapCount).Where(i => ratio[i] != null && Math.Abs(logM[i]) > ResponseNoise).Select(i => ratio[i]!.Value).OrderBy(v => v).ToList();
+            global = sure.Count > 0 ? sure[sure.Count / 2] : 0;
+            var relative = Enumerable.Repeat(1.0, mapCount).ToArray();
+            if (!(global > 0)) { global = 0; return relative; }
+            for (int i = 0; i < mapCount; i++)
+            {
+                if (ratio[i] is not double r) continue;
+                double clamped = Math.Clamp(r / global, 1 / ResponseRange, ResponseRange);
+                double weight = logM[i] * logM[i] / (logM[i] * logM[i] + ResponseNoise * ResponseNoise);
+                relative[i] = Math.Exp(weight * Math.Log(clamped));
+            }
+            return relative;
+        }
+
+        // The slope correction's terms: for the pass share, tech share and predicted acc, -(the map's - its star range's
+        // mean) / the within-range sd / Prior, over the maps with a worth
+        private static double[][] SlopeTerms(Context c)
+        {
+            int mapCount = c.Loaded.Maps.Length;
+            var (pass, tech) = KindShares(c.Unweighted);
+            var features = new[] { pass, tech, c.Unweighted.Maps.Select(m => (double)m.Leaderboard.PredictedAcc * 100).ToArray() };
+            var u = new double[features.Length][];
+            for (int f = 0; f < features.Length; f++)
+            {
+                var sums = new Dictionary<int, (double Sum, int Count)>();
+                for (int i = 0; i < mapCount; i++)
+                {
+                    if (c.HasWorth[i] <= 0) continue;
+                    sums.TryGetValue(c.BaseBand[i], out var m);
+                    sums[c.BaseBand[i]] = (m.Sum + features[f][i], m.Count + 1);
+                }
+                var dev = new double[mapCount];
+                double squares = 0;
+                int n = 0;
+                for (int i = 0; i < mapCount; i++)
+                {
+                    if (c.HasWorth[i] <= 0) continue;
+                    var (sum, count) = sums[c.BaseBand[i]];
+                    dev[i] = features[f][i] - sum / count;
+                    squares += dev[i] * dev[i];
+                    n++;
+                }
+                double sd = n > 0 && squares > 0 ? Math.Sqrt(squares / n) : 1;
+                u[f] = new double[mapCount];
+                for (int i = 0; i < mapCount; i++) if (c.HasWorth[i] > 0) u[f][i] = -dev[i] / sd / c.Prior[i];
+            }
+            return u;
+        }
+
+        // The Jacobian of the three slopes on the slope correction's terms at logM (null: the start, its balance at), at the
+        // base stars or the real ones: one step of each
+        private static double[,] MeasureJacobian(Context c, double[]? logM, BalanceStats at, bool baseStars, string label)
+        {
+            int k = c.U.Length, mapCount = c.Loaded.Maps.Length;
+            double h = SlopeCorrectionStep;
+            var jacobian = new double[k, k];
+            Parallel.For(0, k, new ParallelOptions { MaxDegreeOfParallelism = CandidateParallelism }, f =>
+            {
+                var step = new double[k];
+                step[f] = h;
+                var b = Measure(c, Clean(c, WithCorrection(c, logM ?? new double[mapCount], step), c.HasWorth), baseStars).Balance;
+                var off = SlopesOff(at, b);
+                for (int r = 0; r < k; r++) jacobian[r, f] = off[r] / h;
+            });
+            Console.WriteLine(FormattableString.Invariant(
+                $"Acc reweight: slope Jacobian, {label} (rows pass, tech, predicted acc slopes; columns their terms): {string.Join("; ", Enumerable.Range(0, k).Select(r => string.Join(" ", Enumerable.Range(0, k).Select(f => FormattableString.Invariant($"{jacobian[r, f]:+0.000;-0.000}")))))} ({c.Timer.Elapsed:mm\\:ss})"));
+            return jacobian;
         }
 
         // The passes: fit on fitPlayers (null = all), measure the held-out worth spread on checkPlayers (null = none). With
@@ -290,29 +541,32 @@ namespace portaBLe.Refresh
         private static List<Point> Path(Context c, string label, bool[]? fitPlayers, bool[]? checkPlayers, int passes, double? lastStrength)
         {
             int mapCount = c.Loaded.Maps.Length;
-            double lo = Applied * Math.Log(1 - MaxChange), hi = Applied * Math.Log(1 + MaxChange);
             var ones = Enumerable.Repeat(1.0, mapCount).ToArray();
             var points = new List<Point>();
-            BalanceStats? start = null;
 
             // A point measured (Compute: on its own, so a pass's candidates can be measured at once), then recorded in order
-            (BalanceTuner.Data Data, BalanceTuner.Evaluation E, double?[] Worth, Point Point) Compute(double[] logM, int pass, double strength)
+            Measured Compute(double[] logM, int pass, double strength, double[] beta)
             {
-                var data = WithMultipliers(c.Loaded, c.BaseAcc, c.BaseModAcc, logM);
-                var e = BalanceTuner.Evaluate(data);
-                var worthAll = BalanceTuner.Worth(data, e, out _);
-                var balance = BalanceTuner.MeasureBalance(data, e, worthAll, c.Unweighted);
+                var (data, e, worthAll, balance) = Measure(c, logM, FitAtBaseStars);
                 var fitWorth = fitPlayers == null ? worthAll : BalanceTuner.Worth(data, e, out _, fitPlayers);
                 double? heldOut = checkPlayers == null ? null : Spread(BalanceTuner.Worth(data, e, out _, checkPlayers));
-                return (data, e, fitWorth, new Point { Pass = pass, Strength = strength, LogM = logM, Balance = balance, HeldOutSpread = heldOut });
+                return new Measured(data, e, fitWorth, new Point { Pass = pass, Strength = strength, SlopeCorrection = beta, LogM = logM, Balance = balance, HeldOutSpread = heldOut });
             }
-            (BalanceTuner.Data Data, BalanceTuner.Evaluation E, double?[] Worth, Point Point) Record((BalanceTuner.Data Data, BalanceTuner.Evaluation E, double?[] Worth, Point Point) measured)
+            // A candidate with one Newton step of the slope correction (the start's Jacobian) before it's measured
+            Measured Corrected(double[] logM, int pass, double strength, double[] weight)
+            {
+                var cleaned = Clean(c, logM, weight);
+                if (!SlopeCorrection) return Compute(cleaned, pass, strength, Array.Empty<double>());
+                var first = Measure(c, cleaned, FitAtBaseStars).Balance;
+                var beta = Solve(c.Jacobian, SlopesOff(c.StartBalance, first).Select(v => -v).ToArray())
+                    .Select(b => Math.Clamp(b, -SlopeCorrectionMax, SlopeCorrectionMax)).ToArray();
+                return Compute(Clean(c, WithCorrection(c, cleaned, beta), weight), pass, strength, beta);
+            }
+            Measured Record(Measured measured)
             {
                 var point = measured.Point;
                 var (balance, logM, pass, strength, heldOut) = (point.Balance, point.LogM, point.Pass, point.Strength, point.HeldOutSpread);
-                start ??= balance;
-                // With the slope correction its slopes are checked on the corrected point (CorrectSlopes), not here
-                point.GuardOk = GuardOk(start, balance, withCorrectedSlopes: !SlopeCorrection);
+                point.GuardOk = GuardOk(c.StartBalance, balance);
                 points.Add(point);
                 Console.WriteLine(FormattableString.Invariant(
                     $"Acc reweight ({label}): pass {pass} strength {strength:0.00}: worth spread {balance.WorthSpread:0.0000}{(heldOut is double h ? $" (held out {h:0.0000})" : "")}, pass slope {balance.PassShareSlope:+0.000;-0.000}, tech slope {balance.TechShareSlope:+0.000;-0.000}, acc slope {balance.AccShareSlope:+0.000;-0.000}, predicted acc gap {balance.PredictedAccGap:+0.000;-0.000}, one saber gap {balance.OneSaberGap:+0.000;-0.000}, mean change {logM.Average(v => Math.Abs(Math.Exp(v) - 1)) * 100:0.0}%{(point.GuardOk ? "" : " (guard)")} ({c.Timer.Elapsed:mm\\:ss})"));
@@ -320,7 +574,7 @@ namespace portaBLe.Refresh
             }
 
             var logM = new double[mapCount];
-            var current = Record(Compute(logM, 0, 0));
+            var current = Record(Compute(logM, 0, 0, Array.Empty<double>()));
 
             // Each map's target: what the balance features predict for its worth before any change (fitted players' scores)
             var target = new double?[mapCount];
@@ -334,6 +588,8 @@ namespace portaBLe.Refresh
             {
                 if (linear0[i] is not double w || target[i] is not double t) continue;
                 double partial = Math.Exp((1 - Applied) * Math.Log(1 + w) + Applied * Math.Log(1 + t)) - 1;
+                // Not past the worth limit (WorthLimit): a map already past it isn't pushed further
+                if (WorthLimit > 0) partial = Math.Clamp(partial, Math.Min(w, -WorthLimit), Math.Max(w, WorthLimit));
                 keep[i] = partial - t;
                 target[i] = partial;
             }
@@ -344,27 +600,31 @@ namespace portaBLe.Refresh
             {
                 var direction = new double[mapCount];
                 var evidence = BalanceTuner.WorthEvidence(current.Data, current.E, fitPlayers);
+                var relative = Responses(c, logM, current.Worth, linear0, out double global);
+                if (pass > 1)
+                {
+                    var sorted = relative.Where((_, i) => Math.Abs(logM[i]) > 1e-6).OrderBy(v => v).ToList();
+                    if (sorted.Count > 0) Console.WriteLine(FormattableString.Invariant(
+                        $"Acc reweight ({label}): responses before pass {pass}: median {global:0.00} x acc share, relative p10 {sorted[sorted.Count / 10]:0.00}, p90 {sorted[sorted.Count * 9 / 10]:0.00}"));
+                }
                 for (int i = 0; i < mapCount; i++)
                 {
                     if (current.Worth[i] is not double w || w <= -0.99 || target[i] is not double t) continue;
                     int n = evidence[i];
-                    direction[i] = -n / (n + EvidenceScores) * Math.Log((1 + w) / (1 + t)) / Math.Max(c.AccShare[i], MinAccShare);
+                    direction[i] = -n / (n + EvidenceScores) * Math.Log((1 + w) / (1 + t)) / (c.Prior[i] * relative[i]);
                 }
 
-                var strengths = pass == passes && lastStrength is double only ? new[] { only } : StrengthsFor;
+                var strengths = pass == passes && lastStrength is double only ? new[] { only } : Strengths;
                 // The candidates measured at once (CandidateParallelism), then recorded and compared in order
                 var from = logM;
-                var computed = new (BalanceTuner.Data Data, BalanceTuner.Evaluation E, double?[] Worth, Point Point)[strengths.Length];
+                var computed = new Measured[strengths.Length];
                 Parallel.For(0, strengths.Length, new ParallelOptions { MaxDegreeOfParallelism = CandidateParallelism }, k =>
                 {
                     var candidate = new double[mapCount];
                     for (int i = 0; i < mapCount; i++) candidate[i] = from[i] + strengths[k] * direction[i];
-                    // Without each star range's mean (log, over the maps with a target), then the bounds
-                    var cleaned = Residuals(c.BandFeatures, candidate.Select(v => (double?)v).ToArray(), hasTarget);
-                    for (int i = 0; i < mapCount; i++) candidate[i] = Math.Clamp(cleaned[i] ?? 0, lo, hi);
-                    computed[k] = Compute(candidate, pass, strengths[k]);
+                    computed[k] = Corrected(candidate, pass, strengths[k], hasTarget);
                 });
-                (BalanceTuner.Data Data, BalanceTuner.Evaluation E, double?[] Worth, Point Point)? best = null;
+                Measured? best = null;
                 double bestSpread = double.MaxValue;
                 foreach (var one in computed)
                 {
@@ -377,7 +637,7 @@ namespace portaBLe.Refresh
                         best = measured;
                     }
                 }
-                current = best!.Value;
+                current = best!;
                 logM = current.Point.LogM;
             }
             // With lastStrength the last point is where the path ends; move it last if a lower strength was measured after it
@@ -389,103 +649,43 @@ namespace portaBLe.Refresh
             return points;
         }
 
-        // The slope correction (see above): from the kept point, the sizes of the pass, tech and predicted acc terms by a
-        // Newton search on the three slopes (the Jacobian from one step of each term, then Broyden updates). corrections:
-        // every point tried.
-        private static Point CorrectSlopes(Context c, Point kept, BalanceStats start, List<Point> corrections)
+        // The slope correction's search after phase 2 (see above): from the kept point (already corrected one step per pass),
+        // the sizes of the pass, tech and predicted acc terms by a Newton search on the three slopes (from jacobian, then
+        // Broyden updates), at the base stars or the real ones. corrections: every point tried.
+        private static Point CorrectSlopes(Context c, Point kept, List<Point> corrections, bool baseStars, double[,] startJacobian, string label)
         {
-            int mapCount = c.Loaded.Maps.Length;
-            double lo = Applied * Math.Log(1 - MaxChange), hi = Applied * Math.Log(1 + MaxChange);
-            var hasWorth = c.StartWorth.Select(w => w != null ? 1.0 : 0.0).ToArray();
-            var (pass, tech) = KindShares(c.Unweighted);
-            var features = new[] { pass, tech, c.Unweighted.Maps.Select(m => (double)m.Leaderboard.PredictedAcc * 100).ToArray() };
-            int k = features.Length;
-            // Each term: the feature minus its star range's mean, over its within-range sd (over the maps with a worth), over
-            // the acc share
-            var u = new double[k][];
-            for (int f = 0; f < k; f++)
-            {
-                var sums = new Dictionary<int, (double Sum, int Count)>();
-                for (int i = 0; i < mapCount; i++)
-                {
-                    if (hasWorth[i] <= 0) continue;
-                    sums.TryGetValue(c.BaseBand[i], out var m);
-                    sums[c.BaseBand[i]] = (m.Sum + features[f][i], m.Count + 1);
-                }
-                var dev = new double[mapCount];
-                double squares = 0;
-                int n = 0;
-                for (int i = 0; i < mapCount; i++)
-                {
-                    if (hasWorth[i] <= 0) continue;
-                    var (sum, count) = sums[c.BaseBand[i]];
-                    dev[i] = features[f][i] - sum / count;
-                    squares += dev[i] * dev[i];
-                    n++;
-                }
-                double sd = n > 0 && squares > 0 ? Math.Sqrt(squares / n) : 1;
-                u[f] = new double[mapCount];
-                for (int i = 0; i < mapCount; i++) if (hasWorth[i] > 0) u[f][i] = -dev[i] / sd / Math.Max(c.AccShare[i], MinAccShare);
-            }
+            int k = c.U.Length;
+            var start = c.StartBalance;
 
             Point At(double[] beta)
             {
-                var candidate = new double[mapCount];
-                for (int i = 0; i < mapCount; i++)
-                {
-                    double v = kept.LogM[i];
-                    for (int f = 0; f < k; f++) v += beta[f] * u[f][i];
-                    candidate[i] = v;
-                }
-                // Without each star range's mean (log, over the maps with a worth), then the bounds
-                var cleaned = Residuals(c.BandFeatures, candidate.Select(v => (double?)v).ToArray(), hasWorth);
-                for (int i = 0; i < mapCount; i++) candidate[i] = Math.Clamp(cleaned[i] ?? 0, lo, hi);
-                var data = WithMultipliers(c.Loaded, c.BaseAcc, c.BaseModAcc, candidate);
-                var e = BalanceTuner.Evaluate(data);
-                var balance = BalanceTuner.MeasureBalance(data, e, BalanceTuner.Worth(data, e, out _), c.Unweighted);
-                var point = new Point { Pass = kept.Pass, Strength = kept.Strength, SlopeCorrection = (double[])beta.Clone(), LogM = candidate, Balance = balance, GuardOk = GuardOk(start, balance) };
+                var candidate = Clean(c, WithCorrection(c, kept.LogM, beta), c.HasWorth);
+                var balance = Measure(c, candidate, baseStars).Balance;
+                var total = kept.SlopeCorrection.Length == k ? kept.SlopeCorrection.Zip(beta, (a, b) => a + b).ToArray() : (double[])beta.Clone();
+                var point = new Point { Pass = kept.Pass, Strength = kept.Strength, SlopeCorrection = total, LogM = candidate, Balance = balance, GuardOk = GuardOk(start, balance) };
                 corrections.Add(point);
                 Console.WriteLine(FormattableString.Invariant(
-                    $"Acc reweight (slope correction): pass {beta[0]:+0.0000;-0.0000}, tech {beta[1]:+0.0000;-0.0000}, predicted acc {beta[2]:+0.0000;-0.0000}: worth spread {balance.WorthSpread:0.0000}, pass slope {balance.PassShareSlope:+0.0000;-0.0000}, tech slope {balance.TechShareSlope:+0.0000;-0.0000}, acc slope {balance.AccShareSlope:+0.0000;-0.0000}, predicted acc slope {balance.PredictedAccSlope:+0.0000;-0.0000}, predicted acc gap {balance.PredictedAccGap:+0.000;-0.000}, one saber gap {balance.OneSaberGap:+0.000;-0.000}, mean change {candidate.Average(v => Math.Abs(Math.Exp(v) - 1)) * 100:0.0}%{(point.GuardOk ? "" : " (guard)")} ({c.Timer.Elapsed:mm\\:ss})"));
+                    $"Acc reweight ({label}): pass {beta[0]:+0.0000;-0.0000}, tech {beta[1]:+0.0000;-0.0000}, predicted acc {beta[2]:+0.0000;-0.0000}: worth spread {balance.WorthSpread:0.0000}, pass slope {balance.PassShareSlope:+0.0000;-0.0000}, tech slope {balance.TechShareSlope:+0.0000;-0.0000}, acc slope {balance.AccShareSlope:+0.0000;-0.0000}, predicted acc slope {balance.PredictedAccSlope:+0.0000;-0.0000}, predicted acc gap {balance.PredictedAccGap:+0.000;-0.000}, one saber gap {balance.OneSaberGap:+0.000;-0.000}, mean change {candidate.Average(v => Math.Abs(Math.Exp(v) - 1)) * 100:0.0}%{(point.GuardOk ? "" : " (guard)")} ({c.Timer.Elapsed:mm\\:ss})"));
                 return point;
             }
 
-            double[] Off(Point p) => new[]
-            {
-                p.Balance.PassShareSlope - start.PassShareSlope,
-                p.Balance.TechShareSlope - start.TechShareSlope,
-                p.Balance.PredictedAccSlope - start.PredictedAccSlope,
-            };
-            double Size(Point p) => Off(p).Max(Math.Abs);
+            double Size(Point p) => SlopesOff(start, p.Balance).Max(Math.Abs);
             Point? best = null;
-            void Consider(Point p, bool ok) { if (ok && (best == null || Size(p) < Size(best))) best = p; }
-            // The uncorrected point against the whole guard (the path's left these slopes out)
-            Consider(kept, GuardOk(start, kept.Balance));
+            void Consider(Point p) { if (p.GuardOk && (best == null || Size(p) < Size(best))) best = p; }
+            Consider(kept);
 
-            var f0 = Off(kept);
-            if (f0.Max(Math.Abs) > SlopeCorrectionTolerance)
+            var current = SlopesOff(start, kept.Balance);
+            if (current.Max(Math.Abs) > SlopeCorrectionTolerance)
             {
-                // The Jacobian: one step of each term
-                double h = SlopeCorrectionStep;
-                var jacobian = new double[k, k];
-                for (int f = 0; f < k; f++)
-                {
-                    var step = new double[k];
-                    step[f] = h;
-                    var p = At(step);
-                    Consider(p, p.GuardOk);
-                    var fp = Off(p);
-                    for (int r = 0; r < k; r++) jacobian[r, f] = (fp[r] - f0[r]) / h;
-                }
+                var jacobian = (double[,])startJacobian.Clone();
                 var beta = new double[k];
-                var current = f0;
                 for (int iteration = 0; iteration < SlopeCorrectionSteps; iteration++)
                 {
                     var delta = Solve(jacobian, current.Select(v => -v).ToArray());
                     var next = beta.Zip(delta, (b, d) => Math.Clamp(b + d, -SlopeCorrectionMax, SlopeCorrectionMax)).ToArray();
                     var p = At(next);
-                    Consider(p, p.GuardOk);
-                    var fn = Off(p);
+                    Consider(p);
+                    var fn = SlopesOff(start, p.Balance);
                     if (fn.Max(Math.Abs) <= SlopeCorrectionTolerance) break;
                     // Broyden: J += (df - J db) db' / (db' db)
                     var db = next.Zip(beta, (a, b) => a - b).ToArray();
@@ -510,8 +710,67 @@ namespace portaBLe.Refresh
             }
             var sizes = best.SlopeCorrection.Length == k ? best.SlopeCorrection : new double[k];
             Console.WriteLine(FormattableString.Invariant(
-                $"Acc reweight: slope correction pass {sizes[0]:+0.0000;-0.0000}, tech {sizes[1]:+0.0000;-0.0000}, predicted acc {sizes[2]:+0.0000;-0.0000}: pass slope {kept.Balance.PassShareSlope:+0.0000;-0.0000} -> {best.Balance.PassShareSlope:+0.0000;-0.0000} (start {start.PassShareSlope:+0.0000;-0.0000}), tech slope {kept.Balance.TechShareSlope:+0.0000;-0.0000} -> {best.Balance.TechShareSlope:+0.0000;-0.0000} (start {start.TechShareSlope:+0.0000;-0.0000}), predicted acc slope {kept.Balance.PredictedAccSlope:+0.0000;-0.0000} -> {best.Balance.PredictedAccSlope:+0.0000;-0.0000} (start {start.PredictedAccSlope:+0.0000;-0.0000}), worth spread {kept.Balance.WorthSpread:0.0000} -> {best.Balance.WorthSpread:0.0000}"));
+                $"Acc reweight: {label}: pass {sizes[0]:+0.0000;-0.0000}, tech {sizes[1]:+0.0000;-0.0000}, predicted acc {sizes[2]:+0.0000;-0.0000} (the last pass's and this search's terms): pass slope {kept.Balance.PassShareSlope:+0.0000;-0.0000} -> {best.Balance.PassShareSlope:+0.0000;-0.0000} (start {start.PassShareSlope:+0.0000;-0.0000}), tech slope {kept.Balance.TechShareSlope:+0.0000;-0.0000} -> {best.Balance.TechShareSlope:+0.0000;-0.0000} (start {start.TechShareSlope:+0.0000;-0.0000}), predicted acc slope {kept.Balance.PredictedAccSlope:+0.0000;-0.0000} -> {best.Balance.PredictedAccSlope:+0.0000;-0.0000} (start {start.PredictedAccSlope:+0.0000;-0.0000}), worth spread {kept.Balance.WorthSpread:0.0000} -> {best.Balance.WorthSpread:0.0000}"));
             return best;
+        }
+
+        // The worth limiter (see above), at the real stars: the kept point with the multipliers of the maps past their limit
+        // cut, which maps were cut, and every map's worth at the point returned
+        private static (Point Point, bool[] Limited, double?[] Worth) LimitWorth(Context c, Point kept)
+        {
+            int mapCount = c.Loaded.Maps.Length;
+            var logM = (double[])kept.LogM.Clone();
+            var limited = new bool[mapCount];
+            BalanceStats balance = kept.Balance;
+            double?[] worth = Array.Empty<double?>();
+            for (int round = 0; ; round++)
+            {
+                var measured = Measure(c, logM, false);
+                worth = measured.Worth;
+                balance = measured.Balance;
+                var relative = Responses(c, logM, worth, c.StartWorth, out double global);
+                if (!(global > 0)) global = 1;
+
+                // Past its limit by its own multiplier: cut by the part of its worth change (log) it overshot. Otherwise
+                // (multiplier 1 or the other way): moved against the overshoot, over its response
+                int over = 0;
+                for (int i = 0; i < mapCount; i++)
+                {
+                    if (worth[i] is not double w || c.StartWorth[i] is not double s) continue;
+                    double limit = w > s ? Math.Max(s, WorthLimit) : Math.Min(s, -WorthLimit);
+                    if (w > s ? w <= limit : w >= limit) continue;
+                    over++;
+                    if (round == WorthLimitRounds) continue;
+                    double moved = Math.Log((1 + w) / (1 + s)), allowed = Math.Log((1 + limit) / (1 + s));
+                    if (logM[i] * moved > 1e-12) logM[i] *= Math.Clamp(allowed / moved, 0, 1);
+                    else logM[i] = Math.Clamp(logM[i] - (moved - allowed) / (global * c.Prior[i] * relative[i]), c.Lo, c.Hi);
+                    limited[i] = true;
+                }
+                Console.WriteLine(FormattableString.Invariant(
+                    $"Acc reweight (worth limiter): round {round}: {over} maps past +-{WorthLimit:0.000}, worth spread {balance.WorthSpread:0.0000}, mean change {logM.Average(v => Math.Abs(Math.Exp(v) - 1)) * 100:0.0}%, response {global:0.00} x acc share ({c.Timer.Elapsed:mm\\:ss})"));
+                if (over == 0 || round == WorthLimitRounds) break;
+
+                // Each star range keeps its mean (log, over the maps with a worth): the maps not cut take it back
+                var bands = new Dictionary<int, (double Sum, int Free)>();
+                for (int i = 0; i < mapCount; i++)
+                {
+                    if (c.StartWorth[i] == null) continue;
+                    bands.TryGetValue(c.BaseBand[i], out var b);
+                    bands[c.BaseBand[i]] = (b.Sum + logM[i], b.Free + (limited[i] ? 0 : 1));
+                }
+                for (int i = 0; i < mapCount; i++)
+                {
+                    if (c.StartWorth[i] == null || limited[i]) continue;
+                    var (sum, free) = bands[c.BaseBand[i]];
+                    if (free == 0) continue;
+                    logM[i] = Math.Clamp(logM[i] - sum / free, c.Lo, c.Hi);
+                }
+            }
+
+            var point = new Point { Pass = kept.Pass, Strength = kept.Strength, SlopeCorrection = kept.SlopeCorrection, LogM = logM, Balance = balance, GuardOk = GuardOk(c.StartBalance, balance) };
+            Console.WriteLine(FormattableString.Invariant(
+                $"Acc reweight: worth limiter cut {limited.Count(l => l)} maps: worth spread {kept.Balance.WorthSpread:0.0000} -> {balance.WorthSpread:0.0000}, mean change {kept.LogM.Average(v => Math.Abs(Math.Exp(v) - 1)) * 100:0.0}% -> {logM.Average(v => Math.Abs(Math.Exp(v) - 1)) * 100:0.0}%"));
+            return (point, limited, worth);
         }
 
         private static double Spread(double?[] worth)
@@ -521,14 +780,12 @@ namespace portaBLe.Refresh
         }
 
 
-        // withCorrectedSlopes: false leaves out the slopes the slope correction corrects (pass, tech, predicted acc)
-        private static bool GuardOk(BalanceStats start, BalanceStats b, bool withCorrectedSlopes = true)
+        private static bool GuardOk(BalanceStats start, BalanceStats b)
         {
             bool Ok(double before, double after, double tolerance) => Math.Abs(after) <= Math.Abs(before) + tolerance;
-            double guard = GuardToleranceFor, gap = GapToleranceFor;
-            bool skip = !withCorrectedSlopes;
-            return (skip || Ok(start.PassShareSlope, b.PassShareSlope, guard)) && (skip || Ok(start.TechShareSlope, b.TechShareSlope, guard))
-                && Ok(start.AccShareSlope, b.AccShareSlope, guard) && (skip || Ok(start.PredictedAccSlope, b.PredictedAccSlope, guard))
+            double guard = GuardTolerance, gap = GapTolerance;
+            return Ok(start.PassShareSlope, b.PassShareSlope, guard) && Ok(start.TechShareSlope, b.TechShareSlope, guard)
+                && Ok(start.AccShareSlope, b.AccShareSlope, guard) && Ok(start.PredictedAccSlope, b.PredictedAccSlope, guard)
                 && Ok(start.OneSaberGap, b.OneSaberGap, gap)
                 && Ok(start.PassShareGap, b.PassShareGap, gap) && Ok(start.TechShareGap, b.TechShareGap, gap)
                 && Ok(start.PredictedAccGap, b.PredictedAccGap, gap);
@@ -657,8 +914,9 @@ namespace portaBLe.Refresh
             return result;
         }
 
-        // The loaded data with each map's acc ratings at base x multiplier (stars and star ranges follow)
-        private static BalanceTuner.Data WithMultipliers(BalanceTuner.Data source, double[] baseAcc, double[,] baseModAcc, double[] logM)
+        // The loaded data with each map's acc ratings at base x multiplier (stars and star ranges follow, or with starsFrom
+        // its stars and star ranges)
+        private static BalanceTuner.Data WithMultipliers(BalanceTuner.Data source, double[] baseAcc, double[,] baseModAcc, double[] logM, BalanceTuner.Data? starsFrom = null)
         {
             var maps = new BalanceTuner.MapInfo[source.Maps.Length];
             Parallel.For(0, maps.Length, i =>
@@ -684,8 +942,8 @@ namespace portaBLe.Refresh
                         SSCurve = mod.SSCurve, FSCurve = mod.FSCurve, SFCurve = mod.SFCurve,
                     };
                 }
-                float stars = ReplayUtils.ToStars(copy.AccRating, copy.PassRating, copy.TechRating, copy.Curve);
-                maps[i] = new BalanceTuner.MapInfo { Leaderboard = copy, Stars = stars, StarBand = BalanceTuner.StarBandOf(stars), Scores = source.Maps[i].Scores };
+                float stars = starsFrom?.Maps[i].Stars ?? ReplayUtils.ToStars(copy.AccRating, copy.PassRating, copy.TechRating, copy.Curve);
+                maps[i] = new BalanceTuner.MapInfo { Leaderboard = copy, Stars = stars, StarBand = starsFrom?.Maps[i].StarBand ?? BalanceTuner.StarBandOf(stars), Scores = source.Maps[i].Scores };
             });
             return new BalanceTuner.Data
             {
@@ -708,7 +966,7 @@ namespace portaBLe.Refresh
     {
         public DateTime GeneratedAt { get; set; }
         public AccReweightSettings Settings { get; set; } = new();
-        // Phase 1: fitted on half the players, worth spread measured on the other half (HeldOutSpread)
+        // Phase 1: fitted on half the players, worth spread measured on the other half (HeldOutSpread), every split (Split)
         public List<AccReweightRound> HeldOut { get; set; } = new();
         // Phase 2: every player; KeptRound is the index of the multipliers kept (0: none)
         public List<AccReweightRound> Rounds { get; set; } = new();
@@ -719,8 +977,12 @@ namespace portaBLe.Refresh
         // The fraction of each map's gap the fit closed (Settings.Applied; 0: nothing changed. Older runs: the fraction of the
         // kept change stored, Applied or less when that failed the balance guard)
         public double AppliedFraction { get; set; }
+        // Maps whose multiplier the worth limiter cut
+        public int MapsLimited { get; set; }
         // The multipliers stored (the kept ones)
         public AccReweightRound? Applied { get; set; }
+        // The point that failed the balance guard at the real stars, so nothing was stored (null: none)
+        public AccReweightRound? Rejected { get; set; }
         // Maps whose acc rating changed, lowest multiplier first
         public List<AccReweightMap> Maps { get; set; } = new();
     }
@@ -739,10 +1001,16 @@ namespace portaBLe.Refresh
         public double GapTolerance { get; set; }
         public bool SlopeCorrection { get; set; }
         public double SlopeCorrectionTolerance { get; set; }
+        public double WorthLimit { get; set; }
+        public int HeldOutSplits { get; set; } = 1;
+        public bool FitAtBaseStars { get; set; }
+        public double ResponseNoise { get; set; }
     }
 
     public class AccReweightRound
     {
+        // Phase 1's split (HeldOut; -1: every player)
+        public int Split { get; set; } = -1;
         public int Round { get; set; }
         public double Strength { get; set; }
         // The slope correction's pass, tech and predicted acc terms (empty: none)
@@ -761,5 +1029,10 @@ namespace portaBLe.Refresh
         public string? Difficulty { get; set; }
         public string? Mode { get; set; }
         public double Multiplier { get; set; }
+        // Worth without reweighting and with the multiplier stored (null: no worth, or older runs)
+        public double? WorthBefore { get; set; }
+        public double? WorthAfter { get; set; }
+        // The worth limiter cut its multiplier
+        public bool Limited { get; set; }
     }
 }

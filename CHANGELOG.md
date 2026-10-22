@@ -6,6 +6,121 @@ model comes from `beatsaber-replays-ai-2`.
 The goal is ratings that never need scores at rating time. Scores, replays and fail attempts are used offline, to fit and
 validate constants. The one exception is the acc reweighter (below), the only tool that changes ratings from scores.
 
+## Worth without lower bound, reweighter slope correction and worth limiter, TechWeight 0.1612
+
+### Worth (`BalanceTuner.WorthMeasures.PlayerAdjusted`)
+
+- **No lower bound** (`PlayerAdjustedBelow` 2 → ∞): a player's scores on maps far under their level count too. Above the
+  level stays bounded (`InRangeMargin`).
+  - Why: a map more than 2 stars under a player's level counted none of their scores, so high paying scores on maps easy
+    for the player went unseen (2cf6391, 9.8 stars: 497 of its 875 scores left out, most of the good ones, −25%).
+  - Impact (Dev, Python approximation): 2.4× the scores, 3945 maps with a worth instead of 3506, worth spread 0.061 →
+    0.047, 2cf6391 −17% → +4%, 3-5 star maps measured only by low level players −20 to −33% → about 0.
+- **Distance term:** `log pp = skill + generosity + distance(map stars − player level)`, per `PlayerAdjustedDistanceBin`
+  (0.5 stars), so a map's generosity doesn't depend on how far under its players it is. Maps 1.5-2.5 stars under a player
+  paid them ~4% more than at their level, 8 under ~11% less (Dev).
+- **Faster fit:** each group's and item's scores are bucketed once, and the alternating means run in parallel, with the
+  same sums in the same order.
+
+### pp formula (RatingAPI submodule)
+
+- **`TechWeight` 0.124 → 0.1612, `PpMultiplier` 1.0597 → 1.0369** (balance tuner, with the new worth, without the acc
+  reweighter): tech share slope −0.0148 → −0.0011, the most tech heavy 20% −1.0% → −0.3%, the top 1000's pp from tech
+  7.0% → 9.6%. `PpMultiplier` keeps the top 1000's average.
+- Each map's ratings are prepared once (stars, curve at 96%) for faster scoring.
+
+### Acc reweighter
+
+- **Slope correction** (`SlopeCorrection`): after phase 2, every map also gets a term for its pass share, tech share and
+  predicted acc (relative to its star range, over its acc share), sized by a Newton search until those three slopes are
+  back at the start's (within 0.0005).
+  - Why: correcting single maps moves the slopes by itself, steadily with the strength of the first pass (pass share slope
+    +0.006 → +0.011), and neither the targets nor the multipliers explained it. Correcting the pass share alone took the
+    tech slope −0.0011 → +0.008, past the guard.
+- **Guard `PlayerAdjustedGuardTolerance` / `GapTolerance` 0.0065 / 0.0125 → 0.004 / 0.0075:** with the new worth, the
+  measure's noise is 0.0004 (pass slope) to 0.0020 (OneSaber gap), so the old tolerances held nothing back. 0.004 / 0.0075
+  is about 4× the noisiest; 0.002 / 0.004 kept nothing.
+- **Worth limiter** (`WorthLimit` 0.03, `WorthLimitRounds` 8, `WorthResponse` 0.6): the reweight may not make a map an
+  outlier. A map's worth may not end above max(its worth without reweighting, +0.03), nor below min(it, −0.03).
+  - Targets are clamped to that range before the passes, so a map already past it isn't pushed further. (On Dev it changed
+    nothing: no map past ±0.03 had a target further out.)
+  - Last, on the kept multipliers: a map past its limit by its own multiplier has it cut by the part of its worth change it
+    overshot (in log). One whose multiplier is 1 or the other way, moved there by the maps around it (worth is relative),
+    is moved against the overshoot (over `WorthResponse`, the median map's worth change per multiplier change). The other
+    maps of its star range take back the mean, and it's measured again.
+  - `acc-reweight.json` has each map's `WorthBefore`, `WorthAfter` and `Limited`, and `MapsLimited`.
+  - Why: maps on target were buffed to the cap by the star range mean and the slope correction, and the most pass heavy
+    13+ star maps went past their neighbours, their worth moving 1.3× their multiplier (the median map 0.6×): Godspeed
+    ExpertPlus (pass 17) +0.010 → +0.107 at ×1.072, 13.72 → 14.86 stars. 66 maps already worth more than +0.03 were
+    buffed. Cutting only a map's own multiplier left 98 maps past their limit, 53 of them moved by the maps around them
+    (Calamitous Demise ExpertPlus, ×1.000: +0.054 → +0.071).
+  - Impact (Dev, against the database without the reweighter): 303 maps past the limit after the slope correction, 334
+    cut, 34 left past it by 0.0012 on average (at most 0.007), 8 of them by the maps around them. Godspeed ExpertPlus
+    ×1.003, 13.77 stars, worth +0.029; Calamitous Demise ExpertPlus ×0.977, worth +0.033. Worth spread 0.0298 → 0.0277,
+    mean change 3.1% → 3.0%.
+- **Slope correction in every candidate:** the Jacobian of the three slopes on the correction's terms is measured once,
+  at the start, and every candidate of every pass gets one Newton step of it before it's measured. The passes and phase 1
+  choose among corrected points: corrected after phase 2 only, the correction raised the worth spread 0.0248 → 0.0298,
+  which the choice didn't see. The search after phase 2 starts from the start's Jacobian.
+- **Each map's own response** (`Responses`, `ResponseNoise` 0.02, `ResponseRange` 3): the direction divides by the acc
+  share times how much more or less than other maps of that share the map's worth has moved with its multiplier so far,
+  shrunk towards 1 when the map moved little. The limiter's opposite step uses it too (`WorthResponse` 0.6 removed). Before,
+  the median map moved 0.6× its multiplier, the 90th percentile 0.98×, Godspeed ExpertPlus 1.3×. At the base stars
+  (below) maps respond alike (p10 0.96, p90 1.05 of the median), so it changes little there.
+- **Fit at the base stars** (`FitAtBaseStars`): during the passes and the slope correction each map keeps its stars and
+  star range without reweighting, so its reference and its players' distance to it don't move with its multiplier. The
+  limiter and the stored balance use the real stars. At the real stars the one-step slope correction overshot (mean change
+  0.8% at strength 0.1, tech slope −0.012), nearly every candidate failed the guard and the held-out spread only reached
+  0.0385 (0.0203 at the base stars).
+- **`Passes` 6 → 3, `Strengths` up to 2.0:** pass 1 took the largest strength, 1.3, with the spread still falling, and
+  passes 2-6 took it 0.0260 → 0.0248. Now every split chooses pass 1 at 2.0 (held out 0.0211 at 1.6, 0.0202 at 2.0;
+  passes 2-3 raise it), still the edge of the range.
+- **Phase 1 on 3 splits** (`HeldOutSplits`): each (pass, strength) is judged by its average held-out spread, passing the
+  guard on every split. `acc-reweight.json`: `HeldOut` has every split's points (`Split`).
+- **Symmetric bounds:** `Applied` × ±log(1 / (1 − `MaxChange`)), ×0.922 to ×1.085 (was ×0.922 to ×1.072, tighter for
+  buffs in log). 182 maps sat at ×1.072 and 14 at ×0.922, and those at ×1.072 weren't noise: median 634 scores (879 for
+  the rest), worth −0.078 → −0.035, still under. Now 160 at ×1.085, 32 at ×0.922.
+- **PlayerAdjusted only:** the Megametric75 strengths and guard tolerances are removed (`GuardTolerance` /
+  `GapTolerance` are now 0.004 / 0.0075); with another `BalanceTuner.WorthMeasure` the reweighter does nothing.
+- **Slope correction again at the real stars** (`RealStarsSlopeCorrection`, off): after the search at the base stars, the
+  kept point is measured at the real stars and the search runs again there, from a Jacobian measured at that point. At
+  the base stars the three slopes are at the start's, but stored (real stars) the pass share slope is +0.0077 (start
+  +0.0039, the guard allowing 0.0079) and predicted acc −0.0021 (−0.0001).
+  - Tried on Dev: it took them to +0.0044 and −0.0007, but the correction moves maps by their kind, not their own gap:
+    worth spread 0.0211 → 0.0247, maps beyond ±0.05 112 → 152, 236 maps past the worth limit before the limiter (9
+    without it), OneSaber gap +0.0019 → +0.0044. Pass heavy low tech maps with a high predicted acc were buffed to the
+    cap: 2cf6391 (pass 14.3, tech 2.9, 97.95%) ×1.056 → ×1.085, 10.51 → 10.85 stars, worth −0.006 → +0.014 (−0.044
+    without reweighting), which players found too high. So it's off.
+- **The balance guard on what's stored:** the point to store, after the limiter and at the real stars, must pass the
+  guard, else nothing changes (`acc-reweight.json`: `Rejected`). It used to be kept anyway, and with the fit at the base
+  stars that was the only check at the real stars, so the guard was never applied to what was stored.
+- **`Applied` sweep (Dev):** lowering it doesn't reduce the drift at the real stars, it raises it, and gives back the
+  outlier gains. Every value picked pass 1 at strength 2.0. `Applied` stays 0.5.
+
+  | `Applied` | Worth spread | Beyond ±0.05 | Mean change | Pass share slope (start +0.0039, guard 0.0079) | Guard |
+  |---|---|---|---|---|---|
+  | 0.5 | 0.0211 | 112 | 3.3% | +0.0077 | passes |
+  | 0.45 | 0.0227 | 137 | 2.9% | +0.0080 | fails |
+  | 0.4 | 0.0247 | 176 | 2.6% | +0.0082 | fails |
+  | 0.35 | 0.0267 | 223 | 2.3% | +0.0082 | fails |
+
+- **Result (Dev):** worth spread 0.0443 → 0.0211 (0.0129 at the base stars), mean change 3.3% on 3902 maps, multipliers
+  0.922-1.085 (160 at ×1.085, 32 at ×0.922). The limiter cut 9 maps (303 before the rework); 1 left past its limit.
+  Maps beyond ±0.05: 112 (251 before the rework). Godspeed ExpertPlus ×0.991, worth +0.013; 2cf6391 ×1.056, worth
+  −0.006. Against the start: pass share slope +0.0039 → +0.0077 (+0.0048 before the rework; the guard allows 0.0079),
+  acc −0.0011 → −0.0033, tech −0.0011 → +0.0012, predicted acc −0.0001 → −0.0021; gaps: pass share +0.0041 → +0.0083,
+  tech share −0.0025 → +0.0011, predicted acc −0.0004 → −0.0037, OneSaber −0.0010 → +0.0019. Passes the guard. At the
+  base stars the three corrected slopes are at the start's.
+
+### Pipeline and pages
+
+- **`FullPipeline` with the acc reweighter** starts from the raw acc ratings (keeping the last multipliers stored them in
+  float, so each run started a float rounding away from the last: 23 maps 0.5-2.9% off between two runs on the same data)
+  and re-scores only after it. About 3.5 minutes in Release.
+- The reweighter measures a pass's candidate strengths at once (`CandidateParallelism`, ~150 MB each).
+- **Leaderboard page:** the pp curve's y axis follows the lines in view (their values at the edges included), so a line
+  doesn't leave the chart when zoomed.
+
 ## Per-modifier worth, reweighter fit, smooth per-map curves, Leaderboard page
 
 ### Worth per speed modifier (`BalanceTuner.WorthSpeeds`)
