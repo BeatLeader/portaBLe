@@ -287,7 +287,7 @@
 
 <div class="curve-section">
     <h4>PP curve (@(Model.Modifier == "none" ? "no modifier" : Model.Modifier))</h4>
-    <div class="modifier-note">pp at every accuracy with these ratings and this acc curve, its pass / acc / tech parts, the base curve's pp, and the scores shown below. Scroll to zoom, drag to pan, double click to reset.</div>
+    <div class="modifier-note">pp at every accuracy with these ratings and this acc curve, its pass / acc / tech parts and the base curve's pp. Scroll to zoom, drag to pan, double click to reset.</div>
     <div class="curve-chart-container pp-chart-container">
         <canvas id="ppChart"></canvas>
     </div>
@@ -615,6 +615,7 @@
 
 @section Scripts {
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/hammerjs@2.0.8"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-zoom"></script>
     <script>
         let chart = null;
@@ -635,25 +636,39 @@
         const basePpCurve = @Html.Raw(JsonSerializer.Serialize(Model.BasePpCurve));
         const comparePpCurve = @Html.Raw(JsonSerializer.Serialize(Model.ComparePpCurve));
 
-        // pp over the whole accuracy range (with zoom), its parts, the base curve's pp and the scores
+        // Lowest and highest value of the visible datasets between the x axis' ends, the lines' values at the ends included
+        // (interpolated), so a line doesn't leave the chart between its last point in view and the edge. Null when none.
+        function visibleRange(chart) {
+            const { min, max } = chart.scales.x;
+            let lo = Infinity, hi = -Infinity;
+            const add = y => { if (y < lo) lo = y; if (y > hi) hi = y; };
+            chart.data.datasets.forEach((d, i) => {
+                if (!chart.isDatasetVisible(i)) return;
+                const line = d.type !== 'scatter';
+                d.data.forEach((p, j) => {
+                    if (p.x >= min && p.x <= max) add(p.y);
+                    const q = line ? d.data[j + 1] : null;
+                    if (q) for (const edge of [min, max]) {
+                        if (p.x < edge && q.x > edge) add(p.y + (edge - p.x) / (q.x - p.x) * (q.y - p.y));
+                    }
+                });
+            });
+            return hi >= lo ? { lo, hi } : null;
+        }
+
+        // pp over the whole accuracy range (with zoom), its parts and the base curve's pp
         function drawPpChart() {
             const canvas = document.getElementById('ppChart');
             if (!canvas || !ppCurve.length) return;
             const line = (i) => ppCurve.map(p => ({ x: p[0], y: p[i] }));
-            const scorePoints = leaderboardScores.map(s => ({ x: s.accuracy, y: s.pp, name: s.playerName, mods: s.modifiers }));
             // From the 2nd percentile of the scores' accuracy (a few very low scores would squeeze the rest), the rest by panning
             const accs = leaderboardScores.map(s => s.accuracy).sort((a, b) => a - b);
             const lowest = accs.length ? accs[Math.floor(accs.length * 0.02)] : (curvePredicted ?? 90) - 5;
             const minX = Math.max(0, Math.floor(Math.min(lowest, curvePredicted ?? 100) - 1));
-            // y up to the highest line or score in view
+            // y up to the highest line in view
             const fitY = chart => {
-                const { min, max } = chart.scales.x;
-                let top = 0;
-                chart.data.datasets.forEach((d, i) => {
-                    if (!chart.isDatasetVisible(i)) return;
-                    d.data.forEach(p => { if (p.x >= min && p.x <= max && p.y > top) top = p.y; });
-                });
-                chart.options.scales.y.max = top > 0 ? Math.ceil(top * 1.05) : undefined;
+                const range = visibleRange(chart);
+                chart.options.scales.y.max = range && range.hi > 0 ? Math.ceil(range.hi * 1.05) : undefined;
                 chart.update('none');
             };
             const datasets = [
@@ -666,7 +681,6 @@
             if (comparePpCurve) {
                 datasets.push({ label: 'PP (second leaderboard)', data: comparePpCurve.map(p => ({ x: p[0], y: p[1] })), borderColor: 'rgb(255, 159, 64)', pointRadius: 0, borderWidth: 2, tension: 0 });
             }
-            datasets.push({ type: 'scatter', label: 'Scores', data: scorePoints, backgroundColor: 'rgba(245, 66, 120, 0.45)', borderColor: 'rgba(245, 66, 120, 0.45)', pointRadius: 2, pointHoverRadius: 4 });
 
             const ppChart = new Chart(canvas.getContext('2d'), {
                 type: 'line',
@@ -682,16 +696,13 @@
                         tooltip: {
                             callbacks: {
                                 title: items => items.length ? formatNumber(items[0].parsed.x, 2) + '%' : '',
-                                label: ctx => ctx.raw && ctx.raw.name
-                                    ? `${ctx.raw.name}: ${formatNumber(ctx.parsed.y, 2)}pp${ctx.raw.mods ? ' (' + ctx.raw.mods + ')' : ''}`
-                                    : `${ctx.dataset.label}: ${formatNumber(ctx.parsed.y, 2)}pp`
-                            },
-                            filter: (item, index, items) => !item.raw?.name || items.filter(i => i.raw?.name).indexOf(item) < 3
+                                label: ctx => `${ctx.dataset.label}: ${formatNumber(ctx.parsed.y, 2)}pp`
+                            }
                         },
                         zoom: {
                             zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x', onZoomComplete: ({ chart }) => fitY(chart) },
                             pan: { enabled: true, mode: 'x', onPanComplete: ({ chart }) => fitY(chart) },
-                            limits: { x: { min: 0, max: 100 } }
+                            limits: { x: { min: 0, max: 100, minRange: 0.1 } }
                         }
                     }
                 }
@@ -735,7 +746,16 @@
             if (curveStart !== null && curveStart < 100) markers.push({ x: curveStart, y: curveAt(curveStart), label: 'Taper start (A)' });
             const minX = curvePredicted !== null ? Math.max(60, Math.floor(curvePredicted) - 4) : 90;
 
-            new Chart(canvas.getContext('2d'), {
+            // y over the lines and markers in view
+            const fitY = chart => {
+                const range = visibleRange(chart);
+                const pad = range ? (range.hi - range.lo) * 0.05 || 0.01 : 0;
+                chart.options.scales.y.min = range ? range.lo - pad : undefined;
+                chart.options.scales.y.max = range ? range.hi + pad : undefined;
+                chart.update('none');
+            };
+
+            const curveChart = new Chart(canvas.getContext('2d'), {
                 type: 'line',
                 data: {
                     datasets: [
@@ -782,12 +802,15 @@
                             }
                         },
                         zoom: {
-                            zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x' },
-                            pan: { enabled: true, mode: 'x' }
+                            zoom: { wheel: { enabled: true }, pinch: { enabled: true }, mode: 'x', onZoomComplete: ({ chart }) => fitY(chart) },
+                            pan: { enabled: true, mode: 'x', onPanComplete: ({ chart }) => fitY(chart) },
+                            limits: { x: { min: 0, max: 100, minRange: 0.1 } }
                         }
                     }
                 }
             });
+            canvas.ondblclick = () => { curveChart.resetZoom(); fitY(curveChart); };
+            fitY(curveChart);
         }
 
         function formatNumber(num, decimals) {

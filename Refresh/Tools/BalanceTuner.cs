@@ -86,6 +86,19 @@ namespace portaBLe.Refresh
             return 0;
         }
 
+        // The speed modifier whose ratings a score's pp uses (index in WorthSpeeds, 0: none): its first SS / FS / SF, as
+        // ReplayUtils.PpFromScore (NF included: its pp is 0 either way)
+        internal static sbyte PpSpeedOf(string modifiers)
+        {
+            if (string.IsNullOrEmpty(modifiers)) return 0;
+            foreach (var modifier in modifiers.ToUpper().Split(","))
+            {
+                int i = Array.IndexOf(WorthSpeeds, modifier);
+                if (i > 0) return (sbyte)i;
+            }
+            return 0;
+        }
+
         internal static bool IsOneSaber(Leaderboard lb) => string.Equals(lb.ModeName, "OneSaber", StringComparison.OrdinalIgnoreCase);
         private static bool IsStandard(Leaderboard lb) => string.Equals(lb.ModeName, "Standard", StringComparison.OrdinalIgnoreCase);
 
@@ -109,6 +122,7 @@ namespace portaBLe.Refresh
             public float[] ScoreAcc = Array.Empty<float>();
             public string[] ScoreModifiers = Array.Empty<string>();
             public sbyte[] ScoreSpeed = Array.Empty<sbyte>();   // WorthSpeedOf(ScoreModifiers): worth item of each score
+            public sbyte[] ScorePpSpeed = Array.Empty<sbyte>();   // PpSpeedOf(ScoreModifiers): the speed ratings its pp uses
             public int[] ScoreTime = Array.Empty<int>();   // Score.Timepost (unix seconds)
             public int[][] PlayerScores = Array.Empty<int[]>();
             public string[] PlayerIds = Array.Empty<string>();   // Player.Id of each player index
@@ -150,6 +164,8 @@ namespace portaBLe.Refresh
             var scoreAcc = new List<float>(scores.Count);
             var scoreModifiers = new List<string>(scores.Count);
             var scoreSpeed = new List<sbyte>(scores.Count);
+            var scorePpSpeed = new List<sbyte>(scores.Count);
+            var speeds = new Dictionary<string, (sbyte Worth, sbyte Pp)>();
             var scoreTime = new List<int>(scores.Count);
             foreach (var s in scores)
             {
@@ -161,11 +177,13 @@ namespace portaBLe.Refresh
                 }
                 var modifiers = s.Modifiers ?? "";
                 if (!interned.TryGetValue(modifiers, out var shared)) interned[modifiers] = shared = modifiers;
+                if (!speeds.TryGetValue(shared, out var speed)) speeds[shared] = speed = (WorthSpeedOf(shared), PpSpeedOf(shared));
                 scoreMap.Add(map);
                 scorePlayer.Add(player);
                 scoreAcc.Add(s.Accuracy);
                 scoreModifiers.Add(shared);
-                scoreSpeed.Add(WorthSpeedOf(shared));
+                scoreSpeed.Add(speed.Worth);
+                scorePpSpeed.Add(speed.Pp);
                 scoreTime.Add(s.Timepost);
             }
 
@@ -188,6 +206,7 @@ namespace portaBLe.Refresh
                 ScoreAcc = scoreAcc.ToArray(),
                 ScoreModifiers = scoreModifiers.ToArray(),
                 ScoreSpeed = scoreSpeed.ToArray(),
+                ScorePpSpeed = scorePpSpeed.ToArray(),
                 ScoreTime = scoreTime.ToArray(),
                 PlayerScores = byPlayer.Select(l => l.ToArray()).ToArray(),
                 PlayerIds = playerIndex.OrderBy(kv => kv.Value).Select(kv => kv.Key).ToArray(),
@@ -545,6 +564,7 @@ namespace portaBLe.Refresh
                 ScoreAcc = source.ScoreAcc,
                 ScoreModifiers = source.ScoreModifiers,
                 ScoreSpeed = source.ScoreSpeed,
+                ScorePpSpeed = source.ScorePpSpeed,
                 ScoreTime = source.ScoreTime,
                 PlayerScores = source.PlayerScores,
                 PlayerIds = source.PlayerIds,
@@ -605,11 +625,28 @@ namespace portaBLe.Refresh
                 PlayerRank = new int[data.PlayerCount],
             };
 
+            // Each map's ratings prepared once (stars, curve at 96%): nomod, then its SS / FS / SF ratings (WorthSpeeds), as
+            // ReplayUtils.PpFromScore
+            int speedCount = WorthSpeeds.Length;
+            var prepared = new global::RatingAPI.Pp.PreparedRatings?[data.Maps.Length * speedCount];
+            Parallel.For(0, data.Maps.Length, m =>
+            {
+                var lb = data.Maps[m].Leaderboard;
+                prepared[m * speedCount] = global::RatingAPI.Pp.PpCalculator.Prepare(new global::RatingAPI.Pp.MapRatings(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve));
+                if (lb.ModifiersRating == null) return;
+                for (int k = 1; k < speedCount; k++)
+                {
+                    prepared[m * speedCount + k] = global::RatingAPI.Pp.PpCalculator.Prepare(ReplayUtils.SpeedRatings(lb.ModifiersRating, WorthSpeeds[k], lb.Curve)!.Value);
+                }
+            });
+
             Parallel.For(0, scoreCount, new ParallelOptions { MaxDegreeOfParallelism = Program.CoreCount }, s =>
             {
-                var lb = data.Maps[data.ScoreMap[s]].Leaderboard;
-                var (pp, _, passPp, accPp, techPp) = ReplayUtils.PpFromScore(data.ScoreAcc[s], data.ScoreModifiers[s], lb.ModifiersRating,
-                    lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve);
+                int m = data.ScoreMap[s];
+                bool rated = data.Maps[m].Leaderboard.ModifiersRating != null;
+                int speed = rated ? data.ScorePpSpeed[s] : 0;
+                var (pp, _, passPp, accPp, techPp) = global::RatingAPI.Pp.PpCalculator.ScorePp(data.ScoreAcc[s], data.ScoreModifiers[s],
+                    prepared[m * speedCount]!.Value, speed > 0 ? prepared[m * speedCount + speed] : null, rated);
                 e.Pp[s] = float.IsFinite(pp) ? pp : 0;
                 e.PassPp[s] = float.IsFinite(passPp) ? passPp : 0;
                 e.AccPp[s] = float.IsFinite(accPp) ? accPp : 0;
@@ -706,9 +743,10 @@ namespace portaBLe.Refresh
         //   player's level), no weight. Measured against maps of the same stars, but stars are what a 96% score pays, so a
         //   map that pays more also gets more stars and is compared with higher star maps: it barely reacts to rating
         //   changes (the pass slope stayed at +0.012 from PassCalibration 0.656 to 0.888). A diagnostic, not a target.
-        // - PlayerAdjusted: log pp = skill(player, half year) + generosity(map), fitted on in-range scores (stars from
-        //   PlayerAdjustedBelow under the player's level to InRangeMargin above), then against maps of the same stars and maps
-        //   first played around the same time. How much a map pays the same players compared with their other maps at their
+        // - PlayerAdjusted: log pp = skill(player, half year) + generosity(map) + distance(map stars - player level, per
+        //   PlayerAdjustedDistanceBin stars), fitted on in-range scores (stars at most InRangeMargin above the player's level,
+        //   and PlayerAdjustedBelow under it), then against maps of the same stars and maps first played around the same
+        //   time. How much a map pays the same players compared with their other maps at their
         //   level: who plays it and the weight drop out, and generosity is about flat over stars, so more stars don't hide
         //   more pay (3% more pp on the tech 8+ maps moved them +1.9%). Skill per half year: players improve, so with one
         //   skill per player maps ranked in 2026 looked 2.8% more generous (their scores are set by players at their best);
@@ -743,7 +781,19 @@ namespace portaBLe.Refresh
         public static double InRangeMargin { get; set; } = 0.5;
         public static int InRangeTopPlays { get; set; } = 50;
         public static int InRangeHardest { get; set; } = 5;
-        public static double PlayerAdjustedBelow { get; set; } = 2;
+        // How far under the player's level a map still counts (stars). It was 2: a map more than 2 stars under the player's
+        // level counted none of their scores, so high paying scores on maps easy for the player went unseen (2cf6391, 9.8
+        // stars: 497 of its 875 scores left out, most of the good ones, -25%). Without the bound (Dev, Python approximation):
+        // 2.4x the scores, 3945 maps with a worth instead of 3506, worth spread 0.061 -> 0.047, 2cf6391 -17% -> +4%, 3-5 star
+        // maps measured only by low level players -20 to -33% -> about 0. Above the level stays bounded: a map too hard for
+        // a player says little about what it pays.
+        public static double PlayerAdjustedBelow { get; set; } = double.PositiveInfinity;
+        // The distance term: how a player's pp on a map depends on how far under their level it is (per bin of
+        // PlayerAdjustedDistanceBin stars, 0 to +bin the reference), so a map's generosity doesn't depend on how far under
+        // its players it is. Fitted: maps 1.5-2.5 stars under a player paid them ~4% more than at their level, 8 under ~11%
+        // less (Dev). Off: the fit as before (skill + generosity).
+        public static bool PlayerAdjustedDistanceTerm { get; set; } = true;
+        public static double PlayerAdjustedDistanceBin { get; set; } = 0.5;
         public static int PlayerAdjustedPeriodDays { get; set; } = 182;
         private const int PlayerAdjustedMinPlayerScores = 30;   // in-range scores of a player
         private const int PlayerAdjustedMinPeriodScores = 10;   // in-range scores of a player in a half year
@@ -754,15 +804,26 @@ namespace portaBLe.Refresh
         internal static double[] PlayerLevels(Data data, Evaluation e, double[]? itemStars = null)
         {
             itemStars ??= ItemStars(data);
-            var stars = new List<double>[data.PlayerCount];
-            for (int p = 0; p < data.PlayerCount; p++) stars[p] = new List<double>();
-            for (int s = 0; s < data.ScoreMap.Length; s++)
+            var levels = new double[data.PlayerCount];
+            int hardest = InRangeHardest;
+            Parallel.For(0, data.PlayerCount, p =>
             {
-                if (e.Position[s] >= InRangeTopPlays || data.ScoreSpeed[s] < 0) continue;
-                double itemStar = itemStars[ItemOf(data, s)];
-                if (!double.IsNaN(itemStar)) stars[data.ScorePlayer[s]].Add(itemStar);
-            }
-            return stars.Select(list => list.Count == 0 ? 0 : list.OrderByDescending(v => v).ElementAt(Math.Min(InRangeHardest, list.Count) - 1)).ToArray();
+                // The highest stars, descending, of the player's top plays: the hardest-th is the level (the lowest of them
+                // with fewer)
+                Span<double> top = stackalloc double[hardest];
+                int n = 0;
+                foreach (var s in data.PlayerScores[p])
+                {
+                    if (e.Position[s] >= InRangeTopPlays || data.ScoreSpeed[s] < 0) continue;
+                    double v = itemStars[ItemOf(data, s)];
+                    if (double.IsNaN(v) || (n == hardest && v <= top[n - 1])) continue;
+                    int j = n < hardest ? n++ : n - 1;
+                    while (j > 0 && top[j - 1] < v) { top[j] = top[j - 1]; j--; }
+                    top[j] = v;
+                }
+                levels[p] = n == 0 ? 0 : top[n - 1];
+            });
+            return levels;
         }
 
         // Worth item of a score (WorthSpeeds; its ScoreSpeed must be 0 or more)
@@ -827,57 +888,108 @@ namespace portaBLe.Refresh
             int t0 = data.ScoreTime.Length > 0 ? data.ScoreTime.Min() : 0;
             long period = PlayerAdjustedPeriodDays * 86400L;
 
-            // In-range scores of players with more than MegametricMinPlays plays, each in its (player, half year) group
+            // In-range scores of players with more than MegametricMinPlays plays, each in its (player, half year) group (numbered
+            // in order of first appearance)
             var obsScore = new List<int>();
             var obsGroup = new List<int>();
-            var groups = new Dictionary<(int, int), int>();
-            var inRange = new List<int>();
-            for (int p = 0; p < data.PlayerCount; p++)
+            int groupTotal = 0;
+            int periodCount = data.ScoreTime.Length > 0 ? (int)((data.ScoreTime.Max() - (long)t0) / period) + 1 : 1;
+            var playerGroup = new int[periodCount];   // this player's group of each half year, -1: none yet
+            Array.Fill(playerGroup, -1);
+            // Each player's in-range scores (in parallel), then the groups in player order
+            var playerInRange = new int[data.PlayerCount][];
+            Parallel.For(0, data.PlayerCount, p =>
             {
-                if ((players != null && !players[p]) || data.PlayerScores[p].Length <= MegametricMinPlays) continue;
-                inRange.Clear();
+                if ((players != null && !players[p]) || data.PlayerScores[p].Length <= MegametricMinPlays) return;
+                var list = new List<int>();
                 foreach (var s in data.PlayerScores[p])
                 {
                     if (data.ScoreSpeed[s] < 0 || e.Pp[s] <= 0) continue;
                     double stars = itemStars[ItemOf(data, s)];
-                    if (stars >= levels[p] - PlayerAdjustedBelow && stars <= levels[p] + InRangeMargin) inRange.Add(s);
+                    if (stars >= levels[p] - PlayerAdjustedBelow && stars <= levels[p] + InRangeMargin) list.Add(s);
                 }
-                if (inRange.Count < PlayerAdjustedMinPlayerScores) continue;
+                if (list.Count >= PlayerAdjustedMinPlayerScores) playerInRange[p] = list.ToArray();
+            });
+            for (int p = 0; p < data.PlayerCount; p++)
+            {
+                var inRange = playerInRange[p];
+                if (inRange == null) continue;
                 foreach (var s in inRange)
                 {
-                    var key = (p, (int)((data.ScoreTime[s] - (long)t0) / period));
-                    if (!groups.TryGetValue(key, out int g)) groups[key] = g = groups.Count;
+                    int half = (int)((data.ScoreTime[s] - (long)t0) / period);
+                    if (playerGroup[half] < 0) playerGroup[half] = groupTotal++;
                     obsScore.Add(s);
-                    obsGroup.Add(g);
+                    obsGroup.Add(playerGroup[half]);
                 }
+                foreach (var s in inRange) playerGroup[(int)((data.ScoreTime[s] - (long)t0) / period)] = -1;
             }
 
             // Groups with too few scores, then items with too few, are left out
-            var groupCount = new int[groups.Count];
+            var groupCount = new int[groupTotal];
             foreach (var g in obsGroup) groupCount[g]++;
             var itemScores = new int[itemCount];
             for (int i = 0; i < obsScore.Count; i++) if (groupCount[obsGroup[i]] >= PlayerAdjustedMinPeriodScores) itemScores[ItemOf(data, obsScore[i])]++;
             int minItemScores = players == null ? MinScoresPerMap : MinScoresPerMap / 2;
-            var keep = Enumerable.Range(0, obsScore.Count)
-                .Where(i => groupCount[obsGroup[i]] >= PlayerAdjustedMinPeriodScores && itemScores[ItemOf(data, obsScore[i])] >= minItemScores)
-                .ToArray();
-            var y = keep.Select(i => Math.Log(e.Pp[obsScore[i]])).ToArray();
-            var item = keep.Select(i => ItemOf(data, obsScore[i])).ToArray();
-            var group = keep.Select(i => obsGroup[i]).ToArray();
+            int kept = 0;
+            var keep = new int[obsScore.Count];
+            for (int i = 0; i < obsScore.Count; i++)
+            {
+                if (groupCount[obsGroup[i]] >= PlayerAdjustedMinPeriodScores && itemScores[ItemOf(data, obsScore[i])] >= minItemScores) keep[kept++] = i;
+            }
+            var y = new double[kept];
+            var item = new int[kept];
+            var group = new int[kept];
+            var rawBin = new int[kept];
+            Parallel.For(0, kept, k =>
+            {
+                int i = keep[k];
+                y[k] = Math.Log(e.Pp[obsScore[i]]);
+                item[k] = ItemOf(data, obsScore[i]);
+                group[k] = obsGroup[i];
+                rawBin[k] = PlayerAdjustedDistanceTerm
+                    ? (int)Math.Floor((itemStars[item[k]] - levels[data.ScorePlayer[obsScore[i]]]) / PlayerAdjustedDistanceBin) : 0;
+            });
+            // Distance bins from the lowest, the bin of 0 to +PlayerAdjustedDistanceBin the reference
+            int minBin = kept > 0 ? rawBin.Min() : 0, binCount = kept > 0 ? rawBin.Max() - minBin + 1 : 1, referenceBin = -minBin;
+            var bin = rawBin.Select(b => b - minBin).ToArray();
+            var distance = new double[binCount];
 
-            // Alternating means: skill of each group given the items, generosity of each item given the groups
-            var skill = new double[groups.Count];
+            // Alternating means: skill of each group given the items, generosity of each item given the groups. Each group's
+            // and each item's scores in their order above (Bucket), so every sum adds the same values in the same order as one
+            // pass over the scores: the same result, each group and item in parallel.
+            var skill = new double[groupTotal];
             var gen = new double[itemCount];
-            var sum = new double[Math.Max(groups.Count, itemCount)];
-            var count = new int[sum.Length];
+            var (groupStart, byGroup) = Bucket(group, groupTotal);
+            var (itemStart, byItem) = Bucket(item, itemCount);
+            var (binStart, byBin) = Bucket(bin, binCount);
+            var count = new int[itemCount];
+            for (int m = 0; m < itemCount; m++) count[m] = itemStart[m + 1] - itemStart[m];
             for (int it = 0; it < PlayerAdjustedIterations; it++)
             {
-                Array.Clear(sum); Array.Clear(count);
-                for (int i = 0; i < y.Length; i++) { sum[group[i]] += y[i] - gen[item[i]]; count[group[i]]++; }
-                for (int g = 0; g < skill.Length; g++) skill[g] = count[g] > 0 ? sum[g] / count[g] : 0;
-                Array.Clear(sum); Array.Clear(count);
-                for (int i = 0; i < y.Length; i++) { sum[item[i]] += y[i] - skill[group[i]]; count[item[i]]++; }
-                for (int m = 0; m < gen.Length; m++) gen[m] = count[m] > 0 ? sum[m] / count[m] : 0;
+                Parallel.For(0, groupTotal, g =>
+                {
+                    double sum = 0;
+                    for (int k = groupStart[g]; k < groupStart[g + 1]; k++) { int i = byGroup[k]; sum += y[i] - gen[item[i]] - distance[bin[i]]; }
+                    int n = groupStart[g + 1] - groupStart[g];
+                    skill[g] = n > 0 ? sum / n : 0;
+                });
+                Parallel.For(0, itemCount, m =>
+                {
+                    double sum = 0;
+                    for (int k = itemStart[m]; k < itemStart[m + 1]; k++) { int i = byItem[k]; sum += y[i] - skill[group[i]] - distance[bin[i]]; }
+                    gen[m] = count[m] > 0 ? sum / count[m] : 0;
+                });
+                if (!PlayerAdjustedDistanceTerm) continue;
+                Parallel.For(0, binCount, b =>
+                {
+                    double sum = 0;
+                    for (int k = binStart[b]; k < binStart[b + 1]; k++) { int i = byBin[k]; sum += y[i] - skill[group[i]] - gen[item[i]]; }
+                    int n = binStart[b + 1] - binStart[b];
+                    distance[b] = n > 0 ? sum / n : 0;
+                });
+                // The reference bin at 0 (a constant moves into the skills on the next iteration)
+                double reference = referenceBin >= 0 && referenceBin < binCount ? distance[referenceBin] : 0;
+                for (int b = 0; b < binCount; b++) distance[b] -= reference;
             }
 
             var fitted = Enumerable.Range(0, itemCount).Where(i => count[i] > 0).ToList();
@@ -889,6 +1001,18 @@ namespace portaBLe.Refresh
             double median = nomod[nomod.Length / 2];
             foreach (var i in fitted) values[i] = Math.Exp(gen[i] - median);
             return values;
+        }
+
+        // Indices of key's entries grouped by key (counting sort, each key's in their order): Order[Start[k]..Start[k + 1]]
+        private static (int[] Start, int[] Order) Bucket(int[] key, int keyCount)
+        {
+            var start = new int[keyCount + 1];
+            foreach (var k in key) start[k + 1]++;
+            for (int k = 0; k < keyCount; k++) start[k + 1] += start[k];
+            var next = (int[])start.Clone();
+            var order = new int[key.Length];
+            for (int i = 0; i < key.Length; i++) order[next[key[i]]++] = i;
+            return (start, order);
         }
 
         // How many scores each map's worth rests on, for WorthMeasure (Megametric75: the scores its average takes; InRange: its

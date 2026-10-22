@@ -20,18 +20,23 @@ namespace portaBLe.Refresh
             var timer = System.Diagnostics.Stopwatch.StartNew();
             using var oldDb = Open(webRootPath, oldDbFile);
             using var newDb = Open(webRootPath, newDbFile);
+            using var newScoresDb = Open(webRootPath, newDbFile);
 
+            // The three reads at once, each on its own connection (Microsoft.Data.Sqlite's async calls run synchronously, so
+            // each on its own thread)
             Console.WriteLine($"Model comparison: loading leaderboards from {oldDbFile} and {newDbFile}...");
-            var oldMaps = await LoadMaps(oldDb);
-            var newMaps = await LoadMaps(newDb);
-
+            var oldMapsTask = Task.Run(() => LoadMaps(oldDb));
+            var newMapsTask = Task.Run(() => LoadMaps(newDb));
             // Accuracy of the scores (the same scores in both databases, so taken from the new one)
-            var accuracies = (await newDb.Scores.AsNoTracking()
+            var accuraciesTask = Task.Run(async () => (await newScoresDb.Scores.AsNoTracking()
                     .Select(s => new { s.LeaderboardId, s.Accuracy })
                     .ToListAsync())
                 .Where(s => s.LeaderboardId != null && s.Accuracy > 0 && s.Accuracy <= 1)
                 .GroupBy(s => s.LeaderboardId!)
-                .ToDictionary(g => g.Key, g => g.Select(s => s.Accuracy).OrderByDescending(a => a).ToArray());
+                .ToDictionary(g => g.Key, g => g.Select(s => s.Accuracy).OrderByDescending(a => a).ToArray()));
+            var oldMaps = await oldMapsTask;
+            var newMaps = await newMapsTask;
+            var accuracies = await accuraciesTask;
 
             var maps = new List<object?[]>();
             foreach (var (id, n) in newMaps)
@@ -56,8 +61,9 @@ namespace portaBLe.Refresh
             }
             Console.WriteLine($"Model comparison: {maps.Count} leaderboards in both ({timer.Elapsed:mm\\:ss})");
 
-            var oldPlayers = await LoadPlayers(oldDb);
-            var newPlayers = await LoadPlayers(newDb);
+            var oldPlayersTask = Task.Run(() => LoadPlayers(oldDb));
+            var newPlayers = await Task.Run(() => LoadPlayers(newDb));
+            var oldPlayers = await oldPlayersTask;
             var players = new List<object?[]>();
             foreach (var id in oldPlayers.Where(p => p.Value.Rank > 0 && p.Value.Rank <= TopPlayers).Select(p => p.Key)
                          .Union(newPlayers.Where(p => p.Value.Rank > 0 && p.Value.Rank <= TopPlayers).Select(p => p.Key)))

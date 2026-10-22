@@ -343,7 +343,7 @@ namespace portaBLe
                     //   RatingsRefresh.Overwrite -> RefreshEverything -> AccReweighter.Run -> RefreshEverything -> BalanceTuner.Run
                     //   -> ModelComparisonExport.Run
                     // (only pp formula changes, RatingAPI/Pp/PpFormula.cs: skip Overwrite)
-                    // Run FullPipeline to do all of the above in one pass (about 10-15 minutes and 8-15GB of RAM). autoreweight:
+                    // Run FullPipeline to do all of the above in one pass (about 3.5 minutes in Release and 8-15GB of RAM). autoreweight:
                     // the acc reweighter and its re-score; balancer: the balance tuner and the model comparison.
                     // await FullPipeline(dbContext, env, true, true, true);
 
@@ -427,8 +427,13 @@ namespace portaBLe
         // starts again from the raw acc ratings either way.)
         public static async Task FullPipeline(AppContext dbContext, IWebHostEnvironment env, bool autoreweight, bool balancer, bool keepAccReweight)
         {
-            await RatingsRefresh.Overwrite(dbContext, keepAccReweight);
-            await RefreshEverything(dbContext);
+            // With the acc reweighter, the raw acc ratings: it starts from them anyway, and keeping the last multipliers stored
+            // them as acc rating x multiplier in float, which it divides out again, so each run started from ratings a float
+            // rounding away from the last (23 maps 0.5-2.9% off between two runs on the same data)
+            await RatingsRefresh.Overwrite(dbContext, keepAccReweight && !autoreweight);
+            // The acc reweighter only reads the ratings and the scores' accuracy, modifiers and time (BalanceTuner.Load) and
+            // re-scores in memory, so with it the re-score is only needed after it
+            if (!autoreweight) await RefreshEverything(dbContext);
             if (autoreweight)
             {
                 await AccReweighter.Run(dbContext, env.WebRootPath);
