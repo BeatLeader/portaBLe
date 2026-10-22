@@ -111,6 +111,7 @@ namespace portaBLe.Pages
                 "PassRating" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.PassRating) : leaderboardQuery.OrderBy(l => l.PassRating),
                 "TechRating" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.TechRating) : leaderboardQuery.OrderBy(l => l.TechRating),
                 "AccRating" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.AccRating) : leaderboardQuery.OrderBy(l => l.AccRating),
+                "NoteCount" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.NoteCount) : leaderboardQuery.OrderBy(l => l.NoteCount),
                 "Worth" => SortHelpers.NullsLast(leaderboardQuery, l => l.Worth, SortDescending),
                 _ => SortDescending ? leaderboardQuery.OrderByDescending(l => l.Stars) : leaderboardQuery.OrderBy(l => l.Stars),
             };
@@ -135,19 +136,19 @@ namespace portaBLe.Pages
                 {
                     Id = l.Id, Name = l.Name, Mapper = l.Mapper, Cover = l.Cover, ModeName = l.ModeName, DifficultyName = l.DifficultyName,
                     Stars = l.ModifiersRating!.SSStars, PassRating = l.ModifiersRating.SSPassRating, AccRating = l.ModifiersRating.SSAccRating,
-                    TechRating = l.ModifiersRating.SSTechRating, Worth = l.ModifiersRating.SSWorth,
+                    TechRating = l.ModifiersRating.SSTechRating, Worth = l.ModifiersRating.SSWorth, NoteCount = l.NoteCount,
                 }),
                 "FS" => withRatings.Select(l => new Leaderboard
                 {
                     Id = l.Id, Name = l.Name, Mapper = l.Mapper, Cover = l.Cover, ModeName = l.ModeName, DifficultyName = l.DifficultyName,
                     Stars = l.ModifiersRating!.FSStars, PassRating = l.ModifiersRating.FSPassRating, AccRating = l.ModifiersRating.FSAccRating,
-                    TechRating = l.ModifiersRating.FSTechRating, Worth = l.ModifiersRating.FSWorth,
+                    TechRating = l.ModifiersRating.FSTechRating, Worth = l.ModifiersRating.FSWorth, NoteCount = l.NoteCount,
                 }),
                 _ => withRatings.Select(l => new Leaderboard
                 {
                     Id = l.Id, Name = l.Name, Mapper = l.Mapper, Cover = l.Cover, ModeName = l.ModeName, DifficultyName = l.DifficultyName,
                     Stars = l.ModifiersRating!.SFStars, PassRating = l.ModifiersRating.SFPassRating, AccRating = l.ModifiersRating.SFAccRating,
-                    TechRating = l.ModifiersRating.SFTechRating, Worth = l.ModifiersRating.SFWorth,
+                    TechRating = l.ModifiersRating.SFTechRating, Worth = l.ModifiersRating.SFWorth, NoteCount = l.NoteCount,
                 }),
             };
         }

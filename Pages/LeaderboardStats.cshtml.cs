@@ -59,6 +59,7 @@ namespace portaBLe.Pages
             new("PPRatioFiltered", "PP/topPP filtered", "Average score PP / player's top PP for players with 50 or more ranked plays", "Megametric", x => x.PPRatioFiltered, x => x.PPRatioFiltered.ToString("F3")),
             new("PPRatioUnfiltered", "PP/topPP unfiltered", "Average score PP / player's top PP", "Megametric", x => x.PPRatioUnfiltered, x => x.PPRatioUnfiltered.ToString("F3")),
 
+            new("NoteCount", "Notes", "Color notes in the difficulty", "Traits", x => x.NoteCount, x => x.NoteCount > 0 ? x.NoteCount.ToString() : "—"),
             new("MultiPercentage", "Multi %", "Share of the notes in multi-note patterns", "Traits", x => x.MultiPercentage, x => x.MultiPercentage.ToString("F2")),
             new("LinearPercent", "Linear %", "Share of linear swings", "Traits", x => x.LinearPercent, x => x.LinearPercent.ToString("F3")),
             new("ParityErrors", "Parity errors", "Parity errors found by the Analyzer", "Traits", x => x.ParityErrors, x => x.ParityErrors.ToString()),

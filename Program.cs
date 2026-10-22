@@ -363,6 +363,10 @@ namespace portaBLe
                     // stores it too). For every database in databases.json: RefreshNjsForAllDatabases below.
                     // await RatingsRefresh.RefreshNjs(dbContext);
 
+                    // Color note count of every leaderboard from the maps folder, without rating the maps again (Overwrite and
+                    // CurvesRefresh.Regenerate store it too). For every database in databases.json: RefreshNoteCountsForAllDatabases below.
+                    // await CurvesRefresh.RefreshNoteCounts(dbContext);
+
                     // Scores, players, leaderboards (Megametric), stars, outliers and stats from the current ratings
                     // await RefreshEverything(dbContext);
 
@@ -412,6 +416,8 @@ namespace portaBLe
                     // await RefreshStatsForAllDatabases(tempDbService, builder.Environment.WebRootPath);
                     // NJS of every leaderboard (from the maps folder) in every database in databases.json
                     // await RefreshNjsForAllDatabases(tempDbService, builder.Environment.WebRootPath);
+                    // Note counts of every leaderboard (from the maps folder) in every database in databases.json
+                    // await RefreshNoteCountsForAllDatabases(tempDbService, builder.Environment.WebRootPath);
                 }
 
                 await app.RunAsync();
@@ -611,6 +617,33 @@ namespace portaBLe
                 catch (Exception ex)
                 {
                     Console.WriteLine($"Error filling NJS for {db.Name}: {ex.Message}");
+                }
+            }
+        }
+
+        // Fills Leaderboard.NoteCount (CurvesRefresh.RefreshNoteCounts) in every database in databases.json
+        private static async Task RefreshNoteCountsForAllDatabases(IDynamicDbContextService dbService, string webRootPath)
+        {
+            var databases = await dbService.GetAvailableDatabasesAsync();
+            foreach (var db in databases)
+            {
+                var path = Path.Combine(webRootPath, db.FileName);
+                if (!File.Exists(path))
+                {
+                    Console.WriteLine($"Skipping note counts for {db.Name}: file not found");
+                    continue;
+                }
+                try
+                {
+                    var optionsBuilder = new DbContextOptionsBuilder<AppContext>();
+                    optionsBuilder.UseSqlite($"Data Source={path};");
+                    using var dbContext = new AppContext(optionsBuilder.Options);
+                    Console.WriteLine($"Note counts: {db.Name} ({db.FileName})");
+                    await CurvesRefresh.RefreshNoteCounts(dbContext);
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Error filling note counts for {db.Name}: {ex.Message}");
                 }
             }
         }

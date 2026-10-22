@@ -167,6 +167,10 @@
         {
             <div class="predicted-acc">@njsText</div>
         }
+        @if (Model.Leaderboard.NoteCount > 0)
+        {
+            <div class="predicted-acc">Notes: @Model.Leaderboard.NoteCount</div>
+        }
     </div>
 
     @if (Model.CompareLeaderboard != null)
@@ -245,6 +249,10 @@
             @if (Model.NjsText(Model.CompareNjs) is string compareNjsText)
             {
                 <div class="predicted-acc">@compareNjsText</div>
+            }
+            @if (Model.CompareLeaderboard.NoteCount > 0)
+            {
+                <div class="predicted-acc">Notes: @Model.CompareLeaderboard.NoteCount</div>
             }
         </div>
     }

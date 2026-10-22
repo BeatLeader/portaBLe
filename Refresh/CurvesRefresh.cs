@@ -13,6 +13,7 @@ namespace portaBLe.Refresh
         {
             var timer = System.Diagnostics.Stopwatch.StartNew();
             await DbSchema.AddColumnIfMissing(dbContext, "Leaderboards", "Curve", "TEXT");
+            await DbSchema.AddColumnIfMissing(dbContext, "Leaderboards", "NoteCount", "INTEGER");
             foreach (var column in new[] { "SSCurve", "FSCurve", "SFCurve" })
             {
                 await DbSchema.AddColumnIfMissing(dbContext, "ModifiersRating", column, "TEXT");
@@ -29,6 +30,7 @@ namespace portaBLe.Refresh
             foreach (var lb in lbs)
             {
                 var (sliders, notes) = maps.GetValueOrDefault(lb.Id);
+                if (notes > 0) lb.NoteCount = notes;
                 var lack = new LackMapCalculation { SliderPercentage = sliders, NoteCount = notes };
                 lb.Curve = ReplayUtils.ToCurve(generator.GetCurve(lack, lb.PredictedAcc));
                 var mod = lb.ModifiersRating;
@@ -67,6 +69,40 @@ namespace portaBLe.Refresh
                 catch { }
             });
             return new Dictionary<string, (double, int)>(result);
+        }
+
+        // Color note count of every leaderboard (Leaderboard.NoteCount) from the maps folder (downloaded when missing), without
+        // rating the maps again (Overwrite and Regenerate store it too)
+        public static async Task RefreshNoteCounts(AppContext dbContext)
+        {
+            await DbSchema.AddColumnIfMissing(dbContext, "Leaderboards", "NoteCount", "INTEGER");
+            var lbs = await dbContext.Leaderboards.AsNoTracking()
+                .Select(l => new Leaderboard { Id = l.Id, Hash = l.Hash, ModeName = l.ModeName, DifficultyName = l.DifficultyName, NoteCount = l.NoteCount })
+                .ToListAsync();
+            var counts = new System.Collections.Concurrent.ConcurrentDictionary<string, int>();
+            var downloader = new Downloader("maps");
+            await Parallel.ForEachAsync(lbs, new ParallelOptions { MaxDegreeOfParallelism = Program.CoreCount }, async (lb, ct) =>
+            {
+                try
+                {
+                    var mapPath = await downloader.MapAsync(lb.Hash);
+                    if (mapPath == null) return;
+                    var mapset = new beatleader_parser.Parse().TryLoadPath(mapPath);
+                    int diffCode = RatingsRefresh.GetDiffCode(lb.DifficultyName);
+                    var set = mapset?.Difficulties.FirstOrDefault(d => d.Characteristic == lb.ModeName
+                        && (d.BeatMap._difficultyRank == diffCode || d.BeatMap._difficulty == lb.DifficultyName));
+                    if (set != null) counts[lb.Id] = set.Data.Notes.Count;
+                }
+                catch { }
+            });
+            var updates = lbs.Where(lb => counts.TryGetValue(lb.Id, out var n) && n != lb.NoteCount)
+                .Select(lb => new Leaderboard { Id = lb.Id, NoteCount = counts[lb.Id] })
+                .ToList();
+            if (updates.Count > 0)
+            {
+                await dbContext.BulkUpdateAsync(updates, options => options.ColumnInputExpression = c => new { c.NoteCount });
+            }
+            Console.WriteLine($"Note counts: {updates.Count} leaderboards updated, {lbs.Count - counts.Count} not found");
         }
     }
 }

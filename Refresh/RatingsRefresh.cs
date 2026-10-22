@@ -36,6 +36,7 @@ namespace portaBLe.Refresh
                 ("CrouchWalls", "INTEGER"),
                 ("Duration", "REAL"),
                 ("Njs", "REAL"),
+                ("NoteCount", "INTEGER"),
                 ("HitDistance", "REAL"),
                 ("AccReweight", "REAL"),
                 ("IsFitbeat", "INTEGER"),
@@ -97,6 +98,7 @@ namespace portaBLe.Refresh
                     lb.BombAvoidances = (float)response["none"].LackMapCalculation.Statistics.BombAvoidances;
                     lb.Duration = (float)response["none"].Length;
                     lb.Njs = response["none"].Njs;
+                    lb.NoteCount = response["none"].LackMapCalculation.NoteCount;
                     lb.HitDistance = (float)response["none"].LackMapCalculation.HitDistance;
 
                     lb.PassRating = (float)response["none"].LackMapCalculation.PassRating;

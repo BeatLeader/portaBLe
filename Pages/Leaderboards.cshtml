@@ -56,6 +56,7 @@
             @SortHeader("PassRating", "Pass", "Pass rating")
             @SortHeader("AccRating", "Acc", "Acc rating")
             @SortHeader("TechRating", "Tech", "Tech rating")
+            @SortHeader("NoteCount", "Notes", "Color notes in the difficulty")
             @SortHeader("Worth", Model.Modifier == null ? "Worth" : $"Worth ({Model.Modifier})", "How much the map pays its players compared with maps of the same stars: for the same players, how much more or less they get here than on their other maps at their level (+4% = 4% more). The balance tuner and the acc reweighter use this measure. Blank with too few scores. With a speed modifier, that of the scores with it.")
         </tr>
     </thead>
@@ -79,12 +80,13 @@
                 <td class="lb-num">@leaderboard.PassRating.ToString("0.00")</td>
                 <td class="lb-num">@leaderboard.AccRating.ToString("0.00")</td>
                 <td class="lb-num">@leaderboard.TechRating.ToString("0.00")</td>
+                <td class="lb-num">@(leaderboard.NoteCount > 0 ? leaderboard.NoteCount.ToString() : "—")</td>
                 <td class="lb-num"><span class="lb-worth @WorthClass(leaderboard.Worth)">@WorthText(leaderboard.Worth)</span></td>
             </tr>
         }
         @if (Model.Leaderboards.Count == 0)
         {
-            <tr><td colspan="8" class="text-center text-muted py-4">No maps found</td></tr>
+            <tr><td colspan="9" class="text-center text-muted py-4">No maps found</td></tr>
         }
     </tbody>
 </table>

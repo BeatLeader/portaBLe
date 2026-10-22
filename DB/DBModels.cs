@@ -150,6 +150,10 @@ namespace portaBLe.DB
         // Base note jump speed of the difficulty (Info.dat, without speed modifiers). 0 = not filled yet: RatingsRefresh.Overwrite
         // stores it, RatingsRefresh.RefreshNjs fills it without rating the maps again.
         public float Njs { get; set; }
+        // Color notes of the difficulty (no bombs, chains or arcs), as the low note nerf counts them (CurveSettings.LowNoteStart).
+        // 0 = not filled yet: RatingsRefresh.Overwrite and CurvesRefresh.Regenerate store it, CurvesRefresh.RefreshNoteCounts
+        // fills it without rating the maps again.
+        public int NoteCount { get; set; }
         // Analyzer mean hit distance (m), used by the acc rating (RatingAPI AccRating.EffectiveAcc). Stored by
         // RatingsRefresh.Overwrite, so RatingsRefresh.Refresh and the balance tuner can rebuild the acc rating.
         public float HitDistance { get; set; }
