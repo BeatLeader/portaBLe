@@ -6,6 +6,99 @@ model comes from `beatsaber-replays-ai-2`.
 The goal is ratings that never need scores at rating time. Scores, replays and fail attempts are used offline, to fit and
 validate constants. The one exception is the acc reweighter (below), the only tool that changes ratings from scores.
 
+## Reweighter target metric, star response and noise dead zone; low note nerf, very low star curve power, SC
+
+### Acc reweighter
+
+Players found small gaps moved for nothing and the maps furthest off not moved enough. Both were real: the strengths
+were judged by the worth spread around 0, not by each map's distance to its own target, so strength 2.0 took maps 0.83×
+the way to their target at 0-5 stars and 2.14× at 11+ (152 maps past 0, 118 of them 11+ stars); and every map moved by
+the same share of its gap, so gaps within the noise moved about 2%.
+
+- **Target metric** (`TargetMetric`): each pass's strength and phase 1's held-out choice are judged by each map's
+  distance to its own target (rms of worth − target), instead of the worth spread without the part of its gap a map
+  keeps. That left the kind's worth in, so the choice pulled every map towards 0, past the target of maps whose kind is
+  worth more or less than average (89 of the 118 11+ star maps that went past 0 had their kind's worth on the other side).
+- **Star response** (`StarResponse`, `StarResponseProbe` 0.03, `StarResponseBandwidth` 1): before the fit, a random
+  ±0.03 log multiplier probe measures how much each map's worth moves with its multiplier, over its acc share, at the
+  base and at the real stars, smoothed over stars. Pass 1's step is divided by the base stars' response (relative to the
+  median map's), and the multipliers to store are scaled by base over real (0.5× to 2×).
+  - Why: at the base stars the response is about flat (1.07-1.17× the acc share from 1 to 14 stars), at the real stars
+    0.47-0.50 up to 5 stars, 0.62 at 7, 0.87 at 9, 1.02-1.22 from 11 (a map's stars move with its acc rating). The fit
+    moved low and mid star maps half as far as it meant to. The per-map `Responses` only count from pass 2.
+- **Noise dead zone** (`NoiseDeadZone` 2, `NoisePerScore` 0.28): each map's gap to its kind's worth (log) is shrunk by
+  gap² / (gap² + (2 × noise)²), noise = 0.28 / √(scores its worth rests on), instead of the step's n / (n + 40)
+  (`EvidenceScores`, now only used with `NoiseDeadZone` 0). n / (n + 40) moved every map with 800 scores 95% of the way:
+  1354 maps within ±0.01 to ±0.03 moved about 2% each. With 1, 443 of them still moved over 2%; with 2, 204.
+  - 0.28: what `EvidenceScores` 40 implies with the start's spread (0.0445 × √40); the median map's noise measured with
+    every player and with half of them was 0.010, 0.28 / √880 is 0.0094.
+- **`Applied` 0.5 → 0.7:** with the target metric and 0.5, maps went 0.48-0.68× of the way to their kind's worth, those
+  beyond ±0.1 closed 28% of their worth and 449 maps stayed beyond ±0.05.
+- **`MaxChange` 0.15 → 0.11:** the same bounds as before with `Applied` 0.7, ×0.922-×1.085 (0.15 gave ×0.892-×1.121, and
+  took Break Expert 12.09 → 14.92 stars).
+- **Large gaps** (`LargeGapMaxChange` 0.16, `LargeGapFrom` 0.04, `LargeGapFull` 0.08): a map whose gap (after the dead
+  zone) is beyond 0.04 may go past `MaxChange`'s bounds, up to ×0.885-×1.130 from 0.08, in proportion in between. With
+  `MaxChange`'s bounds only, maps beyond ±0.1 closed 40-50% of their gap, the others about 68%. 0.22 (×0.840-×1.190)
+  closed them 66% instead of 57%, but stars jumped up to +2.83 and 135 maps went past ×1.1 (111).
+- `acc-reweight.json`: each map's `KindWorth` and `Target`, and the new settings.
+- **Result (Dev, same data, against the previous defaults):** pass 2 at strength 1.3 kept (pass 1's held-out minimum is
+  now at 0.7, inside the grid). Maps go 0.80-1.18× of the way to their target across star ranges (0.83-2.14×), 12 maps
+  pushed past 0 by more than 0.01 (152), 8 of them 11+ stars (118); 204 maps within ±0.01 to ±0.03 moved over 2% (655);
+  maps beyond ±0.1 closed 57% of their worth (44%); 79 maps beyond ±0.05 after (132, 926 without reweighting). Worth
+  spread 0.0456 → 0.0231 (0.0226 before), held-out distance to the targets 0.0289 → 0.0183. Mean change 2.7% on 3027
+  maps, ×0.885-×1.130 (39 at ×1.130, 9 at ×0.885), the largest star change +1.91 (+1.32). Pass share slope +0.0037 →
+  +0.0076 (3% of its tolerance left, 2% before), acc share slope 23% left; both warn. The limiter cut 29 maps.
+- **`dotnet run -c Release -- accreweight [Setting=value ...] [rescore]`:** the reweighter alone on `wwwroot/Database.db`
+  with any of its settings (e.g. `NoiseDeadZone=1 StarResponse=false`), without the website or the downloads; `rescore`
+  runs `RefreshEverything` after it.
+
+### pp formula (RatingAPI submodule)
+
+- **Very low star curve power** (`VeryLowStarCurvePower` 1.08, `VeryLowStarCurveStart` 3, `VeryLowStarCurveEnd` 5): the
+  acc curve power is 1.08 up to 3 stars, then linearly to the low star power (1.0) at 5 stars. Stars don't move (read at
+  96%); scores under 96% lose a little (90%: about −3% acc pp).
+  - Why: the best plays under 4 stars topped out at 690-710 pp (#1 scores, best of the band) against 775-818 from 5 to 14
+    stars. The per-map curve rows can't do this: they can only lower the curve, so they raise maps by cutting it at the
+    predicted acc, which lifted the median score far more than the top ones (2-3 stars: median 172 → 531 pp, #1 +12%).
+  - Impact (simulated on the ranked scores, with the acc reweighter): best #1 at 1, 2, 3, 4 stars 694, 711, 706, 766 →
+    795, 808, 743, 783; top 10 of each map +11.6%, +8.2%, +4.7%, +1.2%; all scores' mean +3.8%, +1.7%, 0.0%, −0.3%;
+    nothing from 5 stars.
+- **SC (small cubes) −50% pp** (`ModifiersMap.SC` 0 → −0.5), as NF and OP.
+
+### Per-map acc curves (RatingAPI submodule)
+
+- **Low note nerf** (`CurveSettings.LowNoteStart` 115, `LowNoteRefNotes` 20, `LowNoteRefMultiplier` 0.8,
+  `LowNoteMinMultiplier` 0.5): maps with few color notes are worth too much for how easily they're grinded to 100%. Their
+  whole curve is multiplied by 1 − 0.2 × ln(115 / notes) / ln(115 / 20) under 115 notes: ×0.8 at 20 notes, ×0.72 at 10,
+  ×0.64 at 5, never under ×0.5. So acc pp at every acc and stars go down; the acc rating, pass and tech pp don't.
+  - Quiet Water Easy (20 notes): a 100% SF about 785 → 633 pp on Dev with the acc reweighter (×0.75 gave 589).
+  - Not the old low-note nerf (removed earlier), which multiplied the acc rating by 0.6-1.0 under 200 notes.
+- RatingAPI's response has `note_count` (`LackMapCalculation.NoteCount`, 0 = unknown, no nerf).
+
+### Pages and tools
+
+- **Leaderboards page:**
+  - range filter on stars, pass, acc or tech rating (from / to, either side open);
+  - speed modifier filter (SS, FS, SFS): shows, filters and sorts on that modifier's stars, ratings and worth, and leaves
+    out maps without modifier ratings; links to the Leaderboard page keep the modifier;
+  - Notes column (sortable).
+- **`Leaderboard.NoteCount`:** color notes (no bombs, chains or arcs), stored by `RatingsRefresh.Overwrite` and
+  `CurvesRefresh.Regenerate`, filled without re-rating by `CurvesRefresh.RefreshNoteCounts` (all databases:
+  `RefreshNoteCountsForAllDatabases`). Shown on the Leaderboard page and in Leaderboard Statistics (Map traits).
+  `CurvesRefresh.Regenerate` passes it to the curves, with the slider share.
+- **Curve Explorer:** very low star power and low note nerf, each with its own switch and values; the low star power
+  ramps to 1 when the acc curve power is off.
+- **Old database links fall back to the default:** a `?db=` that isn't listed in `databases.json` or isn't on disk (files
+  are renamed each time a database is replaced) shows the default database (or the saved one) and is taken out of the
+  URL, instead of SQLite creating an empty file ("no such table", and the next startup took it for the downloaded
+  database). Connections open in `ReadWrite` mode, never create. Database Comparison and Database Metrics too.
+- **Top Scores cache checked before uploading** (`TopScoresCache.EnsureCurrentAsync`): built when it's missing or for
+  another version of the database, which the server rejected and then rebuilt on the first visit after every deploy
+  (Dev's was Database.db's from before the acc reweight).
+- **`dotnet run -c Release -- upload <wwwroot/file.db>`** uploads one database (and its cache); **`-- cache
+  <wwwroot/file.db> [upload]`** builds its cache when it doesn't match, and uploads it.
+- New Dev and Dev Autoreweighted databases.
+
 ## Reweighter fallback and guard margins; the real stars' drift
 
 ### Acc reweighter

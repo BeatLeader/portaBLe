@@ -1,8 +1,8 @@
 # Branch Changelog
 
 **Range:** `5890677` ("New model + auto-rebalancer", included) through `372eb8c` on `loloppe-rebalancer` and the work
-after it (player-adjusted worth, tech weight, low stars, per-modifier worth, the reweighter fit, smooth per-map curves:
-see `CHANGELOG.md`), plus the matching commits in the submodules:
+after it (player-adjusted worth, tech weight, low stars, per-modifier worth, the reweighter fit, smooth per-map curves,
+the low note nerf and very low star curve power: see `CHANGELOG.md`), plus the matching commits in the submodules:
 RatingAPI `3955df3 → 4f5a2c9` and later, and Analyzer `0d47de6 → 43229f6` (10 commits). The Parser submodule is unchanged.
 
 ## Overview
@@ -61,7 +61,7 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
   - **Distance:** `DISTANCE_FALLOFF` 2.668 → 1.0, so the distance between swings matters.
   - **Crouch walls:** ×2.0 instead of ×1.2.
   - **Low-note nerf:** removed (`5489756`, RatingAPI `8c0d7bc`). It multiplied the acc rating by 0.6–1.0 on maps under
-    200 notes.
+    200 notes. A different one now lowers the per-map curve instead (below).
 - **Why:** confirmed, except where noted.
   - Windows in swings let a few seconds of dense burst set very fast maps' pass. Seconds fitted fail difficulty better
     (out-of-fold R² 0.628 → 0.664).
@@ -135,6 +135,11 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
   segment (the per-map ratio falls with acc), so the curves were bumpy above ~98.5% (0.10, 0.07, 0.12 per 0.05% at
   99.3-99.55% for 97% predicted). Same values at the table points, up to 1.34% lower between them; the base curve stays
   linear.
+- **Low note nerf on the curve** (RatingAPI `9a9ac89`, `CurveSettings.LowNote*`): under 115 color notes the whole curve is
+  multiplied by 1 − 0.2 × ln(115 / notes) / ln(115 / 20): ×0.8 at 20 notes, ×0.72 at 10, never under ×0.5. Acc pp at
+  every acc and stars go down; the acc rating, pass and tech pp don't. Maps with few notes were worth too much for how
+  easily they're grinded to 100% (Quiet Water Easy, 20 notes: a 100% SF about 785 → 633 pp). The note count comes from
+  RatingAPI (`note_count`) or `Leaderboard.NoteCount` (`CurvesRefresh`).
 - **Impact:** the 99%+ tail and the slider outliers are tamed. Several table iterations happened (`65204a7`, `79c19e8`,
   `a3535f7`); only the latest values remain.
 
@@ -161,7 +166,7 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
 ### API changes
 - **Removed:** the legacy `star_rating` (and `low_note_nerf`) fields of RatingAPI's response.
 - **Added:** `stars` (from RatingAPI's own pp formula, below, without the acc reweighter's multipliers, which only
-  portaBLe has), `slider_percentage`, `njs` and the hit distance.
+  portaBLe has), `slider_percentage`, `njs`, the hit distance and `note_count`.
 - **pp and stars in RatingAPI** (`3484ca5`): `RatingAPI/Pp` holds `PpFormula`, `PpCalculator` (score pp, stars, curve
   lookup) and `ModifiersMap`, so a server needs RatingAPI only. portaBLe's `ReplayUtils` just passes its database values.
 - **Faster rating:** an overload rates only the requested modifiers, only the requested difficulty is parsed, and ONNX
@@ -229,6 +234,19 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
   1.018 against the plateau (prod 1.035, 1.085, 1.020), Pandita #7. 1–2★ maps get less bonus (+10% / +8.5%, was +17.6% /
   +11%) but still rise with the curve power. The spread of players' pp stays narrower than prod's (#1 21910 vs 24140,
   #1000 15060 vs 14693): that comes from the removed inflation, not the multiplier.
+- **Later:** `TechWeight` 0.124 → 0.1612 and `PpMultiplier` 1.0597 → 1.0369 (RatingAPI `a6bda7e`), from the balance
+  tuner with the worth's lower bound removed: tech share slope −0.0148 → −0.0011.
+
+### Very low stars and small cubes (RatingAPI `d4844de`)
+- **What:**
+  - **Very low star curve power:** the acc curve power is 1.08 up to 3★, then linearly to 1.0 at 5★
+    (`VeryLowStarCurvePower` / `Start` / `End`). Stars don't move; a 90% score loses about 3% of its acc pp.
+  - **SC −50% pp** (`ModifiersMap.SC` 0 → −0.5), like NF and OP.
+- **Why:** confirmed. The best plays under 4★ topped out at 690–710 pp against 775–818 from 5 to 14★. The per-map curve
+  rows can only lower the curve, so raising maps through them lifted the median score far more than the top ones (2–3★:
+  median 172 → 531 pp, #1 +12%). The reason for SC isn't documented beyond the commit message.
+- **Impact:** simulated with the acc reweighter: best #1 at 1, 2, 3, 4★ 694, 711, 706, 766 → 795, 808, 743, 783; top 10
+  of each map +11.6%, +8.2%, +4.7%, +1.2%; all scores' mean +3.8%, +1.7%, 0.0%, −0.3%; nothing from 5★.
 
 ### Ratings and stars on prod's scale, without display curves
 - **What:** pass, tech, acc and stars match prod's distributions. Medians and 99th percentiles, now vs prod: stars 6.86 /
@@ -307,6 +325,14 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
     not just its acc share.
   - **Search:** 3 passes, strengths 0.1–2.0, judged on the average of 3 random held-out splits (`HeldOutSplits`).
   - **Bounds:** symmetric in log, ×0.922 to ×1.085 (were ×0.922 to ×1.072).
+  - **Target metric** (`TargetMetric`, after `677ee1d`): strengths are judged by each map's distance to its own target,
+    in the passes and in the held-out choice, not by the worth spread around 0.
+  - **Star response** (`StarResponse`): a probe before the fit measures how much worth moves with the multiplier at the
+    base and at the real stars; pass 1's step and the multipliers to store are scaled by it.
+  - **Noise dead zone** (`NoiseDeadZone` 2): each map's gap is shrunk by gap² / (gap² + (2 × noise)²), noise = 0.28 /
+    √scores, instead of the step's n / (n + 40).
+  - **`Applied` 0.5 → 0.7,** `MaxChange` 0.15 → 0.11 (the same ×0.922 to ×1.085), and up to ×0.885 to ×1.130 for maps
+    whose gap is beyond 0.04–0.08 (`LargeGapMaxChange` 0.16).
   - **Guard:** 0.004 / 0.0075 (`GuardTolerance` / `GapTolerance`, PlayerAdjusted only), checked again on what's stored,
     at the real stars. When that fails, the fit is redone at the lower strengths and the first that passes is stored
     (`FallbackStrengths`), else nothing changes. Each run logs how close the stored point is to failing (`GuardMargins`)
@@ -344,6 +370,13 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
   - **Guard 0.004 / 0.0075:** with the new worth the measure's noise is 0.0004–0.0020, so 0.0065 / 0.0125 held nothing
     back. The guard used to be checked only at the base stars, so it was never applied to what was stored.
   - **Fallback:** a small change to the balance could otherwise drop the whole reweight at once.
+  - **Target metric, star response, dead zone, 0.7:** players found small gaps moved for nothing and the maps furthest
+    off not moved enough. The spread around 0 kept the kind's worth in, so strength 2.0 always won and maps went 0.83×
+    of the way to their target at 0–5★ but 2.14× at 11+ (152 maps past 0, 118 of them 11+★). At the real stars a map's
+    worth moves 0.47–0.50× its acc share up to 5★ and 1.02–1.22× from 11★ (at the base stars about 1.1× everywhere),
+    so once stored, low and mid star maps moved half as far as the fit meant. n / (n + 40) moved 1354 maps with gaps
+    of 0.01–0.03 about 2% each. Without overshoot, 0.5 only took maps 0.48–0.68× of the way; 0.22 for large gaps made
+    stars jump up to +2.83.
 - **The real stars' drift (unresolved):** the fit keeps the slopes at the start's at the base stars, but stored, the pass
   share slope is +0.0077 (start +0.0039, the guard allowing 0.0079), the tech slope +0.0012 and predicted acc −0.0021.
   All of it comes from the stars (each map's reference, its players' levels and distance to it); the star ranges move
@@ -352,11 +385,13 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
   5.1%, 614 maps at ×1.085, low star maps with no gap pushed to the bounds, 2cf6391 to the cap). Each moves maps by their
   kind, not their own gap. The remaining option is for stars not to follow the reweight (a design choice).
 - **Impact:** outliers corrected (Ascension to Heaven Expert worth +1.32 → −0.10; 3585 maps, 4.1% on average) with balance
-  kept. Worth spread is no longer a fair overall balance measure afterwards. Now (Dev, TechWeight 0.1612): 3.3% mean change
-  on 3902 maps (×0.922–×1.085), worth spread 0.0443 → 0.0211 (held out 0.0452 → 0.0203), 9 maps cut by the limiter, maps
-  beyond ±0.05 251 → 112 against the version before the slope correction and limiter. Godspeed ExpertPlus ×0.991 (worth
-  +0.013), 2cf6391 ×1.056 (−0.044 → −0.006). Pass share slope +0.0039 → +0.0077, gap +0.0041 → +0.0083: the guard
-  passes with 0.0002 to spare on the pass share slope, so it warns.
+  kept. Worth spread is no longer a fair overall balance measure afterwards. Now (Dev, 22 Oct): pass 2 at strength 1.3,
+  2.7% mean change on 3027 maps (×0.885–×1.130, 39 at ×1.130 and 9 at ×0.885), worth spread 0.0456 → 0.0231, held-out
+  distance to the targets 0.0289 → 0.0183. Maps go 0.80–1.18× of the way to their target across star ranges, 12 are
+  pushed past 0 by more than 0.01 (152 before), 204 with gaps of 0.01–0.03 move over 2% (655), maps beyond ±0.1 close
+  57% of their worth (44%), 79 maps beyond ±0.05 after (926 without reweighting, 132 before). The largest star change
+  is +1.91 (+1.32). 29 maps cut by the limiter. Pass share slope +0.0037 → +0.0076, gap +0.0040 → +0.0082: the guard
+  passes with 0.00013 to spare on the pass share slope (3%), so it warns, as does the acc share slope (23% left).
 
 ### Research exports
 - **What:** new tools in `Refresh/Tools/`:
@@ -390,7 +425,9 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
   - worth, of the selected speed modifier;
   - how many players get pp from it above a weight (as profiles show it), with a ranked plays minimum (default 75).
 - **Leaderboards:** redesigned with all ratings, sortable headers, difficulty badges, worth tinted when far from average,
-  search by song or mapper name, and 25 per page. Worth is the player-adjusted one, in %, tinted at ±8%.
+  search by song or mapper name, and 25 per page. Worth is the player-adjusted one, in %, tinted at ±8%. Filters on a
+  star, pass, acc or tech range and on a speed modifier (its stars, ratings and worth shown, filtered and sorted on), and
+  a Notes column.
 - **Leaderboard Statistics:** split into views (Overview, Worth by rank, Profile weights, Megametric, Map traits); every
   column sortable (the ratio columns used to fall back to Total PP), worth by player rank and the Megametric worth added.
 - **Ranking:** Top PP next to Total PP. **Map Outliers:** sorted by Outlier % by default.
@@ -410,8 +447,11 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
 
 ### Database selection
 - **What:** `MainDB: -1` (the new value in `databases.json`) makes the last listed database the default, and a saved
-  browser selection that's no longer listed is forgotten.
-- **Impact:** a new database becomes the default by adding it last.
+  browser selection that's no longer listed is forgotten. A `?db=` link to a database that isn't listed or on disk any
+  more shows the default (or saved) one and is dropped from the URL; connections never create a database file.
+- **Why:** database files are renamed each time one is replaced, so old links pointed at missing files, which SQLite
+  created empty ("no such table", and the next startup took the empty file for the downloaded database).
+- **Impact:** a new database becomes the default by adding it last, and old links keep working.
 
 ---
 
@@ -424,9 +464,15 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
 - **`FullPipeline(autoreweight, balancer, keepAccReweight)`:** Overwrite → RefreshEverything → AccReweighter →
   RefreshEverything → BalanceTuner / comparisons. `keepAccReweight` no longer has a default. `RatingsRefresh.RefreshNjs` and `CurvesRefresh.Regenerate` fill new
   columns without re-rating.
-- **New database columns:** `Njs`, `HitDistance`, `AccReweight`, `Worth`, `MegametricWorth`, `WorthRank20` …
+- **New database columns:** `Njs`, `NoteCount`, `HitDistance`, `AccReweight`, `Worth`, `MegametricWorth`, `WorthRank20` …
   `WorthRank10000`, per-modifier curves and per-modifier worth (`SSWorth`, `FSWorth`, `SFWorth`).
-- **Top Scores caches** of databases not in `databases.json` are deleted at startup, with unfinished `.tmp` saves.
+  `CurvesRefresh.RefreshNoteCounts` fills `NoteCount` without re-rating.
+- **Top Scores caches** of databases not in `databases.json` are deleted at startup, with unfinished `.tmp` saves, and a
+  database's cache is rebuilt before uploading when it doesn't match it (the server rejected it and rebuilt it after
+  every deploy).
+- **Command line** (`dotnet run -c Release -- …`): `accreweight [Setting=value ...] [rescore]` runs the acc reweighter
+  alone on `wwwroot/Database.db` with any of its settings; `upload <file.db>` uploads one database and its cache;
+  `cache <file.db> [upload]` builds (and uploads) its cache.
 - **Project:**
   - `Program.cs` organized into sections;
   - README and `CHANGELOG.md` added;
