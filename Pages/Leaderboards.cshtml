@@ -21,6 +21,13 @@
             <option value="@mode" selected="@(Model.ModeName == mode)">@mode</option>
         }
     </select>
+    <select name="Modifier" id="modifier" class="form-select form-select-sm lb-mode" title="Speed modifier: stars, ratings and worth with it" onchange="this.form.submit()">
+        <option value="" selected="@(Model.Modifier == null)">No speed modifier</option>
+        @foreach (var m in LeaderboardsModel.Modifiers)
+        {
+            <option value="@m" selected="@(Model.Modifier == m)">@m</option>
+        }
+    </select>
     <div class="lb-range">
         <select name="RangeBy" id="rangeBy" class="form-select form-select-sm lb-mode" onchange="if (this.form.RangeMin.value || this.form.RangeMax.value) this.form.submit()">
             <option value="Stars" selected="@(Model.RangeBy is not ("PassRating" or "AccRating" or "TechRating"))">Stars</option>
@@ -35,7 +42,7 @@
     </div>
     @if (!string.IsNullOrEmpty(Model.SearchString) || !string.IsNullOrEmpty(Model.ModeName) || Model.HasRange)
     {
-        <a asp-page="./Leaderboards" asp-route-sortBy="@Model.SortBy" asp-route-sortDescending="@Model.SortDescending" asp-route-db="@Model.SelectedDatabase" class="btn btn-sm btn-outline-secondary">Clear</a>
+        <a asp-page="./Leaderboards" asp-route-sortBy="@Model.SortBy" asp-route-sortDescending="@Model.SortDescending" asp-route-modifier="@Model.Modifier" asp-route-db="@Model.SelectedDatabase" class="btn btn-sm btn-outline-secondary">Clear</a>
     }
 </form>
 
@@ -49,7 +56,7 @@
             @SortHeader("PassRating", "Pass", "Pass rating")
             @SortHeader("AccRating", "Acc", "Acc rating")
             @SortHeader("TechRating", "Tech", "Tech rating")
-            @SortHeader("Worth", "Worth", "How much the map pays its players compared with maps of the same stars: for the same players, how much more or less they get here than on their other maps at their level (+4% = 4% more). The balance tuner and the acc reweighter use this measure. Blank with too few scores.")
+            @SortHeader("Worth", Model.Modifier == null ? "Worth" : $"Worth ({Model.Modifier})", "How much the map pays its players compared with maps of the same stars: for the same players, how much more or less they get here than on their other maps at their level (+4% = 4% more). The balance tuner and the acc reweighter use this measure. Blank with too few scores. With a speed modifier, that of the scores with it.")
         </tr>
     </thead>
     <tbody>
@@ -58,7 +65,7 @@
             <tr>
                 <td class="lb-cover-col"><img class="lb-cover" src="@leaderboard.Cover" alt="" loading="lazy" /></td>
                 <td>
-                    <a class="lb-name" asp-page="/Leaderboard" asp-route-id="@leaderboard.Id" asp-route-db="@Model.SelectedDatabase">@leaderboard.Name</a>
+                    <a class="lb-name" asp-page="/Leaderboard" asp-route-id="@leaderboard.Id" asp-route-modifier="@Model.LeaderboardPageModifier" asp-route-db="@Model.SelectedDatabase">@leaderboard.Name</a>
                     <div class="lb-mapper">@leaderboard.Mapper</div>
                 </td>
                 <td>
@@ -121,14 +128,14 @@
         bool active = (Model.SortBy ?? "Stars") == sortBy;
         bool descending = active ? !Model.SortDescending : true;
         string arrow = active ? (Model.SortDescending ? " ▼" : " ▲") : "";
-        string url = Url.Page("./Leaderboards", new { sortBy, sortDescending = descending, searchString = Model.SearchString, modeName = Model.ModeName, rangeBy = RangeByRoute(), rangeMin = RangeValue(Model.RangeMin), rangeMax = RangeValue(Model.RangeMax), db = Model.SelectedDatabase })!;
+        string url = Url.Page("./Leaderboards", new { sortBy, sortDescending = descending, searchString = Model.SearchString, modeName = Model.ModeName, rangeBy = RangeByRoute(), rangeMin = RangeValue(Model.RangeMin), rangeMax = RangeValue(Model.RangeMax), modifier = Model.Modifier, db = Model.SelectedDatabase })!;
         return new Microsoft.AspNetCore.Html.HtmlString(
             $"<th class=\"lb-num\" title=\"{System.Net.WebUtility.HtmlEncode(title)}\"><a class=\"lb-sort{(active ? " active" : "")}\" href=\"{url}\">{label}{arrow}</a></th>");
     }
 
     private Microsoft.AspNetCore.Html.IHtmlContent PageLink(int page, string label)
     {
-        string url = Url.Page("./Leaderboards", new { currentPage = page, sortBy = Model.SortBy, sortDescending = Model.SortDescending, searchString = Model.SearchString, modeName = Model.ModeName, rangeBy = RangeByRoute(), rangeMin = RangeValue(Model.RangeMin), rangeMax = RangeValue(Model.RangeMax), db = Model.SelectedDatabase })!;
+        string url = Url.Page("./Leaderboards", new { currentPage = page, sortBy = Model.SortBy, sortDescending = Model.SortDescending, searchString = Model.SearchString, modeName = Model.ModeName, rangeBy = RangeByRoute(), rangeMin = RangeValue(Model.RangeMin), rangeMax = RangeValue(Model.RangeMax), modifier = Model.Modifier, db = Model.SelectedDatabase })!;
         return new Microsoft.AspNetCore.Html.HtmlString($"<a class=\"page-link\" href=\"{url}\">{label}</a>");
     }
 }

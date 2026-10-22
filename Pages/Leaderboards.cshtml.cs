@@ -41,6 +41,16 @@ namespace portaBLe.Pages
 
         public bool HasRange => RangeMin != null || RangeMax != null;
 
+        // Speed modifier whose stars, ratings and worth are shown, filtered and sorted on: "SS", "FS", "SF", or null for
+        // none. With one, maps without modifier ratings are left out.
+        [BindProperty(SupportsGet = true)]
+        public string? Modifier { get; set; }
+
+        public static readonly string[] Modifiers = { "SS", "FS", "SF" };
+
+        // The Leaderboard page's name of the modifier (SF is SFS there)
+        public string? LeaderboardPageModifier => Modifier == "SF" ? "SFS" : Modifier;
+
         public LeaderboardsModel(IDynamicDbContextService dbService) : base(dbService)
         {
         }
@@ -57,7 +67,9 @@ namespace portaBLe.Pages
                 .OrderBy(m => m)
                 .ToListAsync();
 
-            IQueryable<Leaderboard> leaderboardQuery = context.Leaderboards;
+            if (!Modifiers.Contains(Modifier)) Modifier = null;
+
+            IQueryable<Leaderboard> leaderboardQuery = WithModifier(context.Leaderboards, Modifier);
 
             if (!string.IsNullOrEmpty(SearchString))
             {
@@ -109,6 +121,35 @@ namespace portaBLe.Pages
             CurrentPage = System.Math.Clamp(currentPage, 1, System.Math.Max(TotalPages, 1));
 
             Leaderboards = await leaderboardQuery.Skip((CurrentPage - 1) * pageSize).Take(pageSize).ToListAsync();
+        }
+
+        // The leaderboards with the modifier's stars, ratings and worth in their own fields (display only, not tracked),
+        // so the filters and sorting below apply to them
+        private static IQueryable<Leaderboard> WithModifier(IQueryable<Leaderboard> leaderboards, string? modifier)
+        {
+            if (modifier == null) return leaderboards;
+            var withRatings = leaderboards.Where(l => l.ModifiersRating != null);
+            return modifier switch
+            {
+                "SS" => withRatings.Select(l => new Leaderboard
+                {
+                    Id = l.Id, Name = l.Name, Mapper = l.Mapper, Cover = l.Cover, ModeName = l.ModeName, DifficultyName = l.DifficultyName,
+                    Stars = l.ModifiersRating!.SSStars, PassRating = l.ModifiersRating.SSPassRating, AccRating = l.ModifiersRating.SSAccRating,
+                    TechRating = l.ModifiersRating.SSTechRating, Worth = l.ModifiersRating.SSWorth,
+                }),
+                "FS" => withRatings.Select(l => new Leaderboard
+                {
+                    Id = l.Id, Name = l.Name, Mapper = l.Mapper, Cover = l.Cover, ModeName = l.ModeName, DifficultyName = l.DifficultyName,
+                    Stars = l.ModifiersRating!.FSStars, PassRating = l.ModifiersRating.FSPassRating, AccRating = l.ModifiersRating.FSAccRating,
+                    TechRating = l.ModifiersRating.FSTechRating, Worth = l.ModifiersRating.FSWorth,
+                }),
+                _ => withRatings.Select(l => new Leaderboard
+                {
+                    Id = l.Id, Name = l.Name, Mapper = l.Mapper, Cover = l.Cover, ModeName = l.ModeName, DifficultyName = l.DifficultyName,
+                    Stars = l.ModifiersRating!.SFStars, PassRating = l.ModifiersRating.SFPassRating, AccRating = l.ModifiersRating.SFAccRating,
+                    TechRating = l.ModifiersRating.SFTechRating, Worth = l.ModifiersRating.SFWorth,
+                }),
+            };
         }
     }
 }
