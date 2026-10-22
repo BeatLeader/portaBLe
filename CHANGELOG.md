@@ -6,6 +6,36 @@ model comes from `beatsaber-replays-ai-2`.
 The goal is ratings that never need scores at rating time. Scores, replays and fail attempts are used offline, to fit and
 validate constants. The one exception is the acc reweighter (below), the only tool that changes ratings from scores.
 
+## Reweighter fallback and guard margins; the real stars' drift
+
+### Acc reweighter
+
+- **Fallback when the guard rejects** (`FallbackStrengths`): if the point to store fails the balance guard at the real
+  stars, the fit runs again at the lower strengths of the last pass, highest first, and the first that passes is stored
+  instead of nothing (`acc-reweight.json`: `Fallbacks`). A change to the balance now weakens the reweight instead of
+  dropping it.
+  - Tested on Dev with the pass share slope tolerance at 0.0037 (2.0 failed by 0.0001): 1.6, 1.3 and 1.0 failed (the pass
+    share drift doesn't shrink with the strength), 0.7 was stored: worth spread 0.0333 (0.0211 at 2.0, 0.0443 without
+    reweighting), mean change 1.2%.
+- **Guard margins:** how far the stored point is from failing each part of the guard (`acc-reweight.json`:
+  `GuardMargins`), with a warning when within `GuardMarginWarning` (25%) of a tolerance. On Dev the pass share slope has
+  0.0002 of its 0.004 left, so it warns.
+- **Where the drift comes from:** measured with real stars only or real star ranges only, all of it is the stars'
+  (each map's reference, its players' levels and their distance to it); the star ranges move no slope.
+- **Frozen stars** (`FrozenStarsRounds`, off): phase 2 and the slope correction again with each map's stars frozen at
+  the last fit's real ones (the targets from the start's worth), kept when the real stars' slopes end closer.
+  - Tried on Dev (2 rounds, the drift +0.0038 → −0.0021 → +0.0008): slopes within 0.0008 of the start's, least guard
+    margin 79% of its tolerance (was 5%), worth spread 0.0211 → 0.0207. But by moving maps that had no gap: mean change
+    3.3% → 5.1%, 614 maps at ×1.085 (170) and 283 at ×0.922 (53), low star maps worth ±0.015 before taken to the bounds
+    (Teo Normal ×1.009 → ×1.085, Introduction Hard ×0.996 → ×0.923), 2cf6391 ×1.056 → ×1.085, Godspeed ExpertPlus worth
+    +0.013 → +0.038. So it's off.
+- **Drift compensation** (`DriftCompensationRounds`, off): phase 2 and the slope correction again at the base stars,
+  aimed at the start's slopes minus the real stars' drift (+0.0038 pass share, +0.0023 tech, −0.0020 predicted acc on
+  Dev), kept only when the real stars' slopes end closer to the start's.
+  - Tried on Dev: the correction's terms grew ±0.0015 → +0.04 to +0.07, the worth spread at the base stars 0.0129 → 0.0495
+    (0.0443 without reweighting) and the real stars' slopes overshot about 3× (pass share +0.0038 → −0.0079, tech
+    +0.0023 → −0.0098 from the start's): the terms move maps' stars, so the drift grows with them. Not kept, so it's off.
+
 ## Worth without lower bound, reweighter slope correction and worth limiter, TechWeight 0.1612
 
 ### Worth (`BalanceTuner.WorthMeasures.PlayerAdjusted`)

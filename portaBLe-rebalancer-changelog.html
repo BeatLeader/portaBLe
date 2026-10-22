@@ -185,12 +185,12 @@ footer { font-size: 0.85rem; color: var(--muted); border-top: 1px solid var(--li
       <div id="tuner"><dt>Balance tuner</dt><dd>
         <span>A tool that re-scores every score in memory (a few seconds per run) and reports the <a class="term" href="#slopes">slopes and gaps</a> above, so a constant change can be checked before re-rating. Its results are on the Balance Tuning page.</span></dd></div>
       <div id="reweight"><dt>Acc reweight</dt><dd>
-        <span>A per-map multiplier on the acc rating, chosen by the acc reweighter to move a map's <a class="term" href="#worth">worth</a> towards what maps like it are worth. It averages 1 in each star range and stays within ±7.5%: the fit only closes half of each map's gap, since the full fit was too strong. 1 or blank means no change.</span>
+        <span>A per-map multiplier on the acc rating, chosen by the acc reweighter to move a map's <a class="term" href="#worth">worth</a> towards what maps like it are worth. It averages 1 in each star range and stays between −7.8% and +8.5%: the fit only closes half of each map's gap, since the full fit was too strong. No map may end worth more than +3% (or less than −3%) because of it, unless it already was. 1 or blank means no change.</span>
         <span class="eg">It's the only rating change that uses scores, and it's kept when maps are re-rated.</span></dd></div>
       <div id="evidence"><dt>Evidence weighting</dt><dd>
         <span>Maps with few scores move less under the reweighter, because their worth is mostly noise. Newly ranked maps aren't moved.</span></dd></div>
       <div id="held-out"><dt>Held-out players</dt><dd>
-        <span>The reweighter splits players into two halves. It fits on one half and checks on the other, and stops where the check is best among the points that keep the balance metrics. That keeps it from fitting noise.</span></dd></div>
+        <span>The reweighter splits players into two halves, three times at random. It fits on one half and checks on the other, and stops where the check, averaged over the three splits, is best among the points that keep the balance metrics. That keeps it from fitting noise.</span></dd></div>
       <div id="effective-njs"><dt>Effective NJS</dt><dd>
         <span>Note jump speed with the speed modifier applied (faster under SS / FS / SFS). The Leaderboard page shows it next to the base NJS when you pick a modifier.</span></dd></div>
       <div id="cache"><dt>Top Scores cache</dt><dd>

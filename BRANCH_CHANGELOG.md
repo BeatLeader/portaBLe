@@ -295,6 +295,22 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
   - **`Applied` in the fit** (after `5292d1f`): each map's target is `Applied` of the way from its worth to what its kind
     of map is worth (in log), and the kept point is stored as is, instead of a fraction of the full fit. Guard tolerance
     0.0035 → 0.0065 (`PlayerAdjustedGuardTolerance`).
+  - **Slope correction** (after `f622646`): every map also gets a term for its pass share, tech share and predicted acc
+    (relative to its star range, over its acc share), sized by a Newton search so those three slopes stay at the
+    start's. Measured once at the start and applied to every candidate of every pass, so the passes choose among
+    corrected points.
+  - **Fit at the base stars** (`FitAtBaseStars`): during the fit each map keeps its stars and star range without
+    reweighting; the limiter and what's stored use the real stars.
+  - **Worth limiter** (`WorthLimit` 0.03): a map's worth may not end above max(its worth without reweighting, +0.03),
+    nor below min(it, −0.03). Targets are clamped first, then maps past it are cut back at the end.
+  - **Each map's own response:** the direction divides by how much the map's worth has moved with its multiplier so far,
+    not just its acc share.
+  - **Search:** 3 passes, strengths 0.1–2.0, judged on the average of 3 random held-out splits (`HeldOutSplits`).
+  - **Bounds:** symmetric in log, ×0.922 to ×1.085 (were ×0.922 to ×1.072).
+  - **Guard:** 0.004 / 0.0075 (`GuardTolerance` / `GapTolerance`, PlayerAdjusted only), checked again on what's stored,
+    at the real stars. When that fails, the fit is redone at the lower strengths and the first that passes is stored
+    (`FallbackStrengths`), else nothing changes. Each run logs how close the stored point is to failing (`GuardMargins`)
+    and warns within 25% of a tolerance.
 - **Why:** confirmed.
   - The old tools were one-shot, unguarded, and lost on re-rating.
   - About half of each map's worth deviation reproduces across independent halves of the players (held-out spread 0.49 →
@@ -317,10 +333,30 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
   - **`Applied` in the fit:** stepping down still stored almost nothing (0.10 of the fit, 0.43% mean change, worth spread
     0.0615 → 0.056). With partial targets the drift stays (pass slope +0.005 → +0.011), so the guard was loosened for a
     reweight that changes something.
+  - **Slope correction:** correcting single maps moved the slopes by itself, steadily with the strength of the first
+    pass (pass share slope +0.006 → +0.011), and neither the targets nor the multipliers explained it. Correcting the
+    pass share alone pushed the tech slope past the guard.
+  - **Base stars:** at the real stars a map's stars and reference move with its multiplier, so one correction step
+    overshot (tech slope −0.012) and nearly every candidate failed the guard (held-out spread 0.0385, 0.0203 at the
+    base stars).
+  - **Worth limiter:** maps on target were buffed past their neighbours by the star range mean and the slope correction:
+    Godspeed ExpertPlus +0.010 → +0.107 at ×1.072 (13.72 → 14.86★).
+  - **Guard 0.004 / 0.0075:** with the new worth the measure's noise is 0.0004–0.0020, so 0.0065 / 0.0125 held nothing
+    back. The guard used to be checked only at the base stars, so it was never applied to what was stored.
+  - **Fallback:** a small change to the balance could otherwise drop the whole reweight at once.
+- **The real stars' drift (unresolved):** the fit keeps the slopes at the start's at the base stars, but stored, the pass
+  share slope is +0.0077 (start +0.0039, the guard allowing 0.0079), the tech slope +0.0012 and predicted acc −0.0021.
+  All of it comes from the stars (each map's reference, its players' levels and distance to it); the star ranges move
+  no slope. Three ways to cancel it were tried and are off: correcting again at the real stars, aiming the fit at the
+  start minus the drift (overshot ~3×), and fitting at the last fit's frozen stars (slopes within 0.0008, but mean change
+  5.1%, 614 maps at ×1.085, low star maps with no gap pushed to the bounds, 2cf6391 to the cap). Each moves maps by their
+  kind, not their own gap. The remaining option is for stars not to follow the reweight (a design choice).
 - **Impact:** outliers corrected (Ascension to Heaven Expert worth +1.32 → −0.10; 3585 maps, 4.1% on average) with balance
-  kept. Worth spread is no longer a fair overall balance measure afterwards. On the player-adjusted worth with `Applied` in
-  the fit: 2.3% mean change on 3084 maps (0.922–1.072), worth spread 0.062 → 0.035, the highest pass 5% −2.1% → −0.3%,
-  but kinds of maps within ±0.8% instead of ±0.4% (pass share slope +0.006 → +0.015, predicted acc gap −0.006 → −0.014).
+  kept. Worth spread is no longer a fair overall balance measure afterwards. Now (Dev, TechWeight 0.1612): 3.3% mean change
+  on 3902 maps (×0.922–×1.085), worth spread 0.0443 → 0.0211 (held out 0.0452 → 0.0203), 9 maps cut by the limiter, maps
+  beyond ±0.05 251 → 112 against the version before the slope correction and limiter. Godspeed ExpertPlus ×0.991 (worth
+  +0.013), 2cf6391 ×1.056 (−0.044 → −0.006). Pass share slope +0.0039 → +0.0077, gap +0.0041 → +0.0083: the guard
+  passes with 0.0002 to spare on the pass share slope, so it warns.
 
 ### Research exports
 - **What:** new tools in `Refresh/Tools/`:
@@ -414,7 +450,10 @@ sit on prod's scale.
 - **Burst sensitivity:** the 4–32 s windows bring back some sensitivity to short bursts.
 - **Scores in the ratings:** the acc reweighter uses scores (by design, as the only exception), adds a second re-score to
   the pipeline, and makes worth spread unusable as an overall balance measure afterwards. On the player-adjusted worth,
-  a reweight that changes something tilts kinds of maps a little (pass-heavy and low predicted acc maps up ~1 point).
+  a reweight that changes something tilts kinds of maps a little (pass-heavy maps up ~0.4% more per 10 points of pass
+  share). That drift comes from the stars moving with the reweight and couldn't be cancelled without moving maps by
+  their kind. It sits close to the guard, so a change to the balance may weaken the reweight (lower strength) or, if
+  no strength passes, drop it; the run warns either way.
 - **Worth measures:** each one sees something different. Player-adjusted is the target; Megametric75 and the rank
   columns are kept for comparison, and neither shows how pp should progress over stars.
 - **For consumers of RatingAPI:** `star_rating` is gone (replaced by `stars`), and pp should be computed with
