@@ -33,11 +33,28 @@
         <label>low star power <input type="number" id="powLow" step="0.01" oninput="draw()" /></label>
         <label>from <input type="number" id="powStart" step="0.5" oninput="draw()" /></label>
         <label>to <input type="number" id="powEnd" step="0.5" oninput="draw()" /> stars</label>
-        <label>very low star power <input type="number" id="powVeryLow" step="0.01" oninput="draw()" /></label>
+        <span class="ce-hint">curve(96%) &times; (curve / curve(96%))<sup>power</sup>, the power by stars (PpFormula.AccCurvePower,
+            LowStarCurvePower / Start / End): <b id="powValue"></b></span>
+    </div>
+    <div class="ce-corr-row">
+        <label class="ce-check"><input type="checkbox" id="useVeryLow" onchange="draw()" /> <b>Very low star power</b></label>
+        <label>power <input type="number" id="powVeryLow" step="0.01" oninput="draw()" /></label>
         <label>from <input type="number" id="powVeryStart" step="0.5" oninput="draw()" /></label>
         <label>to <input type="number" id="powVeryEnd" step="0.5" oninput="draw()" /> stars</label>
-        <span class="ce-hint">curve(96%) &times; (curve / curve(96%))<sup>power</sup>, the power by stars (PpFormula.AccCurvePower,
-            LowStarCurvePower / Start / End, VeryLowStarCurvePower / Start / End): <b id="powValue"></b></span>
+        <span class="ce-hint">the acc curve power under the low star ramp: this power up to "from", then linearly to the low star
+            power at "to" (PpFormula.VeryLowStarCurvePower / Start / End), at the map stars above. Without the acc curve power
+            on, it ramps to 1. <b id="veryLowValue"></b></span>
+    </div>
+    <div class="ce-corr-row">
+        <label class="ce-check"><input type="checkbox" id="useNotes" onchange="draw()" /> <b>Low note nerf</b></label>
+        <label>map notes <input type="number" id="noteCount" step="1" min="1" oninput="draw()" /></label>
+        <label>from <input type="number" id="noteStart" step="1" min="0" oninput="draw()" /> notes</label>
+        <label>&times; <input type="number" id="noteRefMult" step="0.01" oninput="draw()" /></label>
+        <label>at <input type="number" id="noteRefNotes" step="1" min="1" oninput="draw()" /> notes</label>
+        <label>at least &times; <input type="number" id="noteMinMult" step="0.01" oninput="draw()" /></label>
+        <span class="ce-hint">curve &times; 1 &minus; (1 &minus; &times;) &times; ln(from / notes) / ln(from / at), under "from" color
+            notes (CurveSettings.LowNoteStart / RefMultiplier / RefNotes / MinMultiplier): <b id="noteValue"></b>. It also lowers
+            the map's stars, which the map stars above don't follow.</span>
     </div>
     <div class="ce-corr-row">
         <button type="button" class="btn btn-sm btn-outline-secondary" onclick="resetCorrections()">Reset to the values in use</button>
@@ -129,6 +146,8 @@
             powStars: () => 8, powHigh: () => corr.accCurvePower, powLow: () => corr.lowStarCurvePower,
             powStart: () => corr.lowStarCurveStart, powEnd: () => corr.lowStarCurveEnd,
             powVeryLow: () => corr.veryLowStarCurvePower, powVeryStart: () => corr.veryLowStarCurveStart, powVeryEnd: () => corr.veryLowStarCurveEnd,
+            noteCount: () => corr.lowNoteRefNotes, noteStart: () => corr.lowNoteStart, noteRefMult: () => corr.lowNoteRefMultiplier,
+            noteRefNotes: () => corr.lowNoteRefNotes, noteMinMult: () => corr.lowNoteMinMultiplier,
         };
         function resetCorrections() {
             for (const [id, def] of Object.entries(fields)) document.getElementById(id).value = +def().toFixed(4);
@@ -147,11 +166,25 @@
             if (stars <= start) return low;
             return low + (high - low) * (stars - start) / (end - start);
         }
-        function power() { return curvePowerAt(num('powStars'), num('powHigh'), num('powLow'), num('powStart'), num('powEnd'),
-            num('powVeryLow'), num('powVeryStart'), num('powVeryEnd')); }
+        // Acc curve power off: 1 (the very low star power then ramps to 1). Very low star power off: no very low part.
+        function power() {
+            const usePower = checked('usePower');
+            const high = usePower ? num('powHigh') : 1, low = usePower ? num('powLow') : 1;
+            const veryLow = checked('useVeryLow') ? num('powVeryLow') : low;
+            return curvePowerAt(num('powStars'), high, low, num('powStart'), num('powEnd'), veryLow, num('powVeryStart'), num('powVeryEnd'));
+        }
+        function powerOn() { return checked('usePower') || checked('useVeryLow'); }
 
-        // The map's curve with the corrections turned on: slider tilt as in Curve.GetCurve (on its sampled points), then the
-        // acc curve power as in PpCalculator.GetPp (PpFormula.AccCurve, pivot at the star accuracy)
+        // CurveSettings.LowNoteMultiplier
+        function noteMultiplier() {
+            const notes = num('noteCount'), start = num('noteStart');
+            if (start <= 0 || notes <= 0 || notes >= start) return 1;
+            const nerf = (1 - num('noteRefMult')) * Math.log(start / notes) / Math.log(start / num('noteRefNotes'));
+            return Math.max(1 - nerf, num('noteMinMult'));
+        }
+
+        // The map's curve with the corrections turned on: slider tilt and the low note nerf as in Curve.GetCurve (on its
+        // sampled points), then the acc curve power as in PpCalculator.GetPp (PpFormula.AccCurve, pivot at the star accuracy)
         function corrected(cur) {
             const source = checked('usePerMap') ? cur.points : data.basePoints;
             const p = cur.predicted;
@@ -161,7 +194,11 @@
                 const tilt = num('tiltStrength') * num('tiltShare') / 100, range = Math.max(num('tiltRange'), 0);
                 if (tilt !== 0) pts = pts.map(([x, y]) => [x, y * Math.exp(tilt * Math.min(Math.max(x - p, -range), range))]);
             }
-            if (checked('usePower')) {
+            if (checked('useNotes')) {
+                const m = noteMultiplier();
+                if (m !== 1) pts = pts.map(([x, y]) => [x, y * m]);
+            }
+            if (powerOn()) {
                 const pow = power(), at96 = interp(pts, corr.starAccuracy);
                 if (pow !== 1 && at96 > 0) pts = pts.map(([x, y]) => [x, y > 0 ? at96 * Math.pow(y / at96, pow) : y]);
             }
@@ -177,7 +214,8 @@
                     ? `slider tilt ${fmt(tilt, 4)} per 1% (&times;${fmt(Math.exp(-tilt * r), 3)} at &minus;${fmt(r, 2)}%, &times;${fmt(Math.exp(tilt * r), 3)} at +${fmt(r, 2)}%)`
                     : 'slider tilt: none at 99.95%+ predicted');
             }
-            if (checked('usePower')) parts.push(`acc curve power ${fmt(power(), 3)}`);
+            if (checked('useNotes')) parts.push(`low note nerf &times;${fmt(noteMultiplier(), 3)} (${fmt(num('noteCount'), 0)} notes)`);
+            if (powerOn()) parts.push(`acc curve power ${fmt(power(), 3)}`);
             return parts.length ? '<br/>Corrections: ' + parts.join(' &middot; ') : '';
         }
 
@@ -213,9 +251,12 @@
                 (cur.isDefault ? ' &middot; same as the base curve' : '') +
                 correctionsText(cur);
             document.getElementById('powValue').textContent = fmt(power(), 3);
+            document.getElementById('veryLowValue').textContent = num('powStars') >= num('powVeryEnd')
+                ? `No effect at ${fmt(num('powStars'), 1)} map stars: set them under ${fmt(num('powVeryEnd'), 1)}.` : '';
+            document.getElementById('noteValue').textContent = '×' + fmt(noteMultiplier(), 3);
 
             const corrPoints = corrected(cur);
-            const anyCorrection = !checked('usePerMap') || checked('useTilt') || checked('usePower');
+            const anyCorrection = !checked('usePerMap') || checked('useTilt') || powerOn() || checked('useNotes');
 
             const ratio = document.getElementById('showRatio').checked;
             const minX = document.getElementById('autoZoom').checked ? Math.max(60, Math.floor(p) - 3) : 60;

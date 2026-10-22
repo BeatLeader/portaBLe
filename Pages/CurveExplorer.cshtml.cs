@@ -7,8 +7,9 @@ namespace portaBLe.Pages
     // Per-map acc curve for any predicted acc, as RatingAPI builds it now (Curve.GetCurve with RC.CurveSettings.Current).
     // Every curve on the slider's range is computed here with the same code CurvesRefresh uses, so the page shows exactly
     // the logic in use. Nothing is read from or written to a database.
-    // The corrections on top of it (slider tilt, acc curve power) depend on the map, so the page applies them itself
-    // with the same formulas (Curve.GetCurve, PpFormula.AccCurve / CurvePowerAt), from the values set on the page.
+    // The corrections on top of it (slider tilt, low note nerf, acc curve power, very low star power) depend on the map, so
+    // the page applies them itself with the same formulas (Curve.GetCurve, CurveSettings.LowNoteMultiplier, PpFormula.AccCurve
+    // / CurvePowerAt), from the values set on the page. The curves sent have no note count, so no low note nerf.
     public class CurveExplorerModel : PageModel
     {
         public const double MinPredicted = 0.940;
@@ -75,6 +76,10 @@ namespace portaBLe.Pages
                     veryLowStarCurvePower = formula.VeryLowStarCurvePower,
                     veryLowStarCurveStart = formula.VeryLowStarCurveStart,
                     veryLowStarCurveEnd = formula.VeryLowStarCurveEnd,
+                    lowNoteStart = settings.LowNoteStart,
+                    lowNoteRefNotes = settings.LowNoteRefNotes,
+                    lowNoteRefMultiplier = settings.LowNoteRefMultiplier,
+                    lowNoteMinMultiplier = settings.LowNoteMinMultiplier,
                     starAccuracy = Math.Round(global::RatingAPI.Pp.PpCalculator.StarAccuracy * 100.0, 4),
                 },
                 curves,
