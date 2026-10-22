@@ -33,8 +33,11 @@
         <label>low star power <input type="number" id="powLow" step="0.01" oninput="draw()" /></label>
         <label>from <input type="number" id="powStart" step="0.5" oninput="draw()" /></label>
         <label>to <input type="number" id="powEnd" step="0.5" oninput="draw()" /> stars</label>
+        <label>very low star power <input type="number" id="powVeryLow" step="0.01" oninput="draw()" /></label>
+        <label>from <input type="number" id="powVeryStart" step="0.5" oninput="draw()" /></label>
+        <label>to <input type="number" id="powVeryEnd" step="0.5" oninput="draw()" /> stars</label>
         <span class="ce-hint">curve(96%) &times; (curve / curve(96%))<sup>power</sup>, the power by stars (PpFormula.AccCurvePower,
-            LowStarCurvePower / Start / End): <b id="powValue"></b></span>
+            LowStarCurvePower / Start / End, VeryLowStarCurvePower / Start / End): <b id="powValue"></b></span>
     </div>
     <div class="ce-corr-row">
         <button type="button" class="btn btn-sm btn-outline-secondary" onclick="resetCorrections()">Reset to the values in use</button>
@@ -125,6 +128,7 @@
             tiltStrength: () => corr.sliderTilt, tiltShare: () => 30, tiltRange: () => corr.sliderTiltRange,
             powStars: () => 8, powHigh: () => corr.accCurvePower, powLow: () => corr.lowStarCurvePower,
             powStart: () => corr.lowStarCurveStart, powEnd: () => corr.lowStarCurveEnd,
+            powVeryLow: () => corr.veryLowStarCurvePower, powVeryStart: () => corr.veryLowStarCurveStart, powVeryEnd: () => corr.veryLowStarCurveEnd,
         };
         function resetCorrections() {
             for (const [id, def] of Object.entries(fields)) document.getElementById(id).value = +def().toFixed(4);
@@ -134,12 +138,17 @@
         function checked(id) { return document.getElementById(id).checked; }
 
         // PpFormula.CurvePowerAt
-        function curvePowerAt(stars, high, low, start, end) {
+        function curvePowerAt(stars, high, low, start, end, veryLow, veryStart, veryEnd) {
+            if (veryLow !== low && stars < veryEnd) {
+                if (stars <= veryStart) return veryLow;
+                return veryLow + (low - veryLow) * (stars - veryStart) / (veryEnd - veryStart);
+            }
             if (low === high || !(stars < end)) return high;
             if (stars <= start) return low;
             return low + (high - low) * (stars - start) / (end - start);
         }
-        function power() { return curvePowerAt(num('powStars'), num('powHigh'), num('powLow'), num('powStart'), num('powEnd')); }
+        function power() { return curvePowerAt(num('powStars'), num('powHigh'), num('powLow'), num('powStart'), num('powEnd'),
+            num('powVeryLow'), num('powVeryStart'), num('powVeryEnd')); }
 
         // The map's curve with the corrections turned on: slider tilt as in Curve.GetCurve (on its sampled points), then the
         // acc curve power as in PpCalculator.GetPp (PpFormula.AccCurve, pivot at the star accuracy)
