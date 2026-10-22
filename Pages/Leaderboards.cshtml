@@ -21,7 +21,19 @@
             <option value="@mode" selected="@(Model.ModeName == mode)">@mode</option>
         }
     </select>
-    @if (!string.IsNullOrEmpty(Model.SearchString) || !string.IsNullOrEmpty(Model.ModeName))
+    <div class="lb-range">
+        <select name="RangeBy" id="rangeBy" class="form-select form-select-sm lb-mode" onchange="if (this.form.RangeMin.value || this.form.RangeMax.value) this.form.submit()">
+            <option value="Stars" selected="@(Model.RangeBy is not ("PassRating" or "AccRating" or "TechRating"))">Stars</option>
+            <option value="PassRating" selected="@(Model.RangeBy == "PassRating")">Pass</option>
+            <option value="AccRating" selected="@(Model.RangeBy == "AccRating")">Acc</option>
+            <option value="TechRating" selected="@(Model.RangeBy == "TechRating")">Tech</option>
+        </select>
+        <span class="text-muted small">from</span>
+        <input type="number" name="RangeMin" class="form-control form-control-sm lb-range-input" step="0.01" min="0" value="@RangeValue(Model.RangeMin)" placeholder="min" onchange="this.form.submit()" />
+        <span class="text-muted small">to</span>
+        <input type="number" name="RangeMax" class="form-control form-control-sm lb-range-input" step="0.01" min="0" value="@RangeValue(Model.RangeMax)" placeholder="max" onchange="this.form.submit()" />
+    </div>
+    @if (!string.IsNullOrEmpty(Model.SearchString) || !string.IsNullOrEmpty(Model.ModeName) || Model.HasRange)
     {
         <a asp-page="./Leaderboards" asp-route-sortBy="@Model.SortBy" asp-route-sortDescending="@Model.SortDescending" asp-route-db="@Model.SelectedDatabase" class="btn btn-sm btn-outline-secondary">Clear</a>
     }
@@ -95,6 +107,12 @@
     // 8% or more above / below what maps of its stars average: about the outer 7-8% of maps each side
     static string WorthClass(float? worth) => worth is float w ? (w >= 0.08f ? "worth-high" : w <= -0.08f ? "worth-low" : "worth-even") : "worth-none";
 
+    // Invariant so the number input and the query string read it back the same in any culture; null when empty
+    static string? RangeValue(float? value) => value?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
+
+    // The range type in links only when a range is set (keeps the default URLs as they were)
+    private string? RangeByRoute() => Model.HasRange ? Model.RangeBy : null;
+
     static string DifficultyLabel(string? difficulty) => difficulty == "ExpertPlus" ? "Expert+" : difficulty ?? "";
 
     // Clicking the current sort column flips the order; another column starts descending
@@ -103,14 +121,14 @@
         bool active = (Model.SortBy ?? "Stars") == sortBy;
         bool descending = active ? !Model.SortDescending : true;
         string arrow = active ? (Model.SortDescending ? " ▼" : " ▲") : "";
-        string url = Url.Page("./Leaderboards", new { sortBy, sortDescending = descending, searchString = Model.SearchString, modeName = Model.ModeName, db = Model.SelectedDatabase })!;
+        string url = Url.Page("./Leaderboards", new { sortBy, sortDescending = descending, searchString = Model.SearchString, modeName = Model.ModeName, rangeBy = RangeByRoute(), rangeMin = RangeValue(Model.RangeMin), rangeMax = RangeValue(Model.RangeMax), db = Model.SelectedDatabase })!;
         return new Microsoft.AspNetCore.Html.HtmlString(
             $"<th class=\"lb-num\" title=\"{System.Net.WebUtility.HtmlEncode(title)}\"><a class=\"lb-sort{(active ? " active" : "")}\" href=\"{url}\">{label}{arrow}</a></th>");
     }
 
     private Microsoft.AspNetCore.Html.IHtmlContent PageLink(int page, string label)
     {
-        string url = Url.Page("./Leaderboards", new { currentPage = page, sortBy = Model.SortBy, sortDescending = Model.SortDescending, searchString = Model.SearchString, modeName = Model.ModeName, db = Model.SelectedDatabase })!;
+        string url = Url.Page("./Leaderboards", new { currentPage = page, sortBy = Model.SortBy, sortDescending = Model.SortDescending, searchString = Model.SearchString, modeName = Model.ModeName, rangeBy = RangeByRoute(), rangeMin = RangeValue(Model.RangeMin), rangeMax = RangeValue(Model.RangeMax), db = Model.SelectedDatabase })!;
         return new Microsoft.AspNetCore.Html.HtmlString($"<a class=\"page-link\" href=\"{url}\">{label}</a>");
     }
 }
@@ -136,6 +154,16 @@
 
     .lb-mode {
         width: auto;
+    }
+
+    .lb-range {
+        display: flex;
+        gap: 0.4rem;
+        align-items: center;
+    }
+
+    .lb-range-input {
+        width: 5.5rem;
     }
 
     .lb-table th {

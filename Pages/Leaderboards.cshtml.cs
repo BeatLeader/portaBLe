@@ -28,6 +28,19 @@ namespace portaBLe.Pages
         [BindProperty(SupportsGet = true)]
         public string ModeName { get; set; }
 
+        // Range filter: maps with RangeBy (Stars, PassRating, AccRating or TechRating) from RangeMin to RangeMax, either
+        // side left empty = no limit on it
+        [BindProperty(SupportsGet = true)]
+        public string RangeBy { get; set; } = "Stars";
+
+        [BindProperty(SupportsGet = true)]
+        public float? RangeMin { get; set; }
+
+        [BindProperty(SupportsGet = true)]
+        public float? RangeMax { get; set; }
+
+        public bool HasRange => RangeMin != null || RangeMax != null;
+
         public LeaderboardsModel(IDynamicDbContextService dbService) : base(dbService)
         {
         }
@@ -56,6 +69,28 @@ namespace portaBLe.Pages
             if (!string.IsNullOrEmpty(ModeName))
             {
                 leaderboardQuery = leaderboardQuery.Where(l => l.ModeName == ModeName);
+            }
+
+            if (RangeMin is float min)
+            {
+                leaderboardQuery = RangeBy switch
+                {
+                    "PassRating" => leaderboardQuery.Where(l => l.PassRating >= min),
+                    "AccRating" => leaderboardQuery.Where(l => l.AccRating >= min),
+                    "TechRating" => leaderboardQuery.Where(l => l.TechRating >= min),
+                    _ => leaderboardQuery.Where(l => l.Stars >= min),
+                };
+            }
+
+            if (RangeMax is float max)
+            {
+                leaderboardQuery = RangeBy switch
+                {
+                    "PassRating" => leaderboardQuery.Where(l => l.PassRating <= max),
+                    "AccRating" => leaderboardQuery.Where(l => l.AccRating <= max),
+                    "TechRating" => leaderboardQuery.Where(l => l.TechRating <= max),
+                    _ => leaderboardQuery.Where(l => l.Stars <= max),
+                };
             }
 
             // Apply sorting based on SortBy parameter
