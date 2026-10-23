@@ -6,6 +6,47 @@ model comes from `beatsaber-replays-ai-2`.
 The goal is ratings that never need scores at rating time. Scores, replays and fail attempts are used offline, to fit and
 validate constants. The one exception is the acc reweighter (below), the only tool that changes ratings from scores.
 
+## Tech pp top compression
+
+- **`TechTopKnee` 12, `TechTopSlope` 0.33** (`PpFormula.TechPp`): above tech 12, each point counts a third for tech pp,
+  as `PassTopKnee` does for pass. Sanity Krush ExpertPlus (tech 16.8, the highest tech pp share, 26%) was the biggest
+  ExpertPlus outlier after the acc reweighter (worth +0.176 → +0.083 at ×0.903).
+  - Why: tech share was worth nothing up to 12 stars (worth per sd of tech share −0.005 to +0.002) but +0.011 at
+    12-13.5 and +0.017 above, so the global tech share slope (−0.0017) didn't show it and neither did the reweighter's
+    targets (its kinds are linear in tech share). The 14 tech 13+ maps averaged +0.051, the tech 11-13 maps −0.009.
+    Sanity Krush's acc rating wasn't the problem: its top scores sit as close to the predicted acc as other maps'.
+  - Without the reweighter (Dev, 22 Oct): tech 13+ +0.051 → +0.023, Sanity Krush +0.176 → +0.106 (14.40 → 13.50
+    stars), tech 11-13 unchanged, tech share slope −0.0017 → −0.0028, the other slopes and gaps within 0.0003, top 1000
+    16409 → 16385. Knee 11 / 10 took the tech 11-13 maps to −0.014 / −0.019; slope 0.25 / 0.2 gained little (+0.020 /
+    +0.018).
+  - With the reweighter (same point, pass 2 strength 1.3 after the fallback from 1.6): Sanity Krush +0.083 → +0.020
+    (×0.903 → ×0.929, 12.53 stars), SONG REQUEST +0.041 → −0.014, tech 13+ +0.032 → +0.015, other maps unchanged on
+    average; worth spread 0.0231 → 0.0229, maps beyond ±0.05 79 → 73, tech share slope +0.0035 → +0.0021 (guard margin
+    0.0022 → 0.0047); the pass share slope's margin is still about 0 (0.0001 → 0.0000).
+- `TechTopKnee` / `TechTopSlope` in the balance tuner's pp formula sweep.
+- `dotnet run -c Release -- rescore`: `RefreshEverything` alone on `wwwroot/Database.db`.
+
+### Reset maps: tried and rejected
+
+Speedcore Paradise ExpertPlus (880 resets on 1026 notes, 6.2 per second) and keep out! ExpertPlus (2.75 per second) were
+the lowest ExpertPlus maps (worth −0.250 / −0.246 without the reweighter, −0.17 / −0.16 at its ×1.130 cap). They're miss
+traps, not misrated for acc: against each player's own maps of similar predicted acc, FC scores were at −0.05% / +1.1%
+and the others at −11.1% / −8.5% (FC rate 35% / 50% for the top 100, 0-1% from rank 5000). At 5★+, maps with 0.15+
+resets per second were −0.025 on average.
+
+- **Acc correction from resets per second** (`AccRating.EffectiveAcc`, like the hit distance one): six knees / slopes /
+  caps took Speedcore Paradise to −0.19 at best while the reset maps under 5★ went from −0.013 to +0.010 to +0.044 and the
+  tech share slope from −0.0028 to up to +0.0028. Raising the acc rating pays the FC scores, which weren't short.
+- **Resets counting more for pass** (Analyzer `SwingCreation`, every map rated again at all four speeds; Dev with the tech
+  knee, no reweighter): a reset's frequency multiplier 2 → 2.25 / 2.5 / 2.75 / 3 / 3.5 took Speedcore Paradise −0.250 →
+  −0.192 / −0.150 / −0.102 / −0.056 / +0.010, but the worth spread only moved 0.0455 → 0.0452, maps beyond ±0.05 stayed
+  918-932 (928), the reset maps' rms 0.0582 → 0.0565 at best, and reset maps above +0.05 went 36 → 37-59 (My Album Is Out
+  On Dangerous Records Expert −0.009 → +0.017 to +0.214, Pink Soldiers Expert +0.017 → +0.033 to +0.102). keep out!, Get
+  Get Down and Boku no Pico (pass 3-8) barely moved: pass pp is small there. Extra weight for fast resets (gap under
+  0.35-0.75 s) took dense fast reset maps to pass 25-38 (Speedcore Paradise 15-20★, My Album +0.14 to +0.29).
+- Neither resets per second nor their speed separates the miss traps from similar maps players don't miss on (My Album:
+  2.9 resets per second at 0.2-0.3 s, −0.009). Only scores do: the acc reweighter keeps them.
+
 ## Reweighter target metric, star response and noise dead zone; low note nerf, very low star curve power, SC
 
 ### Acc reweighter

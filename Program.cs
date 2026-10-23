@@ -276,6 +276,14 @@ namespace portaBLe
                 }
                 return;
             }
+            // dotnet run -c Release -- rescore: RefreshEverything alone on wwwroot/Database.db (after a pp formula change)
+            if (args.Length > 0 && args[0] == "rescore")
+            {
+                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.Combine(Directory.GetCurrentDirectory(), "wwwroot")}/Database.db;").Options;
+                using var rescoreContext = new AppContext(options);
+                await RefreshEverything(rescoreContext);
+                return;
+            }
             if (args.Length > 0 && args[0] == "accreweight")
             {
                 bool rescore = args.Contains("rescore");

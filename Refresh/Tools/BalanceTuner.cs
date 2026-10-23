@@ -339,6 +339,20 @@ namespace portaBLe.Refresh
             },
             new FormulaKnob
             {
+                Name = nameof(PpFormula.TechTopSlope),
+                Explanation = "Above TechTopKnee tech, each point counts this much for tech pp (1 = off). Lower = the highest tech ratings pay less.",
+                Get = f => f.TechTopSlope, Set = (f, v) => f.TechTopSlope = v,
+                Values = new[] { 0.2, 0.33, 0.5, 0.67, 0.85, 1.0 },
+            },
+            new FormulaKnob
+            {
+                Name = nameof(PpFormula.TechTopKnee),
+                Explanation = "Tech where the tech pp top compression starts. Lower = more maps compressed.",
+                Get = f => f.TechTopKnee, Set = (f, v) => f.TechTopKnee = v,
+                Values = new[] { 10.0, 11, 12, 13, 14 },
+            },
+            new FormulaKnob
+            {
                 Name = nameof(PpFormula.PassOffset),
                 Explanation = "Subtracted from pass pp. Higher = easy maps get less pass pp (the cut matters most where pass pp is small).",
                 Get = f => f.PassOffset, Set = (f, v) => f.PassOffset = v,
