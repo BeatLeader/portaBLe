@@ -40,6 +40,14 @@ Everything is driven from `Program.cs` (`Main`): uncomment the steps to run, the
 stored multipliers are cleared; `Overwrite` / `Refresh` take the same option). After a pp formula change only
 (`RatingAPI/Pp/PpFormula.cs`), skip step 1.
 
+From the command line (`dotnet run -c Release -- …`):
+
+- `rescore`: `RefreshEverything` alone on `wwwroot/Database.db` (after a pp formula change).
+- `accreweight [Setting=value ...] [rescore]`: the acc reweighter alone, with any of its settings.
+- `mapstats <wwwroot/file.db>`: the Analyzer's counts (inlines, bomb resets, walls, linear %) from the maps folder, then
+  the tags, without rating the maps again.
+- `upload <wwwroot/file.db>` / `cache <wwwroot/file.db> [upload]`: upload a database and its Top Scores cache, or build it.
+
 ## Ratings on prod's scale
 
 Pass, tech, acc and stars are on prod's scale (fitted on the quantiles of prod's ranked ratings), and the stored values
@@ -104,6 +112,8 @@ tech share, predicted acc, OneSaber, star range), and its acc rating is moved to
   acc-heavy ones.
 - Multipliers average 1 within each star range. The fit closes `Applied` (0.7) of each map's gap to its target (in log),
   within ×0.922-×1.085 (`MaxChange`), or ×0.885-×1.130 for maps with a large gap (`LargeGapMaxChange`).
+- Maps under 115 color notes keep ×1 (`MinNotes`): their worth is low because players can't reach the steep top of
+  their curve, not because of their acc rating, so a buff would only raise what a 100% pays. Their scores still count.
 
 ## Where the constants are
 
@@ -116,7 +126,9 @@ tech share, predicted acc, OneSaber, star range), and its acc rating is moved to
 | Tech shape | `RatingAPI/Analyzer/.../Data/Ratings.cs` (`TechExponent`, `TechPassBase`) |
 | Acc rating | `RatingAPI/Controllers/AccRating.cs` (`ACC_SCALE`, `ACC_OFFSET`, hard map correction `HARD_MAP_*`, `ACC_EXPONENT`, movement and high pass corrections `HIT_DISTANCE_*` / `HIGH_PASS_*`, hard swing correction `HARD_SWING_*` from the Analyzer's `Ratings.HardSwingRatio`) |
 | pp formula | `RatingAPI/Pp/PpFormula.cs` (pass / acc / tech pp and their rating powers, pass top compression `PassTopKnee` / `PassTopSlope`, tech top compression `TechTopKnee` / `TechTopSlope`, acc curve power `AccCurvePower` / `LowStarCurve*` / `VeryLowStarCurve*`, stars `StarDivisor` / `StarScale` / `StarExponent`, `PpMultiplier`, low star bonus `LowStarBonus*`) |
-| Acc reweighter | `Refresh/Tools/AccReweighter.cs` (`Passes`, `Strengths`, `TargetMetric`, `StarResponse`, `NoiseDeadZone`, `MaxChange`, `LargeGapMaxChange`, `Applied`, guard tolerances, `HeldOutSplits`, `FitAtBaseStars`, `WorthLimit`, top play limiter `TopPlay*`, `FallbackStrengths`, `GuardMarginWarning`) |
+| Acc curves | `RatingAPI/Controllers/Curve.cs` (`CurveSettings`: the table by predicted acc, `SliderTilt`, low note nerf `LowNote*`: gain cut, grind time span factor and length bonus, speed modifier blend) |
+| Acc reweighter | `Refresh/Tools/AccReweighter.cs` (`Passes`, `Strengths`, `TargetMetric`, `StarResponse`, `NoiseDeadZone`, `MaxChange`, `LargeGapMaxChange`, `Applied`, guard tolerances, `HeldOutSplits`, `FitAtBaseStars`, `WorthLimit`, top play limiter `TopPlay*`, low note maps `MinNotes`, `FallbackStrengths`, `GuardMarginWarning`) |
+| Map tags | `Refresh/LeaderboardsRefresh.cs` (`LinearPercentThreshold`, `Fitbeat*`, `BombResetsPerMinuteThreshold`, `InlinesPerMinuteThreshold`; the map type from RatingAPI's `InferPublish.Tag`) |
 | Constants the tuner assumes, worth reference | `Refresh/Tools/BalanceTuner.cs` (`RatingConstants`: keep it equal to the values in code; `WorthBandwidth`) |
 
 ## Layout

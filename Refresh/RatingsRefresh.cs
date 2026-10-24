@@ -170,8 +170,8 @@ namespace portaBLe.Refresh
             Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
         }
 
-        // The Analyzer's counts the tags use (Leaderboard.Inlines, ParityErrors, BombAvoidances, DodgeWalls, CrouchWalls,
-        // LinearPercent) from the maps folder, without rating the maps again (Overwrite stores them too). Maps missing from the
+        // The Analyzer's counts (Leaderboard.Inlines, BombAvoidances, DodgeWalls, CrouchWalls and LinearPercent, which the tags
+        // use, and ParityErrors) from the maps folder, without rating the maps again (Overwrite stores them too). Maps missing from the
         // folder are left as they are. Then LeaderboardsRefresh.DetermineTags.
         public static async Task RefreshMapStatistics(AppContext dbContext, string mapsDirectory = "maps")
         {

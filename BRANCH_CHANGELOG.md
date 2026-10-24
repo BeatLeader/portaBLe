@@ -2,7 +2,7 @@
 
 **Range:** `5890677` ("New model + auto-rebalancer", included) through `372eb8c` on `loloppe-rebalancer` and the work
 after it (player-adjusted worth, tech weight, low stars, per-modifier worth, the reweighter fit, smooth per-map curves,
-the low note nerf and very low star curve power: see `CHANGELOG.md`), plus the matching commits in the submodules:
+the low note nerf and very low star curve power, map tags: see `CHANGELOG.md`), plus the matching commits in the submodules:
 RatingAPI `3955df3 → 4f5a2c9` and later, and Analyzer `0d47de6 → 43229f6` (10 commits). The Parser submodule is unchanged.
 
 ## Overview
@@ -135,11 +135,20 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
   segment (the per-map ratio falls with acc), so the curves were bumpy above ~98.5% (0.10, 0.07, 0.12 per 0.05% at
   99.3-99.55% for 97% predicted). Same values at the table points, up to 1.34% lower between them; the base curve stays
   linear.
-- **Low note nerf on the curve** (RatingAPI `9a9ac89`, `CurveSettings.LowNote*`): under 115 color notes the whole curve is
-  multiplied by 1 − 0.2 × ln(115 / notes) / ln(115 / 20): ×0.8 at 20 notes, ×0.72 at 10, never under ×0.5. Acc pp at
-  every acc and stars go down; the acc rating, pass and tech pp don't. Maps with few notes were worth too much for how
-  easily they're grinded to 100% (Quiet Water Easy, 20 notes: a 100% SF about 785 → 633 pp). The note count comes from
-  RatingAPI (`note_count`) or `Leaderboard.NoteCount` (`CurvesRefresh`).
+- **Low note nerf on the curve** (RatingAPI `9a9ac89`, then `517d99e`, `CurveSettings.LowNote*`): maps with few notes
+  were worth too much for how easily they're grinded to 100%.
+  - **Gain cut:** above the map's predicted acc, 40% of what the curve gains over its value there is cut, under 70 color
+    notes, fading to none at 115 (on ln(notes)). Scores under the predicted acc keep their pp. The first version
+    multiplied the whole curve (×0.8 at 20 notes), which also cut the scores of players who don't grind.
+  - **Grind time:** the cut scales with the span from the first to the last color note in real time: all of it at 18 s,
+    none at 75 s, up to 1.5× on shorter spans. Past 75 s a length bonus of up to +10% applies. A long map with few notes
+    is as easy to play but takes longer to grind (RTX 20000 Easy, 20 notes over 111 s, against Quiet Water Easy, 20 over
+    18 s).
+  - **Speed modifiers:** under 115 notes a speed modifier's pass, tech and acc ratings keep (notes / 115)² of their
+    difference to nomod (`LowNoteSpeedBlend`). Faster is a shorter grind, not a harder map.
+  - Dev, 24 Oct, a 100% nomod / SF: Quiet Water Easy 553 / 603 → 625 / 592, RTX 20000 Easy 579 / 600 → 680 / 646, the
+    40-60 note maps 1000-1165 → 900-970 nomod. Pass and tech pp aren't nerfed. The note count and span come from
+    RatingAPI (`note_count`, `note_span`) or `Leaderboard.NoteCount` / `NoteSpan` (`CurvesRefresh`).
 - **Impact:** the 99%+ tail and the slider outliers are tamed. Several table iterations happened (`65204a7`, `79c19e8`,
   `a3535f7`); only the latest values remain.
 
@@ -166,7 +175,8 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
 ### API changes
 - **Removed:** the legacy `star_rating` (and `low_note_nerf`) fields of RatingAPI's response.
 - **Added:** `stars` (from RatingAPI's own pp formula, below, without the acc reweighter's multipliers, which only
-  portaBLe has), `slider_percentage`, `njs`, the hit distance and `note_count`.
+  portaBLe has), `slider_percentage`, `njs`, the hit distance, `note_count`, `note_span` and the Analyzer's inline count
+  (`statistics`).
 - **pp and stars in RatingAPI** (`3484ca5`): `RatingAPI/Pp` holds `PpFormula`, `PpCalculator` (score pp, stars, curve
   lookup) and `ModifiersMap`, so a server needs RatingAPI only. portaBLe's `ReplayUtils` just passes its database values.
 - **Faster rating:** an overload rates only the requested modifiers, only the requested difficulty is parsed, and ONNX
@@ -297,6 +307,9 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
 - **What:** `AccReweighter` moves each map's acc rating towards what its kind of map is worth.
   - **Target:** fitted on pass / tech share, predicted acc, OneSaber and star band.
   - **Scaling:** evidence-weighted (maps with few scores move less, newly ranked maps stay ×1).
+  - **Low note maps stay ×1** (`MinNotes` 115): their worth is low because players can't reach the steep top of their
+    curve, not because of their acc rating, so a buff only raised what a 100% pays (Your Best Friend Normal, 47 notes: a
+    100% SF 1165 → 1292 pp, the best score anywhere 816). Their scores still count in every worth and the balance.
   - **Search:** a line search over several passes, with how far to go chosen on held-out players.
   - **Guards:** balance guards must pass, multipliers average 1 within each star band and stay within ±15%.
   - **Halved** (`Applied` 0.5, `263dc0b`): only half of the fitted change (in log) is stored, so ±7.5% at most.
@@ -427,7 +440,10 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
 - **Leaderboards:** redesigned with all ratings, sortable headers, difficulty badges, worth tinted when far from average,
   search by song or mapper name, and 25 per page. Worth is the player-adjusted one, in %, tinted at ±8%. Filters on a
   star, pass, acc or tech range and on a speed modifier (its stars, ratings and worth shown, filtered and sorted on), and
-  a Notes column.
+  a Notes column. Tag badges (map type, Linear, Fitbeat, Bomb Reset, Inline) and a tag filter.
+- **Map tags** (`LeaderboardsRefresh.DetermineTags`, `Pages/MapTags.cs`): Linear and Fitbeat as before, plus Bomb Reset
+  (4+ bomb resets per minute), Inline (8+ inlines per minute, a new Analyzer count) and the map type (acc, tech, midspeed,
+  speed) from RatingAPI's tagging model. Shown on Leaderboards, Leaderboard and Leaderboard Statistics (Map traits).
 - **Leaderboard Statistics:** split into views (Overview, Worth by rank, Profile weights, Megametric, Map traits); every
   column sortable (the ratio columns used to fall back to Total PP), worth by player rank and the Megametric worth added.
 - **Ranking:** Top PP next to Total PP. **Map Outliers:** sorted by Outlier % by default.
@@ -464,15 +480,17 @@ as fact. Where it isn't documented, it's marked as inferred or unclear.
 - **`FullPipeline(autoreweight, balancer, keepAccReweight)`:** Overwrite → RefreshEverything → AccReweighter →
   RefreshEverything → BalanceTuner / comparisons. `keepAccReweight` no longer has a default. `RatingsRefresh.RefreshNjs` and `CurvesRefresh.Regenerate` fill new
   columns without re-rating.
-- **New database columns:** `Njs`, `NoteCount`, `HitDistance`, `AccReweight`, `Worth`, `MegametricWorth`, `WorthRank20` …
-  `WorthRank10000`, per-modifier curves and per-modifier worth (`SSWorth`, `FSWorth`, `SFWorth`).
-  `CurvesRefresh.RefreshNoteCounts` fills `NoteCount` without re-rating.
+- **New database columns:** `Njs`, `NoteCount`, `NoteSpan`, `HitDistance`, `HardSwingRatio`, `AccReweight`, `Worth`,
+  `MegametricWorth`, `WorthRank20` … `WorthRank10000`, per-modifier curves and per-modifier worth (`SSWorth`, `FSWorth`,
+  `SFWorth`), tags (`IsBombReset`, `IsInline`, `MapType`) and `Inlines`. `CurvesRefresh.RefreshNoteCounts` fills
+  `NoteCount` and `NoteSpan` without re-rating.
 - **Top Scores caches** of databases not in `databases.json` are deleted at startup, with unfinished `.tmp` saves, and a
   database's cache is rebuilt before uploading when it doesn't match it (the server rejected it and rebuilt it after
   every deploy).
 - **Command line** (`dotnet run -c Release -- …`): `accreweight [Setting=value ...] [rescore]` runs the acc reweighter
   alone on `wwwroot/Database.db` with any of its settings; `upload <file.db>` uploads one database and its cache;
-  `cache <file.db> [upload]` builds (and uploads) its cache.
+  `cache <file.db> [upload]` builds (and uploads) its cache; `rescore` runs `RefreshEverything` alone; `mapstats
+  <file.db>` reads the Analyzer's counts from the maps folder and sets the tags, without re-rating.
 - **Project:**
   - `Program.cs` organized into sections;
   - README and `CHANGELOG.md` added;
