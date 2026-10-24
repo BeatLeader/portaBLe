@@ -52,9 +52,20 @@
         <label>&times; <input type="number" id="noteRefMult" step="0.01" oninput="draw()" /></label>
         <label>at <input type="number" id="noteRefNotes" step="1" min="1" oninput="draw()" /> notes</label>
         <label>at least &times; <input type="number" id="noteMinMult" step="0.01" oninput="draw()" /></label>
-        <span class="ce-hint">curve &times; 1 &minus; (1 &minus; &times;) &times; ln(from / notes) / ln(from / at), under "from" color
-            notes (CurveSettings.LowNoteStart / RefMultiplier / RefNotes / MinMultiplier): <b id="noteValue"></b>. It also lowers
-            the map's stars, which the map stars above don't follow.</span>
+        <label>map length <input type="number" id="noteSpan" step="1" min="0" oninput="draw()" /> s</label>
+        <label>gain cut <input type="number" id="gainCut" step="0.05" min="0" oninput="draw()" /></label>
+        <label>full under <input type="number" id="gainFull" step="1" min="1" oninput="draw()" /> notes</label>
+        <label>uniform share <input type="number" id="uniformShare" step="0.05" min="0" oninput="draw()" /></label>
+        <label>length from <input type="number" id="spanStart" step="1" min="0" oninput="draw()" /> s</label>
+        <label>to <input type="number" id="spanRef" step="1" min="1" oninput="draw()" /> s</label>
+        <label>weight <input type="number" id="spanWeight" step="0.05" min="0" oninput="draw()" /></label>
+        <label>bonus <input type="number" id="spanBonus" step="0.05" min="0" oninput="draw()" /></label>
+        <span class="ce-hint">Above the predicted acc, "gain cut" of what the curve gains over its value there is cut (all of it
+            under "full under" notes, fading to none at "from" notes on ln(notes)), times the span factor 1 &minus; weight
+            &times; ln(length / length from) / ln(to / length from), between 0 and 1.5 (the length being the first to the last
+            note in real time, song time / the speed modifier); past "to", the curve &times; 1 + bonus per unit under 0 (up to
+            +10%). "Uniform share" of the multiplier 1 &minus; (1 &minus; &times;) &times; ln(from / notes) / ln(from / at) (at
+            least &times; "at least") multiplies the whole curve (CurveSettings.LowNote*): <b id="noteValue"></b>.</span>
     </div>
     <div class="ce-corr-row">
         <button type="button" class="btn btn-sm btn-outline-secondary" onclick="resetCorrections()">Reset to the values in use</button>
@@ -159,6 +170,9 @@
             powVeryLow: () => corr.veryLowStarCurvePower, powVeryStart: () => corr.veryLowStarCurveStart, powVeryEnd: () => corr.veryLowStarCurveEnd,
             noteCount: () => corr.lowNoteRefNotes, noteStart: () => corr.lowNoteStart, noteRefMult: () => corr.lowNoteRefMultiplier,
             noteRefNotes: () => corr.lowNoteRefNotes, noteMinMult: () => corr.lowNoteMinMultiplier,
+            noteSpan: () => corr.lowNoteSpanStart, spanStart: () => corr.lowNoteSpanStart, spanWeight: () => corr.lowNoteSpanWeight,
+            spanRef: () => corr.lowNoteSpanRef, spanBonus: () => corr.lowNoteSpanBonus, gainCut: () => corr.lowNoteGainCut,
+            gainFull: () => corr.lowNoteGainFullBelow, uniformShare: () => corr.lowNoteUniformShare,
         };
         function resetCorrections() {
             for (const [id, def] of Object.entries(fields)) document.getElementById(id).value = +def().toFixed(4);
@@ -186,12 +200,31 @@
         }
         function powerOn() { return checked('usePower') || checked('useVeryLow'); }
 
-        // CurveSettings.LowNoteMultiplier
+        // CurveSettings.LowNoteMultiplier (the uniform part's multiplier)
         function noteMultiplier() {
             const notes = num('noteCount'), start = num('noteStart');
             if (start <= 0 || notes <= 0 || notes >= start) return 1;
             const nerf = (1 - num('noteRefMult')) * Math.log(start / notes) / Math.log(start / num('noteRefNotes'));
-            return Math.max(1 - nerf, num('noteMinMult'));
+            return 1 - (1 - Math.max(1 - nerf, num('noteMinMult'))) * spanFactor();
+        }
+        // CurveSettings.LowNoteSpanFactor (unclamped: rawSpan)
+        function rawSpan() {
+            const span = num('noteSpan'), start = num('spanStart'), ref = num('spanRef'), weight = num('spanWeight');
+            if (weight <= 0 || span <= 0 || ref <= start) return 1;
+            return 1 - weight * Math.log(span / start) / Math.log(ref / start);
+        }
+        function spanFactor() { return Math.min(Math.max(rawSpan(), corr.lowNoteSpanMinFactor), corr.lowNoteSpanMaxFactor); }
+        // CurveSettings.LowNoteShare
+        function noteShare() {
+            const notes = num('noteCount'), start = num('noteStart'), full = num('gainFull');
+            if (start <= 0 || notes <= 0 || notes >= start) return 0;
+            return notes <= full ? 1 : Math.log(start / notes) / Math.log(start / full);
+        }
+        // CurveSettings.LowNoteGainCutAt / LowNoteBonusAt
+        function gainCut() { return num('gainCut') * noteShare() * spanFactor(); }
+        function lengthBonus() {
+            const raw = rawSpan();
+            return raw >= 0 ? 0 : Math.min(num('spanBonus') * -raw, corr.lowNoteSpanBonusMax) * noteShare();
         }
 
         // The map's curve with the corrections turned on: slider tilt and the low note nerf as in Curve.GetCurve (on its
@@ -206,8 +239,10 @@
                 if (tilt !== 0) pts = pts.map(([x, y]) => [x, y * Math.exp(tilt * Math.min(Math.max(x - p, -range), range))]);
             }
             if (checked('useNotes')) {
-                const m = noteMultiplier();
-                if (m !== 1) pts = pts.map(([x, y]) => [x, y * m]);
+                // CurveSettings.LowNoteValue: the gain cut above the predicted acc, the uniform part and the length bonus
+                const cut = gainCut(), bonus = lengthBonus(), uniform = num('uniformShare') * (1 - noteMultiplier());
+                const at = interp(pts, p);
+                pts = pts.map(([x, y]) => [x, (x > p && cut !== 0 ? at + (y - at) * Math.max(1 - cut, 0) : y) * Math.max(1 - uniform, 0) * (1 + bonus)]);
             }
             if (powerOn()) {
                 const pow = power(), at96 = interp(pts, corr.starAccuracy);
@@ -225,7 +260,7 @@
                     ? `slider tilt ${fmt(tilt, 4)} per 1% (&times;${fmt(Math.exp(-tilt * r), 3)} at &minus;${fmt(r, 2)}%, &times;${fmt(Math.exp(tilt * r), 3)} at +${fmt(r, 2)}%)`
                     : 'slider tilt: none at 99.95%+ predicted');
             }
-            if (checked('useNotes')) parts.push(`low note nerf &times;${fmt(noteMultiplier(), 3)} (${fmt(num('noteCount'), 0)} notes)`);
+            if (checked('useNotes')) parts.push(`low note nerf: gain cut ${fmt(gainCut() * 100, 0)}%, bonus +${fmt(lengthBonus() * 100, 1)}% (${fmt(num('noteCount'), 0)} notes, ${fmt(num('noteSpan'), 0)} s)`);
             if (powerOn()) parts.push(`acc curve power ${fmt(power(), 3)}`);
             return parts.length ? '<br/>Corrections: ' + parts.join(' &middot; ') : '';
         }
@@ -307,7 +342,7 @@
             document.getElementById('powValue').textContent = fmt(power(), 3);
             document.getElementById('veryLowValue').textContent = num('powStars') >= num('powVeryEnd')
                 ? `No effect at ${fmt(num('powStars'), 1)} map stars: set them under ${fmt(num('powVeryEnd'), 1)}.` : '';
-            document.getElementById('noteValue').textContent = '×' + fmt(noteMultiplier(), 3);
+            document.getElementById('noteValue').textContent = `gain cut ${fmt(gainCut() * 100, 0)}%, length bonus +${fmt(lengthBonus() * 100, 1)}%, uniform ×${fmt(1 - num('uniformShare') * (1 - noteMultiplier()), 3)}`;
 
             const corrPoints = corrected(cur);
             const anyCorrection = !checked('usePerMap') || checked('useTilt') || powerOn() || checked('useNotes');

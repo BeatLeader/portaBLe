@@ -6,6 +6,59 @@ model comes from `beatsaber-replays-ai-2`.
 The goal is ratings that never need scores at rating time. Scores, replays and fail attempts are used offline, to fit and
 validate constants. The one exception is the acc reweighter (below), the only tool that changes ratings from scores.
 
+## Acc reweighter: low note maps kept at ×1
+
+- **`AccReweighter.MinNotes` 115** (`CurveSettings.LowNoteStart`): maps with fewer color notes keep ×1. Their scores still
+  count in every player's worth and the balance.
+  - Why: their worth is low because players can't reach the steep top of their curve (Naughty little demon / Your Best
+    Friend Normal, 43 / 47 notes: worth −0.13 / −0.17, best scores 98.6-99.3%), not because of their acc rating, so a
+    buff only raised what a 100% pays: a 100% SF on Your Best Friend Normal 1165 → 1292 pp (the best score anywhere 816).
+  - Dev, 24 Oct: 64 maps kept at 1; pass 1 strength 0.70 as before, top play limiter 249 maps (243), worth spread after
+    the limiters 0.0252 → 0.0267 (the most negative maps aren't corrected any more), balance guard passed (pass share
+    slope margin 0.0007 → 0.0008), top 1000 16306 → 16313.
+
+## Map tags and inlines
+
+- **New `Statistics.Inlines`** (Analyzer `AnalyzeMap.CountInlines`): a note close enough behind another note in the same
+  column and row to be hidden by it, either color, at most `INLINE_MAX_GAP` 1/4 beat after it (the map's beats, so the
+  speed modifier doesn't change it; under `INLINE_MIN_GAP` 0.001 beat, the same time, not counted). Vibro counts. In
+  RatingAPI's `statistics`, and the new `Leaderboard.Inlines` (stored by `Overwrite`).
+- **Tags** (`LeaderboardsRefresh.DetermineTags`, on every `RefreshEverything`; thresholds are the constants there):
+  Linear and Fitbeat as before, new **Bomb Reset** (`BombResetsPerMinuteThreshold` 4 bomb resets per minute, 372 maps) and
+  **Inline** (`InlinesPerMinuteThreshold` 8 inlines per minute, 111 maps), and the **map type** `Leaderboard.MapType` from
+  RatingAPI's tagging model on the acc, tech and pass ratings (acc 1072, tech 718, midspeed 1849, speed 321). New columns
+  `IsBombReset`, `IsInline`, `MapType`, `Inlines`.
+- **`dotnet run -c Release -- mapstats <wwwroot/file.db>`** (`RatingsRefresh.RefreshMapStatistics`): the Analyzer's counts
+  the tags use (inlines, bomb resets, walls, linear %) from the maps folder, then the tags, without rating the maps again.
+- **Pages:** tag badges and a tag filter on Leaderboards (kept with a speed modifier), the tags, inlines and bomb resets on
+  the Leaderboard page, Inlines, Inlines/min, Bomb resets/min and Tags in Leaderboard Stats (Map traits).
+
+## Low note nerf: a cut of the gain above the predicted acc, by grind time, speed modifiers blended to nomod
+
+- **The low note nerf cuts what grinding adds** (`CurveSettings.LowNoteGainCut` 0.4, `LowNoteGainFullBelow` 70,
+  `LowNoteUniformShare` 0): above the map's predicted acc, 40% of what the curve gains over its value there is cut, under
+  70 color notes, fading to none at 115 (on ln(notes)). Before, the whole curve was multiplied (×0.80 at 20 notes), which
+  also cut the scores of players who don't grind. Maps predicted lower gain more from there to 100% and lose more of their
+  100% (Your Best Friend Normal, 47 notes, 99.4%).
+- **By grind time** (`LowNoteSpanStart` 18 s, `LowNoteSpanRef` 75 s, `LowNoteSpanWeight` 1, factor 0 to 1.5,
+  `LowNoteSpanBonus` 0.2 up to +10%): the cut is times 1 − ln(span / 18 s) / ln(75 s / 18 s), the span being the first to the
+  last color note in real time (song time / the speed modifier; new `LackMapCalculation.NoteSpan`, `Leaderboard.NoteSpan`,
+  stored by `Overwrite`, `CurvesRefresh.Regenerate` and `RefreshNoteCounts`): all of it at 18 s, none at 75 s, up to 1.5× of
+  it on shorter real times; past 75 s, the whole curve × 1 + 0.2 per unit of the factor under 0. A long map with few notes is
+  as easy to play but takes longer to grind: RTX 20000 Easy (20 notes over 111 s) paid its top 10 456 pp at 99.4-99.7%,
+  Quiet Water Easy (20 over 18 s) 509 at 99.9%.
+- **Speed modifiers don't raise these maps' ratings** (`CurveSettings.LowNoteSpeedBlend`, in `RatingsController` and
+  `RatingsRefresh.Refresh`): under 115 notes a speed modifier's pass, tech and acc ratings keep (notes / 115)² of their
+  difference to nomod (Quiet Water's SF acc rating was 7.6% over nomod). Faster is a shorter grind, not a harder map, so
+  with the span factor SS pays the most, then nomod, FS and SF.
+- Dev, 24 Oct, a 100% nomod / SS / FS / SF: Quiet Water Easy 553 / 540 / 575 / 603 → 625 / 634 / 611 / 592, RTX 20000 Easy
+  579 / 579 / 581 / 600 → 680 / 694 / 664 / 646; the 40-60 note maps 1000-1165 → 900-970 nomod, 770-860 SF. Their worth,
+  the balance and the top 1000 unchanged.
+- Tried first: pulling these maps' predicted acc towards a reference by note count. It made Quiet Water and RTX 20000 equal,
+  but the Acc AI's predicted acc follows these maps' scores closely (correlation 0.89 with their top 10's accuracy, 0.90
+  after notes and length), so it spread their worth (Naughty little demon Normal −0.135 → −0.201).
+- Curve Explorer: the gain cut, the length and the length bonus.
+
 ## Hard swing correction
 
 - **New `Ratings.HardSwingRatio`** (Analyzer `AnalyzeMap`): the mean swing difficulty of the hardest 10% of swings over

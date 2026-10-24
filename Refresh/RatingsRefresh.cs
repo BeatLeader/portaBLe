@@ -1,4 +1,4 @@
-﻿using Microsoft.EntityFrameworkCore;
+using Microsoft.EntityFrameworkCore;
 using portaBLe.DB;
 using RatingAPI.Controllers;
 
@@ -37,11 +37,16 @@ namespace portaBLe.Refresh
                 ("Duration", "REAL"),
                 ("Njs", "REAL"),
                 ("NoteCount", "INTEGER"),
+                ("NoteSpan", "REAL"),
                 ("HitDistance", "REAL"),
                 ("HardSwingRatio", "REAL"),
                 ("AccReweight", "REAL"),
                 ("IsFitbeat", "INTEGER"),
                 ("IsLinear", "INTEGER"),
+                ("IsBombReset", "INTEGER"),
+                ("IsInline", "INTEGER"),
+                ("MapType", "TEXT"),
+                ("Inlines", "INTEGER"),
                 ("Curve", "TEXT"),
             })
             {
@@ -97,9 +102,11 @@ namespace portaBLe.Refresh
                     lb.MultiPercentage = (float)response["none"].LackMapCalculation.MultiPercentage;
                     lb.ParityErrors = (float)response["none"].LackMapCalculation.Statistics.ParityErrors;
                     lb.BombAvoidances = (float)response["none"].LackMapCalculation.Statistics.BombAvoidances;
+                    lb.Inlines = response["none"].LackMapCalculation.Statistics.Inlines;
                     lb.Duration = (float)response["none"].Length;
                     lb.Njs = response["none"].Njs;
                     lb.NoteCount = response["none"].LackMapCalculation.NoteCount;
+                    lb.NoteSpan = (float)response["none"].LackMapCalculation.NoteSpan;
                     lb.HitDistance = (float)response["none"].LackMapCalculation.HitDistance;
                     lb.HardSwingRatio = (float)response["none"].LackMapCalculation.HardSwingRatio;
 
@@ -161,6 +168,46 @@ namespace portaBLe.Refresh
             Console.WriteLine($"\nCompleted: {processedCount - errorCount} successful, {errorCount} errors");
             dbContext.BulkSaveChanges();
             Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
+        }
+
+        // The Analyzer's counts the tags use (Leaderboard.Inlines, ParityErrors, BombAvoidances, DodgeWalls, CrouchWalls,
+        // LinearPercent) from the maps folder, without rating the maps again (Overwrite stores them too). Maps missing from the
+        // folder are left as they are. Then LeaderboardsRefresh.DetermineTags.
+        public static async Task RefreshMapStatistics(AppContext dbContext, string mapsDirectory = "maps")
+        {
+            // Before any bulk operation (see LeaderboardsRefresh.EnsureTagColumns)
+            await LeaderboardsRefresh.EnsureTagColumns(dbContext);
+            var lbs = await dbContext.Leaderboards.AsNoTracking()
+                .Select(l => new Leaderboard { Id = l.Id, Hash = l.Hash, ModeName = l.ModeName, DifficultyName = l.DifficultyName })
+                .ToListAsync();
+            var updates = new System.Collections.Concurrent.ConcurrentBag<Leaderboard>();
+            Parallel.ForEach(lbs, new ParallelOptions { MaxDegreeOfParallelism = Program.CoreCount }, lb =>
+            {
+                try
+                {
+                    var path = new[] { lb.Hash.ToUpperInvariant(), lb.Hash.ToLowerInvariant(), lb.Hash }
+                        .Select(h => Path.Combine(mapsDirectory, h)).FirstOrDefault(Directory.Exists);
+                    if (path == null) return;
+                    var mapset = new beatleader_parser.Parse().TryLoadPath(path);
+                    int diffCode = GetDiffCode(lb.DifficultyName);
+                    var set = mapset?.Difficulties.FirstOrDefault(d => d.Characteristic == lb.ModeName
+                        && (d.BeatMap._difficultyRank == diffCode || d.BeatMap._difficulty == lb.DifficultyName));
+                    if (set == null) return;
+                    var ratings = new beatleader_analyzer.Analyze().GetRating(set.Data, lb.ModeName, lb.DifficultyName, (float)mapset!.Info._beatsPerMinute);
+                    if (ratings == null) return;
+                    var stats = ratings.Statistics;
+                    updates.Add(new Leaderboard
+                    {
+                        Id = lb.Id, Inlines = stats.Inlines, ParityErrors = stats.ParityErrors, BombAvoidances = stats.BombAvoidances,
+                        DodgeWalls = stats.DodgeWalls, CrouchWalls = stats.CrouchWalls, LinearPercent = (float)ratings.LinearPercentage,
+                    });
+                }
+                catch { }
+            });
+            await dbContext.BulkUpdateAsync(updates.ToList(), options => options.ColumnInputExpression = c =>
+                new { c.Inlines, c.ParityErrors, c.BombAvoidances, c.DodgeWalls, c.CrouchWalls, c.LinearPercent });
+            Console.WriteLine($"Map statistics: {updates.Count} of {lbs.Count} leaderboards updated from {mapsDirectory}");
+            await LeaderboardsRefresh.DetermineTags(dbContext);
         }
 
         // Base NJS of every leaderboard from Info.dat in the maps folder, without rating the maps again (Overwrite stores it
@@ -264,6 +311,11 @@ namespace portaBLe.Refresh
                     lb.ModifiersRating.SSAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.SSPredictedAcc, mod.SSPassRating, mod.SSTechRating, lb.HitDistance, lb.HardSwingRatio), reweight);
                     lb.ModifiersRating.FSAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.FSPredictedAcc, mod.FSPassRating, mod.FSTechRating, lb.HitDistance, lb.HardSwingRatio), reweight);
                     lb.ModifiersRating.SFAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.SFPredictedAcc, mod.SFPassRating, mod.SFTechRating, lb.HitDistance, lb.HardSwingRatio), reweight);
+                    // The low note speed blend (pass and tech are stored blended by Overwrite)
+                    var blend = global::RatingAPI.Controllers.CurveSettings.Current;
+                    mod.SSAccRating = (float)blend.LowNoteSpeedBlend(lb.AccRating, mod.SSAccRating, lb.NoteCount);
+                    mod.FSAccRating = (float)blend.LowNoteSpeedBlend(lb.AccRating, mod.FSAccRating, lb.NoteCount);
+                    mod.SFAccRating = (float)blend.LowNoteSpeedBlend(lb.AccRating, mod.SFAccRating, lb.NoteCount);
 
                     // Stars: what a 96% score is worth, with each one's curve
                     ReplayUtils.SetStars(lb);

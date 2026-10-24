@@ -154,6 +154,10 @@ namespace portaBLe.DB
         // 0 = not filled yet: RatingsRefresh.Overwrite and CurvesRefresh.Regenerate store it, CurvesRefresh.RefreshNoteCounts
         // fills it without rating the maps again.
         public int NoteCount { get; set; }
+        // First to last color note, seconds (no speed modifier): the low note nerf's length relief (CurveSettings.
+        // LowNoteSpanFactor; SS / FS / SF curves use it over the speed). 0 = not filled yet: RatingsRefresh.Overwrite and
+        // CurvesRefresh.Regenerate / RefreshNoteCounts store it.
+        public float NoteSpan { get; set; }
         // Analyzer mean hit distance (m), used by the acc rating (RatingAPI AccRating.EffectiveAcc). Stored by
         // RatingsRefresh.Overwrite, so RatingsRefresh.Refresh and the balance tuner can rebuild the acc rating.
         public float HitDistance { get; set; }
@@ -164,8 +168,16 @@ namespace portaBLe.DB
         // Acc reweighter's multiplier of the acc rating (Refresh/Tools/AccReweighter; 0 or 1 = none). The only
         // rating change that comes from scores. RatingsRefresh applies it to the acc ratings it computes.
         public float AccReweight { get; set; }
+        // Tags (LeaderboardsRefresh.DetermineTags, on every RefreshEverything): Linear, Fitbeat, Bomb Reset and Inline from
+        // thresholds on the Analyzer's counts, MapType from RatingAPI's tagging model on the ratings
         public bool IsLinear { get; set; }
         public bool IsFitbeat { get; set; }
+        public bool IsBombReset { get; set; }
+        public bool IsInline { get; set; }
+        // "acc", "tech", "midspeed" or "speed" (RatingAPI InferPublish.Tag on the acc, tech and pass ratings); null = not set
+        public string? MapType { get; set; }
+        // Analyzer Statistics.Inlines. Stored by RatingsRefresh.Overwrite and RefreshMapStatistics.
+        public int Inlines { get; set; }
 
         public int Count { get; set; }
         public int Count80 { get; set; }

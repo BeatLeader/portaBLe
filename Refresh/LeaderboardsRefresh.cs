@@ -127,6 +127,8 @@ namespace portaBLe.Refresh
 
         public static async Task Refresh(AppContext dbContext)
         {
+            // Before any bulk operation: the bulk extension reads a table's columns once, so columns added later are missing
+            await EnsureTagColumns(dbContext);
             Console.WriteLine("Recalculating Megametric");
             dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
 
@@ -385,15 +387,29 @@ namespace portaBLe.Refresh
             Console.WriteLine($"Worth by player rank: {scores.Count} scores of the top 10000 players");
         }
 
-        private static async Task DetermineTags(AppContext dbContext)
-        {
-            Console.WriteLine("Determining Leaderboard Tags (Linear and Fitbeat)");
-            dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
+        // Tag thresholds (DetermineTags): Bomb Reset from bomb resets (the Analyzer's bomb avoidances) per minute, Inline from
+        // inlines (Statistics.Inlines) per minute, both over the song's length (Leaderboard.Duration)
+        public const float LinearPercentThreshold = 0.4f;
+        public const float FitbeatDodgeWallValue = 0.3f;
+        public const float FitbeatCrouchWallValue = 5f;
+        public const float FitbeatDensityThreshold = 0.15f;
+        public const float BombResetsPerMinuteThreshold = 4f;
+        public const float InlinesPerMinuteThreshold = 8f;
 
-            const float linearPercentThreshold = 0.4f;
-            const float dodgeWallValue = 0.3f;
-            const float crouchWallValue = 5f;
-            const float fitbeatDensityThreshold = 0.15f;
+        // The tags' columns (older databases don't have them)
+        public static async Task EnsureTagColumns(AppContext dbContext)
+        {
+            foreach (var (column, type) in new[] { ("IsFitbeat", "INTEGER"), ("IsLinear", "INTEGER"), ("IsBombReset", "INTEGER"), ("IsInline", "INTEGER"), ("MapType", "TEXT"), ("Inlines", "INTEGER") })
+            {
+                await DbSchema.AddColumnIfMissing(dbContext, "Leaderboards", column, type);
+            }
+        }
+
+        public static async Task DetermineTags(AppContext dbContext)
+        {
+            Console.WriteLine("Determining Leaderboard Tags (Linear, Fitbeat, Bomb Reset, Inline, map type)");
+            dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
+            await EnsureTagColumns(dbContext);
 
             var leaderboards = await dbContext.Leaderboards
                 .Select(l => new Leaderboard
@@ -402,26 +418,39 @@ namespace portaBLe.Refresh
                     LinearPercent = l.LinearPercent,
                     DodgeWalls = l.DodgeWalls,
                     CrouchWalls = l.CrouchWalls,
-                    Duration = l.Duration
+                    Duration = l.Duration,
+                    BombAvoidances = l.BombAvoidances,
+                    Inlines = l.Inlines,
+                    AccRating = l.AccRating,
+                    PassRating = l.PassRating,
+                    TechRating = l.TechRating,
                 })
                 .ToListAsync();
 
+            // The map type from RatingAPI's tagging model (acc, tech, midspeed, speed) on the ratings
+            var tagger = new global::RatingAPI.Controllers.InferPublish();
             foreach (var leaderboard in leaderboards)
             {
-                leaderboard.IsLinear = leaderboard.LinearPercent >= linearPercentThreshold;
+                leaderboard.IsLinear = leaderboard.LinearPercent >= LinearPercentThreshold;
 
-                float wallScore = (leaderboard.DodgeWalls * dodgeWallValue) + (leaderboard.CrouchWalls * crouchWallValue);
-
-                if (leaderboard.Duration != 0)
+                float wallScore = (leaderboard.DodgeWalls * FitbeatDodgeWallValue) + (leaderboard.CrouchWalls * FitbeatCrouchWallValue);
+                float minutes = leaderboard.Duration / 60;
+                leaderboard.IsFitbeat = leaderboard.Duration != 0 && wallScore / leaderboard.Duration >= FitbeatDensityThreshold;
+                leaderboard.IsBombReset = minutes > 0 && leaderboard.BombAvoidances / minutes >= BombResetsPerMinuteThreshold;
+                leaderboard.IsInline = minutes > 0 && leaderboard.Inlines / minutes >= InlinesPerMinuteThreshold;
+                try
                 {
-                    float wallDensity = wallScore / leaderboard.Duration;
-                    leaderboard.IsFitbeat = wallDensity >= fitbeatDensityThreshold;
+                    leaderboard.MapType = leaderboard.AccRating > 0 || leaderboard.PassRating > 0
+                        ? tagger.Tag(leaderboard.AccRating, leaderboard.TechRating, leaderboard.PassRating)
+                        : null;
                 }
-                else leaderboard.IsFitbeat = false;
+                catch { leaderboard.MapType = null; }
             }
 
-            await dbContext.BulkUpdateAsync(leaderboards, options => 
-                options.ColumnInputExpression = c => new { c.IsLinear, c.IsFitbeat });
+            await dbContext.BulkUpdateAsync(leaderboards, options =>
+                options.ColumnInputExpression = c => new { c.IsLinear, c.IsFitbeat, c.IsBombReset, c.IsInline, c.MapType });
+            Console.WriteLine(FormattableString.Invariant(
+                $"Tags: Linear {leaderboards.Count(l => l.IsLinear)}, Fitbeat {leaderboards.Count(l => l.IsFitbeat)}, Bomb Reset {leaderboards.Count(l => l.IsBombReset)}, Inline {leaderboards.Count(l => l.IsInline)}; {string.Join(", ", leaderboards.GroupBy(l => l.MapType ?? "none").Select(g => $"{g.Key} {g.Count()}"))}"));
 
             Console.WriteLine("Tag determination completed");
             Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");

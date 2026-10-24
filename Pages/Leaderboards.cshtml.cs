@@ -41,6 +41,10 @@ namespace portaBLe.Pages
 
         public bool HasRange => RangeMin != null || RangeMax != null;
 
+        // Tag filter: a MapTags.All key (acc, tech, midspeed, speed, linear, fitbeat, bombreset, inline), or null for all maps
+        [BindProperty(SupportsGet = true)]
+        public string? Tag { get; set; }
+
         // Speed modifier whose stars, ratings and worth are shown, filtered and sorted on: "SS", "FS", "SF", or null for
         // none. With one, maps without modifier ratings are left out.
         [BindProperty(SupportsGet = true)]
@@ -82,6 +86,9 @@ namespace portaBLe.Pages
             {
                 leaderboardQuery = leaderboardQuery.Where(l => l.ModeName == ModeName);
             }
+
+            if (!MapTags.All.Any(t => t.Key == Tag)) Tag = null;
+            leaderboardQuery = MapTags.Filter(leaderboardQuery, Tag);
 
             if (RangeMin is float min)
             {
@@ -137,18 +144,21 @@ namespace portaBLe.Pages
                     Id = l.Id, Name = l.Name, Mapper = l.Mapper, Cover = l.Cover, ModeName = l.ModeName, DifficultyName = l.DifficultyName,
                     Stars = l.ModifiersRating!.SSStars, PassRating = l.ModifiersRating.SSPassRating, AccRating = l.ModifiersRating.SSAccRating,
                     TechRating = l.ModifiersRating.SSTechRating, Worth = l.ModifiersRating.SSWorth, NoteCount = l.NoteCount,
+                    IsLinear = l.IsLinear, IsFitbeat = l.IsFitbeat, IsBombReset = l.IsBombReset, IsInline = l.IsInline, MapType = l.MapType, Inlines = l.Inlines,
                 }),
                 "FS" => withRatings.Select(l => new Leaderboard
                 {
                     Id = l.Id, Name = l.Name, Mapper = l.Mapper, Cover = l.Cover, ModeName = l.ModeName, DifficultyName = l.DifficultyName,
                     Stars = l.ModifiersRating!.FSStars, PassRating = l.ModifiersRating.FSPassRating, AccRating = l.ModifiersRating.FSAccRating,
                     TechRating = l.ModifiersRating.FSTechRating, Worth = l.ModifiersRating.FSWorth, NoteCount = l.NoteCount,
+                    IsLinear = l.IsLinear, IsFitbeat = l.IsFitbeat, IsBombReset = l.IsBombReset, IsInline = l.IsInline, MapType = l.MapType, Inlines = l.Inlines,
                 }),
                 _ => withRatings.Select(l => new Leaderboard
                 {
                     Id = l.Id, Name = l.Name, Mapper = l.Mapper, Cover = l.Cover, ModeName = l.ModeName, DifficultyName = l.DifficultyName,
                     Stars = l.ModifiersRating!.SFStars, PassRating = l.ModifiersRating.SFPassRating, AccRating = l.ModifiersRating.SFAccRating,
                     TechRating = l.ModifiersRating.SFTechRating, Worth = l.ModifiersRating.SFWorth, NoteCount = l.NoteCount,
+                    IsLinear = l.IsLinear, IsFitbeat = l.IsFitbeat, IsBombReset = l.IsBombReset, IsInline = l.IsInline, MapType = l.MapType, Inlines = l.Inlines,
                 }),
             };
         }

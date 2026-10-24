@@ -171,6 +171,11 @@
         {
             <div class="predicted-acc">Notes: @Model.Leaderboard.NoteCount</div>
         }
+        <div class="predicted-acc" title="Inlines: a note at most 1/4 beat behind another (either color) in the same column and row, hidden by it (Analyzer). Bomb resets: the Analyzer's bomb avoidances.">Inlines: @Model.Leaderboard.Inlines, bomb resets: @Model.Leaderboard.BombAvoidances.ToString("0")</div>
+        @if (MapTags.Of(Model.Leaderboard).Any())
+        {
+            <div class="map-tags">@MapTags.Badges(Model.Leaderboard)</div>
+        }
     </div>
 
     @if (Model.CompareLeaderboard != null)
@@ -253,6 +258,11 @@
             @if (Model.CompareLeaderboard.NoteCount > 0)
             {
                 <div class="predicted-acc">Notes: @Model.CompareLeaderboard.NoteCount</div>
+            }
+            <div class="predicted-acc" title="Inlines: a note at most 1/4 beat behind another (either color) in the same column and row, hidden by it (Analyzer). Bomb resets: the Analyzer's bomb avoidances.">Inlines: @Model.CompareLeaderboard.Inlines, bomb resets: @Model.CompareLeaderboard.BombAvoidances.ToString("0")</div>
+            @if (MapTags.Of(Model.CompareLeaderboard).Any())
+            {
+                <div class="map-tags">@MapTags.Badges(Model.CompareLeaderboard)</div>
             }
         </div>
     }

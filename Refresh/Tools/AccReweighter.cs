@@ -264,6 +264,13 @@ namespace portaBLe.Refresh
         public static double LargeGapMaxChange { get; set; } = 0.16;
         public static double LargeGapFrom { get; set; } = 0.04;
         public static double LargeGapFull { get; set; } = 0.08;
+        // Maps with fewer color notes (Leaderboard.NoteCount, 0 = unknown: moved) keep x1: the low note nerf's maps
+        // (CurveSettings.LowNoteStart). Their worth is low because players can't reach the steep top of their curve (Naughty
+        // little demon / Your Best Friend Normal, 43 / 47 notes: worth -0.13 / -0.17, best scores 98.6-99.3%), not because
+        // of their acc rating, so a buff only raises what a 100% pays: x1.13 took a 100% SF on Your Best Friend Normal 1165
+        // -> 1292 pp, with the best score anywhere 816. Their scores still count in every player's worth and the balance.
+        // 0 = off.
+        public static int MinNotes { get; set; } = 115;
         // Top play limiter: what a buff adds on top of a player's best play. A buffed map's score may pay at most
         // TopPlayMarginPp more than the higher of its pp without reweighting and the player's best play on another map (at the
         // real stars, after the worth limiter); the buff is cut until fewer than TopPlayPlayers players (with TopPlayMinScores
@@ -303,7 +310,10 @@ namespace portaBLe.Refresh
             public double[] Prior = Array.Empty<double>();
             public double[][] BandFeatures = Array.Empty<double[]>();
             public double?[] StartWorth = Array.Empty<double?>();
+            // 1: the map has a worth and is moved (not under MinNotes)
             public double[] HasWorth = Array.Empty<double>();
+            // Under MinNotes: kept at 1
+            public bool[] Pinned = Array.Empty<bool>();
             public BalanceStats StartBalance = new();
             // The slope correction's terms (pass, tech, predicted acc) and the Jacobian of the slopes on them at the start
             public double[][] U = Array.Empty<double[]>();
@@ -385,7 +395,9 @@ namespace portaBLe.Refresh
             var startMeasure = Measure(context, new double[mapCount], false);
             context.StartWorth = startMeasure.Worth;
             context.StartBalance = startMeasure.Balance;
-            context.HasWorth = context.StartWorth.Select(w => w != null ? 1.0 : 0.0).ToArray();
+            context.Pinned = loaded.Maps.Select(m => m.Leaderboard.NoteCount > 0 && m.Leaderboard.NoteCount < MinNotes).ToArray();
+            context.HasWorth = context.StartWorth.Select((w, i) => w != null && !context.Pinned[i] ? 1.0 : 0.0).ToArray();
+            if (MinNotes > 0) Console.WriteLine($"Acc reweight: {context.Pinned.Count(p => p)} maps under {MinNotes} notes kept at 1");
             context.U = SlopeTerms(context);
             if (SlopeCorrection) context.Jacobian = MeasureJacobian(context, null, context.StartBalance, FitAtBaseStars, "start");
             if (StarResponse) StarResponses(context);
@@ -632,7 +644,7 @@ namespace portaBLe.Refresh
             var result = new AccReweightResult
             {
                 GeneratedAt = DateTime.UtcNow,
-                Settings = new AccReweightSettings { WorthMeasure = BalanceTuner.WorthMeasure.ToString(), Passes = Passes, Strengths = Strengths, EvidenceScores = EvidenceScores, MinAccShare = MinAccShare, MaxChange = MaxChange, Applied = Applied, GuardTolerance = GuardTolerance, GapTolerance = GapTolerance, SlopeCorrection = SlopeCorrection, SlopeCorrectionTolerance = SlopeCorrectionTolerance, WorthLimit = WorthLimit, HeldOutSplits = HeldOutSplits, FitAtBaseStars = FitAtBaseStars, ResponseNoise = ResponseNoise, DriftCompensationRounds = DriftCompensationRounds, FrozenStarsRounds = FrozenStarsRounds, GuardMarginWarning = GuardMarginWarning, FallbackStrengths = FallbackStrengths, StarResponse = StarResponse, TargetMetric = TargetMetric, NoiseDeadZone = NoiseDeadZone, NoisePerScore = NoisePerScore, LargeGapMaxChange = LargeGapMaxChange, TopPlayMarginPp = TopPlayMarginPp, TopPlayPlayers = TopPlayPlayers, TopPlayMinScores = TopPlayMinScores },
+                Settings = new AccReweightSettings { WorthMeasure = BalanceTuner.WorthMeasure.ToString(), Passes = Passes, Strengths = Strengths, EvidenceScores = EvidenceScores, MinAccShare = MinAccShare, MaxChange = MaxChange, Applied = Applied, GuardTolerance = GuardTolerance, GapTolerance = GapTolerance, SlopeCorrection = SlopeCorrection, SlopeCorrectionTolerance = SlopeCorrectionTolerance, WorthLimit = WorthLimit, HeldOutSplits = HeldOutSplits, FitAtBaseStars = FitAtBaseStars, ResponseNoise = ResponseNoise, DriftCompensationRounds = DriftCompensationRounds, FrozenStarsRounds = FrozenStarsRounds, GuardMarginWarning = GuardMarginWarning, FallbackStrengths = FallbackStrengths, StarResponse = StarResponse, TargetMetric = TargetMetric, NoiseDeadZone = NoiseDeadZone, NoisePerScore = NoisePerScore, LargeGapMaxChange = LargeGapMaxChange, TopPlayMarginPp = TopPlayMarginPp, TopPlayPlayers = TopPlayPlayers, TopPlayMinScores = TopPlayMinScores, MinNotes = MinNotes },
                 MapsLimited = limited.Count(l => l),
                 MapsTopPlayLimited = topLimited.Count(l => l),
                 HeldOut = splits.SelectMany(s => s).Select(ToRound).ToList(),
@@ -899,7 +911,7 @@ namespace portaBLe.Refresh
             // Each map's target: what the balance features predict for its worth before any change (fitted players' scores)
             var linear0 = (fitPlayers == null && c.TargetWorth != null ? c.TargetWorth : current.Worth).Select(w => w is double v && v > -0.99 ? (double?)v : null).ToArray();
             var residual0 = Residuals(Features(c.Unweighted, c.BaseBand), linear0, ones);
-            for (int i = 0; i < mapCount; i++) if (linear0[i] is double v && residual0[i] is double r) target[i] = Math.Max(v - r, -0.9);
+            for (int i = 0; i < mapCount; i++) if (!c.Pinned[i] && linear0[i] is double v && residual0[i] is double r) target[i] = Math.Max(v - r, -0.9);
             // Only Applied of the way there (in log). keep: the part of its gap a map keeps, which the strengths are compared
             // without (0 with Applied = 1, so they minimize the worth spread itself)
             var keep = new double[mapCount];
@@ -927,6 +939,8 @@ namespace portaBLe.Refresh
                 keep[i] = partial - t;
                 target[i] = partial;
             }
+            // The maps under MinNotes stay at 1: every change is clamped to these bounds
+            for (int i = 0; i < mapCount; i++) if (c.Pinned[i]) c.MapLo[i] = c.MapHi[i] = 0;
             if (fitPlayers == null)
             {
                 c.KindWorth = linear0.Select((w, i) => w is double v && residual0[i] is double r ? (double?)Math.Max(v - r, -0.9) : null).ToArray();
@@ -1081,7 +1095,7 @@ namespace portaBLe.Refresh
                 int over = 0;
                 for (int i = 0; i < mapCount; i++)
                 {
-                    if (worth[i] is not double w || c.StartWorth[i] is not double s) continue;
+                    if (c.Pinned[i] || worth[i] is not double w || c.StartWorth[i] is not double s) continue;
                     double limit = w > s ? Math.Max(s, WorthLimit) : Math.Min(s, -WorthLimit);
                     if (w > s ? w <= limit : w >= limit) continue;
                     over++;
@@ -1099,13 +1113,13 @@ namespace portaBLe.Refresh
                 var bands = new Dictionary<int, (double Sum, int Free)>();
                 for (int i = 0; i < mapCount; i++)
                 {
-                    if (c.StartWorth[i] == null) continue;
+                    if (c.HasWorth[i] <= 0) continue;
                     bands.TryGetValue(c.BaseBand[i], out var b);
                     bands[c.BaseBand[i]] = (b.Sum + logM[i], b.Free + (limited[i] ? 0 : 1));
                 }
                 for (int i = 0; i < mapCount; i++)
                 {
-                    if (c.StartWorth[i] == null || limited[i]) continue;
+                    if (c.HasWorth[i] <= 0 || limited[i]) continue;
                     var (sum, free) = bands[c.BaseBand[i]];
                     if (free == 0) continue;
                     logM[i] = Math.Clamp(logM[i] - sum / free, c.MapLo[i], c.MapHi[i]);
@@ -1459,6 +1473,7 @@ namespace portaBLe.Refresh
         public double TopPlayMarginPp { get; set; }
         public int TopPlayPlayers { get; set; }
         public int TopPlayMinScores { get; set; }
+        public int MinNotes { get; set; }
     }
 
     // A round of the drift compensation: pass share, tech share and predicted acc slopes

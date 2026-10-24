@@ -64,6 +64,10 @@ namespace portaBLe.Pages
             new("LinearPercent", "Linear %", "Share of linear swings", "Traits", x => x.LinearPercent, x => x.LinearPercent.ToString("F3")),
             new("ParityErrors", "Parity errors", "Parity errors found by the Analyzer", "Traits", x => x.ParityErrors, x => x.ParityErrors.ToString()),
             new("BombAvoidances", "Bomb avoidances", "Bomb avoidances found by the Analyzer", "Traits", x => x.BombAvoidances, x => x.BombAvoidances.ToString()),
+            new("Inlines", "Inlines", "Inlines found by the Analyzer: a note at most 1/4 beat behind another (either color) in the same column and row, hidden by it", "Traits", x => x.Inlines, x => x.Inlines.ToString()),
+            new("InlinesPerMinute", "Inlines/min", "Inlines per minute of the song (the Inline tag's measure)", "Traits", x => x.Duration > 0 ? x.Inlines / (x.Duration / 60) : null, x => x.Duration > 0 ? (x.Inlines / (x.Duration / 60)).ToString("0.0") : "—"),
+            new("BombResetsPerMinute", "Bomb resets/min", "Bomb avoidances per minute of the song (the Bomb Reset tag's measure)", "Traits", x => x.Duration > 0 ? x.BombAvoidances / (x.Duration / 60) : null, x => x.Duration > 0 ? (x.BombAvoidances / (x.Duration / 60)).ToString("0.0") : "—"),
+            new("Tags", "Tags", "Map type (RatingAPI's tagging model) and Linear, Fitbeat, Bomb Reset and Inline (sorted by how many)", "Traits", x => (x.IsLinear ? 1 : 0) + (x.IsFitbeat ? 1 : 0) + (x.IsBombReset ? 1 : 0) + (x.IsInline ? 1 : 0), x => string.Join(", ", MapTags.Of(x).Select(t => t.Label))),
         };
 
         public List<Leaderboard> LeaderboardStats { get; set; }

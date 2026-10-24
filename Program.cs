@@ -1,4 +1,4 @@
-using Amazon;
+﻿using Amazon;
 using Amazon.S3;
 using Amazon.S3.Model;
 using Amazon.S3.Transfer;
@@ -282,6 +282,15 @@ namespace portaBLe
                 var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.Combine(Directory.GetCurrentDirectory(), "wwwroot")}/Database.db;").Options;
                 using var rescoreContext = new AppContext(options);
                 await RefreshEverything(rescoreContext);
+                return;
+            }
+            // dotnet run -c Release -- mapstats <wwwroot/file.db>: the Analyzer's counts the tags use (inlines, bomb resets, walls,
+            // linear %) from the maps folder, then the tags (RatingsRefresh.RefreshMapStatistics), without rating the maps again
+            if (args.Length > 1 && args[0] == "mapstats")
+            {
+                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};").Options;
+                using var statsContext = new AppContext(options);
+                await RatingsRefresh.RefreshMapStatistics(statsContext);
                 return;
             }
             if (args.Length > 0 && args[0] == "accreweight")
