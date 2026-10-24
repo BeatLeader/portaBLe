@@ -157,6 +157,10 @@ namespace portaBLe.DB
         // Analyzer mean hit distance (m), used by the acc rating (RatingAPI AccRating.EffectiveAcc). Stored by
         // RatingsRefresh.Overwrite, so RatingsRefresh.Refresh and the balance tuner can rebuild the acc rating.
         public float HitDistance { get; set; }
+        // Analyzer Ratings.HardSwingRatio, used by the acc rating's hard swing correction (RatingAPI
+        // AccRating.HardSwingMultiplier; 0 = none). Stored by RatingsRefresh.Overwrite, so RatingsRefresh.Refresh and the
+        // balance tuner can rebuild the acc rating. The nomod one, used with the speed modifiers' pass too.
+        public float HardSwingRatio { get; set; }
         // Acc reweighter's multiplier of the acc rating (Refresh/Tools/AccReweighter; 0 or 1 = none). The only
         // rating change that comes from scores. RatingsRefresh applies it to the acc ratings it computes.
         public float AccReweight { get; set; }

@@ -6,6 +6,85 @@ model comes from `beatsaber-replays-ai-2`.
 The goal is ratings that never need scores at rating time. Scores, replays and fail attempts are used offline, to fit and
 validate constants. The one exception is the acc reweighter (below), the only tool that changes ratings from scores.
 
+## Hard swing correction
+
+- **New `Ratings.HardSwingRatio`** (Analyzer `AnalyzeMap`): the mean swing difficulty of the hardest 10% of swings over
+  the hardest 8 s stretch's average (both hands, song time; 0 on one hand maps). Above 1, the hardest swings are
+  scattered over the map instead of in its hardest stretch. Stored in `Leaderboard.HardSwingRatio` by
+  `RatingsRefresh.Overwrite` (new column), so `RatingsRefresh.Refresh`, the balance tuner and the acc reweighter rebuild
+  the acc rating with it. Map data only: new maps get it when they're rated.
+- **`AccRating.HardSwingMultiplier`:** the acc rating × 1 + 2% per point of (ratio − 1) × pass above 2, up to +12%
+  (`HARD_SWING_KNEE` 2, `HARD_SWING_SLOPE` 0.02, `HARD_SWING_CAP` 0.12).
+  - Why: maps with scattered hard swings were worth less than others of their stars at every pass (Dev, 24 Oct, no acc
+    reweight; −4.8% for (ratio − 1) × pass above 4, +0.8% under 1), most on pass 11+ maps. The pass rating averages
+    the hardest windows, so isolated hard swings count little, and the Acc AI predicts the accuracy of cut notes, so
+    the misses and bad cuts on them don't count either: the top 300 players' accuracy against the prediction (after
+    their own level) was 0.8-1.2% lower on the spikiest pass 11+ maps.
+  - A multiplier rather than a lower effective acc: the same acc pp change at every predicted acc (the curve is much
+    steeper on easy maps, which is why the hit distance correction is phased out above 97%).
+  - Fitted on the worth by (ratio − 1) × pass in memory; 3% per point flattened it fully but put about twice the 30pp+
+    top plays on the raised maps.
+- **`ONE_SABER_NERF` 0.49 → 0.44:** the correction leaves one hand maps out and raised Standard maps, so OneSaber maps
+  went from −0.003 to −0.007 (balance tuner's zero crossing). **`PpMultiplier` 1.0332 → 1.0230** keeps the top 1000's
+  average (16398).
+- Re-rated (Overwrite, no acc reweight, Dev, 24 Oct), against the same database before:
+
+  | (ratio − 1) × pass | worth | top 1000 | other players |
+  |---|---|---|---|
+  | under 1 (1060 maps) | +0.008 → +0.006 | +0.006 → +0.005 | +0.008 → +0.007 |
+  | 2-3 (877) | −0.006 → −0.005 | −0.001 → −0.001 | −0.006 → −0.006 |
+  | 3-4 (270) | −0.020 → −0.007 | −0.010 → +0.001 | −0.022 → −0.009 |
+  | 4+ (83) | −0.048 → −0.017 | −0.026 → −0.002 | −0.055 → −0.023 |
+
+  Worth spread 0.0389 → 0.0377, tech share slope −0.0052 → −0.0032 (gap −0.0043 → −0.0030), OneSaber gap −0.003 →
+  +0.000, the other slopes and gaps within 0.0007; maps beyond ±5% 619 → 568 (above +5% 268 → 241). 355 maps raised 2%+
+  (up to ×1.093, − Divine Light of Myriad − ExpertPlus −0.079 → −0.001, 12.93 → 14.26 stars). Players with a top play
+  30pp+ over their second best 2361 → 2350; the raised maps' top plays 1585 → 3242 (30pp+ 149 → 359).
+  - Medicine Expert (+0.004 → +0.083) and Muzik Overload ExpertPlus (+0.003 → +0.057) went over.
+- Left: most pass 11+ maps far under (worth −3% to −25%: 40 maps, −0.072 → −0.065) stay under. Their worth is the
+  same from the top 1000 and from other players (correlation 0.88 on pass 11+ maps), and follows their own accuracy
+  shortfall against the Acc AI, which none of the Analyzer's features predicts (a ridge fit on ~35 of them,
+  cross-validated: R² 0.15, −0.06% of their −0.84%). That needs the Acc AI's prediction itself (its targets leave
+  misses out).
+
+## Acc reweighter: top play limiter
+
+- **`TopPlayMarginPp` 10** (`TopPlayPlayers` 1, `TopPlayMinScores` 30, `TopPlayRounds` 6): after the worth limiter, at the
+  real stars, a buffed map's score may pay at most 10pp more than the higher of its pp without reweighting and the
+  player's best play on another map. The buff is cut back until no player (with 30+ scores) is past that; it never goes
+  under ×1.
+  - Why: with ×1.13, Chrome Vox ExpertPlus became some players' top play by ~50pp over their second best.
+  - Only what the buff adds is limited. Most top plays far over the player's second best are so without reweighting (309
+    buffed maps had one 30pp+ over, 30 of them from the buff); stopping every buff on a map that's already a top play by
+    1% cut about 1100 of the 2300 buffed maps and failed the balance guard at every strength.
+  - Dev, 24 Oct (with the hard swing correction): 233 buffed maps added more than 10pp, the most Break Expert +78pp (×1.130,
+    19 players) and Chrome Vox ExpertPlus +60pp (×1.092, 33 players); 243 maps cut (Chrome Vox ExpertPlus ×1.015,
+    Extratongue ExpertPlus ×1.053), worth spread 0.0232 → 0.0253, balance guard passed (pass share slope margin 0.0007).
+  - `acc-reweight.json`: `MapsTopPlayLimited`, `TopPlayLimited` per map, the settings.
+
+## Pass pp top compression: knee 10.4 → 13
+
+- **`PassTopKnee` 10.4 → 13** (`PassTopSlope` 0.5, `PpFormula.PassPp`): the knee came from Megametric75, which inflated high
+  pass maps' survivors; with the PlayerAdjusted worth those maps paid less than others of their stars. Without the
+  compression (tried first) the highest pass maps became many players' top play by a wide margin, so it starts at 13.
+  - Dev, 24 Oct, no acc reweight. Per map, for reference, pass 9-10.4 maps are 10.2 players' top play, 1.0 of them by 30pp+
+    over the player's second best play:
+
+    | | pass 10.4-13 | pass 13-15 | pass 15+ |
+    |---|---|---|---|
+    | knee 10.4 (before) | −0.009 | −0.031 (7.9 top plays per map, 0.7 by 30pp+) | −0.030 (6.3, 1.2) |
+    | off | −0.004 | −0.011 (11.4, 1.3) | +0.002 (13.1, 3.3) |
+    | **knee 13** | −0.004 | −0.015 (11.0, 1.1) | −0.016 (8.0, 1.8) |
+
+  - Without it, The Purple Dimension went from 15 to 41 players' top play and Godspeed E+ from 31 to 58. Knee 12 cut
+    pass 15+ little more (1.6 by 30pp+) for pass 13-15 −0.022; knee 14 / 15 let pass 15+ back toward off.
+  - Pass share slope +0.0038 → +0.0047, tech share slope −0.0029 → −0.0046, worth spread 0.0392 → 0.0389.
+    `PpMultiplier` 1.0369 → 1.0332 keeps the top 1000's average.
+  - Left: the 30pp+ top plays on pass 15+ maps are mostly players ranked about 1000-3000 (median 1438; 10 of their 157
+    top plays are top 100's), while most of their players get less than on other maps: their pp is uneven between
+    players, so no single pass pp value fits both. Pass 10.4+ maps with low tech (< 4.5) still pay less (−0.016 vs
+    +0.003).
+
 ## Tech pp top compression
 
 - **`TechTopKnee` 12, `TechTopSlope` 0.33** (`PpFormula.TechPp`): above tech 12, each point counts a third for tech pp,

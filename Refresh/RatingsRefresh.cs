@@ -38,6 +38,7 @@ namespace portaBLe.Refresh
                 ("Njs", "REAL"),
                 ("NoteCount", "INTEGER"),
                 ("HitDistance", "REAL"),
+                ("HardSwingRatio", "REAL"),
                 ("AccReweight", "REAL"),
                 ("IsFitbeat", "INTEGER"),
                 ("IsLinear", "INTEGER"),
@@ -100,6 +101,7 @@ namespace portaBLe.Refresh
                     lb.Njs = response["none"].Njs;
                     lb.NoteCount = response["none"].LackMapCalculation.NoteCount;
                     lb.HitDistance = (float)response["none"].LackMapCalculation.HitDistance;
+                    lb.HardSwingRatio = (float)response["none"].LackMapCalculation.HardSwingRatio;
 
                     lb.PassRating = (float)response["none"].LackMapCalculation.PassRating;
                     lb.TechRating = (float)response["none"].LackMapCalculation.TechRating;
@@ -257,11 +259,11 @@ namespace portaBLe.Refresh
 
                     if (!applyAccReweight) lb.AccReweight = 0;
                     double reweight = ReplayUtils.AccReweightOf(lb);
-                    lb.AccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(lb.PredictedAcc, lb.PassRating, lb.TechRating, lb.HitDistance), reweight);
+                    lb.AccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(lb.PredictedAcc, lb.PassRating, lb.TechRating, lb.HitDistance, lb.HardSwingRatio), reweight);
 
-                    lb.ModifiersRating.SSAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.SSPredictedAcc, mod.SSPassRating, mod.SSTechRating, lb.HitDistance), reweight);
-                    lb.ModifiersRating.FSAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.FSPredictedAcc, mod.FSPassRating, mod.FSTechRating, lb.HitDistance), reweight);
-                    lb.ModifiersRating.SFAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.SFPredictedAcc, mod.SFPassRating, mod.SFTechRating, lb.HitDistance), reweight);
+                    lb.ModifiersRating.SSAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.SSPredictedAcc, mod.SSPassRating, mod.SSTechRating, lb.HitDistance, lb.HardSwingRatio), reweight);
+                    lb.ModifiersRating.FSAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.FSPredictedAcc, mod.FSPassRating, mod.FSTechRating, lb.HitDistance, lb.HardSwingRatio), reweight);
+                    lb.ModifiersRating.SFAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.SFPredictedAcc, mod.SFPassRating, mod.SFTechRating, lb.HitDistance, lb.HardSwingRatio), reweight);
 
                     // Stars: what a 96% score is worth, with each one's curve
                     ReplayUtils.SetStars(lb);

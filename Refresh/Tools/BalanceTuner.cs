@@ -24,7 +24,7 @@ namespace portaBLe.Refresh
     public class RatingConstants
     {
         public double PassCalibration { get; set; } = 0.7721;
-        public double OneSaberNerf { get; set; } = 0.49;
+        public double OneSaberNerf { get; set; } = 0.44;
         public double TechScaler { get; set; } = 20.611;
         // Follows the PpFormula default, since the tuner re-scores everything with the formula in code
         public double TechWeight { get; set; } = new PpFormula().TechWeight;
@@ -335,7 +335,7 @@ namespace portaBLe.Refresh
                 Name = nameof(PpFormula.PassTopKnee),
                 Explanation = "Pass where the pass pp top compression starts. Lower = more maps compressed.",
                 Get = f => f.PassTopKnee, Set = (f, v) => f.PassTopKnee = v,
-                Values = new[] { 10.4, 11.9, 13.375, 14.9, 16.3 },
+                Values = new[] { 10.4, 12, 13, 14, 15 },
             },
             new FormulaKnob
             {
@@ -536,7 +536,7 @@ namespace portaBLe.Refresh
                 var original = source.Maps[i];
                 var lb = original.Leaderboard;
                 bool oneSaber = IsOneSaber(lb);
-                var (pass, tech, acc) = Transform(lb.PassRating, lb.TechRating, lb.AccRating, lb.PredictedAcc, lb.HitDistance, oneSaber, from, to);
+                var (pass, tech, acc) = Transform(lb.PassRating, lb.TechRating, lb.AccRating, lb.PredictedAcc, lb.HitDistance, lb.HardSwingRatio, oneSaber, from, to);
                 var copy = new Leaderboard
                 {
                     Id = lb.Id,
@@ -547,6 +547,7 @@ namespace portaBLe.Refresh
                     PredictedAcc = lb.PredictedAcc,
                     Curve = lb.Curve,
                     HitDistance = lb.HitDistance,
+                    HardSwingRatio = lb.HardSwingRatio,
                     PassRating = pass,
                     TechRating = tech,
                     AccRating = acc,
@@ -554,9 +555,9 @@ namespace portaBLe.Refresh
                 var mod = lb.ModifiersRating;
                 if (mod != null)
                 {
-                    var (ssPass, ssTech, ssAcc) = Transform(mod.SSPassRating, mod.SSTechRating, mod.SSAccRating, mod.SSPredictedAcc, lb.HitDistance, oneSaber, from, to);
-                    var (fsPass, fsTech, fsAcc) = Transform(mod.FSPassRating, mod.FSTechRating, mod.FSAccRating, mod.FSPredictedAcc, lb.HitDistance, oneSaber, from, to);
-                    var (sfPass, sfTech, sfAcc) = Transform(mod.SFPassRating, mod.SFTechRating, mod.SFAccRating, mod.SFPredictedAcc, lb.HitDistance, oneSaber, from, to);
+                    var (ssPass, ssTech, ssAcc) = Transform(mod.SSPassRating, mod.SSTechRating, mod.SSAccRating, mod.SSPredictedAcc, lb.HitDistance, lb.HardSwingRatio, oneSaber, from, to);
+                    var (fsPass, fsTech, fsAcc) = Transform(mod.FSPassRating, mod.FSTechRating, mod.FSAccRating, mod.FSPredictedAcc, lb.HitDistance, lb.HardSwingRatio, oneSaber, from, to);
+                    var (sfPass, sfTech, sfAcc) = Transform(mod.SFPassRating, mod.SFTechRating, mod.SFAccRating, mod.SFPredictedAcc, lb.HitDistance, lb.HardSwingRatio, oneSaber, from, to);
                     copy.ModifiersRating = new ModifiersRating
                     {
                         Id = mod.Id,
@@ -586,7 +587,7 @@ namespace portaBLe.Refresh
             };
         }
 
-        private static (float Pass, float Tech, float Acc) Transform(float pass, float tech, float accRating, float predictedAcc, float hitDistance, bool oneSaber,
+        private static (float Pass, float Tech, float Acc) Transform(float pass, float tech, float accRating, float predictedAcc, float hitDistance, float hardSwingRatio, bool oneSaber,
             RatingConstants from, RatingConstants to)
         {
             double newPass = pass * (to.PassCalibration / from.PassCalibration);
@@ -612,8 +613,10 @@ namespace portaBLe.Refresh
                 double exponent = global::RatingAPI.Controllers.AccRating.ACC_EXPONENT;
                 double oldEffective = global::RatingAPI.Controllers.AccRating.EffectiveAcc(predictedAcc, pass, hitDistance);
                 double newEffective = global::RatingAPI.Controllers.AccRating.EffectiveAcc(predictedAcc, newPass, hitDistance);
-                double oldBase = from.AccScale * Math.Pow(global::RatingAPI.Controllers.AccRating.Curve(predictedAcc, oldEffective + from.AccOffset), -exponent);
-                double newBase = to.AccScale * Math.Pow(global::RatingAPI.Controllers.AccRating.Curve(predictedAcc, newEffective + to.AccOffset), -exponent);
+                double oldBase = from.AccScale * Math.Pow(global::RatingAPI.Controllers.AccRating.Curve(predictedAcc, oldEffective + from.AccOffset), -exponent)
+                    * global::RatingAPI.Controllers.AccRating.HardSwingMultiplier(pass, hardSwingRatio);
+                double newBase = to.AccScale * Math.Pow(global::RatingAPI.Controllers.AccRating.Curve(predictedAcc, newEffective + to.AccOffset), -exponent)
+                    * global::RatingAPI.Controllers.AccRating.HardSwingMultiplier(newPass, hardSwingRatio);
                 if (oldBase > 0 && double.IsFinite(newBase)) newAcc = accRating * newBase / oldBase;
             }
             return ((float)newPass, (float)newTech, (float)newAcc);

@@ -28,7 +28,6 @@ namespace portaBLe.Pages
             Table = settings.Table.OrderBy(r => r.PredictedAcc).ToList();
 
             var basePoints = generator.GetCurve(lack)
-                .Where(p => p.x >= 0.6)
                 .OrderBy(p => p.x)
                 .Select(p => new[] { Math.Round(p.x * 100, 4), Math.Round(p.y, 5) })
                 .ToList();
@@ -40,7 +39,6 @@ namespace portaBLe.Pages
                 double predicted = Math.Round(MinPredicted + i * Step, 4);
                 var row = settings.ParamsAt(predicted);
                 var points = generator.GetCurve(lack, predicted)
-                    .Where(p => p.x >= 0.6)
                     .OrderBy(p => p.x)
                     .Select(p => new[] { Math.Round(p.x * 100, 4), Math.Round(p.y, 5) })
                     .ToList();

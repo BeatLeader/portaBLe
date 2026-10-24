@@ -71,6 +71,14 @@
         <label class="ce-check"><input type="checkbox" id="autoZoom" checked onchange="draw()" /> zoom around the predicted acc</label>
         <label class="ce-check"><input type="checkbox" id="showRatio" onchange="draw()" /> show the curve as a share of the base curve</label>
     </div>
+    <div class="ce-buttons">
+        <label class="ce-check">Accuracy from <input type="number" id="rangeFrom" class="ce-range" step="1" min="0" max="100" oninput="setRange(num0('rangeFrom'), num0('rangeTo'), true)" />
+            to <input type="number" id="rangeTo" class="ce-range" step="1" min="0" max="100" oninput="setRange(num0('rangeFrom'), num0('rangeTo'), true)" />%</label>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setRange(0, 100)">0-100%</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setRange(60, 100)">60-100%</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" onclick="setRange(90, 100)">90-100%</button>
+        <span class="ce-hint">Mouse wheel on the chart zooms around the cursor, drag pans.</span>
+    </div>
     <div id="params" class="ce-params"></div>
 </div>
 
@@ -114,7 +122,8 @@
     .ce-buttons { display: flex; gap: 0.75em; align-items: center; flex-wrap: wrap; margin-top: 0.4em; }
     .ce-check { font-size: 0.85em; margin: 0; }
     .ce-params { margin-top: 0.6em; font-size: 0.9em; }
-    .ce-chart { position: relative; height: 420px; max-width: 900px; }
+    .ce-chart { position: relative; height: 420px; max-width: 900px; cursor: grab; }
+    .ce-range { width: 4.5em; }
     .ce-table { max-width: 900px; font-size: 0.85em; }
     .ce-corr { max-width: 900px; margin: 0 0 1em; padding: 0.5em 0.8em; border: 1px solid rgba(128, 128, 128, 0.4); border-radius: 4px; }
     .ce-corr legend { font-size: 0.95em; width: auto; padding: 0 0.3em; margin: 0; float: none; }
@@ -136,7 +145,9 @@
         const corr = data.corrections;
 
         // Sampling of Curve.GetCurve (in %): the base table, 0.5% steps from 60% to 95%, 0.05% steps from 95% to 100%
+        // (and 2.5% steps under 60%, where the curve is a straight line, for the chart)
         const grid = Array.from(new Set(data.basePoints.map(q => q[0])
+            .concat(Array.from({ length: 24 }, (_, i) => +(i * 2.5).toFixed(4)))
             .concat(Array.from({ length: 71 }, (_, i) => +(60 + i * 0.5).toFixed(4)))
             .concat(Array.from({ length: 101 }, (_, i) => +(95 + i * 0.05).toFixed(4)))))
             .sort((a, b) => a - b);
@@ -231,6 +242,49 @@
         }
 
         function fmt(v, d) { return Number(v).toFixed(d); }
+
+        // The chart's accuracy range (%): around the predicted acc while "zoom around the predicted acc" is checked, else
+        // the range set by the inputs, the buttons, the mouse wheel (zoom around the cursor) or dragging (pan)
+        let range = { from: 60, to: 100 };
+        function num0(id) { const v = parseFloat(document.getElementById(id).value); return isNaN(v) ? 0 : v; }
+        function setRange(from, to, keepInputs) {
+            from = Math.min(Math.max(from, 0), 99.9);
+            to = Math.min(Math.max(to, from + 0.1), 100);
+            range = { from, to };
+            document.getElementById('autoZoom').checked = false;
+            if (!keepInputs) syncRangeInputs();
+            draw();
+        }
+        function syncRangeInputs() {
+            document.getElementById('rangeFrom').value = +range.from.toFixed(2);
+            document.getElementById('rangeTo').value = +range.to.toFixed(2);
+        }
+        function chartAccAt(clientX) {
+            const area = chart.chartArea, rect = chart.canvas.getBoundingClientRect();
+            const t = Math.min(Math.max((clientX - rect.left - area.left) / (area.right - area.left), 0), 1);
+            return range.from + t * (range.to - range.from);
+        }
+        const canvas = document.getElementById('curveChart');
+        canvas.addEventListener('wheel', ev => {
+            if (!chart) return;
+            ev.preventDefault();
+            const at = chartAccAt(ev.clientX), factor = ev.deltaY > 0 ? 1.25 : 0.8;
+            let from = at - (at - range.from) * factor, to = at + (range.to - at) * factor;
+            if (to - from > 100) { from = 0; to = 100; }
+            if (from < 0) { to -= from; from = 0; }
+            if (to > 100) { from -= to - 100; to = 100; }
+            if (to - from >= 0.1) setRange(from, to);
+        }, { passive: false });
+        let drag = null;
+        canvas.addEventListener('mousedown', ev => { if (chart) drag = { x: ev.clientX, from: range.from, to: range.to }; });
+        window.addEventListener('mouseup', () => drag = null);
+        window.addEventListener('mousemove', ev => {
+            if (!drag || Math.abs(ev.clientX - drag.x) < 3) return;
+            const area = chart.chartArea, width = drag.to - drag.from;
+            let shift = -(ev.clientX - drag.x) / (area.right - area.left) * width;
+            shift = Math.min(Math.max(shift, -drag.from), 100 - drag.to);
+            setRange(drag.from + shift, drag.to + shift);
+        });
         function nudge(d) { slider.value = Math.min(Math.max(+slider.value + d, 0), data.curves.length - 1); draw(); }
 
         function param(name, value, def) {
@@ -259,9 +313,11 @@
             const anyCorrection = !checked('usePerMap') || checked('useTilt') || powerOn() || checked('useNotes');
 
             const ratio = document.getElementById('showRatio').checked;
-            const minX = document.getElementById('autoZoom').checked ? Math.max(60, Math.floor(p) - 3) : 60;
-            const xs = Array.from(new Set(corrPoints.map(q => q[0]).concat(cur.points.map(q => q[0])))).filter(x => x >= minX).sort((a, b) => a - b);
-            const value = (pts, x) => ratio ? interp(pts, x) / Math.max(interp(data.basePoints, x), 1e-9) : interp(pts, x);
+            if (document.getElementById('autoZoom').checked) { range = { from: Math.max(60, Math.floor(p) - 3), to: 100 }; syncRangeInputs(); }
+            const minX = range.from, maxX = range.to;
+            const xs = Array.from(new Set(corrPoints.map(q => q[0]).concat(cur.points.map(q => q[0]), [minX, maxX])))
+                .filter(x => x >= minX && x <= maxX).sort((a, b) => a - b);
+            const value = (pts, x) => { const b = interp(data.basePoints, x); return ratio ? (b > 0 ? interp(pts, x) / b : 1) : interp(pts, x); };
             const thisLine = xs.map(x => ({ x, y: value(corrPoints, x) }));
             const rawLine = anyCorrection ? xs.map(x => ({ x, y: value(cur.points, x) })) : [];
             const baseLine = xs.map(x => ({ x, y: ratio ? 1 : interp(data.basePoints, x) }));
@@ -282,7 +338,7 @@
                     animation: false,
                     maintainAspectRatio: false,
                     scales: {
-                        x: { type: 'linear', min: minX, max: 100, title: { display: true, text: 'Accuracy (%)' } },
+                        x: { type: 'linear', min: minX, max: maxX, title: { display: true, text: 'Accuracy (%)' } },
                         y: { title: { display: true, text: ratio ? 'Curve / base curve' : 'Curve value (acc pp multiplier)' } }
                     },
                     plugins: {

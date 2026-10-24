@@ -114,9 +114,9 @@ tech share, predicted acc, OneSaber, star range), and its acc rating is moved to
 | Arrow directions (fitted on replays) | `RatingAPI/Analyzer/.../Helper/EntryExit.cs` (`SAME_ROW_ADJUST_SCALE`, `ROW_CHANGE_ADJUST_*`), dots in `Helper/DotDirections.cs` |
 | Parity | `RatingAPI/Analyzer/.../Algorithm/ParityPredictor.cs` (comfort / rotation / reset costs, `UsePairResets`) |
 | Tech shape | `RatingAPI/Analyzer/.../Data/Ratings.cs` (`TechExponent`, `TechPassBase`) |
-| Acc rating | `RatingAPI/Controllers/AccRating.cs` (`ACC_SCALE`, `ACC_OFFSET`, hard map correction `HARD_MAP_*`, `ACC_EXPONENT`, movement and high pass corrections `HIT_DISTANCE_*` / `HIGH_PASS_*`) |
+| Acc rating | `RatingAPI/Controllers/AccRating.cs` (`ACC_SCALE`, `ACC_OFFSET`, hard map correction `HARD_MAP_*`, `ACC_EXPONENT`, movement and high pass corrections `HIT_DISTANCE_*` / `HIGH_PASS_*`, hard swing correction `HARD_SWING_*` from the Analyzer's `Ratings.HardSwingRatio`) |
 | pp formula | `RatingAPI/Pp/PpFormula.cs` (pass / acc / tech pp and their rating powers, pass top compression `PassTopKnee` / `PassTopSlope`, tech top compression `TechTopKnee` / `TechTopSlope`, acc curve power `AccCurvePower` / `LowStarCurve*` / `VeryLowStarCurve*`, stars `StarDivisor` / `StarScale` / `StarExponent`, `PpMultiplier`, low star bonus `LowStarBonus*`) |
-| Acc reweighter | `Refresh/Tools/AccReweighter.cs` (`Passes`, `Strengths`, `TargetMetric`, `StarResponse`, `NoiseDeadZone`, `MaxChange`, `LargeGapMaxChange`, `Applied`, guard tolerances, `HeldOutSplits`, `FitAtBaseStars`, `WorthLimit`, `FallbackStrengths`, `GuardMarginWarning`) |
+| Acc reweighter | `Refresh/Tools/AccReweighter.cs` (`Passes`, `Strengths`, `TargetMetric`, `StarResponse`, `NoiseDeadZone`, `MaxChange`, `LargeGapMaxChange`, `Applied`, guard tolerances, `HeldOutSplits`, `FitAtBaseStars`, `WorthLimit`, top play limiter `TopPlay*`, `FallbackStrengths`, `GuardMarginWarning`) |
 | Constants the tuner assumes, worth reference | `Refresh/Tools/BalanceTuner.cs` (`RatingConstants`: keep it equal to the values in code; `WorthBandwidth`) |
 
 ## Layout

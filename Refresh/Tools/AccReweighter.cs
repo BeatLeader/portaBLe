@@ -95,7 +95,10 @@ namespace portaBLe.Refresh
     // the overshoot (over its response, Responses). The other maps of its star range take back the mean, and it's measured
     // again (WorthLimitRounds at most).
     //
-    // The point to store, after the limiter and at the real stars, must pass the balance guard too (acc-reweight.json,
+    // Top play limiter (TopPlayMarginPp), after the worth limiter: a buff may not make a map pay a player much more than
+    // their best play on another map (see there).
+    //
+    // The point to store, after the limiters and at the real stars, must pass the balance guard too (acc-reweight.json,
     // Rejected). When it fails, the fit runs again at the lower strengths of the last pass, highest first, and the first
     // that passes is stored (FallbackStrengths, Fallbacks), else nothing changes: a change to the balance then weakens the
     // reweight instead of dropping it. (Dev, 22 Oct, pass share slope tolerance 0.0037 so that 2.0 failed by 0.0001: 1.6,
@@ -261,6 +264,20 @@ namespace portaBLe.Refresh
         public static double LargeGapMaxChange { get; set; } = 0.16;
         public static double LargeGapFrom { get; set; } = 0.04;
         public static double LargeGapFull { get; set; } = 0.08;
+        // Top play limiter: what a buff adds on top of a player's best play. A buffed map's score may pay at most
+        // TopPlayMarginPp more than the higher of its pp without reweighting and the player's best play on another map (at the
+        // real stars, after the worth limiter); the buff is cut until fewer than TopPlayPlayers players (with TopPlayMinScores
+        // scores or more) are past that. Chrome Vox E+ ended up ~50pp over some players' second best play with x1.13. Most
+        // top plays far over the player's second best are so without reweighting (309 buffed maps had one 30pp+ over, 30 of
+        // them from the buff), so a map already past it isn't held back, only what the buff adds is: a cap on the buff
+        // itself (no buff once a map is a top play by 1%) cut about 1100 of the 2300 buffed maps and failed the balance
+        // guard at every strength. Dev, 24 Oct (hard swing correction): 233 buffed maps added more than 10pp, the most
+        // Break Expert +78pp (x1.130, 19 players), Chrome Vox E+ +60pp (x1.092, 33 players); 243 maps cut (Chrome Vox E+
+        // x1.015), worth spread 0.0232 -> 0.0253. 0 = off.
+        public static double TopPlayMarginPp { get; set; } = 10;
+        public static int TopPlayPlayers { get; set; } = 1;
+        public static int TopPlayMinScores { get; set; } = 30;
+        public static int TopPlayRounds { get; set; } = 6;
 
         private sealed class Point
         {
@@ -306,6 +323,8 @@ namespace portaBLe.Refresh
             public double[] StarRelative = Array.Empty<double>(), StarScale = Array.Empty<double>();
             // The last fit on every player's: each map's kind's worth and its target (Applied of the way there)
             public double?[] KindWorth = Array.Empty<double?>(), Target = Array.Empty<double?>();
+            // Every score's pp without reweighting at the real stars (the top play limiter's, measured on first use)
+            public float[]? ZeroPp;
             public System.Diagnostics.Stopwatch Timer = null!;
         }
 
@@ -495,16 +514,24 @@ namespace portaBLe.Refresh
                 kept = CorrectSlopes(context, atReal, corrections, false, MeasureJacobian(context, kept.LogM, real, false, "kept point, real stars"), "real stars");
             }
 
-            // The worth limiter on what is kept, and the balance guard at the real stars on what would be stored (the limiter
-            // measured it; without the limiter and with FitAtBaseStars, measured here)
+            // The worth limiter and the top play limiter on what is kept, and the balance guard at the real stars on what would
+            // be stored (the limiters measured it; without them and with FitAtBaseStars, measured here). topLimited: the last
+            // Finish's maps the top play limiter cut
+            var topLimited = new bool[mapCount];
             (Point Point, bool[] Limited, double?[]? Worth) Finish(Point p)
             {
+                topLimited = new bool[mapCount];
                 if (p == start) return (p, new bool[mapCount], null);
                 // StarResponse: scaled so they move worth at the real stars as the fit did at the base stars
                 if (StarResponse && FitAtBaseStars)
                     p = new Point { Pass = p.Pass, Strength = p.Strength, SlopeCorrection = p.SlopeCorrection, LogM = Clean(context, p.LogM.Select((v, i) => v * context.StarScale[i]).ToArray(), context.HasWorth), Balance = p.Balance, GuardOk = p.GuardOk };
-                if (WorthLimit > 0) return LimitWorth(context, p);
-                if (!FitAtBaseStars) return (p, new bool[mapCount], null);
+                (Point Point, bool[] Limited, double?[]? Worth) finished = WorthLimit > 0 ? LimitWorth(context, p) : (p, new bool[mapCount], null);
+                if (TopPlayMarginPp > 0)
+                {
+                    var (limitedPoint, worth) = LimitTopPlays(context, finished.Point, topLimited);
+                    return (limitedPoint, finished.Limited, worth);
+                }
+                if (WorthLimit > 0 || !FitAtBaseStars) return finished;
                 var real = Measure(context, p.LogM, false);
                 return (new Point { Pass = p.Pass, Strength = p.Strength, SlopeCorrection = p.SlopeCorrection, LogM = p.LogM, Balance = real.Balance, GuardOk = GuardOk(context.StartBalance, real.Balance) }, new bool[mapCount], real.Worth);
             }
@@ -546,6 +573,7 @@ namespace portaBLe.Refresh
                     if (lower.Count > 0) Console.WriteLine("Acc reweight: WARNING: no strength passes the balance guard at the real stars, nothing changes (see acc-reweight.json, Rejected and Fallbacks)");
                     kept = start;
                     limited = new bool[mapCount];
+                    topLimited = new bool[mapCount];
                     worthAfter = null;
                 }
             }
@@ -604,8 +632,9 @@ namespace portaBLe.Refresh
             var result = new AccReweightResult
             {
                 GeneratedAt = DateTime.UtcNow,
-                Settings = new AccReweightSettings { WorthMeasure = BalanceTuner.WorthMeasure.ToString(), Passes = Passes, Strengths = Strengths, EvidenceScores = EvidenceScores, MinAccShare = MinAccShare, MaxChange = MaxChange, Applied = Applied, GuardTolerance = GuardTolerance, GapTolerance = GapTolerance, SlopeCorrection = SlopeCorrection, SlopeCorrectionTolerance = SlopeCorrectionTolerance, WorthLimit = WorthLimit, HeldOutSplits = HeldOutSplits, FitAtBaseStars = FitAtBaseStars, ResponseNoise = ResponseNoise, DriftCompensationRounds = DriftCompensationRounds, FrozenStarsRounds = FrozenStarsRounds, GuardMarginWarning = GuardMarginWarning, FallbackStrengths = FallbackStrengths, StarResponse = StarResponse, TargetMetric = TargetMetric, NoiseDeadZone = NoiseDeadZone, NoisePerScore = NoisePerScore, LargeGapMaxChange = LargeGapMaxChange },
+                Settings = new AccReweightSettings { WorthMeasure = BalanceTuner.WorthMeasure.ToString(), Passes = Passes, Strengths = Strengths, EvidenceScores = EvidenceScores, MinAccShare = MinAccShare, MaxChange = MaxChange, Applied = Applied, GuardTolerance = GuardTolerance, GapTolerance = GapTolerance, SlopeCorrection = SlopeCorrection, SlopeCorrectionTolerance = SlopeCorrectionTolerance, WorthLimit = WorthLimit, HeldOutSplits = HeldOutSplits, FitAtBaseStars = FitAtBaseStars, ResponseNoise = ResponseNoise, DriftCompensationRounds = DriftCompensationRounds, FrozenStarsRounds = FrozenStarsRounds, GuardMarginWarning = GuardMarginWarning, FallbackStrengths = FallbackStrengths, StarResponse = StarResponse, TargetMetric = TargetMetric, NoiseDeadZone = NoiseDeadZone, NoisePerScore = NoisePerScore, LargeGapMaxChange = LargeGapMaxChange, TopPlayMarginPp = TopPlayMarginPp, TopPlayPlayers = TopPlayPlayers, TopPlayMinScores = TopPlayMinScores },
                 MapsLimited = limited.Count(l => l),
+                MapsTopPlayLimited = topLimited.Count(l => l),
                 HeldOut = splits.SelectMany(s => s).Select(ToRound).ToList(),
                 Rounds = phase2.Select(ToRound).ToList(),
                 KeptRound = phase2.IndexOf(uncorrected),
@@ -630,6 +659,7 @@ namespace portaBLe.Refresh
                         Target = context.Target.Length > 0 && context.Target[i] is double t ? Math.Round(t, 4) : null,
                         WorthAfter = worthAfter?[i] is double a ? Math.Round(a, 4) : null,
                         Limited = limited[i],
+                        TopPlayLimited = topLimited[i],
                     })
                     .Where(m => Math.Abs(m.Multiplier - 1) > 0.0005)
                     .OrderBy(m => m.Multiplier)
@@ -1088,6 +1118,81 @@ namespace portaBLe.Refresh
             return (point, limited, worth);
         }
 
+        // The top play limiter (TopPlayMarginPp, see above), at the real stars: each round, each buffed map's multiplier cut
+        // to what takes its TopPlayPlayers-th player past the margin back to it (each score's pp change over the log multiplier,
+        // measured), until none is past it or TopPlayRounds (the other maps' cuts move the players' best plays). Only cuts
+        // buffs. limited: the maps cut.
+        private static (Point Point, double?[] Worth) LimitTopPlays(Context c, Point kept, bool[] limited)
+        {
+            int mapCount = c.Loaded.Maps.Length;
+            var logM = (double[])kept.LogM.Clone();
+            c.ZeroPp ??= Measure(c, new double[mapCount], false).E.Pp;
+            var zeroPp = c.ZeroPp;
+            for (int round = 0; ; round++)
+            {
+                var measured = Measure(c, logM, false);
+                var (data, e) = (measured.Data, measured.E);
+                // Each player's best and second best pp, and the best's map
+                var best = new double[data.PlayerCount];
+                var second = new double[data.PlayerCount];
+                var bestMap = new int[data.PlayerCount];
+                Parallel.For(0, data.PlayerCount, p =>
+                {
+                    double b = 0, s2 = 0;
+                    int bm = -1;
+                    foreach (var s in data.PlayerScores[p])
+                    {
+                        double pp = e.Pp[s];
+                        if (pp > b) { s2 = b; b = pp; bm = data.ScoreMap[s]; }
+                        else if (pp > s2) s2 = pp;
+                    }
+                    (best[p], second[p], bestMap[p]) = (b, s2, bm);
+                });
+
+                // Each buffed map's multiplier (log) that takes each player past the margin back to it, the TopPlayPlayers-th
+                // lowest the cut; how far past (pp) the furthest player is
+                var cut = new double?[mapCount];
+                var overPlayers = new int[mapCount];
+                var overPp = new double[mapCount];
+                Parallel.For(0, mapCount, i =>
+                {
+                    if (logM[i] <= 1e-6) return;
+                    var allowed = new List<double>();
+                    foreach (var s in data.Maps[i].Scores)
+                    {
+                        int p = data.ScorePlayer[s];
+                        if (data.PlayerScores[p].Length < TopPlayMinScores) continue;
+                        double other = bestMap[p] == i ? second[p] : best[p];
+                        double pp = e.Pp[s], pp0 = zeroPp[s], cap = Math.Max(pp0, other) + TopPlayMarginPp;
+                        if (other <= 0 || pp <= cap) continue;
+                        overPp[i] = Math.Max(overPp[i], pp - Math.Max(pp0, other));
+                        double response = pp > pp0 && pp0 > 0 ? Math.Log(pp / pp0) / logM[i] : 0;
+                        allowed.Add(response <= 0 ? 0 : Math.Max(logM[i] - Math.Log(pp / cap) / response, 0));
+                    }
+                    overPlayers[i] = allowed.Count;
+                    if (allowed.Count >= TopPlayPlayers) cut[i] = allowed.OrderBy(v => v).ElementAt(TopPlayPlayers - 1);
+                });
+                int over = cut.Count(v => v != null);
+                var furthest = Enumerable.Range(0, mapCount).Where(i => cut[i] != null).OrderByDescending(i => overPp[i]).Take(3)
+                    .Select(i => FormattableString.Invariant($"{c.Loaded.Maps[i].Leaderboard.Name} {c.Loaded.Maps[i].Leaderboard.DifficultyName} x{Math.Exp(logM[i]):0.000} +{overPp[i]:0}pp ({overPlayers[i]} players)"));
+                Console.WriteLine(FormattableString.Invariant(
+                    $"Acc reweight (top play limiter): round {round}: {over} buffed maps adding more than {TopPlayMarginPp:0.#}pp over their players' best other play{(over > 0 ? $", furthest: {string.Join(", ", furthest)}" : "")}, worth spread {measured.Balance.WorthSpread:0.0000} ({c.Timer.Elapsed:mm\\:ss})"));
+                if (over == 0 || round == TopPlayRounds)
+                {
+                    var point = new Point { Pass = kept.Pass, Strength = kept.Strength, SlopeCorrection = kept.SlopeCorrection, LogM = logM, Balance = measured.Balance, GuardOk = GuardOk(c.StartBalance, measured.Balance) };
+                    Console.WriteLine(FormattableString.Invariant(
+                        $"Acc reweight: top play limiter cut {limited.Count(l => l)} maps: worth spread {kept.Balance.WorthSpread:0.0000} -> {measured.Balance.WorthSpread:0.0000}, mean change {kept.LogM.Average(v => Math.Abs(Math.Exp(v) - 1)) * 100:0.0}% -> {logM.Average(v => Math.Abs(Math.Exp(v) - 1)) * 100:0.0}%"));
+                    return (point, measured.Worth);
+                }
+                for (int i = 0; i < mapCount; i++)
+                {
+                    if (cut[i] is not double v) continue;
+                    logM[i] = Math.Min(logM[i], v);
+                    limited[i] = true;
+                }
+            }
+        }
+
         private static double Spread(double?[] worth)
         {
             var values = worth.Where(w => w != null).Select(w => w!.Value).ToList();
@@ -1250,7 +1355,7 @@ namespace portaBLe.Refresh
                 var copy = new Leaderboard
                 {
                     Id = lb.Id, Name = lb.Name, Hash = lb.Hash, ModeName = lb.ModeName, DifficultyName = lb.DifficultyName,
-                    PredictedAcc = lb.PredictedAcc, Curve = lb.Curve, HitDistance = lb.HitDistance,
+                    PredictedAcc = lb.PredictedAcc, Curve = lb.Curve, HitDistance = lb.HitDistance, HardSwingRatio = lb.HardSwingRatio,
                     PassRating = lb.PassRating, TechRating = lb.TechRating,
                     AccRating = (float)(baseAcc[i] * m),
                 };
@@ -1310,6 +1415,8 @@ namespace portaBLe.Refresh
         public double AppliedFraction { get; set; }
         // Maps whose multiplier the worth limiter cut
         public int MapsLimited { get; set; }
+        // Maps whose multiplier the top play limiter cut
+        public int MapsTopPlayLimited { get; set; }
         // The multipliers stored (the kept ones)
         public AccReweightRound? Applied { get; set; }
         // The point that failed the balance guard at the real stars (null: none); a fallback may have been stored instead
@@ -1349,6 +1456,9 @@ namespace portaBLe.Refresh
         public double NoiseDeadZone { get; set; }
         public double NoisePerScore { get; set; }
         public double LargeGapMaxChange { get; set; }
+        public double TopPlayMarginPp { get; set; }
+        public int TopPlayPlayers { get; set; }
+        public int TopPlayMinScores { get; set; }
     }
 
     // A round of the drift compensation: pass share, tech share and predicted acc slopes
@@ -1395,5 +1505,7 @@ namespace portaBLe.Refresh
         public double? Target { get; set; }
         // The worth limiter cut its multiplier
         public bool Limited { get; set; }
+        // The top play limiter cut its multiplier
+        public bool TopPlayLimited { get; set; }
     }
 }
