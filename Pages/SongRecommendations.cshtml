@@ -209,16 +209,6 @@ else
                         <td>@score.Pp.ToString("0")</td>
                     </tr>
                 }
-                @foreach (var song in run.AddedSeeds)
-                {
-                    <tr>
-                        <td><input type="checkbox" class="form-check-input" name="AddedSeeds" value="@song.LeaderboardId" checked /></td>
-                        <td>@SongCell(song)</td>
-                        <td>@song.DifficultyName</td>
-                        <td>@StarsText(song)</td>
-                        <td colspan="2" class="text-muted">added, not played</td>
-                    </tr>
-                }
             </tbody>
         </table>
 
@@ -230,6 +220,28 @@ else
             <div class="col-auto"><button type="button" id="map-search-button" class="btn btn-outline-secondary">Search</button></div>
         </div>
         <ul class="list-group mb-3" id="map-results"></ul>
+
+        <div id="added-maps" class="@(run.AddedSeeds.Count == 0 ? "d-none" : "")">
+            <h5>Added maps</h5>
+            <table class="table table-sm align-middle" id="added-table">
+                <thead>
+                    <tr><th></th><th>Song</th><th>Difficulty</th><th>Stars</th><th>Your acc</th><th>Your pp</th><th></th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var song in run.AddedSeeds)
+                    {
+                        <tr>
+                            <td><input type="checkbox" class="form-check-input" name="AddedSeeds" value="@song.LeaderboardId" checked /></td>
+                            <td>@SongCell(song)</td>
+                            <td>@song.DifficultyName</td>
+                            <td>@StarsText(song)</td>
+                            <td colspan="2" class="text-muted">added, not played</td>
+                            <td><button type="button" class="btn btn-sm btn-outline-danger remove-added">Remove</button></td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </div>
 
         <details class="mb-3">
             <summary>Your other plays (@otherPlays.Count)</summary>
@@ -442,23 +454,66 @@ else
             return td;
         };
 
+        const added = document.getElementById('added-maps');
+        const addedBody = document.querySelector('#added-table tbody');
+        const playsBody = document.querySelector('#other-plays tbody');
+        const showAdded = () => added.classList.toggle('d-none', addedBody.children.length === 0);
+
+        const removeButton = () => {
+            const td = document.createElement('td');
+            const button = document.createElement('button');
+            button.type = 'button'; button.className = 'btn btn-sm btn-outline-danger remove-added'; button.textContent = 'Remove';
+            td.appendChild(button);
+            return td;
+        };
+
         const add = map => {
-            const selector = ['Seeds', 'AddedSeeds'].map(name => `#songrec-form input[name="${name}"][value="${CSS.escape(map.id)}"]`).join(', ');
-            const existing = document.querySelectorAll(selector);
-            if (existing.length > 0) {
-                // Already a seed or one of the player's plays: tick it
-                existing.forEach(box => box.checked = true);
+            const box = name => `input[name="${name}"][value="${CSS.escape(map.id)}"]`;
+            const existing = seedBody.querySelector(box('Seeds')) ?? addedBody.querySelector(`${box('Seeds')}, ${box('AddedSeeds')}`);
+            if (existing) {
+                // Already a seed or added: tick it
+                existing.checked = true;
+                return;
+            }
+            const play = playsBody?.querySelector(box('Seeds'));
+            if (play) {
+                // One of the player's other plays: move it to the added maps, ticked, until removed
+                const row = play.closest('tr');
+                play.checked = true;
+                row.dataset.fromPlays = 'true';
+                row.style.display = '';
+                row.appendChild(removeButton());
+                addedBody.appendChild(row);
+                showAdded();
                 return;
             }
             const row = document.createElement('tr');
-            const box = document.createElement('input');
-            box.type = 'checkbox'; box.className = 'form-check-input'; box.name = 'AddedSeeds'; box.value = map.id; box.checked = true;
-            const first = document.createElement('td'); first.appendChild(box);
+            const input = document.createElement('input');
+            input.type = 'checkbox'; input.className = 'form-check-input'; input.name = 'AddedSeeds'; input.value = map.id; input.checked = true;
+            const first = document.createElement('td'); first.appendChild(input);
+            const played = cell('added, not played yet', 'text-muted');
+            played.colSpan = 2;
             row.append(first, cell(`${map.name}${map.mapper ? ' — ' + map.mapper : ''}`), cell(map.difficulty), cell(`${map.stars.toFixed(2)}★`),
-                cell('added, not played yet', 'text-muted'));
-            row.lastChild.colSpan = 2;
-            seedBody.appendChild(row);
+                played, removeButton());
+            addedBody.appendChild(row);
+            showAdded();
         };
+
+        addedBody.addEventListener('click', e => {
+            const button = e.target.closest('.remove-added');
+            if (!button) return;
+            const row = button.closest('tr');
+            if (row.dataset.fromPlays) {
+                // Back to the other plays, unticked
+                button.closest('td').remove();
+                delete row.dataset.fromPlays;
+                row.querySelector('input[type="checkbox"]').checked = false;
+                playsBody.appendChild(row);
+            } else {
+                row.remove();
+            }
+            showAdded();
+        });
 
         const run = async () => {
             results.replaceChildren();
@@ -486,7 +541,7 @@ else
         search.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); run(); } });
 
         document.getElementById('unselect-all').onclick = () =>
-            document.querySelectorAll('#seed-table input[type="checkbox"]').forEach(box => box.checked = false);
+            document.querySelectorAll('#seed-table input[type="checkbox"], #added-table input[type="checkbox"]').forEach(box => box.checked = false);
 
         const filter = document.getElementById('plays-filter');
         filter?.addEventListener('input', () => {
