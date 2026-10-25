@@ -24,12 +24,17 @@ public interface ISeedSongSelector
     /// comparative-best evaluation pool before reducing back down to <paramref name="seedCount"/>.
     /// </param>
     /// <param name="onProgress">Optional callback invoked with human-readable progress messages.</param>
+    /// <param name="playedScores">
+    /// The target player's scores when the caller already has them (at least their top
+    /// <paramref name="seedCount"/> + <paramref name="extraSongs"/> by PP), else null to fetch them.
+    /// </param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     Task<IReadOnlyList<Score>> SelectSeedSongsAsync(
         string targetPlayerId,
         int seedCount = 50,
         int extraSongs = 25,
         Action<string>? onProgress = null,
+        IReadOnlyList<Score>? playedScores = null,
         CancellationToken cancellationToken = default);
 }
 
@@ -51,15 +56,20 @@ public sealed class SeedSongSelector : ISeedSongSelector
         int seedCount = 50,
         int extraSongs = 25,
         Action<string>? onProgress = null,
+        IReadOnlyList<Score>? playedScores = null,
         CancellationToken cancellationToken = default)
     {
         var poolTarget = seedCount + Math.Max(0, extraSongs);
 
-        onProgress?.Invoke($"Fetching played scores for player {targetPlayerId} to build the seed candidate pool...");
+        var played = playedScores;
+        if (played is null)
+        {
+            onProgress?.Invoke($"Fetching played scores for player {targetPlayerId} to build the seed candidate pool...");
 
-        // The API returns scores ordered by PP descending
-        var played = await _client.GetPlayerTopScoresAsync(targetPlayerId, Math.Max(poolTarget, 1), cancellationToken)
-            .ConfigureAwait(false);
+            // The API returns scores ordered by PP descending
+            played = await _client.GetPlayerTopScoresAsync(targetPlayerId, Math.Max(poolTarget, 1), cancellationToken)
+                .ConfigureAwait(false);
+        }
 
         if (played.Count == 0)
         {

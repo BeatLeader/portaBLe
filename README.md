@@ -53,6 +53,9 @@ From the command line (`dotnet run -c Release -- …`):
   `default` (without Easier, current), `easier`, `weights` (Style x Easier), `keep` (link keep %), `links` (peers per
   seed x plays per peer), `plays`, `seeds` (seed count), `offset` (level offset); seed: which players are sampled; first plays: new players simulated, only their first that many ranked
   plays kept (`SongRec/Tools/RecommendationEvaluation.cs`).
+- `songrecbench <wwwroot/file.db> [players]`: times the Song Recommendations page's run for players spread over the
+  ranks (the first runs step by step), with a digest of each one's suggestions, to check a speed change leaves them as
+  they were (`SongRec/Tools/RecommendationBenchmark.cs`).
 
 ## Ratings on prod's scale
 

@@ -200,7 +200,7 @@ public sealed class RecommendationPipeline
         IReadOnlyList<Score> seedScores = options.SeedLeaderboardIds is { } chosen
             ? playerScores.Where(s => chosen.Contains(s.Song.LeaderboardId)).ToList()
             : await new SeedSongSelector(_client).SelectSeedSongsAsync(
-                playerId, options.SeedCount, onProgress: onProgress, cancellationToken: cancellationToken).ConfigureAwait(false);
+                playerId, options.SeedCount, onProgress: onProgress, playedScores: playerScores, cancellationToken: cancellationToken).ConfigureAwait(false);
         var addedIds = options.AddedSeedLeaderboardIds.Distinct(StringComparer.Ordinal).ToList();
         seedScores = seedScores
             .Concat(addedIds.Where(playedById.ContainsKey).Select(id => playedById[id]))

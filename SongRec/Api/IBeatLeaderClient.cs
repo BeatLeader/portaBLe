@@ -20,6 +20,16 @@ public interface IBeatLeaderClient
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets several players' top ranked scores at once (each player's ordered by PP), as
+    /// <see cref="GetPlayerTopScoresAsync"/> for each: every player asked for is a key, with no
+    /// scores when they have none.
+    /// </summary>
+    Task<IReadOnlyDictionary<string, IReadOnlyList<Score>>> GetPlayersTopScoresAsync(
+        IReadOnlyCollection<string> playerIds,
+        int count,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Gets the top scorers for a specific leaderboard.
     /// </summary>
     Task<IReadOnlyList<Score>> GetLeaderboardScoresAsync(

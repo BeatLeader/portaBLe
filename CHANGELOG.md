@@ -6,6 +6,24 @@ model comes from `beatsaber-replays-ai-2`.
 The goal is ratings that never need scores at rating time. Scores, replays and fail attempts are used offline, to fit and
 validate constants. The one exception is the acc reweighter (below), the only tool that changes ratings from scores.
 
+## Song recommendations: 9x faster, same suggestions
+
+A run took 3.3 s (median of 12 players over the ranks, `songrecbench`), 0.38 s now; `songreceval` 10 players 67 s → 4 s.
+Every player's suggestions are the same (the benchmark's digests, songreceval's table).
+
+- **About 1,000 queries became about 80** (`DbBeatLeaderClient`): the peers' top plays in one query
+  (`IBeatLeaderClient.GetPlayersTopScoresAsync`), each seed leaderboard read once and kept for the run (the seed
+  selection and the peer search asked for the same ones), the seed selection on the plays the pipeline already has.
+- **Plain SQL, score columns only**: no EF query, change tracking or join of each score to its leaderboard and player;
+  the songs come from a catalog of the file's leaderboards loaded once per database file (`LeaderboardCatalog`,
+  reloaded when the file changes, warmed at startup for the main database).
+- **Memory-mapped reads** (`PRAGMA mmap_size`): halved the queries' time.
+- **Server**: a run stops when its request is aborted; at most half the cores' runs at once (the others wait);
+  the last 32 runs are kept 10 minutes, so the playlist download after the page doesn't run it again.
+- Tried and not kept: indexes on Scores (PlayerId, Pp) and (LeaderboardId, Pp). Those queries were 10-20x faster, but
+  rewriting every score's pp took 43 s against 2 s (the rating pipeline does it on each refresh), and each index adds
+  130 MB per database.
+
 ## Song recommendations: peers, easier maps, a level where players gain
 
 Measured with the new `songreceval` (holdout: each sampled player's 40 most recent scores hidden, 200 players over

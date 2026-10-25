@@ -110,7 +110,7 @@ public sealed class LinkedPlayerFinder : ILinkedPlayerFinder
         // players, tracking which seed song(s) established each link. Seeds the player has a score on
         // (Pp) link the scorers nearest that score; added seeds (no Pp) the scorers nearest the player's
         // overall PP.
-        var linkedPlayersBySeedSong = new Dictionary<string, LinkedPlayer>();
+        var linkedPlayers = new Dictionary<string, (Player Player, List<Song> SeedSongs)>();
         var linkedPlayerScoresOnSeed = new Dictionary<string, List<(Song SeedSong, Score Score)>>();
         var seeds = seedScores.Select(s => (Song: s.GetEffectiveSong(), Pp: (double?)s.Pp))
             .Concat((extraSeedSongs ?? []).Select(song => (Song: song, Pp: (double?)null)))
@@ -158,22 +158,13 @@ public sealed class LinkedPlayerFinder : ILinkedPlayerFinder
                     Name = leaderboardScore.PlayerId
                 };
 
-                if (linkedPlayersBySeedSong.TryGetValue(player.Id, out var existing))
+                if (linkedPlayers.TryGetValue(player.Id, out var existing))
                 {
-                    var mergedSongs = new List<Song>(existing.SharedSeedSongs) { seedSong };
-                    linkedPlayersBySeedSong[player.Id] = new LinkedPlayer
-                    {
-                        Player = existing.Player,
-                        SharedSeedSongs = mergedSongs
-                    };
+                    existing.SeedSongs.Add(seedSong);
                 }
                 else
                 {
-                    linkedPlayersBySeedSong[player.Id] = new LinkedPlayer
-                    {
-                        Player = player,
-                        SharedSeedSongs = [seedSong]
-                    };
+                    linkedPlayers[player.Id] = (player, [seedSong]);
                 }
 
                 if (!linkedPlayerScoresOnSeed.TryGetValue(player.Id, out var seedHits))
@@ -186,33 +177,22 @@ public sealed class LinkedPlayerFinder : ILinkedPlayerFinder
             }
         }
 
+        var linkedPlayersBySeedSong = linkedPlayers.ToDictionary(
+            pair => pair.Key,
+            pair => new LinkedPlayer { Player = pair.Value.Player, SharedSeedSongs = pair.Value.SeedSongs });
         onProgress?.Invoke($"Found {linkedPlayersBySeedSong.Count} linked players.");
 
-        // Step 3: for each linked player, fetch their own top scores and build a raw link for
-        // every (origin seed song -> target song) pair, mirroring SmartSongSuggest's
+        // Step 3: for each linked player, fetch their own top scores (all of them in one query) and build
+        // a raw link for every (origin seed song -> target song) pair, mirroring SmartSongSuggest's
         // GenerateLinks: origin -> matching leaderboard player -> other top songs.
         var rawLinks = new List<(Song OriginSong, LinkedPlayer LinkedPlayer, Score TargetScore, double Distance)>();
-        var linkedPlayerIndex = 0;
-        var totalLinkedPlayers = linkedPlayersBySeedSong.Count;
+        onProgress?.Invoke($"Fetching the top {playsPerPeer} scores of {linkedPlayersBySeedSong.Count} linked players...");
+        var topScoresByPlayer = await _client.GetPlayersTopScoresAsync(linkedPlayersBySeedSong.Keys, playsPerPeer, cancellationToken)
+            .ConfigureAwait(false);
 
         foreach (var (playerId, linkedPlayer) in linkedPlayersBySeedSong)
         {
-            linkedPlayerIndex++;
-            onProgress?.Invoke($"[{linkedPlayerIndex}/{totalLinkedPlayers}] Fetching top scores for linked player '{linkedPlayer.Player.Name}'...");
-            IReadOnlyList<Score> linkedPlayerScores;
-            try
-            {
-                linkedPlayerScores = await _client.GetPlayerTopScoresAsync(
-                    linkedPlayer.Player.Id,
-                    playsPerPeer,
-                    cancellationToken).ConfigureAwait(false);
-            }
-            catch (Exception ex) when (ex is HttpRequestException or JsonException or InvalidOperationException)
-            {
-                onProgress?.Invoke($"  Skipping linked player '{linkedPlayer.Player.Name}': {ex.Message}.");
-                continue;
-            }
-
+            var linkedPlayerScores = topScoresByPlayer.GetValueOrDefault(playerId) ?? [];
             if (!linkedPlayerScoresOnSeed.TryGetValue(playerId, out var seedHits))
             {
                 continue;
@@ -253,10 +233,9 @@ public sealed class LinkedPlayerFinder : ILinkedPlayerFinder
         // mirroring SmartSongSuggest's LinkKeepPercent-based pruning in GenerateLinks.
         var keepFraction = Math.Clamp(linkKeepPercent, 0d, 1d);
         var keepCount = (int)Math.Ceiling(keepFraction * rawLinks.Count);
-        var prunedLinks = rawLinks
-            .OrderBy(l => l.Distance)
-            .Take(keepCount)
-            .ToList();
+        var prunedLinks = keepCount >= rawLinks.Count
+            ? rawLinks
+            : rawLinks.OrderBy(l => l.Distance).Take(keepCount).ToList();
 
         onProgress?.Invoke($"Kept {prunedLinks.Count} links after distance-based pruning ({keepFraction:P0}).");
 

@@ -246,6 +246,25 @@ public static class RecommendationEvaluation
             return scores;
         }
 
+        public async Task<IReadOnlyDictionary<string, IReadOnlyList<Score>>> GetPlayersTopScoresAsync(IReadOnlyCollection<string> playerIds, int count, CancellationToken cancellationToken = default)
+        {
+            var missing = playerIds.Where(id => id != _hiddenPlayerId && !_playerTop.ContainsKey((id, count))).Distinct().ToList();
+            if (missing.Count > 0)
+            {
+                foreach (var (id, scores) in await inner.GetPlayersTopScoresAsync(missing, count, cancellationToken).ConfigureAwait(false))
+                {
+                    _playerTop[(id, count)] = scores;
+                }
+            }
+
+            var result = new Dictionary<string, IReadOnlyList<Score>>();
+            foreach (var id in playerIds)
+            {
+                result[id] = await GetPlayerTopScoresAsync(id, count, cancellationToken).ConfigureAwait(false);
+            }
+            return result;
+        }
+
         public async Task<IReadOnlyList<Score>> GetLeaderboardScoresByIdAsync(string leaderboardId, int count, CancellationToken cancellationToken = default)
         {
             // One more, in case the hidden player's score is among them

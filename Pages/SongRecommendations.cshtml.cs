@@ -5,6 +5,7 @@ using beatleader_songrec.Export;
 using beatleader_songrec.Requests;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Caching.Memory;
 using portaBLe.Services;
 using DbLeaderboard = portaBLe.DB.Leaderboard;
 
@@ -152,7 +153,27 @@ namespace portaBLe.Pages
             using var context = GetDbContext();
             try
             {
-                Run = await new RecommendationPipeline(new DbBeatLeaderClient(context)).RunAsync(PlayerId, options);
+                // The same form again (the playlist download after the page, a reload) is the same run, while the
+                // database file is unchanged
+                var path = context.Database.GetDbConnection().DataSource;
+                var key = string.Join("|", path, System.IO.File.GetLastWriteTimeUtc(path).Ticks, PlayerId, options.LevelOffset,
+                    options.ExcludeAlreadyPlayed, options.SeedLeaderboardIds is { } chosen ? string.Join(",", chosen.Order(StringComparer.Ordinal)) : "auto",
+                    string.Join(",", options.AddedSeedLeaderboardIds.Order(StringComparer.Ordinal)));
+                if (!RecentRuns.TryGetValue(key, out RecommendationResult run))
+                {
+                    var token = HttpContext.RequestAborted;
+                    await RunSlots.WaitAsync(token);
+                    try
+                    {
+                        run = await new RecommendationPipeline(new DbBeatLeaderClient(context)).RunAsync(PlayerId, options, cancellationToken: token);
+                    }
+                    finally
+                    {
+                        RunSlots.Release();
+                    }
+                    RecentRuns.Set(key, run, new MemoryCacheEntryOptions { Size = 1, SlidingExpiration = TimeSpan.FromMinutes(10) });
+                }
+                Run = run;
                 ErrorMessage = Run.Error;
                 SeedsFor = Run.PlayerScores.Count > 0 ? PlayerId : null;
             }
@@ -161,5 +182,12 @@ namespace portaBLe.Pages
                 ErrorMessage = $"Error: {ex.Message}";
             }
         }
+
+        // Runs at once: each reads a few hundred thousand scores and holds them (up to about 30 MB) until it's done, so
+        // a burst of requests waits its turn rather than all of them slowing each other down
+        private static readonly SemaphoreSlim RunSlots = new(Math.Max(2, Environment.ProcessorCount / 2));
+
+        // The last runs (each up to a few hundred kB: the player's plays and the suggestions)
+        private static readonly MemoryCache RecentRuns = new(new MemoryCacheOptions { SizeLimit = 32 });
     }
 }

@@ -308,6 +308,12 @@ namespace portaBLe
                     args.Length > 5 ? int.Parse(args[5]) : null);
                 return;
             }
+            if (args.Length > 1 && args[0] == "songrecbench")
+            {
+                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};Mode=ReadOnly;").Options;
+                await beatleader_songrec.Tools.RecommendationBenchmark.Run(() => new AppContext(options), args.Length > 2 ? int.Parse(args[2]) : 10);
+                return;
+            }
             if (args.Length > 0 && args[0] == "accreweight")
             {
                 bool rescore = args.Contains("rescore");
@@ -383,6 +389,12 @@ namespace portaBLe
                 // so the page is ready when someone opens it
                 var startupDbService = app.Services.GetRequiredService<IDynamicDbContextService>();
                 _ = Task.Run(() => TopScoresCache.TryGetAsync(() => startupDbService.CreateContext(startupDbService.GetMainDatabaseFileName())));
+                // And its leaderboards for the song recommendations (loaded on the first run otherwise, about half a second)
+                _ = Task.Run(async () =>
+                {
+                    using var context = startupDbService.CreateContext(startupDbService.GetMainDatabaseFileName());
+                    await new beatleader_songrec.Api.DbBeatLeaderClient(context).GetAllRankedMapsAsync();
+                });
 
                 // Configure the HTTP request pipeline.
                 if (!app.Environment.IsDevelopment())
