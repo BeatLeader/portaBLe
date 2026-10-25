@@ -20,7 +20,7 @@ else
 }
 <p class="text-muted">
     Maps to play next: the top plays of your peers, the players whose pp is nearest yours on the maps you're best at.
-    Maps near your level come first; move the level offset to aim easier or harder.
+    Maps near your level come first; move the level slider to aim easier or harder.
 </p>
 
 @if (!string.IsNullOrEmpty(Model.ErrorMessage))
@@ -42,15 +42,21 @@ else
             <ul class="list-group position-absolute shadow-sm w-100 d-none" id="player-results" style="z-index: 1000; max-height: 22rem; overflow-y: auto"></ul>
         </div>
         <div class="col-auto" style="min-width: 16rem">
-            <label for="LevelOffset" class="form-label" title="Moves the level the suggestions aim at: negative for easier maps, positive for harder ones">
-                Level offset: <output id="LevelOffsetValue">@OffsetText(Model.LevelOffset)</output>
+            @{
+                var playerLevel = Model.Run?.PlayerLevel;
+            }
+            <label for="LevelSlider" class="form-label" title="The level the suggestions aim at: your level (the median stars of your 50 best plays) until you move it">
+                Level: <output id="LevelValue">@(Model.TargetLevel is double aimed ? $"{Invariant(aimed, "0.00")}★" : LevelText(playerLevel))</output>
+                @if (playerLevel is double ownLevel)
+                {
+                    <button type="button" id="LevelReset" class="btn btn-link btn-sm p-0 ms-1 align-baseline" data-level="@Invariant(Math.Round(ownLevel, 2))" data-text="@LevelText(ownLevel)"
+                            title="Back to your level (@ownLevel.ToString("0.00")★)">reset</button>
+                }
             </label>
-            <input type="range" id="LevelOffset" name="LevelOffset" class="form-range"
-                   min="@Invariant(RecommendationOptions.MinLevelOffset)"
-                   max="@Invariant(RecommendationOptions.MaxLevelOffset)" step="0.25"
-                   value="@Invariant(Model.LevelOffset)"
-                   oninput="document.getElementById('LevelOffsetValue').value = (this.value > 0 ? '+' : '') + Number(this.value).toFixed(2) + '★'" />
-            <div class="d-flex justify-content-between small text-muted"><span>easier</span><span>harder</span></div>
+            <input type="hidden" id="TargetLevel" name="TargetLevel" value="@(Model.TargetLevel is double chosen ? Invariant(Math.Round(chosen, 2)) : "")" />
+            <input type="range" id="LevelSlider" class="form-range" min="0" max="@Invariant(Model.MaxStars)" step="0.05"
+                   value="@Invariant(Math.Round(Model.TargetLevel ?? playerLevel ?? Model.MaxStars / 2, 2))" />
+            <div class="d-flex justify-content-between small text-muted"><span>0★</span><span>@Invariant(Model.MaxStars, "0.0")★</span></div>
         </div>
         <div class="col-auto form-check mb-2">
             <input type="checkbox" asp-for="ExcludeAlreadyPlayed" class="form-check-input" />
@@ -71,9 +77,9 @@ else
             }
             @if (run.TargetLevel is double target)
             {
-                @if (Model.LevelOffset != 0)
+                @if (run.PlayerLevel is not double own || Math.Abs(target - own) >= 0.005)
                 {
-                    <span>Aiming at <strong>@target.ToString("0.00")★</strong> (@OffsetText(Model.LevelOffset)).</span>
+                    <span>Aiming at <strong>@target.ToString("0.00")★</strong>.</span>
                 }
                 @if (run.InStarWindow)
                 {
@@ -95,7 +101,7 @@ else
                         <th>Song</th>
                         <th>Difficulty</th>
                         <th>Stars</th>
-                        <th title="Stars minus the level aimed at (your level plus the offset): negative is easier">vs level</th>
+                        <th title="Stars minus the level aimed at: negative is easier">vs level</th>
                         <th title="How many of your peers have it among their top plays">Peers</th>
                         <th title="The pp your peers got on it, on average: about what a score like theirs would give you">Peers' pp</th>
                     </tr>
@@ -272,6 +278,22 @@ else
 </form>
 
 <script>
+    // Level slider: the level posted once moved; empty (the player's level) until then or after reset
+    (() => {
+        const slider = document.getElementById('LevelSlider');
+        const target = document.getElementById('TargetLevel');
+        const value = document.getElementById('LevelValue');
+        slider.addEventListener('input', () => {
+            target.value = slider.value;
+            value.value = Number(slider.value).toFixed(2) + '★';
+        });
+        document.getElementById('LevelReset')?.addEventListener('click', e => {
+            slider.value = e.target.dataset.level;
+            target.value = '';
+            value.value = e.target.dataset.text;
+        });
+    })();
+
     // Player search: pick a player from the names matching the text, or submit the text as is (a name or an id)
     (() => {
         const search = document.getElementById('PlayerSearch');
@@ -553,9 +575,9 @@ else
 </script>
 
 @functions {
-    static string Invariant(double value) => value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+    static string Invariant(double value, string? format = null) => value.ToString(format, System.Globalization.CultureInfo.InvariantCulture);
 
-    static string OffsetText(double offset) => offset.ToString("+0.00;-0.00;0.00", System.Globalization.CultureInfo.InvariantCulture) + "★";
+    static string LevelText(double? playerLevel) => playerLevel is double level ? $"{Invariant(level, "0.00")}★ (your level)" : "your level";
 
     static string StarsText(Song song) => (song.ModifierStars ?? song.Stars) is double stars ? $"{stars:0.00}★" : "-";
 

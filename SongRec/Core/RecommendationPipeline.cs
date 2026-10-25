@@ -51,6 +51,12 @@ public sealed record RecommendationOptions
     public const double MinLevelOffset = -3, MaxLevelOffset = 3;
 
     /// <summary>
+    /// The level the suggestions aim at, in stars, chosen by the player (the page's level slider, 0 to the hardest
+    /// ranked map); null for the player's level plus <see cref="LevelOffset"/>. Moves the same three things as the offset.
+    /// </summary>
+    public double? TargetLevel { get; init; }
+
+    /// <summary>
     /// Fraction of links kept, closest first (<see cref="LinkedPlayerFinder"/>). 1, every link: peers' links are
     /// already close, so pruning only threw evidence away (0.25 / 0.5 / 0.75 / 1: -1.8 / 0 / +0.9 / +1.7 points of the
     /// maps that enter players' top 50 found against 0.5, songreceval keep, 200 players).
@@ -91,7 +97,10 @@ public sealed record RecommendationResult
     /// <summary>How many plays the level rests on (up to <see cref="RecommendationPipeline.LevelTopPlays"/>).</summary>
     public int LevelPlays { get; init; }
 
-    /// <summary>The level the suggestions aim at: the level plus <see cref="RecommendationOptions.LevelOffset"/>.</summary>
+    /// <summary>
+    /// The level the suggestions aim at: <see cref="RecommendationOptions.TargetLevel"/>, else the level plus
+    /// <see cref="RecommendationOptions.LevelOffset"/>.
+    /// </summary>
     public double? TargetLevel { get; init; }
 
     /// <summary>Whether the suggestions are within <see cref="RecommendationPipeline.StarWindow"/> of <see cref="TargetLevel"/>.</summary>
@@ -201,7 +210,7 @@ public sealed class RecommendationPipeline
 
         var playerLevel = PlayerLevel(playerScores);
         var levelOffset = Math.Clamp(options.LevelOffset, RecommendationOptions.MinLevelOffset, RecommendationOptions.MaxLevelOffset);
-        var targetLevel = playerLevel + levelOffset;
+        var targetLevel = options.TargetLevel is double chosenLevel ? Math.Max(chosenLevel, 0) : playerLevel + levelOffset;
         var playedById = playerScores.ToDictionary(s => s.Song.LeaderboardId, StringComparer.Ordinal);
 
         // Seeds: the player's choice of their plays (or picked), plus the leaderboards they added (their score when they

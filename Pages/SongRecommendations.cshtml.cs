@@ -32,11 +32,18 @@ namespace portaBLe.Pages
         public const int GraphPeers = 40;
 
         // Everything else is fixed at the pipeline's tuned defaults (RecommendationOptions): the player only chooses
-        // how much easier or harder than their level to aim, and which maps to seed from
+        // the level to aim at, and which maps to seed from
         private static readonly RecommendationOptions Defaults = new();
 
+        /// <summary>
+        /// The level the suggestions aim at, in stars (the level slider); null (or chosen for another player) for the
+        /// player's level. Shows the level the last run aimed at.
+        /// </summary>
         [BindProperty]
-        public double LevelOffset { get; set; } = Defaults.LevelOffset;
+        public double? TargetLevel { get; set; }
+
+        /// <summary>The level slider's top: the stars of the hardest ranked map.</summary>
+        public double MaxStars { get; private set; } = 15;
 
         [BindProperty]
         public bool ExcludeAlreadyPlayed { get; set; } = Defaults.ExcludeAlreadyPlayed;
@@ -71,11 +78,13 @@ namespace portaBLe.Pages
         public async Task OnGetAsync(string db = null)
         {
             await InitializeDatabaseSelectionAsync(db);
+            await LoadMaxStarsAsync();
         }
 
         public async Task<IActionResult> OnPostAsync(string db = null)
         {
             await InitializeDatabaseSelectionAsync(db);
+            await LoadMaxStarsAsync();
             await RunPipelineAsync(automaticSeeds: false);
             return Page();
         }
@@ -83,13 +92,25 @@ namespace portaBLe.Pages
         public async Task<IActionResult> OnPostResetSeedsAsync(string db = null)
         {
             await InitializeDatabaseSelectionAsync(db);
+            await LoadMaxStarsAsync();
             await RunPipelineAsync(automaticSeeds: true);
             return Page();
+        }
+
+        private async Task LoadMaxStarsAsync()
+        {
+            using var context = GetDbContext();
+            var max = await context.Set<DbLeaderboard>().Where(l => l.Stars > 0).MaxAsync(l => (double?)l.Stars);
+            if (max is double stars)
+            {
+                MaxStars = Math.Ceiling(stars * 10) / 10;
+            }
         }
 
         public async Task<IActionResult> OnPostDownloadAsync(string db = null)
         {
             await InitializeDatabaseSelectionAsync(db);
+            await LoadMaxStarsAsync();
             await RunPipelineAsync(automaticSeeds: false);
 
             if (ErrorMessage != null || Run is not { Results.Count: > 0 })
@@ -230,11 +251,12 @@ namespace portaBLe.Pages
             ModelState.Remove(nameof(PlayerId));
             ModelState.Remove(nameof(PlayerSearch));
 
-            // The seed selection only holds for the player it was made for
+            // The seed selection only holds for the player it was made for, and so does the level (but one chosen before
+            // the first run holds)
             var useSelection = !automaticSeeds && SeedsFor == PlayerId;
             var options = Defaults with
             {
-                LevelOffset = LevelOffset,
+                TargetLevel = SeedsFor == null || SeedsFor == PlayerId ? TargetLevel : null,
                 ExcludeAlreadyPlayed = ExcludeAlreadyPlayed,
                 SeedLeaderboardIds = useSelection ? Seeds.ToHashSet(StringComparer.Ordinal) : null,
                 AddedSeedLeaderboardIds = useSelection ? AddedSeeds : []
@@ -245,7 +267,7 @@ namespace portaBLe.Pages
                 // The same form again (the playlist download after the page, a reload) is the same run, while the
                 // database file is unchanged
                 var path = context.Database.GetDbConnection().DataSource;
-                var key = string.Join("|", path, System.IO.File.GetLastWriteTimeUtc(path).Ticks, PlayerId, options.LevelOffset,
+                var key = string.Join("|", path, System.IO.File.GetLastWriteTimeUtc(path).Ticks, PlayerId, options.TargetLevel?.ToString("R") ?? "auto",
                     options.ExcludeAlreadyPlayed, options.SeedLeaderboardIds is { } chosen ? string.Join(",", chosen.Order(StringComparer.Ordinal)) : "auto",
                     string.Join(",", options.AddedSeedLeaderboardIds.Order(StringComparer.Ordinal)));
                 if (!RecentRuns.TryGetValue(key, out RecommendationResult run))
@@ -265,6 +287,9 @@ namespace portaBLe.Pages
                 Run = run;
                 ErrorMessage = Run.Error;
                 SeedsFor = Run.PlayerScores.Count > 0 ? PlayerId : null;
+                // The level the run aimed at: null while it's the player's own
+                TargetLevel = options.TargetLevel;
+                ModelState.Remove(nameof(TargetLevel));
 
                 var peerIds = Run.Peers.Select(p => p.PlayerId).ToList();
                 PeerPlayers = await context.Set<DbPlayer>()
