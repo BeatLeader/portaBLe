@@ -31,7 +31,14 @@ public sealed class Song : IEquatable<Song>
 
     public string? ModeName { get; init; }
 
+    /// <summary>Stars of the unmodified chart.</summary>
     public double? Stars { get; init; }
+
+    /// <summary>
+    /// Stars under <see cref="Modifier"/> (the speed modifier's own rating), or <see cref="Stars"/> when
+    /// unmodified or when the modifier isn't rated.
+    /// </summary>
+    public double? ModifierStars { get; init; }
 
     public bool Equals(Song? other)
     {

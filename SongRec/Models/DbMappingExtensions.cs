@@ -32,8 +32,23 @@ public static class DbMappingExtensions
         CoverImageUrl = leaderboard.Cover,
         DifficultyName = leaderboard.DifficultyName,
         ModeName = leaderboard.ModeName,
-        Stars = leaderboard.Stars
+        Stars = leaderboard.Stars,
+        ModifierStars = ModifierStars(leaderboard, modifier)
     };
+
+    // The speed modifier's stars when its ratings are loaded and rated, else the chart's
+    private static double ModifierStars(DbLeaderboard leaderboard, SpeedModifier modifier)
+    {
+        var rating = leaderboard.ModifiersRating;
+        float stars = modifier switch
+        {
+            SpeedModifier.SlowerSong => rating?.SSStars ?? 0,
+            SpeedModifier.FasterSong => rating?.FSStars ?? 0,
+            SpeedModifier.SuperFasterSong => rating?.SFStars ?? 0,
+            _ => 0
+        };
+        return stars > 0 ? stars : leaderboard.Stars;
+    }
 
     /// <summary>
     /// Maps a DB score row to the domain model. The associated <see cref="Song"/> is built from

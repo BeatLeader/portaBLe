@@ -1,11 +1,12 @@
+using System.Text.RegularExpressions;
 using beatleader_songrec.Api;
 using beatleader_songrec.Core;
 using beatleader_songrec.Export;
-using beatleader_songrec.Models;
 using beatleader_songrec.Requests;
 using Microsoft.AspNetCore.Mvc;
-using Microsoft.AspNetCore.Mvc.RazorPages;
+using Microsoft.EntityFrameworkCore;
 using portaBLe.Services;
+using DbLeaderboard = portaBLe.DB.Leaderboard;
 
 namespace portaBLe.Pages
 {
@@ -14,29 +15,38 @@ namespace portaBLe.Pages
         [BindProperty]
         public string PlayerId { get; set; }
 
-        [BindProperty]
-        public int SeedCount { get; set; } = 50;
+        // Everything else is fixed at the pipeline's tuned defaults (RecommendationOptions): the player only chooses
+        // how much easier or harder than their level to aim, and which maps to seed from
+        private static readonly RecommendationOptions Defaults = new();
 
         [BindProperty]
-        public int TopK { get; set; } = 20;
+        public double LevelOffset { get; set; } = Defaults.LevelOffset;
 
         [BindProperty]
-        public double StyleWeight { get; set; } = 50;
+        public bool ExcludeAlreadyPlayed { get; set; } = Defaults.ExcludeAlreadyPlayed;
 
+        /// <summary>The leaderboards of the player's plays ticked as seeds (when <see cref="SeedsFor"/> is the player).</summary>
         [BindProperty]
-        public double OverweightWeight { get; set; } = 50;
+        public List<string> Seeds { get; set; } = [];
 
+        /// <summary>Leaderboards the player added as seeds.</summary>
         [BindProperty]
-        public double LinkKeepPercent { get; set; } = 0.5;
+        public List<string> AddedSeeds { get; set; } = [];
 
+        /// <summary>
+        /// The player the seed selection was made for: the page's previous run. Another player id (or none yet) seeds
+        /// automatically.
+        /// </summary>
         [BindProperty]
-        public bool ExcludeAlreadyPlayed { get; set; } = true;
+        public string? SeedsFor { get; set; }
 
-        public IReadOnlyList<ScoredSong> Results { get; set; } = [];
+        /// <summary>The last run, once there is one (with the player's plays and seeds, also when it failed).</summary>
+        public RecommendationResult? Run { get; private set; }
 
-        public IReadOnlyList<string> ProgressMessages { get; private set; } = [];
+        public string? ErrorMessage { get; set; }
 
-        public string ErrorMessage { get; set; }
+        /// <summary>How many maps the search returns at most.</summary>
+        private const int SearchResults = 15;
 
         public SongRecommendationsModel(IDynamicDbContextService dbService) : base(dbService)
         {
@@ -50,105 +60,105 @@ namespace portaBLe.Pages
         public async Task<IActionResult> OnPostAsync(string db = null)
         {
             await InitializeDatabaseSelectionAsync(db);
+            await RunPipelineAsync(automaticSeeds: false);
+            return Page();
+        }
 
-            var (results, progress, error) = await RunPipelineAsync();
-            Results = results;
-            ProgressMessages = progress;
-            ErrorMessage = error;
-
+        public async Task<IActionResult> OnPostResetSeedsAsync(string db = null)
+        {
+            await InitializeDatabaseSelectionAsync(db);
+            await RunPipelineAsync(automaticSeeds: true);
             return Page();
         }
 
         public async Task<IActionResult> OnPostDownloadAsync(string db = null)
         {
             await InitializeDatabaseSelectionAsync(db);
+            await RunPipelineAsync(automaticSeeds: false);
 
-            var (results, _, error) = await RunPipelineAsync();
-
-            if (error != null || results.Count == 0)
+            if (ErrorMessage != null || Run is not { Results.Count: > 0 })
             {
-                ErrorMessage = error ?? "No songs to export.";
+                ErrorMessage ??= "No songs to export.";
                 return Page();
             }
 
-            var writer = new BplistWriter();
             var exportOptions = new ExportOptions
             {
                 PlaylistTitle = $"BeatLeader Recommendations for {PlayerId}",
                 PlaylistAuthor = "portaBLe"
             };
-
-            var bytes = writer.BuildBytes(results, exportOptions);
+            var bytes = new BplistWriter().BuildBytes(Run.Results, exportOptions);
             return File(bytes, "application/json", "playlist.bplist");
         }
 
-        private async Task<(IReadOnlyList<ScoredSong> Results, IReadOnlyList<string> Progress, string Error)> RunPipelineAsync()
+        /// <summary>
+        /// Ranked maps for the "add a map" search, as JSON: a leaderboard id or a BeatLeader leaderboard URL first, then
+        /// maps whose song name or mapper contains the text, the most played first.
+        /// </summary>
+        public async Task<IActionResult> OnGetSearchLeaderboardsAsync(string q, string db = null)
         {
-            if (string.IsNullOrWhiteSpace(PlayerId))
+            await InitializeDatabaseSelectionAsync(db);
+            var text = (q ?? "").Trim();
+            if (text.Length < 2)
             {
-                return ([], [], "Please enter a player id.");
+                return new JsonResult(Array.Empty<object>());
             }
 
+            // "https://beatleader.xyz/leaderboard/global/2cf6391/1" -> "2cf6391"
+            var url = Regex.Match(text, @"leaderboards?/(?:global/|accsaber/)?([0-9a-zA-Z]+)");
+            var id = url.Success ? url.Groups[1].Value : text;
+            var pattern = $"%{text.Replace("%", "").Replace("_", "")}%";
+
             using var context = GetDbContext();
+            var maps = await context.Set<DbLeaderboard>()
+                .Include(l => l.ModifiersRating)
+                .Where(l => l.Stars > 0 && (l.Id == id || EF.Functions.Like(l.Name, pattern) || EF.Functions.Like(l.Mapper, pattern)))
+                .OrderByDescending(l => l.Id == id)
+                .ThenByDescending(l => l.Count)
+                .Take(SearchResults)
+                .Select(l => new { l.Id, l.Name, l.Mapper, l.DifficultyName, l.ModeName, l.Stars, l.Cover })
+                .ToListAsync();
+            return new JsonResult(maps.Select(l => new
+            {
+                id = l.Id,
+                name = l.Name,
+                mapper = l.Mapper,
+                difficulty = l.DifficultyName,
+                mode = l.ModeName,
+                stars = Math.Round(l.Stars, 2),
+                cover = l.Cover
+            }));
+        }
 
-            var client = new DbBeatLeaderClient(context);
-            var seedSelector = new SeedSongSelector(client);
-            var finder = new LinkedPlayerFinder(client);
-            var scorer = new SongScorer();
+        private async Task RunPipelineAsync(bool automaticSeeds)
+        {
+            PlayerId = PlayerId?.Trim();
+            if (string.IsNullOrEmpty(PlayerId))
+            {
+                ErrorMessage = "Please enter a player id.";
+                return;
+            }
 
-            var progress = new List<string>();
-            void Report(string message) => progress.Add(message);
+            // The seed selection only holds for the player it was made for
+            var useSelection = !automaticSeeds && SeedsFor == PlayerId;
+            var options = Defaults with
+            {
+                LevelOffset = LevelOffset,
+                ExcludeAlreadyPlayed = ExcludeAlreadyPlayed,
+                SeedLeaderboardIds = useSelection ? Seeds.ToHashSet(StringComparer.Ordinal) : null,
+                AddedSeedLeaderboardIds = useSelection ? AddedSeeds : []
+            };
 
+            using var context = GetDbContext();
             try
             {
-                var seedScores = await seedSelector.SelectSeedSongsAsync(PlayerId, SeedCount, onProgress: Report);
-                if (seedScores.Count == 0)
-                {
-                    return ([], progress, "No seed scores found for this player.");
-                }
-
-                var candidates = await finder.FindCandidateSongsAsync(
-                    PlayerId,
-                    SeedCount,
-                    TopK,
-                    onProgress: Report,
-                    seedScores: seedScores,
-                    linkKeepPercent: LinkKeepPercent);
-
-                if (candidates.Count == 0)
-                {
-                    return ([], progress, "No candidate songs found.");
-                }
-
-                if (ExcludeAlreadyPlayed)
-                {
-                    var alreadyPlayedLeaderboardIds = new HashSet<string>(
-                        seedScores.Select(s => s.Song.LeaderboardId), StringComparer.Ordinal);
-
-                    var allPlayerScores = await client.GetPlayerTopScoresAsync(PlayerId, int.MaxValue);
-                    foreach (var score in allPlayerScores)
-                    {
-                        alreadyPlayedLeaderboardIds.Add(score.Song.LeaderboardId);
-                    }
-
-                    candidates = candidates
-                        .Where(pair => !alreadyPlayedLeaderboardIds.Contains(pair.Key.LeaderboardId))
-                        .ToDictionary(pair => pair.Key, pair => pair.Value);
-
-                    if (candidates.Count == 0)
-                    {
-                        return ([], progress, "No candidate songs remain after excluding already-played songs.");
-                    }
-                }
-
-                var weights = new ScoringWeights { Style = StyleWeight, Overweight = OverweightWeight };
-                var scored = scorer.ScoreCandidates(candidates, seedScores, weights, topN: 50);
-
-                return (scored, progress, null);
+                Run = await new RecommendationPipeline(new DbBeatLeaderClient(context)).RunAsync(PlayerId, options);
+                ErrorMessage = Run.Error;
+                SeedsFor = Run.PlayerScores.Count > 0 ? PlayerId : null;
             }
             catch (Exception ex)
             {
-                return ([], progress, $"Error: {ex.Message}");
+                ErrorMessage = $"Error: {ex.Message}";
             }
         }
     }

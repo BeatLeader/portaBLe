@@ -47,6 +47,12 @@ From the command line (`dotnet run -c Release -- …`):
 - `mapstats <wwwroot/file.db>`: the Analyzer's counts (inlines, bomb resets, walls, linear %) from the maps folder, then
   the tags, without rating the maps again.
 - `upload <wwwroot/file.db>` / `cache <wwwroot/file.db> [upload]`: upload a database and its Top Scores cache, or build it.
+- `songreceval <wwwroot/file.db> [players] [set] [seed] [first plays]`: offline evaluation of the Song
+  Recommendations page (read only): hides each sampled player's 40 most recent scores and measures how the suggestions
+  match what they played next, against a popular-maps baseline and the current defaults player by player. Sets:
+  `default` (without Easier, current), `easier`, `weights` (Style x Easier), `keep` (link keep %), `links` (peers per
+  seed x plays per peer), `plays`, `seeds` (seed count), `offset` (level offset); seed: which players are sampled; first plays: new players simulated, only their first that many ranked
+  plays kept (`SongRec/Tools/RecommendationEvaluation.cs`).
 
 ## Ratings on prod's scale
 

@@ -26,8 +26,9 @@ public enum SpeedModifier
 public static class SpeedModifierExtensions
 {
     /// <summary>
-    /// Parses the speed modifier out of a BeatLeader modifiers string (e.g. "SS", "FS,SF",
-    /// "SFS"). Returns <see cref="SpeedModifier.None"/> when no speed modifier is present.
+    /// Parses the speed modifier out of a BeatLeader modifiers string (e.g. "SS", "DA,FS",
+    /// "SF,GN"). Super Faster Song is stored as "SF" (see portaBLe's ScoreModifierFilter); "SFS"
+    /// is accepted too. Returns <see cref="SpeedModifier.None"/> when no speed modifier is present.
     /// </summary>
     public static SpeedModifier ParseSpeedModifier(string? modifiers)
     {
@@ -38,8 +39,8 @@ public static class SpeedModifierExtensions
 
         var tokens = modifiers.Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries);
 
-        // Check the longest/most specific token first so "SFS" isn't mistaken for "SS"/"FS".
-        if (tokens.Any(t => t.Equals("SFS", StringComparison.OrdinalIgnoreCase)))
+        // Whole tokens only, so "SF" isn't mistaken for "SS"/"FS".
+        if (tokens.Any(t => t.Equals("SF", StringComparison.OrdinalIgnoreCase) || t.Equals("SFS", StringComparison.OrdinalIgnoreCase)))
         {
             return SpeedModifier.SuperFasterSong;
         }

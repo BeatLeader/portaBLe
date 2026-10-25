@@ -293,6 +293,21 @@ namespace portaBLe
                 await RatingsRefresh.RefreshMapStatistics(statsContext);
                 return;
             }
+            // dotnet run -c Release -- songreceval <wwwroot/file.db> [players] [set] [seed] [first plays]: the song
+            // recommendations' offline evaluation (beatleader_songrec.Tools.RecommendationEvaluation: 50 players, the
+            // default set of variants, sample seed 7 by default; first plays: new players simulated with that many ranked
+            // plays) on that database, read only
+            if (args.Length > 1 && args[0] == "songreceval")
+            {
+                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};Mode=ReadOnly;").Options;
+                using var evalContext = new AppContext(options);
+                await beatleader_songrec.Tools.RecommendationEvaluation.Run(evalContext,
+                    args.Length > 2 ? int.Parse(args[2]) : 50,
+                    args.Length > 3 ? args[3] : "default",
+                    args.Length > 4 ? int.Parse(args[4]) : 7,
+                    args.Length > 5 ? int.Parse(args[5]) : null);
+                return;
+            }
             if (args.Length > 0 && args[0] == "accreweight")
             {
                 bool rescore = args.Contains("rescore");

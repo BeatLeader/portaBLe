@@ -6,6 +6,86 @@ model comes from `beatsaber-replays-ai-2`.
 The goal is ratings that never need scores at rating time. Scores, replays and fail attempts are used offline, to fit and
 validate constants. The one exception is the acc reweighter (below), the only tool that changes ratings from scores.
 
+## Song recommendations: peers, easier maps, a level where players gain
+
+Measured with the new `songreceval` (holdout: each sampled player's 40 most recent scores hidden, 200 players over
+ranks 1-40000): of the maps that went on to enter the player's top 50, how many were suggested (gainRecall), the
+difference with the current defaults player by player, 95% interval. Tuned on one sample of 200 players (seed 7),
+checked on another (seed 11): the earlier algorithm 9.6%, the current defaults **26.4%**, the popular-maps baseline
+13.7%.
+
+- **Linked players are the seed's peers** (`LinkedPlayerFinder`, `IBeatLeaderClient.GetLeaderboardScoresNearPpAsync`):
+  on each seed song, the 20 scorers whose pp is nearest the player's own (by pp ratio), instead of its 20 best scorers.
+  - Why: the best scorers are far stronger than all but top players, so the suggestions were their top plays: median
+    1.9 stars above the player's level (balance tuner's), 4.6 for players ranked 15000-40000. Peers +6.2 points
+    [+4.6, +7.8]; ranked 2000-40000 1.8% → 12.1% with the change below. The top scorers are no longer an option.
+- **Overweight removed** (`SongScorer`, the page's Overweight weight): SmartSongSuggest's second factor, the average rank
+  of the candidate over its links. The port used each linked player's placement on its leaderboard; their position in
+  their own top plays (SmartSongSuggest's meaning) did better (+1.7 [+0.2, +3.2]), but once Easier was on any weight on
+  it found fewer (it favors harder maps), so the factor went.
+- **Easier maps favored** (`ScoringWeights.Easier`, the page's "Easier maps weight"; `SongScorer`): a factor
+  1 / (1 + e^(stars above the player's level / 1 star)) in the same 0.5-1.5 range as Style, neutral at the level.
+- **Player level: the median stars of the 50 best plays** (`RecommendationPipeline.PlayerLevel`, with their speed
+  modifiers; shown on the page, with each suggestion's stars against it). It was the balance tuner's level, the 5th
+  hardest of them: the top of the player's range, a star or more above what they usually play (Loloppe 10.92 → 9.68).
+  - Where players gain (holdout, 274 players): the maps that entered their top 50 were +0.11 stars from the median
+    (median), −1.26 from the 5th hardest, and each player's median gain varied less between players (sd 0.75
+    against 0.89). The 10th hardest −0.74 / 0.81, the mean +0.05 / 0.70 (within noise of the median, which a few lucky
+    passes don't move).
+- **Level offset** (`RecommendationOptions.LevelOffset`, the page's slider, −3 to +3 stars by 0.25): the suggestions
+  aim at the player's level plus the offset. It moves the peers (the players about that much weaker or stronger: their
+  pp on each seed is the player's times aimed level / level, pp growing about in proportion to stars), the Easier
+  factor's center, and the new star window.
+  - Moving only the Easier factor's center moved the suggestions' median 0.15 stars per star of offset; with the peers
+    too 0.3-0.5. With the window 0.6-0.7 (offset −2 / −1 / +1 / +2: −1.44 / −0.71 / +0.58 / +1.24; 100 players).
+- **Star window** (`RecommendationPipeline.StarWindow` 1.5): suggestions are maps within 1.5 stars of the aimed level
+  (every candidate when none is). 79% of the maps that entered players' top 50 were within it of their level. At
+  offset 0 it changes nothing measurable (−0.1 [−2.0, +1.7] points; 1 star −1.2 and less responsive offsets, 2 −0.3).
+  The page shows the range.
+- **Few or no ranked plays**: 57% of the players have 1-4 ranked plays. New players simulated (their first 1 / 3 / 5 /
+  10 / 20 plays kept, 100 players each, share of their next 40 plays suggested): 6.3 / 6.2 / 7.8 / 8.9 / 8.6%, against
+  7.8 / 6.7 / 7.3 / 7.7 / 8.0% for the most played maps around their level (better than the suggestions with 1 play,
+  worse with 10). Under `RecommendationPipeline.FewPlays` 10 the page says the level and suggestions are rough. With
+  none (or an unknown id) it says so instead of "No seed scores found". The seeds no longer leave out the weakest
+  quarter of the plays (SmartSongSuggest's): that only did anything under 100 plays, where it found slightly fewer
+  (3 plays: +0.7 [+0.1, +1.3] points without it).
+- **Weights tuned** (`RecommendationOptions`): Style 100, Easier 50 (were Style 50, Overweight 50), the best of
+  Style x Easier 0-100 by 25: the suggestions' median +0.3 stars from the level, where the gains are; without Easier
+  +1.3. On the fresh sample Easier +2.6 [+1.0, +4.1] before the star window, +1.1 [−0.2, +2.4] with it (the window
+  does part of its job). **Link keep
+  % 1** (was 0.5): with peers the links are already close, so pruning threw evidence away (+1.7 [+0.5, +3.0]).
+- **Top-K split and tuned**: it was both the peers linked per seed and the top plays taken per peer. Peers x plays
+  10 / 20 / 40: more plays found more, more peers barely; plays 20 / 40 / 60 / 80 / 120: 0 / +2.0 [+0.8, +3.1] / +1.4 /
+  +1.6 / +0.8 points. Now 20 peers per seed (`PeersPerSeed`) and 40 plays per peer (`PlaysPerPeer`). **Seed count**
+  stays 50: 25 / 75 / 100 −1.4 [−2.6, −0.3] / −0.8 / −1.2 [−2.2, −0.1].
+- **Nothing to tune on the page**: seed count, Top-K, Style and Easier weights and link keep % are fixed at these
+  values (`RecommendationOptions`). The form is the player id, the level offset slider and Exclude already played.
+- **Seeds panel**: after a run the page lists the seeds used (the player's plays, ticked) and the rest of their plays
+  (collapsed, with a filter). They can untick seeds, tick other plays, add any ranked map (search by song, mapper,
+  leaderboard id or BeatLeader link, `OnGetSearchLeaderboardsAsync`) and recommend again; reset goes back to the
+  automatic seeds, and another player id starts from theirs (`RecommendationOptions.SeedLeaderboardIds`,
+  `AddedSeedLeaderboardIds`). Seeds are never suggested back.
+  - A map added without a score links the scorers whose overall pp is nearest the player's
+    (`IBeatLeaderClient.GetLeaderboardScoresNearPlayerPpAsync`; the player's pp from their plays,
+    `RecommendationPipeline.ProfilePp`). Weaker than their own score: every seed linked that way found 20.9% against
+    26.1% (−5.2 [−6.8, −3.6] points; the most played maps at their level 13.1%).
+- **Results**: cover, song (to its leaderboard page), mapper, speed modifier, difficulty, stars, stars against the aimed
+  level, how many peers play it and their average pp on it. The score and factor columns are gone.
+- **Tried and rejected** (same evaluation): one candidate per chart with its speed-modified plays merged −0.3
+  [−1.0, +0.4], seeds ordered by leaderboard percentile instead of the top 100 +0.2 [−0.8, +1.1], Style and
+  Overweight normalized by rank instead of min-max −12.3 [−14.5, −10.1] (Style then pulls the suggestions 1.3 stars
+  under the player's level). Worth as a factor (Python prototype, 50 players) didn't help either.
+- **Super Faster Song read** (`SpeedModifierExtensions.ParseSpeedModifier`): stored as `SF`, it was only read as `SFS`,
+  so 106k SF scores were linked and shown as unmodified plays.
+- **One row per chart**: a chart suggested with and without a speed modifier only keeps its best scored one
+  (`RecommendationPipeline`). The self-link check compares leaderboards, so a seed played with another speed modifier
+  by the linked player no longer comes back as a candidate. The Stars column shows the speed modifier's stars
+  (`Song.ModifierStars`).
+- **`RecommendationPipeline`**: the page's pipeline (seeds, candidates, already played, scoring) in `SongRec/Core`,
+  shared with `songreceval` (`SongRec/Tools/RecommendationEvaluation.cs`).
+- **Removed** `MapRecommendation/` (the earlier SmartSongSuggest port) and `SongRec/Export/HtmlReportWriter.cs`, neither
+  used anywhere.
+
 ## Acc reweighter: low note maps kept at ×1
 
 - **`AccReweighter.MinNotes` 115** (`CurveSettings.LowNoteStart`): maps with fewer color notes keep ×1. Their scores still

@@ -5,8 +5,9 @@ namespace beatleader_songrec.Core;
 
 /// <summary>
 /// Scores the candidate song pool produced by <see cref="ILinkedPlayerFinder"/> using a
-/// SmartSongSuggest-style multiplicative Style x Overweight model and returns the top-ranked
-/// candidates.
+/// SmartSongSuggest-style multiplicative model, Style x Easier, and returns the top-ranked
+/// candidates. (SmartSongSuggest's Overweight factor was dropped: it favors harder maps, and any
+/// weight on it found fewer of the maps that enter players' top 50 once Easier was on.)
 /// </summary>
 public interface ISongScorer
 {
@@ -16,30 +17,32 @@ public interface ISongScorer
     /// </summary>
     /// <param name="candidates">The candidate pool from <see cref="ILinkedPlayerFinder"/>.</param>
     /// <param name="seedScores">The target player's seed scores (kept for interface/API compatibility; not used in the SmartSongSuggest-style score).</param>
-    /// <param name="weights">User-configurable weights; only <see cref="ScoringWeights.Style"/> and <see cref="ScoringWeights.Overweight"/> affect the final score.</param>
+    /// <param name="weights">User-configurable weights; the weights of <see cref="ScoringWeights.Style"/> and <see cref="ScoringWeights.Easier"/>.</param>
     /// <param name="topN">Maximum number of results to return (default 50).</param>
+    /// <param name="playerLevel">
+    /// The player's level in stars (<see cref="RecommendationPipeline.PlayerLevel"/>), for the Easier
+    /// factor; null leaves it neutral.
+    /// </param>
     IReadOnlyList<ScoredSong> ScoreCandidates(
         IReadOnlyDictionary<Song, List<CandidateEntry>> candidates,
         IReadOnlyList<Score> seedScores,
         ScoringWeights weights,
-        int topN = 50);
+        int topN = 50,
+        double? playerLevel = null);
 }
 
 /// <inheritdoc cref="ISongScorer"/>
 public sealed class SongScorer : ISongScorer
 {
     /// <summary>
-    /// Minimum number of links required before a candidate's average rank is treated at face
-    /// value; below this, the average is padded toward the "neutral" rank (10.5, the mean of
-    /// ranks 1-20) so sparsely-linked songs aren't unfairly rewarded/penalized. Mirrors
-    /// SmartSongSuggest's SongEndPoint.SetRelevance minimum-link padding.
+    /// Stars over which the Easier factor goes from neutral (a map at the player's level) to 73% / 27%
+    /// of its range (1 star under / above it): the logistic 1 / (1 + e^(stars above level / scale)).
+    /// About the spread of the maps that enter players' top 50: their middle half spans 1.5 stars, centered
+    /// on the player's level (holdout, 274 players).
     /// </summary>
-    private const double MinRankLinks = 20d;
+    private const double EasierScaleStars = 1d;
 
-    /// <summary>The "neutral" average rank used to pad sparsely-linked candidates.</summary>
-    private const double NeutralRank = 10.5d;
-
-    /// <summary>Compressed multiplicative range for the Style and Overweight factors.</summary>
+    /// <summary>Compressed multiplicative range for the Style and Easier factors.</summary>
     private const double FactorRangeMin = 0.5d;
     private const double FactorRangeMax = 1.5d;
 
@@ -47,7 +50,8 @@ public sealed class SongScorer : ISongScorer
         IReadOnlyDictionary<Song, List<CandidateEntry>> candidates,
         IReadOnlyList<Score> seedScores,
         ScoringWeights weights,
-        int topN = 50)
+        int topN = 50,
+        double? playerLevel = null)
     {
         ArgumentNullException.ThrowIfNull(candidates);
         ArgumentNullException.ThrowIfNull(seedScores);
@@ -106,23 +110,8 @@ public sealed class SongScorer : ISongScorer
             proportionalStyles.Add(style);
         }
 
-        // Overweight: average rank among linked players, padded toward the neutral rank when a
-        // candidate has few links, mirroring SongEndPoint.SetRelevance.
-        var averageRanks = new List<double>(stats.Count);
-        for (var i = 0; i < stats.Count; i++)
-        {
-            var entries = stats[i].Entries;
-            var rankSum = (double)entries.Sum(e => e.Score.Rank);
-            var rankLinks = entries.Count;
-            rankSum += Math.Max(MinRankLinks - rankLinks, 0d) * NeutralRank;
-            var averageRank = rankSum / Math.Max(MinRankLinks, rankLinks);
-            averageRanks.Add(averageRank);
-        }
-
         var minStyle = proportionalStyles.Count > 0 ? proportionalStyles.Min() : 0d;
         var maxStyle = proportionalStyles.Count > 0 ? proportionalStyles.Max() : 0d;
-        var minRank = averageRanks.Count > 0 ? averageRanks.Min() : 0d;
-        var maxRank = averageRanks.Count > 0 ? averageRanks.Max() : 0d;
 
         var scored = new List<ScoredSong>(stats.Count);
 
@@ -132,13 +121,16 @@ public sealed class SongScorer : ISongScorer
 
             // Normalize each factor to [0,1], then compress into [0.5, 1.5] so the two factors
             // combine multiplicatively without either one being able to zero out the score.
-            var styleNormalized = Normalize(proportionalStyles[i], minStyle, maxStyle, invert: false);
-            var overweightNormalized = Normalize(averageRanks[i], minRank, maxRank, invert: true);
-
+            var styleNormalized = Normalize(proportionalStyles[i], minStyle, maxStyle);
             var styleFactor = Compress(styleNormalized, weights.Style);
-            var overweightFactor = Compress(overweightNormalized, weights.Overweight);
 
-            var finalScore = styleFactor * overweightFactor;
+            // Easier: maps under the player's level favored, maps above it held back
+            var stars = stat.Song.ModifierStars ?? stat.Song.Stars;
+            double? starsAboveLevel = stars.HasValue && playerLevel.HasValue ? stars.Value - playerLevel.Value : null;
+            var easierNormalized = starsAboveLevel.HasValue ? 1d / (1d + Math.Exp(starsAboveLevel.Value / EasierScaleStars)) : 0.5d;
+            var easierFactor = Compress(easierNormalized, weights.Easier);
+
+            var finalScore = styleFactor * easierFactor;
 
             scored.Add(new ScoredSong
             {
@@ -146,10 +138,10 @@ public sealed class SongScorer : ISongScorer
                 Score = finalScore,
                 DistanceScore = 0d,
                 StyleScore = styleNormalized,
-                OverweightScore = overweightNormalized,
+                EasierScore = easierNormalized,
+                StarsAboveLevel = starsAboveLevel,
                 LinkedPlayerCount = stat.LinkedPlayerCount,
-                AveragePp = stat.AveragePp,
-                AverageRank = averageRanks[i]
+                AveragePp = stat.AveragePp
             });
         }
 
@@ -165,20 +157,13 @@ public sealed class SongScorer : ISongScorer
 
     /// <summary>
     /// Min-max normalizes <paramref name="value"/> into [0,1] given the pool's [min,max] range.
-    /// When <paramref name="invert"/> is true, a smaller raw value yields a larger normalized
-    /// score (used for "lower rank is better"). When the pool has no spread (min == max), every
-    /// candidate is treated as equally favorable (normalized to 1).
+    /// When the pool has no spread (min == max), every candidate is treated as equally favorable
+    /// (normalized to 1).
     /// </summary>
-    private static double Normalize(double value, double min, double max, bool invert)
+    private static double Normalize(double value, double min, double max)
     {
         var range = max - min;
-        if (range <= 0)
-        {
-            return 1d;
-        }
-
-        var normalized = (value - min) / range;
-        return invert ? 1d - normalized : normalized;
+        return range > 0 ? (value - min) / range : 1d;
     }
 
     /// <summary>

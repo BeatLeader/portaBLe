@@ -17,15 +17,18 @@ public sealed class ScoredSong
     /// <summary>Normalized [0,1] subscore for the Style factor (above-average linked-player share = higher).</summary>
     public double StyleScore { get; init; }
 
-    /// <summary>Normalized [0,1] subscore for the Overweight factor (lower average rank among linked players = higher).</summary>
-    public double OverweightScore { get; init; }
+    /// <summary>[0,1] subscore for the Easier factor (further under the player's level = higher, 0.5 at it).</summary>
+    public double EasierScore { get; init; }
+
+    /// <summary>
+    /// The song's stars minus the level the suggestions aim at (the player's level plus their offset; negative:
+    /// under it); null when either is unknown.
+    /// </summary>
+    public double? StarsAboveLevel { get; init; }
 
     /// <summary>Number of linked players who have a score on this candidate.</summary>
     public int LinkedPlayerCount { get; init; }
 
     /// <summary>Average PP across the linked players' scores on this candidate.</summary>
     public double AveragePp { get; init; }
-
-    /// <summary>Average rank across the linked players' scores on this candidate.</summary>
-    public double AverageRank { get; init; }
 }

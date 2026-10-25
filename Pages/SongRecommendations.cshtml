@@ -1,11 +1,12 @@
 @page
 @model portaBLe.Pages.SongRecommendationsModel
+@using beatleader_songrec.Core
+@using beatleader_songrec.Models
 
 <h2>Song Recommendations</h2>
 <p class="text-muted">
-    Generates personalized song recommendations for a player, based on the top plays of other
-    players who share songs with them (a SmartSongSuggest-style "linked player" model), using
-    portaBLe's local database instead of the BeatLeader API.
+    Maps to play next: the top plays of your peers, the players whose pp is nearest yours on the maps you're best at.
+    Maps near your level come first; move the level offset to aim easier or harder.
 </p>
 
 @if (!string.IsNullOrEmpty(Model.ErrorMessage))
@@ -13,35 +14,27 @@
     <div class="alert alert-danger">@Model.ErrorMessage</div>
 }
 
-<form method="post" class="mb-4">
+<form method="post" class="mb-4" id="songrec-form">
     @if (!string.IsNullOrEmpty(Model.SelectedDatabase))
     {
         <input type="hidden" name="db" value="@Model.SelectedDatabase" />
     }
+    <input type="hidden" name="SeedsFor" value="@Model.SeedsFor" />
     <div class="row g-3 align-items-end">
         <div class="col-auto">
             <label for="PlayerId" class="form-label">Player Id:</label>
             <input type="text" asp-for="PlayerId" class="form-control" placeholder="e.g. 76561198000000000" />
         </div>
-        <div class="col-auto">
-            <label for="SeedCount" class="form-label">Seed count:</label>
-            <input type="number" asp-for="SeedCount" class="form-control" min="1" max="200" />
-        </div>
-        <div class="col-auto">
-            <label for="TopK" class="form-label">Top-K:</label>
-            <input type="number" asp-for="TopK" class="form-control" min="1" max="200" />
-        </div>
-        <div class="col-auto">
-            <label for="StyleWeight" class="form-label">Style weight:</label>
-            <input type="number" asp-for="StyleWeight" class="form-control" min="0" max="100" />
-        </div>
-        <div class="col-auto">
-            <label for="OverweightWeight" class="form-label">Overweight weight:</label>
-            <input type="number" asp-for="OverweightWeight" class="form-control" min="0" max="100" />
-        </div>
-        <div class="col-auto">
-            <label for="LinkKeepPercent" class="form-label">Link keep %:</label>
-            <input type="number" asp-for="LinkKeepPercent" class="form-control" min="0" max="1" step="0.05" />
+        <div class="col-auto" style="min-width: 16rem">
+            <label for="LevelOffset" class="form-label" title="Moves the level the suggestions aim at: negative for easier maps, positive for harder ones">
+                Level offset: <output id="LevelOffsetValue">@OffsetText(Model.LevelOffset)</output>
+            </label>
+            <input type="range" id="LevelOffset" name="LevelOffset" class="form-range"
+                   min="@Invariant(RecommendationOptions.MinLevelOffset)"
+                   max="@Invariant(RecommendationOptions.MaxLevelOffset)" step="0.25"
+                   value="@Invariant(Model.LevelOffset)"
+                   oninput="document.getElementById('LevelOffsetValue').value = (this.value > 0 ? '+' : '') + Number(this.value).toFixed(2) + '★'" />
+            <div class="d-flex justify-content-between small text-muted"><span>easier</span><span>harder</span></div>
         </div>
         <div class="col-auto form-check mb-2">
             <input type="checkbox" asp-for="ExcludeAlreadyPlayed" class="form-check-input" />
@@ -52,50 +45,237 @@
             <button type="submit" asp-page-handler="Download" class="btn btn-secondary">Download .bplist</button>
         </div>
     </div>
+
+    @if (Model.Run is { PlayerScores.Count: > 0 } run)
+    {
+        <p class="mt-4">
+            @if (run.PlayerLevel is double level)
+            {
+                <span title="The median stars of your 50 best plays (with their speed modifiers): half of them are on harder maps, half on easier ones">Your level: <strong>@level.ToString("0.00")★</strong>.</span>
+            }
+            @if (run.TargetLevel is double target)
+            {
+                @if (Model.LevelOffset != 0)
+                {
+                    <span>Aiming at <strong>@target.ToString("0.00")★</strong> (@OffsetText(Model.LevelOffset)).</span>
+                }
+                @if (run.InStarWindow)
+                {
+                    <span>Maps from @((target - RecommendationPipeline.StarWindow).ToString("0.00"))★ to @((target + RecommendationPipeline.StarWindow).ToString("0.00"))★.</span>
+                }
+            }
+            @if (run.LevelPlays < RecommendationPipeline.FewPlays)
+            {
+                <span class="text-muted">Only @run.LevelPlays ranked play@(run.LevelPlays == 1 ? "" : "s"): the level is rough, and the suggestions are no better than the most played maps around it until about @RecommendationPipeline.FewPlays plays.</span>
+            }
+        </p>
+
+        @if (run.Results.Count > 0)
+        {
+            <table class="table table-striped align-middle">
+                <thead>
+                    <tr>
+                        <th>#</th>
+                        <th>Song</th>
+                        <th>Difficulty</th>
+                        <th>Stars</th>
+                        <th title="Stars minus the level aimed at (your level plus the offset): negative is easier">vs level</th>
+                        <th title="How many of your peers have it among their top plays">Peers</th>
+                        <th title="The pp your peers got on it, on average: about what a score like theirs would give you">Peers' pp</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    @for (var i = 0; i < run.Results.Count; i++)
+                    {
+                        var song = run.Results[i];
+                        <tr>
+                            <td>@(i + 1)</td>
+                            <td>@SongCell(song.Song)</td>
+                            <td>@song.Song.DifficultyName</td>
+                            <td>@StarsText(song.Song)</td>
+                            <td>@(song.StarsAboveLevel is double gap ? gap.ToString("+0.00;-0.00;0.00") : "-")</td>
+                            <td>@song.LinkedPlayerCount</td>
+                            <td>@song.AveragePp.ToString("0")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        }
+
+        var seedIds = run.Seeds.Select(s => s.Song.LeaderboardId).ToHashSet();
+        var otherPlays = run.PlayerScores.Where(s => !seedIds.Contains(s.Song.LeaderboardId)).ToList();
+
+        <h4 class="mt-4">Seeds</h4>
+        <p class="text-muted">
+            Your peers are found on these maps. Untick a map to leave it out, tick more of your plays below, or add any
+            ranked map (your peers on a map you haven't played: the players whose overall pp is nearest yours), then
+            Recommend again.
+        </p>
+
+        <button type="button" id="unselect-all" class="btn btn-sm btn-outline-secondary mb-2">Unselect all</button>
+        <table class="table table-sm align-middle" id="seed-table">
+            <thead>
+                <tr><th></th><th>Song</th><th>Difficulty</th><th>Stars</th><th>Your acc</th><th>Your pp</th></tr>
+            </thead>
+            <tbody>
+                @foreach (var score in run.Seeds)
+                {
+                    <tr>
+                        <td><input type="checkbox" class="form-check-input" name="Seeds" value="@score.Song.LeaderboardId" checked /></td>
+                        <td>@SongCell(score.Song)</td>
+                        <td>@score.Song.DifficultyName</td>
+                        <td>@StarsText(score.Song)</td>
+                        <td>@((score.Accuracy * 100).ToString("0.00"))%</td>
+                        <td>@score.Pp.ToString("0")</td>
+                    </tr>
+                }
+                @foreach (var song in run.AddedSeeds)
+                {
+                    <tr>
+                        <td><input type="checkbox" class="form-check-input" name="AddedSeeds" value="@song.LeaderboardId" checked /></td>
+                        <td>@SongCell(song)</td>
+                        <td>@song.DifficultyName</td>
+                        <td>@StarsText(song)</td>
+                        <td colspan="2" class="text-muted">added, not played</td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+
+        <div class="row g-2 align-items-center mb-2">
+            <div class="col-auto"><label for="map-search" class="col-form-label">Add a map:</label></div>
+            <div class="col-auto">
+                <input type="text" id="map-search" class="form-control" placeholder="Song, mapper, or leaderboard link" autocomplete="off" />
+            </div>
+            <div class="col-auto"><button type="button" id="map-search-button" class="btn btn-outline-secondary">Search</button></div>
+        </div>
+        <ul class="list-group mb-3" id="map-results"></ul>
+
+        <details class="mb-3">
+            <summary>Your other plays (@otherPlays.Count)</summary>
+            <input type="text" id="plays-filter" class="form-control my-2" placeholder="Filter by song, mapper or difficulty" autocomplete="off" />
+            <table class="table table-sm align-middle" id="other-plays">
+                <thead>
+                    <tr><th></th><th>Song</th><th>Difficulty</th><th>Stars</th><th>Your acc</th><th>Your pp</th></tr>
+                </thead>
+                <tbody>
+                    @foreach (var score in otherPlays)
+                    {
+                        <tr>
+                            <td><input type="checkbox" class="form-check-input" name="Seeds" value="@score.Song.LeaderboardId" /></td>
+                            <td>@SongCell(score.Song)</td>
+                            <td>@score.Song.DifficultyName</td>
+                            <td>@StarsText(score.Song)</td>
+                            <td>@((score.Accuracy * 100).ToString("0.00"))%</td>
+                            <td>@score.Pp.ToString("0")</td>
+                        </tr>
+                    }
+                </tbody>
+            </table>
+        </details>
+
+        <button type="submit" class="btn btn-primary">Recommend with these seeds</button>
+        <button type="submit" asp-page-handler="ResetSeeds" class="btn btn-link">Reset to automatic seeds</button>
+    }
 </form>
 
-@if (Model.Results.Count > 0)
-{
-    <p>@Model.Results.Count recommended song(s) for player <strong>@Model.PlayerId</strong>.</p>
+<script>
+    (() => {
+        const search = document.getElementById('map-search');
+        if (!search) return;
+        const results = document.getElementById('map-results');
+        const seedBody = document.querySelector('#seed-table tbody');
+        const url = '@Html.Raw(Url.Page("/SongRecommendations", "SearchLeaderboards", new { db = Model.SelectedDatabase }))';
 
-    <table class="table table-striped">
-        <thead>
-            <tr>
-                <th>#</th>
-                <th>Song</th>
-                <th>Difficulty</th>
-                <th>Stars</th>
-                <th>Score</th>
-                <th>Style</th>
-                <th>Overweight</th>
-                <th>Linked players</th>
-                <th>Avg PP</th>
-                <th>Avg rank</th>
-            </tr>
-        </thead>
-        <tbody>
-            @for (var i = 0; i < Model.Results.Count; i++)
-            {
-                var song = Model.Results[i];
-                <tr>
-                    <td>@(i + 1)</td>
-                    <td>
-                        @song.Song.Name
-                        @if (song.Song.Modifier != beatleader_songrec.Models.SpeedModifier.None)
-                        {
-                            <em>(@song.Song.Modifier)</em>
-                        }
-                    </td>
-                    <td>@song.Song.DifficultyName @song.Song.ModeName</td>
-                    <td>@(song.Song.Stars.HasValue ? $"{song.Song.Stars.Value:0.00}★" : "-")</td>
-                    <td>@song.Score.ToString("0.00")</td>
-                    <td>@song.StyleScore.ToString("0.00")</td>
-                    <td>@song.OverweightScore.ToString("0.00")</td>
-                    <td>@song.LinkedPlayerCount</td>
-                    <td>@song.AveragePp.ToString("0.0")</td>
-                    <td>@song.AverageRank.ToString("0.0")</td>
-                </tr>
+        const cell = (text, className) => {
+            const td = document.createElement('td');
+            if (className) td.className = className;
+            td.textContent = text;
+            return td;
+        };
+
+        const add = map => {
+            const selector = ['Seeds', 'AddedSeeds'].map(name => `#songrec-form input[name="${name}"][value="${CSS.escape(map.id)}"]`).join(', ');
+            const existing = document.querySelectorAll(selector);
+            if (existing.length > 0) {
+                // Already a seed or one of the player's plays: tick it
+                existing.forEach(box => box.checked = true);
+                return;
             }
-        </tbody>
-    </table>
+            const row = document.createElement('tr');
+            const box = document.createElement('input');
+            box.type = 'checkbox'; box.className = 'form-check-input'; box.name = 'AddedSeeds'; box.value = map.id; box.checked = true;
+            const first = document.createElement('td'); first.appendChild(box);
+            row.append(first, cell(`${map.name}${map.mapper ? ' — ' + map.mapper : ''}`), cell(map.difficulty), cell(`${map.stars.toFixed(2)}★`),
+                cell('added, not played yet', 'text-muted'));
+            row.lastChild.colSpan = 2;
+            seedBody.appendChild(row);
+        };
+
+        const run = async () => {
+            results.replaceChildren();
+            const q = search.value.trim();
+            if (q.length < 2) return;
+            const maps = await (await fetch(`${url}&q=${encodeURIComponent(q)}`)).json();
+            if (maps.length === 0) {
+                const none = document.createElement('li');
+                none.className = 'list-group-item text-muted'; none.textContent = 'No ranked map found.';
+                results.appendChild(none);
+            }
+            for (const map of maps) {
+                const item = document.createElement('li');
+                item.className = 'list-group-item d-flex justify-content-between align-items-center';
+                const label = document.createElement('span');
+                label.textContent = `${map.name} — ${map.difficulty} ${map.mode} · ${map.stars.toFixed(2)}★${map.mapper ? ' · ' + map.mapper : ''}`;
+                const button = document.createElement('button');
+                button.type = 'button'; button.className = 'btn btn-sm btn-outline-primary'; button.textContent = 'Add';
+                button.onclick = () => { add(map); item.remove(); };
+                item.append(label, button);
+                results.appendChild(item);
+            }
+        };
+        document.getElementById('map-search-button').onclick = run;
+        search.addEventListener('keydown', e => { if (e.key === 'Enter') { e.preventDefault(); run(); } });
+
+        document.getElementById('unselect-all').onclick = () =>
+            document.querySelectorAll('#seed-table input[type="checkbox"]').forEach(box => box.checked = false);
+
+        const filter = document.getElementById('plays-filter');
+        filter?.addEventListener('input', () => {
+            const text = filter.value.trim().toLowerCase();
+            document.querySelectorAll('#other-plays tbody tr').forEach(row =>
+                row.style.display = !text || row.textContent.toLowerCase().includes(text) ? '' : 'none');
+        });
+    })();
+</script>
+
+@functions {
+    static string Invariant(double value) => value.ToString(System.Globalization.CultureInfo.InvariantCulture);
+
+    static string OffsetText(double offset) => offset.ToString("+0.00;-0.00;0.00", System.Globalization.CultureInfo.InvariantCulture) + "★";
+
+    static string StarsText(Song song) => (song.ModifierStars ?? song.Stars) is double stars ? $"{stars:0.00}★" : "-";
+
+    static string ModifierText(SpeedModifier modifier) => modifier switch
+    {
+        SpeedModifier.SlowerSong => "SS",
+        SpeedModifier.FasterSong => "FS",
+        SpeedModifier.SuperFasterSong => "SFS",
+        _ => ""
+    };
+}
+
+@{
+    // The song with its cover, a link to its leaderboard, its mapper and its speed modifier
+    Microsoft.AspNetCore.Html.IHtmlContent SongCell(Song song)
+    {
+        var modifier = ModifierText(song.Modifier);
+        return new Microsoft.AspNetCore.Html.HtmlString(
+            $"<div class=\"d-flex align-items-center gap-2\">"
+            + (string.IsNullOrEmpty(song.CoverImageUrl) ? "" : $"<img src=\"{Html.Encode(song.CoverImageUrl)}\" alt=\"\" width=\"36\" height=\"36\" loading=\"lazy\" class=\"rounded\" />")
+            + $"<div><a href=\"{Html.Encode(Url.Page("/Leaderboard", new { id = song.LeaderboardId, db = Model.SelectedDatabase }))}\">{Html.Encode(song.Name)}</a>"
+            + (modifier.Length > 0 ? $" <span class=\"badge bg-secondary\" title=\"Played with this speed modifier\">{modifier}</span>" : "")
+            + (string.IsNullOrEmpty(song.Mapper) ? "" : $"<div class=\"small text-muted\">{Html.Encode(song.Mapper)}</div>")
+            + "</div></div>");
+    }
 }

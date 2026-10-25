@@ -43,6 +43,37 @@ public interface IBeatLeaderClient
         CancellationToken cancellationToken = default);
 
     /// <summary>
+    /// Gets the scorers of a leaderboard whose PP is nearest <paramref name="pp"/> (by PP ratio, above
+    /// or below), i.e. the players at about the same skill on that map, ordered by PP descending.
+    /// </summary>
+    /// <param name="leaderboardId">The raw BeatLeader leaderboard id.</param>
+    /// <param name="pp">The PP to look around (typically the target player's own score there).</param>
+    /// <param name="count">Maximum number of scorers to return.</param>
+    /// <param name="excludePlayerId">A player left out of the results (typically the target player), or null.</param>
+    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    Task<IReadOnlyList<Score>> GetLeaderboardScoresNearPpAsync(
+        string leaderboardId,
+        double pp,
+        int count,
+        string? excludePlayerId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>
+    /// Gets the scorers of a leaderboard whose overall PP (their profile's, not their score's) is nearest
+    /// <paramref name="playerPp"/>, ordered by score PP descending: players at about a given overall skill
+    /// who played the map. For maps the target player hasn't played, where there is no score to compare.
+    /// </summary>
+    Task<IReadOnlyList<Score>> GetLeaderboardScoresNearPlayerPpAsync(
+        string leaderboardId,
+        double playerPp,
+        int count,
+        string? excludePlayerId,
+        CancellationToken cancellationToken = default);
+
+    /// <summary>The ranked maps with these leaderboard ids (unknown or unranked ids are left out).</summary>
+    Task<IReadOnlyList<Song>> GetRankedMapsAsync(IReadOnlyCollection<string> leaderboardIds, CancellationToken cancellationToken = default);
+
+    /// <summary>
     /// Gets every currently ranked map, paging through the BeatLeader ranked map list until
     /// all pages have been fetched.
     /// </summary>

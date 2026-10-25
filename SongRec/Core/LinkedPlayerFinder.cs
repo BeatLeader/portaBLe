@@ -20,16 +20,18 @@ public interface ILinkedPlayerFinder
     /// <summary>
     /// Runs the player-linking pipeline:
     /// 1. Takes the target player's top <paramref name="seedCount"/> ranked scores as seeds.
-    /// 2. For each seed song, fetches its leaderboard and collects the top
-    ///    <paramref name="linkedPlayerScoreCount"/> scorers as linked players.
-    /// 3. For each linked player, fetches their own top <paramref name="linkedPlayerScoreCount"/>
+    /// 2. For each seed song, collects the <paramref name="peersPerSeed"/> scorers of its
+    ///    leaderboard whose PP there is nearest the target player's own (above or below) as linked
+    ///    players: peers at about the same skill, so their top plays are maps within the target
+    ///    player's reach. (Its top scorers, as SmartSongSuggest, are far stronger than all but the best
+    ///    players: their top plays were mostly maps well above the target player's level.)
+    /// 3. For each linked player, fetches their own top <paramref name="playsPerPeer"/>
     ///    scores and aggregates all songs into a candidate pool.
     /// </summary>
     /// <param name="targetPlayerId">The BeatLeader id of the target player.</param>
     /// <param name="seedCount">How many of the target player's top scores to use as seeds (default 50).</param>
-    /// <param name="linkedPlayerScoreCount">
-    /// How many top scores to consider per song leaderboard / per linked player (default 20).
-    /// </param>
+    /// <param name="peersPerSeed">How many peers each seed song links (default 20).</param>
+    /// <param name="playsPerPeer">How many of each linked player's top plays become candidates (default 20).</param>
     /// <param name="onProgress">Optional callback invoked with human-readable progress messages.</param>
     /// <param name="seedScores">
     /// Optional pre-fetched seed scores. When supplied, the target player's top scores are not
@@ -40,6 +42,15 @@ public interface ILinkedPlayerFinder
     /// mirroring SmartSongSuggest's <c>LinkKeepPercent</c>. Links whose distance is largest are
     /// discarded first; defaults to 0.5 (keep the closest half).
     /// </param>
+    /// <param name="peerPpScale">
+    /// The peers' PP looked for, as a multiple of the target player's on each seed (and the link distance's
+    /// reference): below 1 for weaker players, whose top plays are easier maps; 1 for the player's own skill.
+    /// </param>
+    /// <param name="extraSeedSongs">
+    /// Seed songs the target player has no score on (maps they added): their peers are the scorers whose
+    /// overall PP is nearest <paramref name="targetPlayerPp"/> (times <paramref name="peerPpScale"/>).
+    /// </param>
+    /// <param name="targetPlayerPp">The target player's overall PP, for <paramref name="extraSeedSongs"/>.</param>
     /// <param name="cancellationToken">Token to cancel the operation.</param>
     /// <returns>
     /// A dictionary from candidate <see cref="Song"/> (speed-modifier-aware identity) to the
@@ -48,10 +59,14 @@ public interface ILinkedPlayerFinder
     Task<IReadOnlyDictionary<Song, List<CandidateEntry>>> FindCandidateSongsAsync(
         string targetPlayerId,
         int seedCount = 50,
-        int linkedPlayerScoreCount = 20,
+        int peersPerSeed = 20,
+        int playsPerPeer = 20,
         Action<string>? onProgress = null,
         IReadOnlyList<Score>? seedScores = null,
         double linkKeepPercent = 0.5,
+        double peerPpScale = 1,
+        IReadOnlyList<Song>? extraSeedSongs = null,
+        double targetPlayerPp = 0,
         CancellationToken cancellationToken = default);
 }
 
@@ -68,10 +83,14 @@ public sealed class LinkedPlayerFinder : ILinkedPlayerFinder
     public async Task<IReadOnlyDictionary<Song, List<CandidateEntry>>> FindCandidateSongsAsync(
         string targetPlayerId,
         int seedCount = 50,
-        int linkedPlayerScoreCount = 20,
+        int peersPerSeed = 20,
+        int playsPerPeer = 20,
         Action<string>? onProgress = null,
         IReadOnlyList<Score>? seedScores = null,
         double linkKeepPercent = 0.5,
+        double peerPpScale = 1,
+        IReadOnlyList<Song>? extraSeedSongs = null,
+        double targetPlayerPp = 0,
         CancellationToken cancellationToken = default)
     {
         // Step 1: seed songs from the target player's top plays.
@@ -87,24 +106,37 @@ public sealed class LinkedPlayerFinder : ILinkedPlayerFinder
             .GroupBy(s => s.GetEffectiveSong())
             .ToDictionary(g => g.Key, g => g.Max(s => s.Pp));
 
-        // Step 2: for each seed song, fetch its leaderboard's top scorers and treat them as
-        // linked players, tracking which seed song(s) established each link.
+        // Step 2: for each seed song, fetch its peers on its leaderboard and treat them as linked
+        // players, tracking which seed song(s) established each link. Seeds the player has a score on
+        // (Pp) link the scorers nearest that score; added seeds (no Pp) the scorers nearest the player's
+        // overall PP.
         var linkedPlayersBySeedSong = new Dictionary<string, LinkedPlayer>();
         var linkedPlayerScoresOnSeed = new Dictionary<string, List<(Song SeedSong, Score Score)>>();
+        var seeds = seedScores.Select(s => (Song: s.GetEffectiveSong(), Pp: (double?)s.Pp))
+            .Concat((extraSeedSongs ?? []).Select(song => (Song: song, Pp: (double?)null)))
+            .ToList();
         var seedIndex = 0;
 
-        foreach (var seedScore in seedScores)
+        foreach (var (seedSong, seedPp) in seeds)
         {
             seedIndex++;
-            var seedSong = seedScore.GetEffectiveSong();
-            onProgress?.Invoke($"[{seedIndex}/{seedScores.Count}] Fetching leaderboard for '{seedSong.Name}' ({seedSong.LeaderboardId})...");
+            onProgress?.Invoke($"[{seedIndex}/{seeds.Count}] Fetching leaderboard for '{seedSong.Name}' ({seedSong.LeaderboardId})...");
             IReadOnlyList<Score> leaderboardScores;
             try
             {
-                leaderboardScores = await _client.GetLeaderboardScoresByIdAsync(
-                    seedSong.LeaderboardId,
-                    linkedPlayerScoreCount,
-                    cancellationToken).ConfigureAwait(false);
+                leaderboardScores = seedPp is double pp
+                    ? await _client.GetLeaderboardScoresNearPpAsync(
+                        seedSong.LeaderboardId,
+                        pp * peerPpScale,
+                        peersPerSeed,
+                        targetPlayerId,
+                        cancellationToken).ConfigureAwait(false)
+                    : await _client.GetLeaderboardScoresNearPlayerPpAsync(
+                        seedSong.LeaderboardId,
+                        targetPlayerPp * peerPpScale,
+                        peersPerSeed,
+                        targetPlayerId,
+                        cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is HttpRequestException or JsonException or InvalidOperationException)
             {
@@ -172,7 +204,7 @@ public sealed class LinkedPlayerFinder : ILinkedPlayerFinder
             {
                 linkedPlayerScores = await _client.GetPlayerTopScoresAsync(
                     linkedPlayer.Player.Id,
-                    linkedPlayerScoreCount,
+                    playsPerPeer,
                     cancellationToken).ConfigureAwait(false);
             }
             catch (Exception ex) when (ex is HttpRequestException or JsonException or InvalidOperationException)
@@ -194,10 +226,10 @@ public sealed class LinkedPlayerFinder : ILinkedPlayerFinder
 
                 foreach (var targetScore in linkedPlayerScores)
                 {
-                    var targetSong = targetScore.GetEffectiveSong();
 
-                    // Skip the self-link (linking a song back to itself).
-                    if (targetSong.Equals(originSong))
+                    // Skip the self-link (linking a song back to itself), whatever speed modifier
+                    // either player used on it.
+                    if (targetScore.Song.LeaderboardId == originSong.LeaderboardId)
                     {
                         continue;
                     }
@@ -205,7 +237,7 @@ public sealed class LinkedPlayerFinder : ILinkedPlayerFinder
                     // SmartSongSuggest distance: |(originSong.pp / playerScore)^2.5 - 1|,
                     // where playerScore falls back to the origin leaderboard score's PP when
                     // the seed itself has no recorded PP (e.g. an unranked/liked seed).
-                    var playerScoreValue = originPp != 0 ? originPp : originScore.Pp;
+                    var playerScoreValue = (originPp != 0 ? originPp : originScore.Pp) * peerPpScale;
                     var distance = playerScoreValue != 0
                         ? Math.Abs(Math.Pow(originScore.Pp / playerScoreValue, 2.5) - 1)
                         : 0d;

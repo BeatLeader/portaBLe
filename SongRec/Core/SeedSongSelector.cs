@@ -5,10 +5,12 @@ namespace beatleader_songrec.Core;
 
 /// <summary>
 /// Selects the target player's seed songs using a SmartSongSuggest-style "comparative best"
-/// approach: rather than simply taking the player's raw top-N plays by PP, this drops the
-/// weakest quarter of their plays, then reorders the remaining candidates by how competitive
-/// each score is on its own leaderboard (i.e. how many other scorers on that leaderboard beat
-/// the player's PP), favoring songs where the player is comparatively strong.
+/// approach: rather than simply taking the player's raw top-N plays by PP, this reorders their
+/// top plays by how competitive each score is on its own leaderboard (i.e. how many other scorers
+/// on that leaderboard beat the player's PP), favoring songs where the player is comparatively
+/// strong. (SmartSongSuggest also drops the weakest quarter of the plays first: that only did
+/// anything for players with fewer than 100 plays, and there it found slightly fewer of the maps
+/// they went on to play, so it was dropped.)
 /// </summary>
 public interface ISeedSongSelector
 {
@@ -34,9 +36,6 @@ public interface ISeedSongSelector
 /// <inheritdoc cref="ISeedSongSelector"/>
 public sealed class SeedSongSelector : ISeedSongSelector
 {
-    /// <summary>Fraction of the player's worst plays (by PP) dropped before comparative-best selection.</summary>
-    private const double WorstPlaysDropFraction = 0.25;
-
     /// <summary>How many top scorers to sample per leaderboard when computing comparative standing.</summary>
     private const int ComparativeSampleSize = 100;
 
@@ -58,9 +57,8 @@ public sealed class SeedSongSelector : ISeedSongSelector
 
         onProgress?.Invoke($"Fetching played scores for player {targetPlayerId} to build the seed candidate pool...");
 
-        // The API returns scores ordered by PP descending; fetch a generous multiple of the
-        // pool target so dropping the worst quarter still leaves enough candidates.
-        var played = await _client.GetPlayerTopScoresAsync(targetPlayerId, Math.Max(poolTarget * 2, 1), cancellationToken)
+        // The API returns scores ordered by PP descending
+        var played = await _client.GetPlayerTopScoresAsync(targetPlayerId, Math.Max(poolTarget, 1), cancellationToken)
             .ConfigureAwait(false);
 
         if (played.Count == 0)
@@ -68,12 +66,7 @@ public sealed class SeedSongSelector : ISeedSongSelector
             return [];
         }
 
-        var orderedByPp = played.OrderByDescending(s => s.Pp).ToList();
-
-        // Drop the worst 25% of plays (rounded down, keeping at least 1) so weak scores don't
-        // drag down the seed pool, then cap to the evaluation pool size.
-        var keepCount = Math.Max(1, (int)(orderedByPp.Count * (1.0 - WorstPlaysDropFraction)));
-        var candidatePool = orderedByPp.Take(Math.Min(keepCount, poolTarget)).ToList();
+        var candidatePool = played.OrderByDescending(s => s.Pp).Take(poolTarget).ToList();
 
         onProgress?.Invoke($"Evaluating comparative standing for {candidatePool.Count} candidate seed songs...");
 
