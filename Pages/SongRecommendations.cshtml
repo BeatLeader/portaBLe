@@ -3,7 +3,21 @@
 @using beatleader_songrec.Core
 @using beatleader_songrec.Models
 
-<h2>Song Recommendations</h2>
+@if (Model.Player is { } player)
+{
+    <h2 class="d-flex align-items-center gap-2">
+        @if (!string.IsNullOrEmpty(player.Avatar))
+        {
+            <img src="@player.Avatar" alt="" width="40" height="40" class="rounded-circle" />
+        }
+        <span>Song Recommendations for <a asp-page="/Player" asp-route-id="@player.Id" asp-route-db="@Model.SelectedDatabase">@player.Name</a></span>
+    </h2>
+    <p class="text-muted mb-1">#@player.Rank · @player.Country · @player.Pp.ToString("0")pp</p>
+}
+else
+{
+    <h2>Song Recommendations</h2>
+}
 <p class="text-muted">
     Maps to play next: the top plays of your peers, the players whose pp is nearest yours on the maps you're best at.
     Maps near your level come first; move the level offset to aim easier or harder.
@@ -21,9 +35,11 @@
     }
     <input type="hidden" name="SeedsFor" value="@Model.SeedsFor" />
     <div class="row g-3 align-items-end">
-        <div class="col-auto">
-            <label for="PlayerId" class="form-label">Player Id:</label>
-            <input type="text" asp-for="PlayerId" class="form-control" placeholder="e.g. 76561198000000000" />
+        <div class="col-auto position-relative" style="min-width: 18rem">
+            <label for="PlayerSearch" class="form-label">Player:</label>
+            <input type="hidden" asp-for="PlayerId" />
+            <input type="text" asp-for="PlayerSearch" class="form-control" placeholder="Name, id or BeatLeader profile link" autocomplete="off" />
+            <ul class="list-group position-absolute shadow-sm w-100 d-none" id="player-results" style="z-index: 1000; max-height: 22rem; overflow-y: auto"></ul>
         </div>
         <div class="col-auto" style="min-width: 16rem">
             <label for="LevelOffset" class="form-label" title="Moves the level the suggestions aim at: negative for easier maps, positive for harder ones">
@@ -102,6 +118,70 @@
             </table>
         }
 
+        @if (run.Peers.Count > 0)
+        {
+            var maxLinks = run.Peers.Max(p => p.SeedSongs.Count);
+            var graphPeers = run.Peers.Take(SongRecommendationsModel.GraphPeers).Select(p =>
+            {
+                var peer = Model.PeerPlayers.GetValueOrDefault(p.PlayerId);
+                return new
+                {
+                    id = p.PlayerId,
+                    name = peer?.Name ?? p.PlayerId,
+                    pp = Math.Round(peer?.Pp ?? 0),
+                    links = p.SeedSongs.Count,
+                    suggestions = p.Suggestions,
+                    seeds = p.SeedSongs.Select(s => s.Name).Distinct().Take(6).ToList(),
+                    url = Url.Page("/Player", new { id = p.PlayerId, db = Model.SelectedDatabase })
+                };
+            });
+
+            <h4 class="mt-4">Peers</h4>
+            <p class="text-muted">
+                The players your seeds linked you to: on each seed, the scorers whose pp is nearest yours. The more seeds a
+                peer was found on, the closer they are and the thicker their line. A filled dot brought at least one
+                suggestion (the bigger, the more); a hollow one none. The @Math.Min(run.Peers.Count, SongRecommendationsModel.GraphPeers)
+                most linked of @run.Peers.Count peers; click one to open their profile.
+            </p>
+            <div class="position-relative mb-2" id="peers-graph-box">
+                <svg id="peers-graph" viewBox="0 0 800 540" width="100%" style="max-width: 800px; display: block" role="img"
+                     aria-label="Graph of the peers the player is linked to"></svg>
+                <div id="peers-tooltip" class="position-absolute bg-white border rounded shadow-sm p-2 small d-none" style="pointer-events: none; max-width: 18rem"></div>
+            </div>
+            <script id="peers-data" type="application/json">@Html.Raw(System.Text.Json.JsonSerializer.Serialize(new
+            {
+                player = Model.Player?.Name ?? Model.PlayerId,
+                maxLinks,
+                peers = graphPeers
+            }))</script>
+
+            <details class="mb-3">
+                <summary>All peers (@run.Peers.Count)</summary>
+                <table class="table table-sm align-middle mt-2">
+                    <thead>
+                        <tr>
+                            <th>Player</th>
+                            <th title="How many of your seeds they were found on">Linked seeds</th>
+                            <th title="How many of the suggestions are among their top plays">Suggestions</th>
+                            <th>pp</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        @foreach (var link in run.Peers)
+                        {
+                            var peer = Model.PeerPlayers.GetValueOrDefault(link.PlayerId);
+                            <tr>
+                                <td><a asp-page="/Player" asp-route-id="@link.PlayerId" asp-route-db="@Model.SelectedDatabase">@(peer?.Name ?? link.PlayerId)</a></td>
+                                <td title="@string.Join(", ", link.SeedSongs.Select(s => s.Name).Distinct())">@link.SeedSongs.Count</td>
+                                <td>@link.Suggestions</td>
+                                <td>@(peer?.Pp.ToString("0") ?? "-")</td>
+                            </tr>
+                        }
+                    </tbody>
+                </table>
+            </details>
+        }
+
         var seedIds = run.Seeds.Select(s => s.Song.LeaderboardId).ToHashSet();
         var otherPlays = run.PlayerScores.Where(s => !seedIds.Contains(s.Song.LeaderboardId)).ToList();
 
@@ -178,6 +258,174 @@
         <button type="submit" asp-page-handler="ResetSeeds" class="btn btn-link">Reset to automatic seeds</button>
     }
 </form>
+
+<script>
+    // Player search: pick a player from the names matching the text, or submit the text as is (a name or an id)
+    (() => {
+        const search = document.getElementById('PlayerSearch');
+        const id = document.getElementById('PlayerId');
+        const results = document.getElementById('player-results');
+        const url = '@Html.Raw(Url.Page("/SongRecommendations", "SearchPlayers", new { db = Model.SelectedDatabase }))';
+        let timer, last = '';
+
+        const hide = () => results.classList.add('d-none');
+        const pick = player => {
+            search.value = player.name;
+            id.value = player.id;
+            hide();
+        };
+
+        const run = async () => {
+            const q = search.value.trim();
+            if (q === last) return;
+            last = q;
+            if (q.length < 2) { results.replaceChildren(); hide(); return; }
+            const players = await (await fetch(`${url}&q=${encodeURIComponent(q)}`)).json();
+            if (search.value.trim() !== q) return;
+            results.replaceChildren();
+            if (players.length === 0) {
+                const none = document.createElement('li');
+                none.className = 'list-group-item text-muted'; none.textContent = 'No player found.';
+                results.appendChild(none);
+            }
+            for (const player of players) {
+                const item = document.createElement('li');
+                item.className = 'list-group-item list-group-item-action d-flex align-items-center gap-2';
+                item.style.cursor = 'pointer';
+                if (player.avatar) {
+                    const img = document.createElement('img');
+                    img.src = player.avatar; img.width = 24; img.height = 24; img.className = 'rounded-circle'; img.alt = '';
+                    item.appendChild(img);
+                }
+                const name = document.createElement('span');
+                name.className = 'flex-grow-1'; name.textContent = player.name;
+                const info = document.createElement('span');
+                info.className = 'small text-muted'; info.textContent = `#${player.rank} · ${player.country ?? ''} · ${player.pp}pp`;
+                item.append(name, info);
+                item.addEventListener('mousedown', e => { e.preventDefault(); pick(player); });
+                results.appendChild(item);
+            }
+            results.classList.remove('d-none');
+        };
+
+        search.addEventListener('input', () => {
+            id.value = '';
+            clearTimeout(timer);
+            timer = setTimeout(run, 250);
+        });
+        search.addEventListener('focus', () => { if (results.children.length > 0 && search.value.trim() === last) results.classList.remove('d-none'); });
+        search.addEventListener('blur', hide);
+        search.addEventListener('keydown', e => { if (e.key === 'Escape') hide(); });
+    })();
+
+    // Peers graph: the player in the middle, each peer around them, closer and with a thicker line the more seeds linked them
+    (() => {
+        const data = document.getElementById('peers-data');
+        if (!data) return;
+        const { player, maxLinks, peers } = JSON.parse(data.textContent);
+        const svg = document.getElementById('peers-graph');
+        const box = document.getElementById('peers-graph-box');
+        const tooltip = document.getElementById('peers-tooltip');
+        const ns = 'http://www.w3.org/2000/svg';
+        const blue = '#2a78d6', ink = '#212529', muted = '#6c757d';
+        const cx = 400, cy = 272, near = 80, far = 245, labelled = 12, gap = Math.PI / 5;
+        const maxSuggestions = Math.max(1, ...peers.map(p => p.suggestions));
+
+        const el = (name, attributes, parent = svg) => {
+            const node = document.createElementNS(ns, name);
+            for (const [key, value] of Object.entries(attributes)) node.setAttribute(key, value);
+            parent.appendChild(node);
+            return node;
+        };
+
+        // Evenly spaced around the circle but for a gap at the top (for the ring labels), the most linked spread out (a step
+        // coprime with the count) rather than side by side
+        const n = peers.length;
+        const gcd = (a, b) => b ? gcd(b, a % b) : a;
+        let step = Math.max(1, Math.round(n * 0.382));
+        while (n > 1 && gcd(step, n) !== 1) step++;
+        const share = links => maxLinks > 1 ? (links - 1) / (maxLinks - 1) : 1;
+        const nodes = peers.map((peer, i) => {
+            const angle = -Math.PI / 2 + gap / 2 + ((i * step) % n + 0.5) / n * (2 * Math.PI - gap);
+            const r = far - share(peer.links) * (far - near);
+            return { ...peer, angle, x: cx + r * Math.cos(angle), y: cy + r * Math.sin(angle) };
+        });
+
+        // Distance rings: how many seeds a peer at that distance was linked on
+        const rings = el('g', {});
+        for (const links of [...new Set([1, Math.ceil(maxLinks / 2), maxLinks])]) {
+            const r = far - share(links) * (far - near);
+            el('circle', { cx, cy, r, fill: 'none', stroke: '#dee2e6', 'stroke-dasharray': '3 4' }, rings);
+            const label = el('text', { x: cx, y: cy - r - 4, 'text-anchor': 'middle', fill: muted, 'font-size': 11 }, rings);
+            label.textContent = `${links} seed${links === 1 ? '' : 's'}`;
+        }
+
+        const lines = el('g', {});
+        const dots = el('g', {});
+        const labels = el('g', { 'pointer-events': 'none' });
+
+        const show = (node, event) => {
+            tooltip.replaceChildren();
+            const title = document.createElement('strong');
+            title.textContent = node.name;
+            tooltip.appendChild(title);
+            for (const text of [
+                `${node.pp}pp`,
+                `Linked on ${node.links} seed${node.links === 1 ? '' : 's'}`,
+                `${node.suggestions} suggestion${node.suggestions === 1 ? '' : 's'} among their top plays`
+            ]) {
+                const line = document.createElement('div'); line.textContent = text; tooltip.appendChild(line);
+            }
+            if (node.seeds.length > 0) {
+                const seeds = document.createElement('div');
+                seeds.className = 'text-muted mt-1';
+                seeds.textContent = 'Seeds: ' + node.seeds.join(', ') + (node.links > node.seeds.length ? ', …' : '');
+                tooltip.appendChild(seeds);
+            }
+            tooltip.classList.remove('d-none');
+            const bounds = box.getBoundingClientRect();
+            const x = event.clientX - bounds.left, y = event.clientY - bounds.top;
+            tooltip.style.left = Math.max(0, Math.min(x + 14, bounds.width - tooltip.offsetWidth - 4)) + 'px';
+            tooltip.style.top = (y + 14) + 'px';
+        };
+        const hide = () => tooltip.classList.add('d-none');
+
+        for (const node of nodes) {
+            const line = el('line', {
+                x1: cx, y1: cy, x2: node.x, y2: node.y, stroke: muted, 'stroke-linecap': 'round',
+                'stroke-opacity': 0.25 + 0.5 * share(node.links), 'stroke-width': 1 + 5 * share(node.links)
+            }, lines);
+            const r = node.suggestions > 0 ? 5 + 7 * Math.sqrt(node.suggestions / maxSuggestions) : 5;
+            const link = el('a', { href: node.url }, dots);
+            const dot = el('circle', {
+                cx: node.x, cy: node.y, r,
+                fill: node.suggestions > 0 ? blue : '#fff',
+                stroke: node.suggestions > 0 ? '#fff' : blue, 'stroke-width': 2
+            }, link);
+            // A hit target bigger than the dot
+            const hit = el('circle', { cx: node.x, cy: node.y, r: Math.max(r + 6, 12), fill: 'transparent' }, link);
+            for (const target of [dot, hit]) {
+                target.addEventListener('mousemove', e => { show(node, e); line.setAttribute('stroke', blue); });
+                target.addEventListener('mouseleave', () => { hide(); line.setAttribute('stroke', muted); });
+            }
+        }
+
+        // The most linked peers are named on the graph, the others on hover
+        for (const node of nodes.slice(0, labelled)) {
+            const cos = Math.cos(node.angle), sin = Math.sin(node.angle);
+            const label = el('text', {
+                x: node.x + cos * 16, y: node.y + sin * 16 + 4,
+                'text-anchor': Math.abs(cos) < 0.3 ? 'middle' : cos > 0 ? 'start' : 'end',
+                fill: ink, 'font-size': 12, stroke: '#fff', 'stroke-width': 3, 'paint-order': 'stroke'
+            }, labels);
+            label.textContent = node.name.length > 18 ? node.name.slice(0, 17) + '…' : node.name;
+        }
+
+        el('circle', { cx, cy, r: 14, fill: ink, stroke: '#fff', 'stroke-width': 2 });
+        const name = el('text', { x: cx, y: cy + 32, 'text-anchor': 'middle', fill: ink, 'font-size': 13, 'font-weight': 600, stroke: '#fff', 'stroke-width': 3, 'paint-order': 'stroke' });
+        name.textContent = player;
+    })();
+</script>
 
 <script>
     (() => {

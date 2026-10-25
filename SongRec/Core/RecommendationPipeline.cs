@@ -105,7 +105,16 @@ public sealed record RecommendationResult
 
     /// <summary>The added seeds the player has no score on.</summary>
     public IReadOnlyList<Song> AddedSeeds { get; init; } = [];
+
+    /// <summary>The players the seeds linked the player to, the most linked first.</summary>
+    public IReadOnlyList<PeerLink> Peers { get; init; } = [];
 }
+
+/// <summary>A peer of a <see cref="RecommendationPipeline"/> run: a player the seeds linked the player to.</summary>
+/// <param name="PlayerId">The peer's player id.</param>
+/// <param name="SeedSongs">The seeds the peer was found on: the more, the closer the link.</param>
+/// <param name="Suggestions">How many of the run's suggestions are among the peer's top plays.</param>
+public sealed record PeerLink(string PlayerId, IReadOnlyList<Song> SeedSongs, int Suggestions);
 
 /// <summary>
 /// The whole recommendation pipeline: seed songs (<see cref="SeedSongSelector"/>), linked players'
@@ -242,6 +251,7 @@ public sealed class RecommendationPipeline
             extraSeedSongs: addedSongs,
             targetPlayerPp: ProfilePp(playerScores),
             cancellationToken: cancellationToken).ConfigureAwait(false);
+        var linked = candidates;
 
         // Never the seeds themselves; with ExcludeAlreadyPlayed, nothing the player has played
         var excluded = new HashSet<string>(seedScores.Select(s => s.Song.LeaderboardId).Concat(addedSongs.Select(s => s.LeaderboardId)), StringComparer.Ordinal);
@@ -254,7 +264,7 @@ public sealed class RecommendationPipeline
             .ToDictionary(pair => pair.Key, pair => pair.Value);
         if (candidates.Count == 0)
         {
-            return result with { Error = options.ExcludeAlreadyPlayed ? "No candidate songs remain after excluding already-played songs." : "No candidate songs found." };
+            return result with { Error = options.ExcludeAlreadyPlayed ? "No candidate songs remain after excluding already-played songs." : "No candidate songs found.", Peers = Peers(linked, []) };
         }
 
         // Only maps within StarWindow of the aimed level, unless none is (then every candidate, said so)
@@ -281,6 +291,23 @@ public sealed class RecommendationPipeline
             .DistinctBy(s => s.Song.LeaderboardId)
             .Take(options.TopN)
             .ToList();
-        return result with { Results = scored, InStarWindow = inStarWindow };
+        return result with { Results = scored, InStarWindow = inStarWindow, Peers = Peers(linked, scored) };
+    }
+
+    /// <summary>Every peer with a candidate (also the excluded ones), the most linked first, with how many suggestions each brought.</summary>
+    private static List<PeerLink> Peers(IReadOnlyDictionary<Song, List<CandidateEntry>> candidates, IReadOnlyList<ScoredSong> scored)
+    {
+        var suggestions = scored
+            .SelectMany(s => candidates.GetValueOrDefault(s.Song) ?? [])
+            .GroupBy(e => e.LinkedPlayer.Player.Id)
+            .ToDictionary(g => g.Key, g => g.Select(e => e.Score.Song.LeaderboardId).Distinct().Count());
+        return candidates.Values
+            .SelectMany(entries => entries)
+            .Select(e => e.LinkedPlayer)
+            .DistinctBy(p => p.Player.Id)
+            .Select(p => new PeerLink(p.Player.Id, p.SharedSeedSongs.Distinct().ToList(), suggestions.GetValueOrDefault(p.Player.Id)))
+            .OrderByDescending(p => p.SeedSongs.Count)
+            .ThenByDescending(p => p.Suggestions)
+            .ToList();
     }
 }
