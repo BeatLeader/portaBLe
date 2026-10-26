@@ -120,6 +120,7 @@ namespace portaBLe.Pages
                 "AccRating" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.AccRating) : leaderboardQuery.OrderBy(l => l.AccRating),
                 "NoteCount" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.NoteCount) : leaderboardQuery.OrderBy(l => l.NoteCount),
                 "Worth" => SortHelpers.NullsLast(leaderboardQuery, l => l.Worth, SortDescending),
+                "TopPlayShare" => SortHelpers.NullsLast(leaderboardQuery, l => l.TopPlayShareRelative, SortDescending),
                 _ => SortDescending ? leaderboardQuery.OrderByDescending(l => l.Stars) : leaderboardQuery.OrderBy(l => l.Stars),
             };
 
@@ -143,21 +144,21 @@ namespace portaBLe.Pages
                 {
                     Id = l.Id, Name = l.Name, Mapper = l.Mapper, Cover = l.Cover, ModeName = l.ModeName, DifficultyName = l.DifficultyName,
                     Stars = l.ModifiersRating!.SSStars, PassRating = l.ModifiersRating.SSPassRating, AccRating = l.ModifiersRating.SSAccRating,
-                    TechRating = l.ModifiersRating.SSTechRating, Worth = l.ModifiersRating.SSWorth, NoteCount = l.NoteCount,
+                    TechRating = l.ModifiersRating.SSTechRating, Worth = l.ModifiersRating.SSWorth, NoteCount = l.NoteCount, TopPlayShare = l.TopPlayShare, TopPlayShareRelative = l.TopPlayShareRelative,
                     IsLinear = l.IsLinear, IsFitbeat = l.IsFitbeat, IsBombReset = l.IsBombReset, IsInline = l.IsInline, MapType = l.MapType, Inlines = l.Inlines,
                 }),
                 "FS" => withRatings.Select(l => new Leaderboard
                 {
                     Id = l.Id, Name = l.Name, Mapper = l.Mapper, Cover = l.Cover, ModeName = l.ModeName, DifficultyName = l.DifficultyName,
                     Stars = l.ModifiersRating!.FSStars, PassRating = l.ModifiersRating.FSPassRating, AccRating = l.ModifiersRating.FSAccRating,
-                    TechRating = l.ModifiersRating.FSTechRating, Worth = l.ModifiersRating.FSWorth, NoteCount = l.NoteCount,
+                    TechRating = l.ModifiersRating.FSTechRating, Worth = l.ModifiersRating.FSWorth, NoteCount = l.NoteCount, TopPlayShare = l.TopPlayShare, TopPlayShareRelative = l.TopPlayShareRelative,
                     IsLinear = l.IsLinear, IsFitbeat = l.IsFitbeat, IsBombReset = l.IsBombReset, IsInline = l.IsInline, MapType = l.MapType, Inlines = l.Inlines,
                 }),
                 _ => withRatings.Select(l => new Leaderboard
                 {
                     Id = l.Id, Name = l.Name, Mapper = l.Mapper, Cover = l.Cover, ModeName = l.ModeName, DifficultyName = l.DifficultyName,
                     Stars = l.ModifiersRating!.SFStars, PassRating = l.ModifiersRating.SFPassRating, AccRating = l.ModifiersRating.SFAccRating,
-                    TechRating = l.ModifiersRating.SFTechRating, Worth = l.ModifiersRating.SFWorth, NoteCount = l.NoteCount,
+                    TechRating = l.ModifiersRating.SFTechRating, Worth = l.ModifiersRating.SFWorth, NoteCount = l.NoteCount, TopPlayShare = l.TopPlayShare, TopPlayShareRelative = l.TopPlayShareRelative,
                     IsLinear = l.IsLinear, IsFitbeat = l.IsFitbeat, IsBombReset = l.IsBombReset, IsInline = l.IsInline, MapType = l.MapType, Inlines = l.Inlines,
                 }),
             };

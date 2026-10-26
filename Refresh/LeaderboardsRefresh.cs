@@ -316,7 +316,43 @@ namespace portaBLe.Refresh
             Console.WriteLine($"Complete! Total time: {Program.Stopwatch.ElapsedMilliseconds / 1000} seconds");
 
             await RefreshWorthByRank(dbContext);
+            await RefreshTopPlayShares(dbContext);
             await DetermineTags(dbContext);
+        }
+
+        // Leaderboard.TopPlayShare / TopPlayShareRelative only (Refresh runs it; also on its own, it changes nothing else),
+        // with the acc reweighter's top play share limiter's settings
+        public static async Task RefreshTopPlayShares(AppContext dbContext)
+        {
+            Console.WriteLine("Recalculating top play shares");
+            dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
+            await DbSchema.AddColumnIfMissing(dbContext, "Leaderboards", "TopPlayShare", "REAL");
+            await DbSchema.AddColumnIfMissing(dbContext, "Leaderboards", "TopPlayShareRelative", "REAL");
+
+            var stars = await dbContext.Leaderboards.AsNoTracking().Where(l => l.Stars > 0).ToDictionaryAsync(l => l.Id, l => l.Stars);
+            var scores = await dbContext.Scores.AsNoTracking().Where(s => s.Pp > 0).Select(s => new { s.PlayerId, s.LeaderboardId, s.Pp }).ToListAsync();
+            var players = new Dictionary<string, int>();
+            var tops = new Dictionary<string, int>();
+            foreach (var g in scores.Where(s => s.LeaderboardId != null && stars.ContainsKey(s.LeaderboardId)).GroupBy(s => s.PlayerId))
+            {
+                var plays = g.OrderByDescending(s => s.Pp).ToList();
+                if (plays.Count < AccReweighter.TopPlayShareMinScores) continue;
+                foreach (var id in plays.Select(s => s.LeaderboardId).Distinct()) players[id] = players.GetValueOrDefault(id) + 1;
+                if (plays.Count > 1 && plays[0].Pp - plays[1].Pp >= AccReweighter.TopPlayMarginPp) tops[plays[0].LeaderboardId] = tops.GetValueOrDefault(plays[0].LeaderboardId) + 1;
+            }
+            var share = players.Where(p => p.Value >= AccReweighter.TopPlayShareMinPlayers).ToDictionary(p => p.Key, p => (double)tops.GetValueOrDefault(p.Key) / p.Value);
+
+            var updates = stars.Keys.Select(id =>
+            {
+                if (!share.TryGetValue(id, out double s)) return new Leaderboard { Id = id };
+                var near = share.Where(o => Math.Abs(stars[o.Key] - stars[id]) <= AccReweighter.TopPlayShareBandwidth).Select(o => o.Value).OrderBy(v => v).ToList();
+                double reference = Math.Max(near[near.Count / 2], AccReweighter.TopPlayShareFloor);
+                return new Leaderboard { Id = id, TopPlayShare = (float)s, TopPlayShareRelative = (float)(s / reference) };
+            }).ToList();
+            await dbContext.BulkUpdateAsync(updates, options => options.ColumnInputExpression = c => new { c.TopPlayShare, c.TopPlayShareRelative });
+
+            dbContext.ChangeTracker.AutoDetectChangesEnabled = true;
+            Console.WriteLine($"Top play shares: {share.Count} maps, {updates.Count(u => u.TopPlayShareRelative > AccReweighter.TopPlayShareRatio)} past {AccReweighter.TopPlayShareRatio}x");
         }
 
         // Rank ranges of Leaderboard.WorthRank*: up to each rank, from the previous one

@@ -6,6 +6,19 @@ model comes from `beatsaber-replays-ai-2`.
 The goal is ratings that never need scores at rating time. Scores, replays and fail attempts are used offline, to fit and
 validate constants. The one exception is the acc reweighter (below), the only tool that changes ratings from scores.
 
+## Low note nerf on the whole curve, stars on prod's median
+
+- **The low note nerf multiplies the whole acc curve again** (`CurveSettings.LowNoteUniformShare` 1, `LowNoteGainCut` 0):
+  the gain cut above the predicted acc bent the curve there (its slope ×0.6 above it), so the curve wasn't smooth. Now
+  `LowNoteMultiplier` (×0.80 at 20 notes) times the span factor: Quiet Water Easy (20 notes, 18 s) ×0.80, ×0.74 with SF,
+  ×0.82 with SS; RTX 20000 Easy (20 notes, 111 s) ×1, then its length bonus +5.5% as before. Scores under the predicted
+  acc are nerfed too. The speed blend is unchanged.
+- **Stars ×0.9606, prod's median** (`PpFormula.StarScale` 1.2131 → 1.1653): Dev's ranked stars had drifted above prod's
+  (median 7.26 vs 6.97, p99 14.14 vs 13.19), now the same median (6.97; p99 13.59, p1 2.18 vs 1.39, not fitted). The star
+  thresholds pp reads are ×0.9606 too (`LowStarCurveStart` / `End` 6.7242 / 9.606, `VeryLowStarCurveStart` / `End`
+  2.8818 / 4.803, `LowStarBonusEnd` 8.6454) and `LowStarBonus` 0.006 → 0.0063371 (÷ 0.9606^1.36): every score's pp is
+  unchanged.
+
 ## Song recommendations: 9x faster, same suggestions
 
 A run took 3.3 s (median of 12 players over the ranks, `songrecbench`), 0.38 s now; `songreceval` 10 players 67 s → 4 s.

@@ -205,6 +205,14 @@ namespace portaBLe.DB
         // weights each score by where it lands in the player's profile, which overreacts to rating changes and inflates maps
         // played by players with few high plays; kept for comparison.
         public float? MegametricWorth { get; set; }
+        // Top play share (LeaderboardsRefresh.RefreshTopPlayShares): of the map's players with AccReweighter.
+        // TopPlayShareMinScores ranked plays or more, those whose best play it is by AccReweighter.TopPlayMarginPp or more
+        // over their second best (any modifier). 0.046 = 4.6%. Relative: over the median share of the maps within
+        // AccReweighter.TopPlayShareBandwidth stars (at least AccReweighter.TopPlayShareFloor); the acc reweighter's top play
+        // share limiter cuts maps past AccReweighter.TopPlayShareRatio. Null with fewer than AccReweighter.
+        // TopPlayShareMinPlayers such players.
+        public float? TopPlayShare { get; set; }
+        public float? TopPlayShareRelative { get; set; }
         // Worth by player rank (LeaderboardsRefresh.RefreshWorthByRank): each score's pp / the player's top pp, averaged over
         // the map's scores by the players ranked in that range (#1-20, #21-100, #101-1000, #1001-3000, #3001-10000; more than
         // 75 ranked plays, as Megametric75), divided by what maps of its stars average (BalanceTuner.WorthReference) - 1.

@@ -253,9 +253,9 @@ namespace portaBLe
         public static async Task Main(string[] args)
         {
             Stopwatch = Stopwatch.StartNew();
-            // dotnet run -c Release -- accreweight [Setting=value ...] [rescore]: the acc reweighter alone on wwwroot/Database.db,
-            // with any of its settings (e.g. NoiseDeadZone=1 StarResponse=false), without the website or the database
-            // downloads; rescore: RefreshEverything after it
+            // dotnet run -c Release -- accreweight [Setting=value ...] [rescore] [file.db]: the acc reweighter alone on
+            // wwwroot/Database.db (or that database), with any of its settings (e.g. NoiseDeadZone=1 StarResponse=false), without
+            // the website or the database downloads; rescore: RefreshEverything after it
             // dotnet run -c Release -- upload <wwwroot/file.db>: UploadDatabaseAsync on that database alone (and its Top Scores
             // cache); the S3 name it gets is written to wwwroot/current_db_name.txt
             if (args.Length > 1 && args[0] == "upload")
@@ -282,6 +282,19 @@ namespace portaBLe
                 var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.Combine(Directory.GetCurrentDirectory(), "wwwroot")}/Database.db;").Options;
                 using var rescoreContext = new AppContext(options);
                 await RefreshEverything(rescoreContext);
+                return;
+            }
+            // dotnet run -c Release -- recurve <wwwroot/file.db>: CurvesRefresh.Regenerate then RefreshEverything on that database
+            // (after a curve or pp formula change; keeps its ratings and acc reweighter multipliers)
+            if (args.Length > 1 && args[0] == "recurve")
+            {
+                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};").Options;
+                using var recurveContext = new AppContext(options);
+                // Columns newer than the database that the curves' query reads
+                await DbSchema.AddColumnIfMissing(recurveContext, "Leaderboards", "TopPlayShare", "REAL");
+                await DbSchema.AddColumnIfMissing(recurveContext, "Leaderboards", "TopPlayShareRelative", "REAL");
+                await CurvesRefresh.Regenerate(recurveContext);
+                await RefreshEverything(recurveContext);
                 return;
             }
             // dotnet run -c Release -- mapstats <wwwroot/file.db>: the Analyzer's counts the tags use (inlines, bomb resets, walls,
@@ -317,7 +330,8 @@ namespace portaBLe
             if (args.Length > 0 && args[0] == "accreweight")
             {
                 bool rescore = args.Contains("rescore");
-                foreach (var setting in args.Skip(1).Where(a => a != "rescore"))
+                var file = args.Skip(1).FirstOrDefault(a => a.EndsWith(".db", StringComparison.OrdinalIgnoreCase));
+                foreach (var setting in args.Skip(1).Where(a => a != "rescore" && a != file))
                 {
                     var parts = setting.Split('=', 2);
                     var property = typeof(AccReweighter).GetProperty(parts[0]) ?? throw new ArgumentException($"No acc reweighter setting {parts[0]}");
@@ -327,7 +341,7 @@ namespace portaBLe
                     Console.WriteLine($"Acc reweight: {parts[0]} = {parts[1]}");
                 }
                 var webRoot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={webRoot}/Database.db;").Options;
+                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={(file != null ? Path.GetFullPath(file) : $"{webRoot}/Database.db")};").Options;
                 using var reweightContext = new AppContext(options);
                 await AccReweighter.Run(reweightContext, webRoot);
                 if (rescore) await RefreshEverything(reweightContext);

@@ -66,6 +66,7 @@
             @SortHeader("TechRating", "Tech", "Tech rating")
             @SortHeader("NoteCount", "Notes", "Color notes in the difficulty")
             @SortHeader("Worth", Model.Modifier == null ? "Worth" : $"Worth ({Model.Modifier})", "How much the map pays its players compared with maps of the same stars: for the same players, how much more or less they get here than on their other maps at their level (+4% = 4% more). The balance tuner and the acc reweighter use this measure. Blank with too few scores. With a speed modifier, that of the scores with it.")
+            @SortHeader("TopPlayShare", "Top play share", FormattableString.Invariant($"Of the map's players with {portaBLe.Refresh.AccReweighter.TopPlayShareMinScores}+ ranked plays, those whose best play it is by {portaBLe.Refresh.AccReweighter.TopPlayMarginPp:0.#}pp or more over their second best (any modifier), and that share over the median of the maps within {portaBLe.Refresh.AccReweighter.TopPlayShareBandwidth:0.#} star (sorted by it). The acc reweighter cuts maps past x{portaBLe.Refresh.AccReweighter.TopPlayShareRatio:0.#}. Blank with fewer than {portaBLe.Refresh.AccReweighter.TopPlayShareMinPlayers} such players."))
         </tr>
     </thead>
     <tbody>
@@ -91,11 +92,12 @@
                 <td class="lb-num">@leaderboard.TechRating.ToString("0.00")</td>
                 <td class="lb-num">@(leaderboard.NoteCount > 0 ? leaderboard.NoteCount.ToString() : "—")</td>
                 <td class="lb-num"><span class="lb-worth @WorthClass(leaderboard.Worth)">@WorthText(leaderboard.Worth)</span></td>
+                <td class="lb-num"><span class="lb-worth @TopShareClass(leaderboard.TopPlayShareRelative)">@TopShareText(leaderboard.TopPlayShare, leaderboard.TopPlayShareRelative)</span></td>
             </tr>
         }
         @if (Model.Leaderboards.Count == 0)
         {
-            <tr><td colspan="10" class="text-center text-muted py-4">No maps found</td></tr>
+            <tr><td colspan="11" class="text-center text-muted py-4">No maps found</td></tr>
         }
     </tbody>
 </table>
@@ -124,6 +126,10 @@
 
     // 8% or more above / below what maps of its stars average: about the outer 7-8% of maps each side
     static string WorthClass(float? worth) => worth is float w ? (w >= 0.08f ? "worth-high" : w <= -0.08f ? "worth-low" : "worth-even") : "worth-none";
+
+    // The top play share and that over the maps of its stars'; highlighted past the acc reweighter's cut (TopPlayShareRatio)
+    static string TopShareText(float? share, float? relative) => share is float s && relative is float r ? FormattableString.Invariant($"{s * 100:0.0}% (x{r:0.0})") : "—";
+    static string TopShareClass(float? relative) => relative is float r ? (r > portaBLe.Refresh.AccReweighter.TopPlayShareRatio ? "worth-high" : "worth-even") : "worth-none";
 
     // Invariant so the number input and the query string read it back the same in any culture; null when empty
     static string? RangeValue(float? value) => value?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);

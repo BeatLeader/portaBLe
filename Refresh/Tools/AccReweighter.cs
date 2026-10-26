@@ -96,7 +96,8 @@ namespace portaBLe.Refresh
     // again (WorthLimitRounds at most).
     //
     // Top play limiter (TopPlayMarginPp), after the worth limiter: a buff may not make a map pay a player much more than
-    // their best play on another map (see there).
+    // their best play on another map (see there). Then the top play share limiter (TopPlayShareRatio): a map that is far
+    // more players' best play than the maps of its stars is cut (see there).
     //
     // The point to store, after the limiters and at the real stars, must pass the balance guard too (acc-reweight.json,
     // Rejected). When it fails, the fit runs again at the lower strengths of the last pass, highest first, and the first
@@ -285,6 +286,23 @@ namespace portaBLe.Refresh
         public static int TopPlayPlayers { get; set; } = 1;
         public static int TopPlayMinScores { get; set; } = 30;
         public static int TopPlayRounds { get; set; } = 6;
+        // Top play share limiter, after the top play limiter: the nerf side. The worth measure missed maps that are far more
+        // players' best play than the other maps of their stars: Ludicrous Speed ExpertPlus (Dev Autoreweighted, 25 Oct, 14.12
+        // stars) was the best play of 131 of its 1688 players with TopPlayShareMinScores ranked plays or more (7.8%, the maps
+        // within 1 star 1.6%), 15pp over their second best at the median, Megametric 0.77 (9th of 50), and its worth +0.038
+        // (about 1 sd) only took it x0.995. A map's share: of its players with TopPlayShareMinScores scores or more, those
+        // whose best play it is by TopPlayMarginPp or more. Past TopPlayShareRatio x the median share of the maps within
+        // TopPlayShareBandwidth stars (those with TopPlayShareMinPlayers such players, at least TopPlayShareFloor), with
+        // TopPlayShareMinTops of them or more, its multiplier is cut (down to its lower bound) until no more than that many
+        // are left, from each score's pp response to a TopPlayShareProbe nerf of every map, TopPlayRounds at most. Players
+        // with few ranked plays are left out: any map they can pass may be their best. 0 = off.
+        public static double TopPlayShareRatio { get; set; } = 3;
+        public static int TopPlayShareMinScores { get; set; } = 75;
+        public static int TopPlayShareMinTops { get; set; } = 10;
+        public static int TopPlayShareMinPlayers { get; set; } = 30;
+        public static double TopPlayShareBandwidth { get; set; } = 1;
+        public static double TopPlayShareFloor { get; set; } = 0.005;
+        public static double TopPlayShareProbe { get; set; } = 0.03;
 
         private sealed class Point
         {
@@ -530,9 +548,11 @@ namespace portaBLe.Refresh
             // be stored (the limiters measured it; without them and with FitAtBaseStars, measured here). topLimited: the last
             // Finish's maps the top play limiter cut
             var topLimited = new bool[mapCount];
+            var shareLimited = new bool[mapCount];
             (Point Point, bool[] Limited, double?[]? Worth) Finish(Point p)
             {
                 topLimited = new bool[mapCount];
+                shareLimited = new bool[mapCount];
                 if (p == start) return (p, new bool[mapCount], null);
                 // StarResponse: scaled so they move worth at the real stars as the fit did at the base stars
                 if (StarResponse && FitAtBaseStars)
@@ -541,6 +561,7 @@ namespace portaBLe.Refresh
                 if (TopPlayMarginPp > 0)
                 {
                     var (limitedPoint, worth) = LimitTopPlays(context, finished.Point, topLimited);
+                    if (TopPlayShareRatio > 0) (limitedPoint, worth) = LimitTopPlayShares(context, limitedPoint, shareLimited);
                     return (limitedPoint, finished.Limited, worth);
                 }
                 if (WorthLimit > 0 || !FitAtBaseStars) return finished;
@@ -586,6 +607,7 @@ namespace portaBLe.Refresh
                     kept = start;
                     limited = new bool[mapCount];
                     topLimited = new bool[mapCount];
+                    shareLimited = new bool[mapCount];
                     worthAfter = null;
                 }
             }
@@ -644,9 +666,10 @@ namespace portaBLe.Refresh
             var result = new AccReweightResult
             {
                 GeneratedAt = DateTime.UtcNow,
-                Settings = new AccReweightSettings { WorthMeasure = BalanceTuner.WorthMeasure.ToString(), Passes = Passes, Strengths = Strengths, EvidenceScores = EvidenceScores, MinAccShare = MinAccShare, MaxChange = MaxChange, Applied = Applied, GuardTolerance = GuardTolerance, GapTolerance = GapTolerance, SlopeCorrection = SlopeCorrection, SlopeCorrectionTolerance = SlopeCorrectionTolerance, WorthLimit = WorthLimit, HeldOutSplits = HeldOutSplits, FitAtBaseStars = FitAtBaseStars, ResponseNoise = ResponseNoise, DriftCompensationRounds = DriftCompensationRounds, FrozenStarsRounds = FrozenStarsRounds, GuardMarginWarning = GuardMarginWarning, FallbackStrengths = FallbackStrengths, StarResponse = StarResponse, TargetMetric = TargetMetric, NoiseDeadZone = NoiseDeadZone, NoisePerScore = NoisePerScore, LargeGapMaxChange = LargeGapMaxChange, TopPlayMarginPp = TopPlayMarginPp, TopPlayPlayers = TopPlayPlayers, TopPlayMinScores = TopPlayMinScores, MinNotes = MinNotes },
+                Settings = new AccReweightSettings { WorthMeasure = BalanceTuner.WorthMeasure.ToString(), Passes = Passes, Strengths = Strengths, EvidenceScores = EvidenceScores, MinAccShare = MinAccShare, MaxChange = MaxChange, Applied = Applied, GuardTolerance = GuardTolerance, GapTolerance = GapTolerance, SlopeCorrection = SlopeCorrection, SlopeCorrectionTolerance = SlopeCorrectionTolerance, WorthLimit = WorthLimit, HeldOutSplits = HeldOutSplits, FitAtBaseStars = FitAtBaseStars, ResponseNoise = ResponseNoise, DriftCompensationRounds = DriftCompensationRounds, FrozenStarsRounds = FrozenStarsRounds, GuardMarginWarning = GuardMarginWarning, FallbackStrengths = FallbackStrengths, StarResponse = StarResponse, TargetMetric = TargetMetric, NoiseDeadZone = NoiseDeadZone, NoisePerScore = NoisePerScore, LargeGapMaxChange = LargeGapMaxChange, TopPlayMarginPp = TopPlayMarginPp, TopPlayPlayers = TopPlayPlayers, TopPlayMinScores = TopPlayMinScores, TopPlayShareRatio = TopPlayShareRatio, TopPlayShareMinScores = TopPlayShareMinScores, TopPlayShareMinTops = TopPlayShareMinTops, MinNotes = MinNotes },
                 MapsLimited = limited.Count(l => l),
                 MapsTopPlayLimited = topLimited.Count(l => l),
+                MapsTopPlayShareLimited = shareLimited.Count(l => l),
                 HeldOut = splits.SelectMany(s => s).Select(ToRound).ToList(),
                 Rounds = phase2.Select(ToRound).ToList(),
                 KeptRound = phase2.IndexOf(uncorrected),
@@ -672,6 +695,7 @@ namespace portaBLe.Refresh
                         WorthAfter = worthAfter?[i] is double a ? Math.Round(a, 4) : null,
                         Limited = limited[i],
                         TopPlayLimited = topLimited[i],
+                        TopPlayShareLimited = shareLimited[i],
                     })
                     .Where(m => Math.Abs(m.Multiplier - 1) > 0.0005)
                     .OrderBy(m => m.Multiplier)
@@ -1207,6 +1231,102 @@ namespace portaBLe.Refresh
             }
         }
 
+        // The top play share limiter (TopPlayShareRatio, see above), at the real stars: each round, each map past its share
+        // cut to what takes enough of its players' best plays back within TopPlayMarginPp of their second best, until none is
+        // past it or TopPlayRounds. Only cuts (down to the map's lower bound). limited: the maps cut.
+        private static (Point Point, double?[] Worth) LimitTopPlayShares(Context c, Point kept, bool[] limited)
+        {
+            int mapCount = c.Loaded.Maps.Length;
+            var logM = (double[])kept.LogM.Clone();
+            for (int round = 0; ; round++)
+            {
+                var measured = Measure(c, logM, false);
+                var (data, e) = (measured.Data, measured.E);
+                var eligible = new bool[data.PlayerCount];
+                var best = new double[data.PlayerCount];
+                var second = new double[data.PlayerCount];
+                var bestScore = new int[data.PlayerCount];
+                Parallel.For(0, data.PlayerCount, p =>
+                {
+                    if (data.PlayerScores[p].Length < TopPlayShareMinScores) return;
+                    double b = 0, s2 = 0;
+                    int bs = -1;
+                    foreach (var s in data.PlayerScores[p])
+                    {
+                        double pp = e.Pp[s];
+                        if (pp > b) { s2 = b; b = pp; bs = s; }
+                        else if (pp > s2) s2 = pp;
+                    }
+                    (eligible[p], best[p], second[p], bestScore[p]) = (bs >= 0, b, s2, bs);
+                });
+
+                // Each map's eligible players and those whose best play it is by the margin
+                var players = new int[mapCount];
+                var tops = new List<int>[mapCount];
+                for (int i = 0; i < mapCount; i++) tops[i] = new List<int>();
+                Parallel.For(0, mapCount, i =>
+                {
+                    var seen = new HashSet<int>();
+                    foreach (var s in data.Maps[i].Scores) if (eligible[data.ScorePlayer[s]]) seen.Add(data.ScorePlayer[s]);
+                    players[i] = seen.Count;
+                });
+                for (int p = 0; p < data.PlayerCount; p++)
+                {
+                    if (!eligible[p] || second[p] <= 0 || best[p] - second[p] < TopPlayMarginPp) continue;
+                    tops[data.ScoreMap[bestScore[p]]].Add(p);
+                }
+                var share = Enumerable.Range(0, mapCount).Select(i => players[i] > 0 ? (double)tops[i].Count / players[i] : 0).ToArray();
+                var counted = Enumerable.Range(0, mapCount).Where(i => players[i] >= TopPlayShareMinPlayers).ToArray();
+
+                // The maps past their share: how many of their players' best plays may stay
+                var allowedTops = new int?[mapCount];
+                var reference = new double[mapCount];
+                Parallel.For(0, mapCount, i =>
+                {
+                    if (c.Pinned[i] || c.HasWorth[i] <= 0 || tops[i].Count < TopPlayShareMinTops) return;
+                    var near = counted.Where(j => Math.Abs(data.Maps[j].Stars - data.Maps[i].Stars) <= TopPlayShareBandwidth).Select(j => share[j]).OrderBy(v => v).ToList();
+                    if (near.Count == 0) return;
+                    reference[i] = Math.Max(near[near.Count / 2], TopPlayShareFloor);
+                    int allowed = Math.Max((int)(TopPlayShareRatio * reference[i] * players[i]), TopPlayShareMinTops - 1);
+                    if (tops[i].Count > allowed && logM[i] > c.MapLo[i] + 1e-6) allowedTops[i] = allowed;
+                });
+                int over = allowedTops.Count(v => v != null);
+                var furthest = Enumerable.Range(0, mapCount).Where(i => allowedTops[i] != null).OrderByDescending(i => share[i] / reference[i]).Take(3)
+                    .Select(i => FormattableString.Invariant($"{c.Loaded.Maps[i].Leaderboard.Name} {c.Loaded.Maps[i].Leaderboard.DifficultyName} x{Math.Exp(logM[i]):0.000} {share[i] * 100:0.0}% ({tops[i].Count} of {players[i]} players, near {reference[i] * 100:0.0}%)"));
+                Console.WriteLine(FormattableString.Invariant(
+                    $"Acc reweight (top play share limiter): round {round}: {over} maps the best play of more than {TopPlayShareRatio:0.#}x the share of the maps within {TopPlayShareBandwidth:0.#} stars{(over > 0 ? $", furthest: {string.Join(", ", furthest)}" : "")}, worth spread {measured.Balance.WorthSpread:0.0000} ({c.Timer.Elapsed:mm\\:ss})"));
+                if (over == 0 || round == TopPlayRounds)
+                {
+                    var point = new Point { Pass = kept.Pass, Strength = kept.Strength, SlopeCorrection = kept.SlopeCorrection, LogM = logM, Balance = measured.Balance, GuardOk = GuardOk(c.StartBalance, measured.Balance) };
+                    Console.WriteLine(FormattableString.Invariant(
+                        $"Acc reweight: top play share limiter cut {limited.Count(l => l)} maps: worth spread {kept.Balance.WorthSpread:0.0000} -> {measured.Balance.WorthSpread:0.0000}, mean change {kept.LogM.Average(v => Math.Abs(Math.Exp(v) - 1)) * 100:0.0}% -> {logM.Average(v => Math.Abs(Math.Exp(v) - 1)) * 100:0.0}%"));
+                    return (point, measured.Worth);
+                }
+
+                // Each score's pp response to its map's multiplier (log pp over log multiplier): a score's pp only depends on its
+                // own map's ratings, so one nerf of every map measures them all
+                var probed = BalanceTuner.Evaluate(WithMultipliers(c.Loaded, c.BaseAcc, c.BaseModAcc, logM.Select(v => v - TopPlayShareProbe).ToArray(), null)).Pp;
+                for (int i = 0; i < mapCount; i++)
+                {
+                    if (allowedTops[i] is not int allowed) continue;
+                    // The cut (log) that takes each of these players back within the margin of their second best, the
+                    // (count - allowed)-th smallest leaves allowed of them
+                    var needed = new List<double>();
+                    foreach (int p in tops[i])
+                    {
+                        int s = bestScore[p];
+                        double pp = e.Pp[s], cap = second[p] + TopPlayMarginPp;
+                        double response = pp > 0 && probed[s] > 0 ? Math.Log(pp / probed[s]) / TopPlayShareProbe : 0;
+                        needed.Add(response > 1e-6 ? Math.Log(pp / cap) / response : double.MaxValue);
+                    }
+                    needed.Sort();
+                    double cut = needed[tops[i].Count - allowed - 1] + 1e-3;
+                    logM[i] = Math.Max(logM[i] - cut, c.MapLo[i]);
+                    limited[i] = true;
+                }
+            }
+        }
+
         private static double Spread(double?[] worth)
         {
             var values = worth.Where(w => w != null).Select(w => w!.Value).ToList();
@@ -1431,6 +1551,8 @@ namespace portaBLe.Refresh
         public int MapsLimited { get; set; }
         // Maps whose multiplier the top play limiter cut
         public int MapsTopPlayLimited { get; set; }
+        // Maps whose multiplier the top play share limiter cut
+        public int MapsTopPlayShareLimited { get; set; }
         // The multipliers stored (the kept ones)
         public AccReweightRound? Applied { get; set; }
         // The point that failed the balance guard at the real stars (null: none); a fallback may have been stored instead
@@ -1473,6 +1595,9 @@ namespace portaBLe.Refresh
         public double TopPlayMarginPp { get; set; }
         public int TopPlayPlayers { get; set; }
         public int TopPlayMinScores { get; set; }
+        public double TopPlayShareRatio { get; set; }
+        public int TopPlayShareMinScores { get; set; }
+        public int TopPlayShareMinTops { get; set; }
         public int MinNotes { get; set; }
     }
 
@@ -1522,5 +1647,7 @@ namespace portaBLe.Refresh
         public bool Limited { get; set; }
         // The top play limiter cut its multiplier
         public bool TopPlayLimited { get; set; }
+        // The top play share limiter cut its multiplier
+        public bool TopPlayShareLimited { get; set; }
     }
 }
