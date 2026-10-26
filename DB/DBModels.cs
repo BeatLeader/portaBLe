@@ -154,8 +154,8 @@ namespace portaBLe.DB
         // 0 = not filled yet: RatingsRefresh.Overwrite and CurvesRefresh.Regenerate store it, CurvesRefresh.RefreshNoteCounts
         // fills it without rating the maps again.
         public int NoteCount { get; set; }
-        // First to last color note, seconds (no speed modifier): the low note nerf's length relief (CurveSettings.
-        // LowNoteSpanFactor; SS / FS / SF curves use it over the speed). 0 = not filled yet: RatingsRefresh.Overwrite and
+        // First to last color note, seconds (no speed modifier): the length nerf's (CurveSettings.ShortFactor; SS / FS / SF
+        // curves use it over the speed). 0 = not filled yet: RatingsRefresh.Overwrite and
         // CurvesRefresh.Regenerate / RefreshNoteCounts store it.
         public float NoteSpan { get; set; }
         // Analyzer mean hit distance (m), used by the acc rating (RatingAPI AccRating.EffectiveAcc). Stored by

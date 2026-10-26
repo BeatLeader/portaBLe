@@ -6,13 +6,17 @@ model comes from `beatsaber-replays-ai-2`.
 The goal is ratings that never need scores at rating time. Scores, replays and fail attempts are used offline, to fit and
 validate constants. The one exception is the acc reweighter (below), the only tool that changes ratings from scores.
 
-## Low note nerf on the whole curve, stars on prod's median
+## Low note and length nerf on the whole curve, stars on prod's median
 
-- **The low note nerf multiplies the whole acc curve again** (`CurveSettings.LowNoteUniformShare` 1, `LowNoteGainCut` 0):
-  the gain cut above the predicted acc bent the curve there (its slope ×0.6 above it), so the curve wasn't smooth. Now
-  `LowNoteMultiplier` (×0.80 at 20 notes) times the span factor: Quiet Water Easy (20 notes, 18 s) ×0.80, ×0.74 with SF,
-  ×0.82 with SS; RTX 20000 Easy (20 notes, 111 s) ×1, then its length bonus +5.5% as before. Scores under the predicted
-  acc are nerfed too. The speed blend is unchanged.
+- **Low note and length nerf, on the whole acc curve** (`CurveSettings.LowNoteMultiplier` = `LowNoteFactor` ×
+  `ShortFactor`): each is 1 at most, so one of them nerfs a bit, both nerf more and nothing is buffed; a multiplier of the
+  whole curve, so it stays smooth (the gain cut above the predicted acc bent it there). Notes: ×0.95 from 20 notes down,
+  none from 115 (on ln). Length: ×0.90 from 12 s down, none from 75 s (on ln), in real time, so FS and SF are nerfed
+  more (4% of ranked maps under 75 s nomod, 6% FS, 11% SF). The length bonus and the gain cut are gone. 100% on Quiet
+  Water Easy (20 notes, 18 s): SS 609, nomod 604 (×0.876, was ×0.80), FS 598, SF 591 (×0.855, was ×0.74); RTX 20000
+  Easy (20 notes, 111 s) 614 (×0.95, was ×1.055), so the longer map pays more. A 45 s map with 400 notes ×0.972 (was
+  ×1), SF ×0.95. Dev, from a 5% length cap at 18 s: stars of the short maps ×0.994, the short low note ones ×0.982,
+  the rest unchanged; top 1000 unchanged. The speed blend is unchanged.
 - **Stars ×0.9606, prod's median** (`PpFormula.StarScale` 1.2131 → 1.1653): Dev's ranked stars had drifted above prod's
   (median 7.26 vs 6.97, p99 14.14 vs 13.19), now the same median (6.97; p99 13.59, p1 2.18 vs 1.39, not fitted). The star
   thresholds pp reads are ×0.9606 too (`LowStarCurveStart` / `End` 6.7242 / 9.606, `VeryLowStarCurveStart` / `End`

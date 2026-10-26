@@ -297,6 +297,19 @@ namespace portaBLe
                 await RefreshEverything(recurveContext);
                 return;
             }
+            // dotnet run -c Release -- pp <wwwroot/file.db> <leaderboard id> [accuracy] [modifiers]: a score's pp on that
+            // leaderboard with its stored ratings and curves (accuracy 1 and nomod by default), read only
+            if (args.Length > 2 && args[0] == "pp")
+            {
+                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};Mode=ReadOnly;").Options;
+                using var ppContext = new AppContext(options);
+                var lb = await ppContext.Leaderboards.Include(l => l.ModifiersRating).FirstAsync(l => l.Id == args[2]);
+                float accuracy = args.Length > 3 ? float.Parse(args[3], System.Globalization.CultureInfo.InvariantCulture) : 1f;
+                string modifiers = args.Length > 4 ? args[4] : "";
+                var (pp, bonus, pass, acc, tech) = ReplayUtils.PpFromScore(accuracy, modifiers, lb.ModifiersRating, lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve);
+                Console.WriteLine(FormattableString.Invariant($"{lb.Name} {lb.DifficultyName} ({lb.Stars:0.00} stars) at {accuracy * 100:0.##}% {modifiers}: {pp:0.0}pp (pass {pass:0.0}, acc {acc:0.0}, tech {tech:0.0}, modifiers {bonus:+0.0;-0.0})"));
+                return;
+            }
             // dotnet run -c Release -- mapstats <wwwroot/file.db>: the Analyzer's counts the tags use (inlines, bomb resets, walls,
             // linear %) from the maps folder, then the tags (RatingsRefresh.RefreshMapStatistics), without rating the maps again
             if (args.Length > 1 && args[0] == "mapstats")
