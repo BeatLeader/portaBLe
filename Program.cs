@@ -297,6 +297,16 @@ namespace portaBLe
                 await RefreshEverything(recurveContext);
                 return;
             }
+            // dotnet run -c Release -- rerate <wwwroot/file.db>: RatingsRefresh.Overwrite with raw acc ratings (acc reweighter
+            // multipliers cleared) then RefreshEverything on that database (after an Analyzer or rating constant change)
+            if (args.Length > 1 && args[0] == "rerate")
+            {
+                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};").Options;
+                using var rerateContext = new AppContext(options);
+                await RatingsRefresh.Overwrite(rerateContext, false);
+                await RefreshEverything(rerateContext);
+                return;
+            }
             // dotnet run -c Release -- pp <wwwroot/file.db> <leaderboard id> [accuracy] [modifiers]: a score's pp on that
             // leaderboard with its stored ratings and curves (accuracy 1 and nomod by default), read only
             if (args.Length > 2 && args[0] == "pp")

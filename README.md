@@ -43,6 +43,8 @@ stored multipliers are cleared; `Overwrite` / `Refresh` take the same option). A
 From the command line (`dotnet run -c Release -- …`):
 
 - `rescore`: `RefreshEverything` alone on `wwwroot/Database.db` (after a pp formula change).
+- `rerate <wwwroot/file.db>`: `RatingsRefresh.Overwrite` with raw acc ratings, then `RefreshEverything`, on that database
+  (after an Analyzer or rating constant change).
 - `accreweight [Setting=value ...] [rescore]`: the acc reweighter alone, with any of its settings.
 - `mapstats <wwwroot/file.db>`: the Analyzer's counts (inlines, bomb resets, walls, linear %) from the maps folder, then
   the tags, without rating the maps again.
@@ -128,7 +130,7 @@ tech share, predicted acc, OneSaber, star range), and its acc rating is moved to
 
 | | |
 |---|---|
-| Pass / one saber / tech scaling, pass windows | `RatingAPI/Analyzer/.../Algorithm/AnalyzeMap.cs` (`PASS_CALIBRATION_FACTOR`, `ONE_SABER_NERF`, `BALANCED_TECH_SCALER`, `WindowSeconds`, `DENSITY_*`) |
+| Pass / one saber / tech scaling, pass windows | `RatingAPI/Analyzer/.../Algorithm/AnalyzeMap.cs` (`PASS_CALIBRATION_FACTOR`, `ONE_SABER_NERF`, `BALANCED_TECH_SCALER`, `WindowSeconds`, `DENSITY_*`, linear map pass buff `LINEAR_PASS_*`) |
 | Pass formula (fitted on fail data) | `RatingAPI/Analyzer/.../Algorithm/Difficulty.cs` (falloffs, stress weights, `DENSITY_CAP`, wall buffs) |
 | Arrow directions (fitted on replays) | `RatingAPI/Analyzer/.../Helper/EntryExit.cs` (`SAME_ROW_ADJUST_SCALE`, `ROW_CHANGE_ADJUST_*`), dots in `Helper/DotDirections.cs` |
 | Parity | `RatingAPI/Analyzer/.../Algorithm/ParityPredictor.cs` (comfort / rotation / reset costs, `UsePairResets`) |

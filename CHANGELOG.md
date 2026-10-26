@@ -6,6 +6,24 @@ model comes from `beatsaber-replays-ai-2`.
 The goal is ratings that never need scores at rating time. Scores, replays and fail attempts are used offline, to fit and
 validate constants. The one exception is the acc reweighter (below), the only tool that changes ratings from scores.
 
+## Linear maps: pass buff
+
+- **Pass × (1 + 0.375 × (linear share − 0.3))** above a 0.3 linear share (Analyzer `AnalyzeMap.LINEAR_PASS_KNEE` /
+  `LINEAR_PASS_SLOPE`, after the tech, which doesn't change): ×1.08 at 0.5, ×1.12 at 0.62.
+  - Why: linear maps went from overweighted in prod to underweighted in Dev. Player-adjusted worth of speed / midspeed
+    maps of 8+ stars by linear share 0-0.15 / 0.15-0.25 / 0.25-0.35 / 0.35-0.45 / 0.45+: +0.000, +0.006, +0.003,
+    −0.006, −0.024 (prod +0.022 at 0.45+), in every pass and tech range; DA'AT Expert −0.067. Linear swings get almost no
+    stress: repositioning only counts movement across the swing, and they have no rotation or angle strain, though the
+    arm travels the whole height along the swing every time.
+  - Tried and not kept: the hand's path instead of the distance between entries (pass +22% on every map, nothing left
+    for linear maps once the median was back); the travel along the swing as stress on linear swings, with or without a
+    ramp over the run (the most linear maps fixed only by overpaying the 0.25-0.45 ones, whose hardest windows are
+    linear too, and a wider worth spread).
+  - Impact (Dev, 26 Oct, no acc reweight): by linear share +0.000 → −0.001, +0.006 → +0.005, +0.003 → +0.003, −0.006 →
+    −0.001, −0.024 → −0.003; worth slope on linear share above 0.3 −0.092 → −0.005; pass 13+ maps −0.021 → +0.003;
+    worth spread 0.0377 → 0.0376; tech-share gap −0.001 → −0.004; DA'AT Expert −0.067 → −0.018 (the rest: players
+    score 1.15 points under the Acc AI's prediction there). Speed modifiers' worth unchanged. Pass median +0.3%.
+
 ## Low note and length nerf on the whole curve, stars on prod's median
 
 - **Low note and length nerf, on the whole acc curve** (`CurveSettings.LowNoteMultiplier` = `LowNoteFactor` ×
