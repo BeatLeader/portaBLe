@@ -265,6 +265,16 @@ namespace portaBLe.Refresh
         public static double LargeGapMaxChange { get; set; } = 0.16;
         public static double LargeGapFrom { get; set; } = 0.04;
         public static double LargeGapFull { get; set; } = 0.08;
+        // Low star tolerance: a low-star map paying more than its kind keeps LowStarTolerance of its gap (log, after the dead
+        // zone) uncorrected, up to LowStarToleranceStart stars, fading to nothing at LowStarToleranceEnd; underpaying maps
+        // aren't affected. The nerf cuts every score of a map alike, and it kept acc players' best low-star plays off their
+        // profile's first page (Astrais, with PpFormula.LowStarBonus x2: Powerful Normal 98.98% x0.926 #17, Avalanche Easy
+        // 99.14% x0.885 #45, worth +0.094 / +0.129 without reweighting). The outliers are still nerfed for the rest of their
+        // gap (Burn Easy +0.276, Thunder Easy +0.213, let you Easy +0.209, Crying for Rain Easy +0.180, Burn Normal +0.174).
+        // 0 = off.
+        public static double LowStarTolerance { get; set; } = 0.13;
+        public static double LowStarToleranceStart { get; set; } = 4;
+        public static double LowStarToleranceEnd { get; set; } = 5;
         // Maps with fewer color notes (Leaderboard.NoteCount, 0 = unknown: moved) keep x1: the low note nerf's maps
         // (CurveSettings.LowNoteStart). Their worth is low because players can't reach the steep top of their curve (Naughty
         // little demon / Your Best Friend Normal, 43 / 47 notes: worth -0.13 / -0.17, best scores 98.6-99.3%), not because
@@ -953,6 +963,13 @@ namespace portaBLe.Refresh
                 {
                     double noise = NoiseDeadZone * NoisePerScore / Math.Sqrt(Math.Max(evidence0[i], 1));
                     gap *= gap * gap / (gap * gap + noise * noise);
+                }
+                // Overpaying low-star maps keep part of their gap (LowStarTolerance)
+                if (gap > 0 && LowStarTolerance > 0)
+                {
+                    double stars = c.Unweighted.Maps[i].Stars;
+                    double tolerance = LowStarTolerance * Math.Clamp((LowStarToleranceEnd - stars) / (LowStarToleranceEnd - LowStarToleranceStart), 0, 1);
+                    gap = Math.Max(gap - tolerance, 0);
                 }
                 double partial = Math.Exp(Math.Log(1 + w) - Applied * gap) - 1;
                 double bound = c.Hi + (large - c.Hi) * Math.Clamp((Math.Abs(gap) - LargeGapFrom) / (LargeGapFull - LargeGapFrom), 0, 1);
