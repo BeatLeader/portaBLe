@@ -38,6 +38,16 @@ public sealed record RecommendationOptions
     public double EasierWeight { get; init; } = 100;
 
     /// <summary>
+    /// Neutral linked players added to each candidate's Style (<see cref="SongScorer"/>): a map few peers link has its
+    /// Style pulled toward the pool's mean, so one peer sharing many seeds with the player can't push their outliers to
+    /// the top on their own (3: a map one peer links keeps a quarter of its pull, 3 peers half). 0 for none. A safeguard,
+    /// it finds as many of the maps that enter players' top 50 (songreceval neutral, 200 players, samples 7 / 11, k 1 /
+    /// 2 / 3 / 5 / 8: +0.2 / +0.1 / +0.1 / −0.1 / −0.4 and −0.1 / −0.1 / 0 / 0 / −0.2 points, every interval across 0),
+    /// the suggestions' median 0.03 stars nearer the level.
+    /// </summary>
+    public double NeutralPlayers { get; init; } = 3;
+
+    /// <summary>
     /// Stars added to the player's level to get the level the suggestions aim at (the page's level offset slider,
     /// <see cref="MinLevelOffset"/> to <see cref="MaxLevelOffset"/>): negative for easier suggestions, positive for
     /// harder ones. 0 is where players gain (see <see cref="RecommendationPipeline.PlayerLevel"/>). The aimed level
@@ -292,7 +302,7 @@ public sealed class RecommendationPipeline
 
         // A chart can be a candidate with and without a speed modifier: only its best scored one is kept
         var weights = new ScoringWeights { Style = options.StyleWeight, Easier = options.EasierWeight };
-        var scored = scorer.ScoreCandidates(candidates, seedScores, weights, int.MaxValue, targetLevel)
+        var scored = scorer.ScoreCandidates(candidates, seedScores, weights, int.MaxValue, targetLevel, options.NeutralPlayers)
             .DistinctBy(s => s.Song.LeaderboardId)
             .Take(options.TopN)
             .ToList();

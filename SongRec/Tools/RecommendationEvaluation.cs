@@ -60,6 +60,7 @@ public static class RecommendationEvaluation
     //   8.9 / 7.7 (-1.2 [-2.3, -0.1]), 20 plays 8.6 / 8.0.
     // - easier, weights, offset: sweeps of the Easier weight, of Style x Easier and of the level offset (how far each
     //   star of offset moves the suggestions: their stars-level against Current's).
+    // - neutral: neutral players added to each candidate's Style (RecommendationOptions.NeutralPlayers), 0 for none.
     public const string Reference = "Current";
     private static readonly RecommendationOptions Current = new();
     private static readonly double[] WeightSteps = [0, 25, 50, 75, 100];
@@ -83,6 +84,8 @@ public static class RecommendationEvaluation
         ["seeds"] = new[] { 25, 50, 75, 100 }.Select(n => ($"Seeds {n}", Current with { SeedCount = n }))
             .Prepend((Reference, Current)).ToArray(),
         ["offset"] = new double[] { -2, -1, 1, 2 }.Select(o => ($"Offset {o:+0;-0}", Current with { LevelOffset = o }))
+            .Prepend((Reference, Current)).ToArray(),
+        ["neutral"] = new double[] { 0, 1, 2, 5, 8 }.Select(k => ($"Neutral {k}", Current with { NeutralPlayers = k }))
             .Prepend((Reference, Current)).ToArray(),
     };
 

@@ -23,12 +23,17 @@ public interface ISongScorer
     /// The player's level in stars (<see cref="RecommendationPipeline.PlayerLevel"/>), for the Easier
     /// factor; null leaves it neutral.
     /// </param>
+    /// <param name="neutralPlayers">
+    /// Neutral linked players added to each candidate's Style (<see cref="RecommendationOptions.NeutralPlayers"/>);
+    /// 0 for none.
+    /// </param>
     IReadOnlyList<ScoredSong> ScoreCandidates(
         IReadOnlyDictionary<Song, List<CandidateEntry>> candidates,
         IReadOnlyList<Score> seedScores,
         ScoringWeights weights,
         int topN = 50,
-        double? playerLevel = null);
+        double? playerLevel = null,
+        double neutralPlayers = 0);
 }
 
 /// <inheritdoc cref="ISongScorer"/>
@@ -51,7 +56,8 @@ public sealed class SongScorer : ISongScorer
         IReadOnlyList<Score> seedScores,
         ScoringWeights weights,
         int topN = 50,
-        double? playerLevel = null)
+        double? playerLevel = null,
+        double neutralPlayers = 0)
     {
         ArgumentNullException.ThrowIfNull(candidates);
         ArgumentNullException.ThrowIfNull(seedScores);
@@ -108,6 +114,20 @@ public sealed class SongScorer : ISongScorer
             }
 
             proportionalStyles.Add(style);
+        }
+
+        // Neutral players: each candidate's Style pulled toward the pool's mean as if neutralPlayers more linked players
+        // had it at that mean, (style x n + mean x k) / (n + k), n its distinct linked players. A candidate one or two
+        // peers link (one sharing many seeds with the player can link their outliers strongly) keeps some of its signal,
+        // one many peers agree on nearly all of it.
+        if (neutralPlayers > 0)
+        {
+            var meanStyle = proportionalStyles.Average();
+            for (var i = 0; i < stats.Count; i++)
+            {
+                var n = stats[i].LinkedPlayerCount;
+                proportionalStyles[i] = (proportionalStyles[i] * n + meanStyle * neutralPlayers) / (n + neutralPlayers);
+            }
         }
 
         var minStyle = proportionalStyles.Count > 0 ? proportionalStyles.Min() : 0d;

@@ -14,6 +14,13 @@ validate constants. The one exception is the acc reweighter (below), the only to
   Easier 100 found fewer (−1.9).
   - Other ways under the level cost more: level offset −0.5 / −1: −1.3 / −3.4 points (median −0.14 / −0.50); a window
     reaching only 0.75 / 0.5 / 0 stars above the level: −1.0 / −2.2 / −6.1 (median −0.11 / −0.24 / −0.56).
+- **Neutral players** (`RecommendationOptions.NeutralPlayers` = 3, `SongScorer`): each candidate's Style is pulled
+  toward the pool's mean as if 3 more linked players had it there, (style × n + mean × 3) / (n + 3), n its distinct
+  linked players. One peer sharing many seeds with the player linked each of their top plays from every shared seed,
+  outliers outside the player's skillset included, above maps several peers agree on; such a map now keeps a quarter
+  of its pull. A safeguard: as many of the maps that enter players' top 50 found (`songreceval neutral`, 200 players,
+  samples 7 / 11, k 1 / 2 / 3 / 5 / 8: +0.2 / +0.1 / +0.1 / −0.1 / −0.4 and −0.1 / −0.1 / 0 / 0 / −0.2 points, every
+  interval across 0), the suggestions' median 0.03 stars nearer the level.
 - **Easier maps slider** on the page, 0 to 100 (100 by default): 0 for suggestions at the level or a little above.
 - **SmartSongSuggest's link distance removed** (`LinkedPlayerFinder`, `RecommendationOptions.LinkKeepPercent`): its
   pruning was already off (keep 1), as the peers are the scorers nearest the player's pp. Also tried and not kept
