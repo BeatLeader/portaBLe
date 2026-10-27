@@ -32,7 +32,7 @@ namespace portaBLe.Pages
         public const int GraphPeers = 40;
 
         // Everything else is fixed at the pipeline's tuned defaults (RecommendationOptions): the player only chooses
-        // the level to aim at, and which maps to seed from
+        // the level to aim at, how much easier maps are favored, and which maps to seed from
         private static readonly RecommendationOptions Defaults = new();
 
         /// <summary>
@@ -44,6 +44,10 @@ namespace portaBLe.Pages
 
         /// <summary>The level slider's top: the stars of the hardest ranked map.</summary>
         public double MaxStars { get; private set; } = 15;
+
+        /// <summary>How much maps under the level are favored over the ones above it, 0 to 100 (the Easier maps slider).</summary>
+        [BindProperty]
+        public double EasierWeight { get; set; } = Defaults.EasierWeight;
 
         [BindProperty]
         public bool ExcludeAlreadyPlayed { get; set; } = Defaults.ExcludeAlreadyPlayed;
@@ -257,6 +261,7 @@ namespace portaBLe.Pages
             var options = Defaults with
             {
                 TargetLevel = SeedsFor == null || SeedsFor == PlayerId ? TargetLevel : null,
+                EasierWeight = Math.Clamp(EasierWeight, 0, 100),
                 ExcludeAlreadyPlayed = ExcludeAlreadyPlayed,
                 SeedLeaderboardIds = useSelection ? Seeds.ToHashSet(StringComparer.Ordinal) : null,
                 AddedSeedLeaderboardIds = useSelection ? AddedSeeds : []
@@ -268,7 +273,7 @@ namespace portaBLe.Pages
                 // database file is unchanged
                 var path = context.Database.GetDbConnection().DataSource;
                 var key = string.Join("|", path, System.IO.File.GetLastWriteTimeUtc(path).Ticks, PlayerId, options.TargetLevel?.ToString("R") ?? "auto",
-                    options.ExcludeAlreadyPlayed, options.SeedLeaderboardIds is { } chosen ? string.Join(",", chosen.Order(StringComparer.Ordinal)) : "auto",
+                    options.EasierWeight.ToString("R", System.Globalization.CultureInfo.InvariantCulture), options.ExcludeAlreadyPlayed, options.SeedLeaderboardIds is { } chosen ? string.Join(",", chosen.Order(StringComparer.Ordinal)) : "auto",
                     string.Join(",", options.AddedSeedLeaderboardIds.Order(StringComparer.Ordinal)));
                 if (!RecentRuns.TryGetValue(key, out RecommendationResult run))
                 {

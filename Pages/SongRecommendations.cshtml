@@ -20,7 +20,8 @@ else
 }
 <p class="text-muted">
     Maps to play next: the top plays of your peers, the players whose pp is nearest yours on the maps you're best at.
-    Maps near your level come first; move the level slider to aim easier or harder.
+    Maps near your level come first, easier ones before harder ones (less so with Easier maps lower); move the level
+    slider to aim easier or harder.
 </p>
 
 @if (!string.IsNullOrEmpty(Model.ErrorMessage))
@@ -57,6 +58,13 @@ else
             <input type="range" id="LevelSlider" class="form-range" min="0" max="@Invariant(Model.MaxStars)" step="0.05"
                    value="@Invariant(Math.Round(Model.TargetLevel ?? playerLevel ?? Model.MaxStars / 2, 2))" />
             <div class="d-flex justify-content-between small text-muted"><span>0★</span><span>@Invariant(Model.MaxStars, "0.0")★</span></div>
+        </div>
+        <div class="col-auto" style="min-width: 12rem">
+            <label for="EasierWeight" class="form-label" title="How much maps under the level are favored over the ones at it and above: 0 not at all (most suggestions at the level or a little above), 100 the most (most of them under it)">
+                Easier maps: <output id="EasierValue">@Invariant(Model.EasierWeight)</output>
+            </label>
+            <input type="range" id="EasierWeight" name="EasierWeight" class="form-range" min="0" max="100" step="5" value="@Invariant(Model.EasierWeight)" />
+            <div class="d-flex justify-content-between small text-muted"><span>0</span><span>100</span></div>
         </div>
         <div class="col-auto form-check mb-2">
             <input type="checkbox" asp-for="ExcludeAlreadyPlayed" class="form-check-input" />
@@ -292,6 +300,13 @@ else
             target.value = '';
             value.value = e.target.dataset.text;
         });
+    })();
+
+    // Easier maps slider: its value beside it
+    (() => {
+        const slider = document.getElementById('EasierWeight');
+        const value = document.getElementById('EasierValue');
+        slider.addEventListener('input', () => value.value = slider.value);
     })();
 
     // Player search: pick a player from the names matching the text, or submit the text as is (a name or an id)

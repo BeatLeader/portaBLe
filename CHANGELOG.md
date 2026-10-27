@@ -6,6 +6,21 @@ model comes from `beatsaber-replays-ai-2`.
 The goal is ratings that never need scores at rating time. Scores, replays and fail attempts are used offline, to fit and
 validate constants. The one exception is the acc reweighter (below), the only tool that changes ratings from scores.
 
+## Song recommendations: easier maps by default, Easier maps slider
+
+- **Easier weight 50 → 100** (`RecommendationOptions.EasierWeight`): most suggestions are now under the player's level
+  (median −0.34 stars against +0.20), and they find as many of the maps that went on to enter players' top 50
+  (`songreceval`, 200 players, samples 7 / 11: +0.4 [−0.8, +1.6] / −0.7 [−2.0, +0.6] points). Before the star window,
+  Easier 100 found fewer (−1.9).
+  - Other ways under the level cost more: level offset −0.5 / −1: −1.3 / −3.4 points (median −0.14 / −0.50); a window
+    reaching only 0.75 / 0.5 / 0 stars above the level: −1.0 / −2.2 / −6.1 (median −0.11 / −0.24 / −0.56).
+- **Easier maps slider** on the page, 0 to 100 (100 by default): 0 for suggestions at the level or a little above.
+- **SmartSongSuggest's link distance removed** (`LinkedPlayerFinder`, `RecommendationOptions.LinkKeepPercent`): its
+  pruning was already off (keep 1), as the peers are the scorers nearest the player's pp. Also tried and not kept
+  (`RecommendationEvaluation`): peers ranked by that distance (|(peer pp / player pp)^e − 1|, e 1 / 2.5 / 5: within
+  ±0.2 points), and a Skillset factor favoring maps of the pass/acc/tech balance of the player's best plays (+0.2 /
+  +0.3 points at weight 25, less above, and suggestions pulled under the level).
+
 ## Linear maps: pass buff
 
 - **Pass × (1 + 0.375 × (linear share − 0.3))** above a 0.3 linear share (Analyzer `AnalyzeMap.LINEAR_PASS_KNEE` /

@@ -11,9 +11,6 @@ public sealed class ScoredSong
     /// <summary>The final combined, weighted score used for ranking (higher is better).</summary>
     public required double Score { get; init; }
 
-    /// <summary>Normalized [0,1] subscore for the Distance factor (closer to seed avg PP = higher).</summary>
-    public double DistanceScore { get; init; }
-
     /// <summary>Normalized [0,1] subscore for the Style factor (above-average linked-player share = higher).</summary>
     public double StyleScore { get; init; }
 

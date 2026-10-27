@@ -28,10 +28,14 @@ public sealed record RecommendationOptions
     // best of Style x Easier 0-100 by 25 (songreceval weights, 200 players): 24.5% of the maps that enter players'
     // top 50 found, the suggestions' median 0.3 stars above the level (where those maps are: +0.1). Without Easier
     // 22.2% and +1.3; more Easier than half of Style pulled them under the level and found fewer (Style 100 Easier
-    // 100: 18.4%, -1.9).
+    // 100: 18.4%, -1.9). Since the star window, Easier 100 finds as many (+0.4 [-0.8, +1.6] / -0.7 [-2.0, +0.6] points
+    // against 50, samples 7 / 11) with most suggestions under the level (median -0.34 stars against +0.20), so it's
+    // the default; the page's "Easier maps" slider sets it from 0 to 100. Under the level otherwise cost more: offset
+    // -0.5 / -1 -1.3 / -3.4 points (median -0.14 / -0.50), the window only 0.75 / 0.5 / 0 stars above the level -1.0 /
+    // -2.2 / -6.1 (median -0.11 / -0.24 / -0.56; means of the two samples).
     public double StyleWeight { get; init; } = 100;
 
-    public double EasierWeight { get; init; } = 50;
+    public double EasierWeight { get; init; } = 100;
 
     /// <summary>
     /// Stars added to the player's level to get the level the suggestions aim at (the page's level offset slider,
@@ -55,13 +59,6 @@ public sealed record RecommendationOptions
     /// ranked map); null for the player's level plus <see cref="LevelOffset"/>. Moves the same three things as the offset.
     /// </summary>
     public double? TargetLevel { get; init; }
-
-    /// <summary>
-    /// Fraction of links kept, closest first (<see cref="LinkedPlayerFinder"/>). 1, every link: peers' links are
-    /// already close, so pruning only threw evidence away (0.25 / 0.5 / 0.75 / 1: -1.8 / 0 / +0.9 / +1.7 points of the
-    /// maps that enter players' top 50 found against 0.5, songreceval keep, 200 players).
-    /// </summary>
-    public double LinkKeepPercent { get; init; } = 1;
 
     public bool ExcludeAlreadyPlayed { get; init; } = true;
 
@@ -255,7 +252,6 @@ public sealed class RecommendationPipeline
             options.PlaysPerPeer,
             onProgress: onProgress,
             seedScores: seedScores,
-            linkKeepPercent: options.LinkKeepPercent,
             peerPpScale: peerPpScale,
             extraSeedSongs: addedSongs,
             targetPlayerPp: ProfilePp(playerScores),

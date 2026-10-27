@@ -136,7 +136,6 @@ public sealed class SongScorer : ISongScorer
             {
                 Song = stat.Song,
                 Score = finalScore,
-                DistanceScore = 0d,
                 StyleScore = styleNormalized,
                 EasierScore = easierNormalized,
                 StarsAboveLevel = starsAboveLevel,
