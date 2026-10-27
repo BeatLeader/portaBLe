@@ -115,8 +115,9 @@ namespace portaBLe.Refresh
     // them back. The passes pick the strength that brings worth closest to these targets (TargetMetric).
     //
     // Maps without a worth (fewer than 20 scores, or 10 or fewer of them from players with more than 75 scores: newly ranked
-    // maps) keep 1.
-    // Multipliers average 1 (in log) within each star range (ranges keep their level, players' pp its scale), stay within
+    // maps) keep 1, as do maps under MinStars stars and MinNotes notes.
+    // Each star range's median map is at 1 (MedianCenter; the mean in log before: ranges keep their level, players' pp its
+    // scale), multipliers stay within
     // Applied x +-log(1 / (1 - MaxChange)) (the same distance both ways in log; LargeGapMaxChange's for large gaps), and
     // multiply the acc rating. Stored in
     // Leaderboards.AccReweight (0 or 1 = none) and applied by RatingsRefresh (Overwrite and Refresh) to the acc rating and the
@@ -263,6 +264,13 @@ namespace portaBLe.Refresh
         // 0.16 (x0.885-x1.130 with Applied 0.7, the other maps x0.922-x1.085): with 0.22 (x0.840-x1.190) the maps furthest off closed
         // 66% of their worth instead of 57%, but stars jumped up to +2.83 and 135 maps went past x1.1 (111)
         public static double LargeGapMaxChange { get; set; } = 0.16;
+        // Low-star nerfs: a nerfed map's bound is LowStarMaxChange's (Applied x log(1 / (1 - LowStarMaxChange))) instead up
+        // to LowStarToleranceStart stars, fading back to its own at LowStarToleranceEnd (as the tolerance). Buffs keep theirs.
+        // With the acc curve top compression (PpFormula.AccTopSlope 0.8 above 99%) taking the top scores down first, Burn
+        // Easy at the x0.885 bound (worth +0.27) paid 605 pp at the top (743 without either) and Thunder Easy x0.910 546 pp,
+        // which players found overnerfed. 0.22 (x0.840) took Burn Easy to 571 and Thunder Easy to 499. With MinStars 4 those
+        // maps keep x1, and it acts from 4 stars to LowStarToleranceEnd only. 0 = off.
+        public static double LowStarMaxChange { get; set; } = 0.10;
         public static double LargeGapFrom { get; set; } = 0.04;
         public static double LargeGapFull { get; set; } = 0.08;
         // Low star tolerance: a low-star map paying more than its kind keeps LowStarTolerance of its gap (log, after the dead
@@ -271,10 +279,17 @@ namespace portaBLe.Refresh
         // profile's first page (Astrais, with PpFormula.LowStarBonus x2: Powerful Normal 98.98% x0.926 #17, Avalanche Easy
         // 99.14% x0.885 #45, worth +0.094 / +0.129 without reweighting). The outliers are still nerfed for the rest of their
         // gap (Burn Easy +0.276, Thunder Easy +0.213, let you Easy +0.209, Crying for Rain Easy +0.180, Burn Normal +0.174).
-        // 0 = off.
+        // With MinStars 4 the maps under 4 stars keep x1, so it acts from 4 stars to LowStarToleranceEnd only. 0 = off.
         public static double LowStarTolerance { get; set; } = 0.13;
         public static double LowStarToleranceStart { get; set; } = 4;
         public static double LowStarToleranceEnd { get; set; } = 5;
+        // Median center: each star range's median multiplier is 1, not its mean (log). The tolerance only holds back nerfs,
+        // so its ranges' mean went up and its removal nerfed every map: Dev Acc Autoreweighted (27 Oct), the maps within
+        // +-0.01 of their kind's worth at 2 / 3 / 4 stars x0.989 / x0.990 / x0.992 (x1.004 / x1.001 / x0.999 the day
+        // before, without it). The range's mean then moves with what isn't symmetric (the tolerance, the bounds, the
+        // limiters' cuts) instead of every map taking it: 3 / 4 stars x0.996 / x0.997, those ranges' mean x1.007 / x1.005.
+        // Also the worth limiter's. The star response's probe keeps the mean (a +-probe's median is one of the two).
+        public static bool MedianCenter { get; set; } = true;
         // Maps with fewer color notes (Leaderboard.NoteCount, 0 = unknown: moved) keep x1: the low note nerf's maps
         // (CurveSettings.LowNoteStart). Their worth is low because players can't reach the steep top of their curve (Naughty
         // little demon / Your Best Friend Normal, 43 / 47 notes: worth -0.13 / -0.17, best scores 98.6-99.3%), not because
@@ -282,6 +297,13 @@ namespace portaBLe.Refresh
         // -> 1292 pp, with the best score anywhere 816. Their scores still count in every player's worth and the balance.
         // 0 = off.
         public static int MinNotes { get; set; } = 115;
+        // Maps under MinStars stars (without reweighting) keep x1 too, buffs and nerfs: the worth measure at low stars
+        // wanted the maps whose best plays are acc players' best low-star plays nerfed the most (Dev Acc, 27 Oct: Burn Easy
+        // worth +0.27, let you Easy +0.21, Thunder Easy +0.21, 696 / 735 / 607 pp at the top with the acc curve top
+        // compression alone), and the acc curve (PpFormula.AccTopKnee / AccTopSlope, LowStarBonus) already sets what they
+        // pay. Their scores still count in every player's worth and the balance. LowStarTolerance and LowStarMaxChange act
+        // from here to LowStarToleranceEnd. 0 = off.
+        public static double MinStars { get; set; } = 4;
         // Top play limiter: what a buff adds on top of a player's best play. A buffed map's score may pay at most
         // TopPlayMarginPp more than the higher of its pp without reweighting and the player's best play on another map (at the
         // real stars, after the worth limiter); the buff is cut until fewer than TopPlayPlayers players (with TopPlayMinScores
@@ -423,9 +445,12 @@ namespace portaBLe.Refresh
             var startMeasure = Measure(context, new double[mapCount], false);
             context.StartWorth = startMeasure.Worth;
             context.StartBalance = startMeasure.Balance;
-            context.Pinned = loaded.Maps.Select(m => m.Leaderboard.NoteCount > 0 && m.Leaderboard.NoteCount < MinNotes).ToArray();
+            var lowNotes = loaded.Maps.Select(m => m.Leaderboard.NoteCount > 0 && m.Leaderboard.NoteCount < MinNotes).ToArray();
+            var lowStars = context.Unweighted.Maps.Select(m => m.Stars < MinStars).ToArray();
+            context.Pinned = lowNotes.Select((p, i) => p || lowStars[i]).ToArray();
             context.HasWorth = context.StartWorth.Select((w, i) => w != null && !context.Pinned[i] ? 1.0 : 0.0).ToArray();
-            if (MinNotes > 0) Console.WriteLine($"Acc reweight: {context.Pinned.Count(p => p)} maps under {MinNotes} notes kept at 1");
+            if (MinNotes > 0) Console.WriteLine($"Acc reweight: {lowNotes.Count(p => p)} maps under {MinNotes} notes kept at 1");
+            if (MinStars > 0) Console.WriteLine(FormattableString.Invariant($"Acc reweight: {lowStars.Count(p => p)} maps under {MinStars:0.##} stars kept at 1"));
             context.U = SlopeTerms(context);
             if (SlopeCorrection) context.Jacobian = MeasureJacobian(context, null, context.StartBalance, FitAtBaseStars, "start");
             if (StarResponse) StarResponses(context);
@@ -676,7 +701,7 @@ namespace portaBLe.Refresh
             var result = new AccReweightResult
             {
                 GeneratedAt = DateTime.UtcNow,
-                Settings = new AccReweightSettings { WorthMeasure = BalanceTuner.WorthMeasure.ToString(), Passes = Passes, Strengths = Strengths, EvidenceScores = EvidenceScores, MinAccShare = MinAccShare, MaxChange = MaxChange, Applied = Applied, GuardTolerance = GuardTolerance, GapTolerance = GapTolerance, SlopeCorrection = SlopeCorrection, SlopeCorrectionTolerance = SlopeCorrectionTolerance, WorthLimit = WorthLimit, HeldOutSplits = HeldOutSplits, FitAtBaseStars = FitAtBaseStars, ResponseNoise = ResponseNoise, DriftCompensationRounds = DriftCompensationRounds, FrozenStarsRounds = FrozenStarsRounds, GuardMarginWarning = GuardMarginWarning, FallbackStrengths = FallbackStrengths, StarResponse = StarResponse, TargetMetric = TargetMetric, NoiseDeadZone = NoiseDeadZone, NoisePerScore = NoisePerScore, LargeGapMaxChange = LargeGapMaxChange, TopPlayMarginPp = TopPlayMarginPp, TopPlayPlayers = TopPlayPlayers, TopPlayMinScores = TopPlayMinScores, TopPlayShareRatio = TopPlayShareRatio, TopPlayShareMinScores = TopPlayShareMinScores, TopPlayShareMinTops = TopPlayShareMinTops, MinNotes = MinNotes },
+                Settings = new AccReweightSettings { WorthMeasure = BalanceTuner.WorthMeasure.ToString(), Passes = Passes, Strengths = Strengths, EvidenceScores = EvidenceScores, MinAccShare = MinAccShare, MaxChange = MaxChange, Applied = Applied, GuardTolerance = GuardTolerance, GapTolerance = GapTolerance, SlopeCorrection = SlopeCorrection, SlopeCorrectionTolerance = SlopeCorrectionTolerance, WorthLimit = WorthLimit, HeldOutSplits = HeldOutSplits, FitAtBaseStars = FitAtBaseStars, ResponseNoise = ResponseNoise, DriftCompensationRounds = DriftCompensationRounds, FrozenStarsRounds = FrozenStarsRounds, GuardMarginWarning = GuardMarginWarning, FallbackStrengths = FallbackStrengths, StarResponse = StarResponse, TargetMetric = TargetMetric, NoiseDeadZone = NoiseDeadZone, NoisePerScore = NoisePerScore, LargeGapMaxChange = LargeGapMaxChange, TopPlayMarginPp = TopPlayMarginPp, TopPlayPlayers = TopPlayPlayers, TopPlayMinScores = TopPlayMinScores, TopPlayShareRatio = TopPlayShareRatio, TopPlayShareMinScores = TopPlayShareMinScores, TopPlayShareMinTops = TopPlayShareMinTops, MinNotes = MinNotes, LowStarTolerance = LowStarTolerance, LowStarMaxChange = LowStarMaxChange, MedianCenter = MedianCenter, MinStars = MinStars },
                 MapsLimited = limited.Count(l => l),
                 MapsTopPlayLimited = topLimited.Count(l => l),
                 MapsTopPlayShareLimited = shareLimited.Count(l => l),
@@ -736,11 +761,28 @@ namespace portaBLe.Refresh
             return BalanceTuner.MeasureBalance(data, e, worth, c.Unweighted);
         }
 
-        // Without each star range's mean (log, over the maps with weight), then the bounds
-        private static double[] Clean(Context c, double[] logM, double[] weight)
+        // Without each star range's center (log, over the maps with weight: its median with MedianCenter and median, else its
+        // mean), then the bounds
+        private static double[] Clean(Context c, double[] logM, double[] weight, bool median = true)
         {
-            var cleaned = Residuals(c.BandFeatures, logM.Select(v => (double?)v).ToArray(), weight);
-            return cleaned.Select((v, i) => Math.Clamp(v ?? 0, c.MapLo[i], c.MapHi[i])).ToArray();
+            if (!(MedianCenter && median))
+            {
+                var cleaned = Residuals(c.BandFeatures, logM.Select(v => (double?)v).ToArray(), weight);
+                return cleaned.Select((v, i) => Math.Clamp(v ?? 0, c.MapLo[i], c.MapHi[i])).ToArray();
+            }
+            var centers = BandMedians(c, logM, i => weight[i] > 0);
+            return logM.Select((v, i) => weight[i] > 0 ? Math.Clamp(v - centers[c.BaseBand[i]], c.MapLo[i], c.MapHi[i]) : 0).ToArray();
+        }
+
+        // Each star range's median log multiplier over the maps included
+        private static Dictionary<int, double> BandMedians(Context c, double[] logM, Func<int, bool> included)
+        {
+            return Enumerable.Range(0, logM.Length).Where(included).GroupBy(i => c.BaseBand[i]).ToDictionary(g => g.Key, g =>
+            {
+                var sorted = g.Select(i => logM[i]).OrderBy(v => v).ToList();
+                int n = sorted.Count;
+                return n % 2 == 1 ? sorted[n / 2] : (sorted[n / 2 - 1] + sorted[n / 2]) / 2;
+            });
         }
 
         // StarResponse (see above): the probe, at the base stars and at the real ones
@@ -749,7 +791,8 @@ namespace portaBLe.Refresh
             int mapCount = c.Loaded.Maps.Length;
             var random = new Random(4242);
             var probe = c.HasWorth.Select(h => h > 0 ? (random.Next(2) == 0 ? -StarResponseProbe : StarResponseProbe) : 0).ToArray();
-            probe = Clean(c, probe, c.HasWorth);
+            // The mean: a +-probe's median is one of the two
+            probe = Clean(c, probe, c.HasWorth, false);
             var stars = c.Unweighted.Maps.Select(m => (double)m.Stars).ToArray();
 
             // Each map's response (log worth change / log multiplier / Prior), then their kernel mean over stars at each map's
@@ -973,6 +1016,11 @@ namespace portaBLe.Refresh
                 }
                 double partial = Math.Exp(Math.Log(1 + w) - Applied * gap) - 1;
                 double bound = c.Hi + (large - c.Hi) * Math.Clamp((Math.Abs(gap) - LargeGapFrom) / (LargeGapFull - LargeGapFrom), 0, 1);
+                if (gap > 0 && LowStarMaxChange > 0)
+                {
+                    double lowStar = Applied * -Math.Log(1 - LowStarMaxChange);
+                    bound += (lowStar - bound) * Math.Clamp((LowStarToleranceEnd - c.Unweighted.Maps[i].Stars) / (LowStarToleranceEnd - LowStarToleranceStart), 0, 1);
+                }
                 c.MapLo[i] = -bound;
                 c.MapHi[i] = bound;
                 // Not past the worth limit (WorthLimit): a map already past it isn't pushed further
@@ -1150,7 +1198,15 @@ namespace portaBLe.Refresh
                     $"Acc reweight (worth limiter): round {round}: {over} maps past +-{WorthLimit:0.000}, worth spread {balance.WorthSpread:0.0000}, mean change {logM.Average(v => Math.Abs(Math.Exp(v) - 1)) * 100:0.0}%, response {global:0.00} x acc share ({c.Timer.Elapsed:mm\\:ss})"));
                 if (over == 0 || round == WorthLimitRounds) break;
 
-                // Each star range keeps its mean (log, over the maps with a worth): the maps not cut take it back
+                // Each star range keeps its center (log, over the maps with a worth): the maps not cut take it back. Median
+                // (MedianCenter): its median map is 1 again, shifting the maps not cut
+                if (MedianCenter)
+                {
+                    var centers = BandMedians(c, logM, i => c.HasWorth[i] > 0);
+                    for (int i = 0; i < mapCount; i++)
+                        if (c.HasWorth[i] > 0 && !limited[i]) logM[i] = Math.Clamp(logM[i] - centers[c.BaseBand[i]], c.MapLo[i], c.MapHi[i]);
+                    continue;
+                }
                 var bands = new Dictionary<int, (double Sum, int Free)>();
                 for (int i = 0; i < mapCount; i++)
                 {
@@ -1616,6 +1672,11 @@ namespace portaBLe.Refresh
         public int TopPlayShareMinScores { get; set; }
         public int TopPlayShareMinTops { get; set; }
         public int MinNotes { get; set; }
+        public double LowStarTolerance { get; set; }
+        public double LowStarMaxChange { get; set; }
+        // false: before it (the mean)
+        public bool MedianCenter { get; set; }
+        public double MinStars { get; set; }
     }
 
     // A round of the drift compensation: pass share, tech share and predicted acc slopes
