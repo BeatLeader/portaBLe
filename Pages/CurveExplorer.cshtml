@@ -33,7 +33,7 @@
         <label class="ce-check"><input type="checkbox" id="topRelative" onchange="draw()" /> relative to the predicted acc:</label>
         <label>above predicted + <input type="number" id="topShare" step="0.05" min="0" max="1" oninput="draw()" /> &times; (100% &minus; predicted)</label>
         <span class="ce-hint">curve(knee) + (curve &minus; curve(knee)) &times; slope above the knee, before the acc curve power
-            (PpFormula.AccTopKnee / AccTopSlope). Relative to the predicted acc: a knee by map instead (not in use, to try it):
+            (removed from PpFormula: the 99%+ curve rows' C does it now; what-if only). Relative to the predicted acc: a knee by map instead:
             <b id="topValue"></b></span>
     </div>
     <div class="ce-corr-row">
@@ -103,7 +103,7 @@
     <canvas id="curveChart"></canvas>
 </div>
 
-<h5>Acc pp relative to the base curve at the predicted acc</h5>
+<h5>Acc pp relative to the base curve at the predicted acc <small class="text-muted">(acc pp = curve &times; 21.584 &times; acc rating<sup>1.2163</sup>)</small></h5>
 <table class="table table-sm ce-table">
     <thead>
         <tr><th>Accuracy</th><th>Base curve</th><th>Without corrections</th><th>This curve</th><th>This / base</th><th>Acc pp vs base at predicted</th></tr>
@@ -221,7 +221,7 @@
         }
         function noteMultiplier() { return noteFactor() * shortFactor(); }
 
-        // The acc top compression's knee (%): PpFormula.AccTopKnee, or the predicted acc + share x what's left to 100%
+        // The what-if acc top compression's knee (%): fixed, or the predicted acc + share x what's left to 100%
         function topKnee(predicted) {
             return checked('topRelative') ? predicted + num('topShare') * (100 - predicted) : num('topKnee');
         }
@@ -247,7 +247,7 @@
             // The acc curve power's pivot is the curve at the star accuracy without the top compression (PpCalculator.GetPp)
             const at96 = interp(pts, corr.starAccuracy);
             if (checked('useTop')) {
-                // PpFormula.AccTop: the curve above the knee rises slope as fast, from its value at the knee
+                // Acc top compression (what-if): the curve above the knee rises slope as fast, from its value at the knee
                 const at = topKnee(p), slope = num('topSlope'), atKnee = interp(pts, at);
                 if (slope !== 1) pts = pts.map(([x, y]) => [x, x > at && y > atKnee ? atKnee + (y - atKnee) * slope : y]);
             }
@@ -393,7 +393,8 @@
             if (chart) { chart.data = config.data; chart.options = config.options; chart.update('none'); }
             else chart = new Chart(document.getElementById('curveChart').getContext('2d'), config);
 
-            // Acc pp table: relative to the base curve's value at the predicted acc (acc pp = curve * acc rating * 34)
+            // Acc pp table: relative to the base curve's value at the predicted acc (acc pp = curve x AccWeight x acc rating^
+            // AccRatingPower, PpFormula.AccPp)
             const baseAtPred = interp(data.basePoints, p);
             const rows = [['Predicted', p], ['+0.25', p + 0.25], ['+0.5', p + 0.5], ['+1', p + 1], ['+2', p + 2], ['SSS', 100]]
                 .filter(([lbl, x]) => x <= 100.0001 && (lbl === 'SSS' || x < 99.99));

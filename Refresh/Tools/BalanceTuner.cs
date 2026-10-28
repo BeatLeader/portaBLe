@@ -546,9 +546,11 @@ namespace portaBLe.Refresh
                 var mod = lb.ModifiersRating;
                 if (mod != null)
                 {
-                    var (ssPass, ssTech, ssAcc) = Transform(mod.SSPassRating, mod.SSTechRating, mod.SSAccRating, mod.SSPredictedAcc, lb.HitDistance, lb.HardSwingRatio, oneSaber, from, to);
-                    var (fsPass, fsTech, fsAcc) = Transform(mod.FSPassRating, mod.FSTechRating, mod.FSAccRating, mod.FSPredictedAcc, lb.HitDistance, lb.HardSwingRatio, oneSaber, from, to);
-                    var (sfPass, sfTech, sfAcc) = Transform(mod.SFPassRating, mod.SFTechRating, mod.SFAccRating, mod.SFPredictedAcc, lb.HitDistance, lb.HardSwingRatio, oneSaber, from, to);
+                    // Their high pass correction follows the nomod pass when AccRating.SpeedHighPassFromNomod is on
+                    (double, double)? speedHighPass = global::RatingAPI.Controllers.AccRating.SpeedHighPassFromNomod ? (lb.PassRating, pass) : null;
+                    var (ssPass, ssTech, ssAcc) = Transform(mod.SSPassRating, mod.SSTechRating, mod.SSAccRating, mod.SSPredictedAcc, lb.HitDistance, lb.HardSwingRatio, oneSaber, from, to, speedHighPass);
+                    var (fsPass, fsTech, fsAcc) = Transform(mod.FSPassRating, mod.FSTechRating, mod.FSAccRating, mod.FSPredictedAcc, lb.HitDistance, lb.HardSwingRatio, oneSaber, from, to, speedHighPass);
+                    var (sfPass, sfTech, sfAcc) = Transform(mod.SFPassRating, mod.SFTechRating, mod.SFAccRating, mod.SFPredictedAcc, lb.HitDistance, lb.HardSwingRatio, oneSaber, from, to, speedHighPass);
                     copy.ModifiersRating = new ModifiersRating
                     {
                         Id = mod.Id,
@@ -578,8 +580,9 @@ namespace portaBLe.Refresh
             };
         }
 
+        // nomodPass: a speed modifier's map's nomod pass rating before and after (its high pass correction's), null: nomod
         private static (float Pass, float Tech, float Acc) Transform(float pass, float tech, float accRating, float predictedAcc, float hitDistance, float hardSwingRatio, bool oneSaber,
-            RatingConstants from, RatingConstants to)
+            RatingConstants from, RatingConstants to, (double Old, double New)? nomodPass = null)
         {
             double newPass = pass * (to.PassCalibration / from.PassCalibration);
             if (oneSaber)
@@ -602,8 +605,8 @@ namespace portaBLe.Refresh
             {
                 // Same as AccRating.GetRating, with its corrections (the high pass one follows the new pass)
                 double exponent = global::RatingAPI.Controllers.AccRating.ACC_EXPONENT;
-                double oldEffective = global::RatingAPI.Controllers.AccRating.EffectiveAcc(predictedAcc, pass, hitDistance);
-                double newEffective = global::RatingAPI.Controllers.AccRating.EffectiveAcc(predictedAcc, newPass, hitDistance);
+                double oldEffective = global::RatingAPI.Controllers.AccRating.EffectiveAcc(predictedAcc, pass, hitDistance, nomodPass?.Old);
+                double newEffective = global::RatingAPI.Controllers.AccRating.EffectiveAcc(predictedAcc, newPass, hitDistance, nomodPass?.New);
                 double oldBase = from.AccScale * Math.Pow(global::RatingAPI.Controllers.AccRating.Curve(predictedAcc, oldEffective + from.AccOffset), -exponent)
                     * global::RatingAPI.Controllers.AccRating.HardSwingMultiplier(pass, hardSwingRatio);
                 double newBase = to.AccScale * Math.Pow(global::RatingAPI.Controllers.AccRating.Curve(predictedAcc, newEffective + to.AccOffset), -exponent)

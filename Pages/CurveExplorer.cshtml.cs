@@ -8,7 +8,7 @@ namespace portaBLe.Pages
     // RC.CurveSettings.Current). Nothing is read from or written to a database.
     // The map-dependent corrections (slider tilt, low note nerf, acc top compression, acc curve power, very low star power)
     // are applied by the page's script with the same formulas (Curve.GetCurve, CurveSettings.LowNoteMultiplier,
-    // PpFormula.AccTop / AccCurve / CurvePowerAt). The curves sent have no note count, so no low note nerf.
+    // PpFormula.AccCurve / CurvePowerAt; the acc top compression is a what-if, no longer in PpFormula). The curves sent have no note count, so no low note nerf.
     public class CurveExplorerModel : PageModel
     {
         public const double MinPredicted = 0.940;
@@ -66,8 +66,9 @@ namespace portaBLe.Pages
                 {
                     sliderTilt = settings.SliderTilt,
                     sliderTiltRange = settings.SliderTiltRange * 100,
-                    accTopKnee = formula.AccTopKnee * 100,
-                    accTopSlope = formula.AccTopSlope,
+                    // Not in the formula any more (the 99%+ curve rows replace it): what-if only, at its last values
+                    accTopKnee = 99.0,
+                    accTopSlope = 0.8,
                     accCurvePower = formula.AccCurvePower,
                     lowStarCurvePower = formula.LowStarCurvePower,
                     lowStarCurveStart = formula.LowStarCurveStart,

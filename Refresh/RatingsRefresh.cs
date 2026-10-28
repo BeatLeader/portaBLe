@@ -309,9 +309,11 @@ namespace portaBLe.Refresh
                     double reweight = ReplayUtils.AccReweightOf(lb);
                     lb.AccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(lb.PredictedAcc, lb.PassRating, lb.TechRating, lb.HitDistance, lb.HardSwingRatio), reweight);
 
-                    lb.ModifiersRating.SSAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.SSPredictedAcc, mod.SSPassRating, mod.SSTechRating, lb.HitDistance, lb.HardSwingRatio), reweight);
-                    lb.ModifiersRating.FSAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.FSPredictedAcc, mod.FSPassRating, mod.FSTechRating, lb.HitDistance, lb.HardSwingRatio), reweight);
-                    lb.ModifiersRating.SFAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.SFPredictedAcc, mod.SFPassRating, mod.SFTechRating, lb.HitDistance, lb.HardSwingRatio), reweight);
+                    // The speed modifiers' high pass correction: the nomod pass when AccRating.SpeedHighPassFromNomod is on
+                    float? speedHighPass = global::RatingAPI.Controllers.AccRating.SpeedHighPassFromNomod ? lb.PassRating : null;
+                    lb.ModifiersRating.SSAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.SSPredictedAcc, mod.SSPassRating, mod.SSTechRating, lb.HitDistance, lb.HardSwingRatio, speedHighPass), reweight);
+                    lb.ModifiersRating.FSAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.FSPredictedAcc, mod.FSPassRating, mod.FSTechRating, lb.HitDistance, lb.HardSwingRatio, speedHighPass), reweight);
+                    lb.ModifiersRating.SFAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.SFPredictedAcc, mod.SFPassRating, mod.SFTechRating, lb.HitDistance, lb.HardSwingRatio, speedHighPass), reweight);
                     // The low note speed blend (pass and tech are stored blended by Overwrite)
                     var blend = global::RatingAPI.Controllers.CurveSettings.Current;
                     mod.SSAccRating = (float)blend.LowNoteSpeedBlend(lb.AccRating, mod.SSAccRating, lb.NoteCount);

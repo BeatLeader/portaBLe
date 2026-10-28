@@ -129,7 +129,7 @@ namespace portaBLe.Refresh
         // can't reach the steep top of their curve (CurveSettings.LowNoteStart), not because of their acc rating, so a buff
         // only raises what a 100% pays. Their scores still count in every player's worth and the balance. 0 = off
         public static int MinNotes { get; set; } = 115;
-        // Maps under MinStars stars (without reweighting) keep x1 too: the acc curve (PpFormula.AccTopKnee / AccTopSlope,
+        // Maps under MinStars stars (without reweighting) keep x1 too: the acc curve (CurveSettings.Table's 99%+ rows,
         // LowStarBonus) already sets what they pay, and the worth measure overnerfs acc players' best low-star plays. Their
         // scores still count. 0 = off
         public static double MinStars { get; set; } = 4;

@@ -17,9 +17,10 @@ namespace portaBLe.Refresh
         public static List<Vector2> ToCurve(IEnumerable<global::RatingAPI.Controllers.Point>? points) => PpCalculator.ToCurve(points);
 
         // Same as RatingAPI (AccRating.GetRating), so the constants only live in one place
-        // hitDistance / hardSwingRatio: the map's Leaderboard.HitDistance / HardSwingRatio (the same with speed modifiers)
-        public static float AccRating(float? predictedAcc, float? passRating, float? techRating, float hitDistance = 0, float hardSwingRatio = 0) =>
-            (float)new global::RatingAPI.Controllers.AccRating().GetRating(predictedAcc, passRating, techRating, hitDistance, hardSwingRatio);
+        // hitDistance / hardSwingRatio: the map's Leaderboard.HitDistance / HardSwingRatio (the same with speed modifiers).
+        // highPassRating: a speed modifier's high pass correction's pass rating, the nomod one (null: passRating)
+        public static float AccRating(float? predictedAcc, float? passRating, float? techRating, float hitDistance = 0, float hardSwingRatio = 0, float? highPassRating = null) =>
+            (float)new global::RatingAPI.Controllers.AccRating().GetRating(predictedAcc, passRating, techRating, hitDistance, hardSwingRatio, highPassRating);
 
         // The acc reweighter's multiplier of a leaderboard (Leaderboard.AccReweight, 0 = none)
         public static double AccReweightOf(Leaderboard lb) => lb.AccReweight > 0 ? lb.AccReweight : 1;

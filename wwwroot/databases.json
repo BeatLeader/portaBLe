@@ -23,23 +23,13 @@
     },
     {
       "Name": "Dev Acc",
-      "FileName": "db-20261028130902-4462.db",
+      "FileName": "db-20261028215500-8090.db",
       "Description": "Dev"
     },
     {
       "Name": "Dev Acc Autoreweighted",
-      "FileName": "db-20261028130947-8805.db",
+      "FileName": "db-20261028215537-4864.db",
       "Description": "Dev Acc (autoreweighted)"
-    },
-    {
-      "Name": "Dev Acc Worth P90",
-      "FileName": "db-20261028172933-1231.db",
-      "Description": "Dev Acc (no acc reweight), worth from the 90th percentile of scores"
-    },
-    {
-      "Name": "Dev Acc Worth P75",
-      "FileName": "db-20261028173018-5911.db",
-      "Description": "Dev Acc (no acc reweight), worth from the 75th percentile of scores"
     }
   ]
 }
