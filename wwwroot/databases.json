@@ -23,13 +23,13 @@
     },
     {
       "Name": "Dev Acc",
-      "FileName": "db-20261027225316-1563.db",
-      "Description": "Dev with the low star acc changes (low star bonus x2, acc curve top compression above 99% (x0.8))"
+      "FileName": "db-20261028111115-4340.db",
+      "Description": "Dev"
     },
     {
       "Name": "Dev Acc Autoreweighted",
-      "FileName": "db-20261027225402-5513.db",
-      "Description": "Dev Acc (autoreweighted from 4 stars, star ranges centered on their median map)"
+      "FileName": "db-20261028111203-2423.db",
+      "Description": "Dev Acc (autoreweighted)"
     }
   ]
 }
