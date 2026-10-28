@@ -4,9 +4,9 @@ using RatingAPI.Controllers;
 
 namespace portaBLe.Refresh
 {
-    // Regenerates only the per-leaderboard acc curves from the predicted acc already stored, with RatingAPI's
-    // Curve.GetCurve and CurveSettings.Current (from the AccCurvePerMap branch). No map is rated again. Run RefreshEverything
-    // afterwards to re-score with the new curves (it also recomputes the stars, which use the curves).
+    // Regenerates the per-leaderboard acc curves from the stored predicted acc (RatingAPI Curve.GetCurve with
+    // CurveSettings.Current), without rating the maps again. Run RefreshEverything afterwards to re-score with them
+    // (it also recomputes the stars, which use the curves).
     public class CurvesRefresh
     {
         public static async Task Regenerate(AppContext dbContext)
@@ -23,8 +23,8 @@ namespace portaBLe.Refresh
             Console.WriteLine($"Regenerating acc curves ({FormattableString.Invariant($"A and C by predicted acc: {string.Join(", ", CurveSettings.Current.Table.Select(r => $"{r.PredictedAcc * 100}%: a {r.A}, c {r.C}"))}")})");
             var lbs = await dbContext.Leaderboards.Include(lb => lb.ModifiersRating).ToListAsync();
             var generator = new global::RatingAPI.Controllers.Curve();
-            // The curve depends on the predicted acc, on the slider share with CurveSettings.SliderTilt and on the note count and
-            // span with the low note nerf (CurveSettings.LowNoteStart) (from the maps folder; the span over each speed)
+            // Besides the predicted acc, the curve uses the slider share (CurveSettings.SliderTilt) and the note count
+            // and span (low note nerf, CurveSettings.LowNoteStart), read from the maps folder only when those are enabled
             var settings = CurveSettings.Current;
             var maps = settings.SliderTilt != 0 || settings.LowNoteStart > 0 ? await MapCounts(lbs) : new Dictionary<string, (double, int, double)>();
 
@@ -45,6 +45,8 @@ namespace portaBLe.Refresh
             }
 
             Console.WriteLine($"Saving {lbs.Count} curves...");
+            // The importer and refresh steps can leave automatic change detection off; BulkSaveChanges then saves nothing
+            dbContext.ChangeTracker.DetectChanges();
             dbContext.BulkSaveChanges();
             Console.WriteLine($"Curves regenerated in {timer.Elapsed:mm\\:ss}");
         }

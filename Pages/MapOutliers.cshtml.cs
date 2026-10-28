@@ -48,7 +48,6 @@ namespace portaBLe.Pages
             CurrentPage = currentPage;
             int pageSize = 50;
 
-            // Query leaderboards with outlier counts
             var query = context.Leaderboards.Where(l => l.OutlierCount > 0);
 
             if (!string.IsNullOrEmpty(SearchString))
@@ -61,7 +60,6 @@ namespace portaBLe.Pages
                 query = query.Where(l => l.ModeName == ModeName);
             }
 
-            // Apply sorting
             query = SortBy switch
             {
                 "Name" => SortDescending ? query.OrderByDescending(x => x.Name) : query.OrderBy(x => x.Name),

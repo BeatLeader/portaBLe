@@ -64,14 +64,13 @@ namespace portaBLe.Refresh
             Console.WriteLine("Recalculating Players");
             dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
 
-            // Pre-calculate weights
+            // Weight of each profile position
             var weights = new Dictionary<int, float>(10000);
             for (int i = 0; i < 10000; i++)
             {
                 weights[i] = MathF.Pow(0.965f, i);
             }
 
-            // Get all player IDs for batch processing
             var playerIds = await dbContext.Players
                 .Select(p => p.Id)
                 .ToListAsync();
@@ -82,12 +81,10 @@ namespace portaBLe.Refresh
             var allPlayerUpdates = new ConcurrentBag<Player>();
             int processedCount = 0;
 
-            // Process players in batches
             for (int i = 0; i < playerIds.Count; i += PLAYER_BATCH_SIZE)
             {
                 var batchPlayerIds = playerIds.Skip(i).Take(PLAYER_BATCH_SIZE).ToList();
 
-                // Load batch data
                 var batchScores = await dbContext.Scores
                     .Where(s => batchPlayerIds.Contains(s.PlayerId))
                     .Select(s => new ScoreSelection
@@ -105,10 +102,8 @@ namespace portaBLe.Refresh
                     })
                     .ToListAsync();
 
-                // Group by player
                 var playerGroups = batchScores.GroupBy(s => s.PlayerId).ToList();
 
-                // Process players in parallel
                 await Parallel.ForEachAsync(playerGroups,
                     new ParallelOptions { MaxDegreeOfParallelism = Program.CoreCount },
                     async (group, ct) =>
@@ -170,7 +165,6 @@ namespace portaBLe.Refresh
                 }
             }
 
-            // Final bulk updates
             Console.WriteLine("Writing final updates to database...");
 
             if (allScoreUpdates.Count > 0)

@@ -22,7 +22,6 @@ namespace portaBLe.Pages
         public int CompareTotalPages { get; set; }
         public int CompareTotalScores { get; set; }
 
-        // Properties to hold the chart data
         public ICollection<ScoreGraphEntry> ScoreGraphEntries { get; set; }
         public ICollection<ScoreGraphEntry>? CompareScoreGraphEntries { get; set; }
 
@@ -121,7 +120,7 @@ namespace portaBLe.Pages
                                    .Take(pageSize)
                                    .ToListAsync();
 
-            // Fetch data for first leaderboard chart
+            // Chart data
             ScoreGraphEntries = await ScoresOf(context, id)
                 .Select(s => new ScoreGraphEntry
                 {
@@ -141,7 +140,7 @@ namespace portaBLe.Pages
                 })
                 .ToListAsync();
 
-            // Handle comparison leaderboard if compareId is provided
+            // The comparison leaderboard, when one is picked
             if (!string.IsNullOrEmpty(compareId))
             {
                 CompareLeaderboard = await context.Leaderboards.AsNoTracking().Include(l => l.ModifiersRating).FirstOrDefaultAsync(l => l.Id == compareId);
@@ -164,7 +163,7 @@ namespace portaBLe.Pages
                                        .Take(pageSize)
                                        .ToListAsync();
 
-                    // Fetch data for comparison leaderboard chart
+                    // Its chart data
                     CompareScoreGraphEntries = await ScoresOf(context, compareId)
                         .Select(s => new ScoreGraphEntry
                         {

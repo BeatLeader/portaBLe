@@ -23,7 +23,7 @@
     const string worthTitle = "How much the map pays its players compared with maps of the same stars: for the same players, how much more or less they get here than on their other maps at their level (+4% = 4% more). With a speed modifier: that modifier's scores, against nomod maps of its stars.";
     string topShareTitle = FormattableString.Invariant($"Of the map's players with {portaBLe.Refresh.AccReweighter.TopPlayShareMinScores}+ ranked plays, those whose best play it is by {portaBLe.Refresh.AccReweighter.TopPlayMarginPp:0.#}pp or more over their second best (any modifier), and that share over the median of the maps within {portaBLe.Refresh.AccReweighter.TopPlayShareBandwidth:0.#} star. The acc reweighter cuts maps past x{portaBLe.Refresh.AccReweighter.TopPlayShareRatio:0.#}.");
 
-    // First leaderboard corners
+    // Rating triangle corners (tech, acc, pass) of the leaderboard
     var corner1 = new
     {
         x = (gypL - (Model.Leaderboard.TechRating / maxRating) * gypL) * 0.866,
@@ -40,7 +40,7 @@
         y = (86.6 - gypL / 2) * (1 - Model.Leaderboard.PassRating / maxRating)
     };
 
-    // Second leaderboard corners
+    // and of the comparison leaderboard
     var corner1Compare = new { x = 0.0, y = 0.0 };
     var corner2Compare = new { x = 0.0, y = 0.0 };
     var corner3Compare = new { x = 0.0, y = 0.0 };
@@ -734,9 +734,8 @@
             fitY(ppChart);
         }
 
-        // How many players get pp from it above the weight threshold: the weight as profiles show it (in %, 2 decimals) above
-        // the threshold, so 0 = shown above 0.00% (weight 0-1). Only players with at least the minimum ranked plays, in both
-        // numbers.
+        // How many players get pp from it above the weight threshold, the weight read as profiles show it (%, 2 decimals):
+        // 0 = anything shown above 0.00%. Only players with at least the minimum ranked plays count, in both counts.
         function updateWeightCount() {
             const threshold = Math.max(0, Number(document.getElementById('weightThreshold').value) || 0);
             const minPlays = Math.max(0, Number(document.getElementById('minRankedPlays').value) || 0);
@@ -1149,7 +1148,6 @@
             setupChart(leaderboardScores, compareLeaderboardScores, xValue, yValue);
         }
 
-        // Initial load
         setupChart(leaderboardScores, compareLeaderboardScores);
         drawCurveChart();
         drawPpChart();

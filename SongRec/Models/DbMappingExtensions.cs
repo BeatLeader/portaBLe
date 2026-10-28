@@ -5,8 +5,7 @@ using DbScore = portaBLe.DB.Score;
 namespace beatleader_songrec.Models;
 
 /// <summary>
-/// Maps portaBLe's local EF Core database entities onto the domain models used by the
-/// recommendation pipeline (replacing the original BeatLeader-API-DTO-based mapping).
+/// Maps portaBLe's local EF Core database entities onto the recommendation pipeline's domain models.
 /// </summary>
 public static class DbMappingExtensions
 {
@@ -51,10 +50,8 @@ public static class DbMappingExtensions
     }
 
     /// <summary>
-    /// Maps a DB score row to the domain model. The associated <see cref="Song"/> is built from
-    /// the row's related <see cref="DbLeaderboard"/> when loaded, and the song's identity
-    /// incorporates the score's speed modifier (SS/FS/SFS), if any, treating a speed-modified
-    /// play as a distinct song entity from the unmodified chart.
+    /// Maps a DB score row to the domain model. Its <see cref="Song"/> comes from the row's
+    /// <see cref="DbLeaderboard"/> when loaded and carries the score's speed modifier in its identity.
     /// </summary>
     public static Score ToModel(this DbScore score)
     {

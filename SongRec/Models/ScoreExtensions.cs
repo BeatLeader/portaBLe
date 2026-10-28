@@ -13,10 +13,8 @@ public static class ScoreExtensions
         SpeedModifierExtensions.ParseSpeedModifier(score.Modifiers);
 
     /// <summary>
-    /// Gets the effective <see cref="Song"/> entity this score should be linked to. Since
-    /// <see cref="Score.Song"/> already carries the score's speed modifier as part of its
-    /// identity (see <see cref="Song.Modifier"/>), this simply returns that song - a
-    /// speed-modified play never links to the unmodified song's candidate pool entry.
+    /// The <see cref="Song"/> this score links to: <see cref="Score.Song"/>, which already carries
+    /// the speed modifier in its identity, so a speed-modified play is its own candidate.
     /// </summary>
     public static Song GetEffectiveSong(this Score score) => score.Song;
 }

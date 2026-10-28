@@ -1,20 +1,15 @@
 namespace beatleader_songrec.Models;
 
 /// <summary>
-/// A ranked Beat Saber map (song + difficulty + mode combination), identified by its
-/// BeatLeader leaderboard id and speed <see cref="Modifier"/>. A speed-modified play (SS/FS/SFS)
-/// is treated as a distinct song entity from the unmodified chart, so equality/hashing is based
-/// solely on <see cref="LeaderboardId"/> + <see cref="Modifier"/> - other metadata (name, stars,
-/// etc.) does not affect identity.
+/// A ranked Beat Saber map (song + difficulty + mode). Equality is <see cref="LeaderboardId"/> +
+/// <see cref="Modifier"/> only, so a speed-modified play (SS/FS/SFS) is a distinct song from the
+/// unmodified chart; other metadata doesn't affect identity.
 /// </summary>
 public sealed class Song : IEquatable<Song>
 {
     public required string LeaderboardId { get; init; }
 
-    /// <summary>
-    /// The speed modifier under which this song entity was played, if any. Defaults to
-    /// <see cref="SpeedModifier.None"/> for the unmodified chart.
-    /// </summary>
+    /// <summary>The speed modifier played under; <see cref="SpeedModifier.None"/> for the unmodified chart.</summary>
     public SpeedModifier Modifier { get; init; } = SpeedModifier.None;
 
     public required string Hash { get; init; }

@@ -3,17 +3,12 @@ using beatleader_songrec.Models;
 namespace beatleader_songrec.Api;
 
 /// <summary>
-/// Abstraction over the BeatLeader data source, allowing consumers (e.g.
-/// <see cref="Core"/> pipeline steps) to be unit tested against mocked/fake implementations.
-/// portaBLe implements this against its own local EF Core database instead of the BeatLeader
-/// HTTP API.
+/// Abstraction over the BeatLeader data source, so the <see cref="Core"/> pipeline steps can run against
+/// fakes. portaBLe implements it against its local database instead of the BeatLeader HTTP API.
 /// </summary>
 public interface IBeatLeaderClient
 {
-    /// <summary>
-    /// Gets a player's top ranked scores (ordered by PP, as returned by the API), across
-    /// as many pages as requested.
-    /// </summary>
+    /// <summary>Gets a player's top <paramref name="count"/> ranked scores, best PP first.</summary>
     Task<IReadOnlyList<Score>> GetPlayerTopScoresAsync(
         string playerId,
         int count,
@@ -29,9 +24,7 @@ public interface IBeatLeaderClient
         int count,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Gets the top scorers for a specific leaderboard.
-    /// </summary>
+    /// <summary>Gets the top scorers of a leaderboard.</summary>
     Task<IReadOnlyList<Score>> GetLeaderboardScoresAsync(
         string beatSaverId,
         int reuploadCount,
@@ -39,14 +32,7 @@ public interface IBeatLeaderClient
         Characteristic characteristic,
         CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Gets the top scorers for a specific leaderboard, identified directly by its
-    /// BeatLeader leaderboard id (e.g. as returned by <see cref="Score.Song"/>'s
-    /// <c>LeaderboardId</c>).
-    /// </summary>
-    /// <param name="leaderboardId">The raw BeatLeader leaderboard id.</param>
-    /// <param name="count">Maximum number of top scorers to return.</param>
-    /// <param name="cancellationToken">Token to cancel the operation.</param>
+    /// <summary>Gets the top <paramref name="count"/> scorers of a leaderboard by its BeatLeader leaderboard id.</summary>
     Task<IReadOnlyList<Score>> GetLeaderboardScoresByIdAsync(
         string leaderboardId,
         int count,
@@ -56,11 +42,8 @@ public interface IBeatLeaderClient
     /// Gets the scorers of a leaderboard whose PP is nearest <paramref name="pp"/> (by PP ratio, above
     /// or below), i.e. the players at about the same skill on that map, ordered by PP descending.
     /// </summary>
-    /// <param name="leaderboardId">The raw BeatLeader leaderboard id.</param>
     /// <param name="pp">The PP to look around (typically the target player's own score there).</param>
-    /// <param name="count">Maximum number of scorers to return.</param>
     /// <param name="excludePlayerId">A player left out of the results (typically the target player), or null.</param>
-    /// <param name="cancellationToken">Token to cancel the operation.</param>
     Task<IReadOnlyList<Score>> GetLeaderboardScoresNearPpAsync(
         string leaderboardId,
         double pp,
@@ -83,9 +66,6 @@ public interface IBeatLeaderClient
     /// <summary>The ranked maps with these leaderboard ids (unknown or unranked ids are left out).</summary>
     Task<IReadOnlyList<Song>> GetRankedMapsAsync(IReadOnlyCollection<string> leaderboardIds, CancellationToken cancellationToken = default);
 
-    /// <summary>
-    /// Gets every currently ranked map, paging through the BeatLeader ranked map list until
-    /// all pages have been fetched.
-    /// </summary>
+    /// <summary>Gets every currently ranked map.</summary>
     Task<IReadOnlyList<Song>> GetAllRankedMapsAsync(CancellationToken cancellationToken = default);
 }

@@ -19,7 +19,7 @@ namespace portaBLe.Refresh
     //    players'. Writes wwwroot/parity-check.json, and every swing to wwwroot/parity-swings.json (to fit the Analyzer on).
     //
     // Player parity: forehand and backhand move the saber in opposite directions relative to the hand, so the angle stored by
-    // BLReplaysPrepare splits them. Which angle is "forehand" is calibrated per replay and hand on the down arrows (forehands).
+    // BLReplaysPrepare splits them. Which angle is "forehand" is calibrated per replay and hand on the up / down arrows.
     // A note only counts when most of the players agree on it (ConsensusShare), so notes players play both ways are left out.
     public static class ParityCheck
     {
@@ -179,7 +179,7 @@ namespace portaBLe.Refresh
                     // Forehand direction for this replay and hand. Forehands and backhands sit at opposite ends of one axis in
                     // the hand frame: find that axis from every arrow (mean of the doubled angles), then which end is the
                     // forehand: the one most down arrows are on and most up arrows aren't. (Down arrows alone fail on maps
-                    // that roll the wrist, where many of them are cut as backhands: Sanity Krush, Medicine, SONG REQUEST.)
+                    // that roll the wrist, where many of them are cut as backhands.)
                     var arrows = rows.Where(r => r.Hand == hand && r.Key.CutDirection != 8).ToList();
                     if (arrows.Count < 10) continue;
                     double ax = arrows.Sum(r => Math.Cos(2 * r.Angle)), ay = arrows.Sum(r => Math.Sin(2 * r.Angle));

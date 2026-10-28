@@ -157,7 +157,7 @@
 @section Scripts {
     <script src="https://cdn.plot.ly/plotly-2.29.1.min.js"></script>
     <script>
-        // The page's data: { count, dots: { field: [...] }, bins: { xField: { count, at, yField: [...] } } } (see Services/ScoresGraphData)
+        // Data: { count, dots: { field: [...] }, bins: { xField: { count, at, yField: [...] } } } (Services/ScoresGraphData)
         let data = null;
         const WEIGHTED = true;
         const LABEL = WEIGHTED ? 'Weighted' : 'Unweighted';
@@ -201,7 +201,7 @@
                 ysFull[i] = count > 0 ? (s[hi + 1] - s[lo]) / count : null;
             }
 
-            // Downsample to at most maxPoints to get a smoother line
+            // At most maxPoints points on the line
             if (n <= maxPoints) return { xs: xsFull, ys: ysFull };
             const step = Math.ceil(n / maxPoints);
             const xs = [], ys = [];
@@ -382,7 +382,7 @@
 
         document.getElementById('applyFilters').addEventListener('click', fetchFiltered);
 
-        // Auto-load data on page load if filter parameters are present in URL
+        // Load straight away when the URL has filters
         function shouldAutoLoad() {
             const urlParams = new URLSearchParams(window.location.search);
             const filterParams = ['minWeightPercent', 'minYear', 'minMonth', 'minDay', 'maxPlayerRank', 'minRankedPlayCount', 'playerId', 'modNone', 'modSS', 'modFS', 'modSFS'];

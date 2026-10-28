@@ -5,28 +5,24 @@ using RatingAPI.Pp;
 
 namespace portaBLe.Refresh
 {
-    // Rating constants the balance tuner can change without re-analysing any map. Each one is a simple transform of the
-    // ratings already stored in the database:
-    // - PassCalibration (Analyzer AnalyzeMap.PASS_CALIBRATION_FACTOR): pass rating is proportional to it.
-    // - OneSaberNerf (AnalyzeMap.ONE_SABER_NERF): pass is multiplied by 1 - (1 - handsRatio) * nerf. handsRatio isn't stored,
-    //   so the tuner applies it to OneSaber maps only (handsRatio 0 there); Standard maps where one hand does most of the
-    //   work are affected too in reality.
-    // - TechScaler (AnalyzeMap.BALANCED_TECH_SCALER): tech = swing tech * (1 - 1.4^-pass) * scaler, so tech follows both the
-    //   scaler and the new pass rating. Not tuned, so tech ratings keep their usual scale; kept here so the tuner knows what
-    //   the database was rated with.
-    // - TechWeight (PpFormula.TechWeight): tech pp = e^(TechAccExponent * acc) * TechWeight * tech rating^TechRatingPower. Does
-    //   what TechScaler^TechRatingPower does to pp and stars, without changing the tech ratings themselves, so this is the one
-    //   the tuner moves.
-    // - AccScale and AccOffset (RatingAPI AccRating.ACC_SCALE / ACC_OFFSET): acc rating = AccScale x Curve(effective acc +
-    //   AccOffset)^-ACC_EXPONENT, the effective acc being the predicted acc after AccRating's hard map, movement and high
-    //   pass corrections (AccRating.EffectiveAcc, not tuned here).
+    // Rating constants the balance tuner can change without re-analysing any map; each is a simple transform of the stored
+    // ratings:
+    // - PassCalibration (AnalyzeMap.PASS_CALIBRATION_FACTOR): pass rating is proportional to it.
+    // - OneSaberNerf (AnalyzeMap.ONE_SABER_NERF): pass *= 1 - (1 - handsRatio) * nerf. handsRatio isn't stored, so only
+    //   OneSaber maps (handsRatio 0) are transformed, although one-handed Standard maps are affected too in reality.
+    // - TechScaler (AnalyzeMap.BALANCED_TECH_SCALER): tech = swing tech * (1 - 1.4^-pass) * scaler, so tech follows the new
+    //   pass rating. Not tuned; records what the database was rated with.
+    // - TechWeight (PpFormula.TechWeight): scales tech pp like TechScaler^TechRatingPower would, without changing the tech
+    //   ratings, so this is the tech constant the tuner moves.
+    // - AccScale and AccOffset (AccRating.ACC_SCALE / ACC_OFFSET): acc rating = AccScale x Curve(effective acc +
+    //   AccOffset)^-ACC_EXPONENT (effective acc: AccRating.EffectiveAcc).
     // The stored acc ratings include the acc reweighter's multipliers (Leaderboard.AccReweight).
     public class RatingConstants
     {
         public double PassCalibration { get; set; } = 0.7721;
         public double OneSaberNerf { get; set; } = 0.44;
         public double TechScaler { get; set; } = 20.611;
-        // Follows the PpFormula default, since the tuner re-scores everything with the formula in code
+        // Follows the PpFormula default, since the tuner re-scores with the formula in code
         public double TechWeight { get; set; } = new PpFormula().TechWeight;
         public double AccScale { get; set; } = 13.5382;
         public double AccOffset { get; set; } = 0.0019;
@@ -41,11 +37,9 @@ namespace portaBLe.Refresh
     // players than other maps of the same star rating. Suggestions only: nothing is written to the database, and the
     // Analyzer constants are applied by hand afterwards.
     //
-    // For every value tried, the stored ratings are transformed, stars rebuilt, every score re-scored and every player's
-    // weighted pp rebuilt, in memory. A map's "worth" is its value in WorthMeasure (PlayerAdjusted: how much it pays the same
-    // players than their other maps at their level) divided by what maps of its stars average: 0 = average for its stars,
-    // +0.2 = 20% more valuable. Each
-    // constant is moved until the worth no longer depends on what it controls:
+    // For every value tried, the stored ratings are transformed, stars rebuilt, and every score and player's weighted pp
+    // recomputed in memory. A map's "worth" is its WorthMeasure value relative to what maps of its stars average (0 =
+    // average, +0.2 = 20% more valuable). Each constant is moved until worth no longer depends on what it controls:
     //   PassCalibration -> share of pass pp at the predicted acc
     //   TechWeight      -> share of tech pp at the predicted acc
     //   OneSaberNerf    -> OneSaber maps vs Standard maps of the same stars
@@ -58,8 +52,8 @@ namespace portaBLe.Refresh
     {
         public const string FileName = "balance-tuning.json";
 
-        // The constants the database was rated with (the values in the code when RatingsRefresh.Overwrite last ran).
-        // Update these when you change the code and re-rate, so the tuner starts from the right place.
+        // The constants the database was rated with (the code's values when RatingsRefresh.Overwrite last ran).
+        // Keep in sync when re-rating, so the tuner starts from the right place.
         public static RatingConstants RatedWith { get; set; } = new();
 
         private const int MinScoresPerMap = 20;     // maps with fewer scores are left out of the per-map metrics
@@ -69,9 +63,8 @@ namespace portaBLe.Refresh
 
         public static string StarBandName(int band) => band >= StarBandCount - 1 ? $"{StarBandCount - 1}+" : $"{band}-{band + 1}";
         internal static int StarBandOf(float stars) => Math.Clamp((int)MathF.Floor(stars), 0, StarBandCount - 1);
-        // Worth is measured per map and speed modifier: item map * WorthSpeeds.Length + speed, 0 nomod, then SS, FS, SF (each
-        // at its own stars). A score's speed is its first speed modifier, as the pp (ReplayUtils.PpFromScore); -1: NF, which
-        // no worth counts (0 pp).
+        // Worth is measured per map and speed modifier ("item" = map * WorthSpeeds.Length + speed), each at its own stars.
+        // A score's speed is its first speed modifier, as in ReplayUtils.PpFromScore; -1 for NF, which no worth counts.
         internal static readonly string[] WorthSpeeds = { "none", "SS", "FS", "SF" };
         internal static sbyte WorthSpeedOf(string modifiers)
         {
@@ -86,8 +79,8 @@ namespace portaBLe.Refresh
             return 0;
         }
 
-        // The speed modifier whose ratings a score's pp uses (index in WorthSpeeds, 0: none): its first SS / FS / SF, as
-        // ReplayUtils.PpFromScore (NF included: its pp is 0 either way)
+        // The speed modifier whose ratings a score's pp uses (index in WorthSpeeds, 0: none), as ReplayUtils.PpFromScore.
+        // Unlike WorthSpeedOf, NF is not special-cased (its pp is 0 either way).
         internal static sbyte PpSpeedOf(string modifiers)
         {
             if (string.IsNullOrEmpty(modifiers)) return 0;
@@ -121,8 +114,8 @@ namespace portaBLe.Refresh
             public int[] ScorePlayer = Array.Empty<int>();
             public float[] ScoreAcc = Array.Empty<float>();
             public string[] ScoreModifiers = Array.Empty<string>();
-            public sbyte[] ScoreSpeed = Array.Empty<sbyte>();   // WorthSpeedOf(ScoreModifiers): worth item of each score
-            public sbyte[] ScorePpSpeed = Array.Empty<sbyte>();   // PpSpeedOf(ScoreModifiers): the speed ratings its pp uses
+            public sbyte[] ScoreSpeed = Array.Empty<sbyte>();   // WorthSpeedOf(ScoreModifiers)
+            public sbyte[] ScorePpSpeed = Array.Empty<sbyte>();   // PpSpeedOf(ScoreModifiers)
             public int[] ScoreTime = Array.Empty<int>();   // Score.Timepost (unix seconds)
             public int[][] PlayerScores = Array.Empty<int[]>();
             public string[] PlayerIds = Array.Empty<string>();   // Player.Id of each player index
@@ -312,8 +305,8 @@ namespace portaBLe.Refresh
             public double[] Values = Array.Empty<double>();
         }
 
-        // Only the parts of the formula that shape how pp grows: AccWeight does what ACC_SCALE^AccRatingPower does, and TechWeight
-        // is balanced by Run, so those aren't swept here.
+        // Only the parts of the formula that shape how pp grows. AccWeight duplicates ACC_SCALE and TechWeight is balanced by
+        // Run, so neither is swept here.
         private static readonly FormulaKnob[] FormulaKnobs =
         {
             new FormulaKnob
@@ -480,10 +473,8 @@ namespace portaBLe.Refresh
         };
 
         // A constant stays where it is when its target is already within TargetTolerance of 0, or the target moves less than
-        // MinResponse over the whole range tried (the worth measure barely reacts to it, so the zero crossing is far away
-        // and noise decides where). With the PlayerAdjusted worth, PassCalibration went to 0.607 (the edge, -21% on every
-        // pass rating, top 1000 rank correlation 0.92) to take the pass slope from +0.009 to +0.001, and AccOffset to the
-        // edge with its target flat at -0.006 to -0.008. Null: move it.
+        // MinResponse over the whole range tried: then the zero crossing is far away and noise decides where, which can drag
+        // a constant to the edge of its range for a negligible gain. KeepReason returns null when the constant should move.
         public static double TargetTolerance { get; set; } = 0.01;
         public static double MinResponse { get; set; } = 0.01;
 
@@ -642,8 +633,7 @@ namespace portaBLe.Refresh
                 PlayerRank = new int[data.PlayerCount],
             };
 
-            // Each map's ratings prepared once (stars, curve at 96%): nomod, then its SS / FS / SF ratings (WorthSpeeds), as
-            // ReplayUtils.PpFromScore
+            // Each map's ratings prepared once, nomod then SS / FS / SF (WorthSpeeds order), as ReplayUtils.PpFromScore
             int speedCount = WorthSpeeds.Length;
             var prepared = new global::RatingAPI.Pp.PreparedRatings?[data.Maps.Length * speedCount];
             Parallel.For(0, data.Maps.Length, m =>
@@ -752,26 +742,19 @@ namespace portaBLe.Refresh
 
         // What a map's worth measures (Worth):
         // - Megametric75: as LeaderboardsRefresh, top 33% by weight of the players with 75+ plays, pp / top pp * weight.
-        //   Mixes everyone who passes the map, weighted by where it lands in their profile: on pass 14+ maps, players ranked
-        //   3001-10000 scored 8% under maps of the same stars (they survive at low acc) where #101-1000 were 1% under, while on
-        //   other 10+ star maps both agree within 0.2%, and survivors' sparse profiles inflate the weight. Overreacts to rating
-        //   changes: a 0.1% acc shift on tech 7+ maps took their worth from -0.02 to +0.19.
+        //   Mixes everyone who passes the map, weighted by where it lands in their profile, so low-acc survivors on hard
+        //   maps skew it, and it overreacts to rating changes.
         // - InRange: average pp / top pp of the scores by players the map isn't above (stars at most InRangeMargin above the
-        //   player's level), no weight. Measured against maps of the same stars, but stars are what a 96% score pays, so a
-        //   map that pays more also gets more stars and is compared with higher star maps: it barely reacts to rating
-        //   changes (the pass slope stayed at +0.012 from PassCalibration 0.656 to 0.888). A diagnostic, not a target.
+        //   player's level), unweighted. Since stars follow pay, a map that pays more is compared with higher star maps, so
+        //   it barely reacts to rating changes: a diagnostic, not a target.
         // - PlayerAdjusted: log pp = skill(player, half year) + generosity(map) + distance(map stars - player level, per
-        //   PlayerAdjustedDistanceBin stars), fitted on in-range scores (stars at most InRangeMargin above the player's level,
-        //   and PlayerAdjustedBelow under it), then against maps of the same stars and maps first played around the same
-        //   time. How much a map pays the same players compared with their other maps at their
-        //   level: who plays it and the weight drop out, and generosity is about flat over stars, so more stars don't hide
-        //   more pay (3% more pp on the tech 8+ maps moved them +1.9%). Skill per half year: players improve, so with one
-        //   skill per player maps ranked in 2026 looked 2.8% more generous (their scores are set by players at their best);
-        //   map age: maps first played in 2022 were then 3% more generous than later ones (grinded for longer). Neither is
-        //   something the ratings can fix.
-        // Level: the stars of the InRangeHardest-th hardest map among the player's InRangeTopPlays best scores. The average
-        // stars of the top 20 (tried) put even the top 10 players at 11.5 (their best scores are on maps they can acc), so
-        // only 22 of the 40 13+ star maps kept enough scores; with this, 38. One or two lucky passes don't raise it.
+        //   PlayerAdjustedDistanceBin stars), fitted on in-range scores, then compared with maps of the same stars and maps
+        //   first played around the same time. Measures how much a map pays the same players compared with their other
+        //   maps at their level, independent of who plays it. Skill is per half year because players improve (otherwise
+        //   recent maps look generous), and map age is removed because older maps are grinded longer; neither is something
+        //   the ratings can fix.
+        // Level: the stars of the InRangeHardest-th hardest map among the player's InRangeTopPlays best scores, so one or
+        // two lucky passes don't raise it, while top players still reach the hardest maps (an average would not).
         // The balance tuner, the acc reweighter and Leaderboard.Worth (LeaderboardsRefresh, StoredWorth) use WorthMeasure, on
         // nomod scores: SS / FS / SF scores are their own items (WorthSpeeds, ItemWorth), NF scores count in none.
         public enum WorthMeasures { Megametric75, InRange, PlayerAdjusted }
@@ -798,17 +781,13 @@ namespace portaBLe.Refresh
         public static double InRangeMargin { get; set; } = 0.5;
         public static int InRangeTopPlays { get; set; } = 50;
         public static int InRangeHardest { get; set; } = 5;
-        // How far under the player's level a map still counts (stars). It was 2: a map more than 2 stars under the player's
-        // level counted none of their scores, so high paying scores on maps easy for the player went unseen (2cf6391, 9.8
-        // stars: 497 of its 875 scores left out, most of the good ones, -25%). Without the bound (Dev, Python approximation):
-        // 2.4x the scores, 3945 maps with a worth instead of 3506, worth spread 0.061 -> 0.047, 2cf6391 -17% -> +4%, 3-5 star
-        // maps measured only by low level players -20 to -33% -> about 0. Above the level stays bounded: a map too hard for
-        // a player says little about what it pays.
+        // How far under the player's level a map still counts (stars). Unbounded: a bound hides the high paying scores on
+        // maps easy for the player, and leaves low star maps measured only by low level players. Above the level stays
+        // bounded (InRangeMargin): a map too hard for a player says little about what it pays.
         public static double PlayerAdjustedBelow { get; set; } = double.PositiveInfinity;
         // The distance term: how a player's pp on a map depends on how far under their level it is (per bin of
         // PlayerAdjustedDistanceBin stars, 0 to +bin the reference), so a map's generosity doesn't depend on how far under
-        // its players it is. Fitted: maps 1.5-2.5 stars under a player paid them ~4% more than at their level, 8 under ~11%
-        // less (Dev). Off: the fit as before (skill + generosity).
+        // its players it is. Off: skill + generosity only.
         public static bool PlayerAdjustedDistanceTerm { get; set; } = true;
         public static double PlayerAdjustedDistanceBin { get; set; } = 0.5;
         public static int PlayerAdjustedPeriodDays { get; set; } = 182;
@@ -816,6 +795,10 @@ namespace portaBLe.Refresh
         private const int PlayerAdjustedMinPeriodScores = 10;   // in-range scores of a player in a half year
         private const int PlayerAdjustedIterations = 30;
         public static double PlayerAdjustedAgeBandwidthDays { get; set; } = 180;
+        // Fit each group's skill, item's generosity and distance bin to this quantile of their residuals (0.5: median) instead
+        // of the mean (0). Low effort scores form a long tail under the fit, mostly on low star acc maps, which a quantile
+        // resists; it is more stable split-half but makes the acc reweighter move maps further.
+        public static double PlayerAdjustedQuantile { get; set; } = 0;
 
         // Each player's level for InRange and PlayerAdjusted (see above), each score at its worth item's stars (ItemStars)
         internal static double[] PlayerLevels(Data data, Evaluation e, double[]? itemStars = null)
@@ -971,9 +954,8 @@ namespace portaBLe.Refresh
             var bin = rawBin.Select(b => b - minBin).ToArray();
             var distance = new double[binCount];
 
-            // Alternating means: skill of each group given the items, generosity of each item given the groups. Each group's
-            // and each item's scores in their order above (Bucket), so every sum adds the same values in the same order as one
-            // pass over the scores: the same result, each group and item in parallel.
+            // Alternating fit: skill of each group given the items, generosity of each item given the groups. Bucket keeps each
+            // group's and item's scores in their original order, so the parallel sums are deterministic.
             var skill = new double[groupTotal];
             var gen = new double[itemCount];
             var (groupStart, byGroup) = Bucket(group, groupTotal);
@@ -981,28 +963,25 @@ namespace portaBLe.Refresh
             var (binStart, byBin) = Bucket(bin, binCount);
             var count = new int[itemCount];
             for (int m = 0; m < itemCount; m++) count[m] = itemStart[m + 1] - itemStart[m];
+            // Each group's, item's or bin's residuals at its own range of Bucket's order (PlayerAdjustedQuantile)
+            var residuals = new double[kept];
             for (int it = 0; it < PlayerAdjustedIterations; it++)
             {
                 Parallel.For(0, groupTotal, g =>
                 {
-                    double sum = 0;
-                    for (int k = groupStart[g]; k < groupStart[g + 1]; k++) { int i = byGroup[k]; sum += y[i] - gen[item[i]] - distance[bin[i]]; }
-                    int n = groupStart[g + 1] - groupStart[g];
-                    skill[g] = n > 0 ? sum / n : 0;
+                    for (int k = groupStart[g]; k < groupStart[g + 1]; k++) { int i = byGroup[k]; residuals[k] = y[i] - gen[item[i]] - distance[bin[i]]; }
+                    skill[g] = Center(residuals.AsSpan(groupStart[g], groupStart[g + 1] - groupStart[g]));
                 });
                 Parallel.For(0, itemCount, m =>
                 {
-                    double sum = 0;
-                    for (int k = itemStart[m]; k < itemStart[m + 1]; k++) { int i = byItem[k]; sum += y[i] - skill[group[i]] - distance[bin[i]]; }
-                    gen[m] = count[m] > 0 ? sum / count[m] : 0;
+                    for (int k = itemStart[m]; k < itemStart[m + 1]; k++) { int i = byItem[k]; residuals[k] = y[i] - skill[group[i]] - distance[bin[i]]; }
+                    gen[m] = Center(residuals.AsSpan(itemStart[m], count[m]));
                 });
                 if (!PlayerAdjustedDistanceTerm) continue;
                 Parallel.For(0, binCount, b =>
                 {
-                    double sum = 0;
-                    for (int k = binStart[b]; k < binStart[b + 1]; k++) { int i = byBin[k]; sum += y[i] - skill[group[i]] - gen[item[i]]; }
-                    int n = binStart[b + 1] - binStart[b];
-                    distance[b] = n > 0 ? sum / n : 0;
+                    for (int k = binStart[b]; k < binStart[b + 1]; k++) { int i = byBin[k]; residuals[k] = y[i] - skill[group[i]] - gen[item[i]]; }
+                    distance[b] = Center(residuals.AsSpan(binStart[b], binStart[b + 1] - binStart[b]));
                 });
                 // The reference bin at 0 (a constant moves into the skills on the next iteration)
                 double reference = referenceBin >= 0 && referenceBin < binCount ? distance[referenceBin] : 0;
@@ -1018,6 +997,23 @@ namespace portaBLe.Refresh
             double median = nomod[nomod.Length / 2];
             foreach (var i in fitted) values[i] = Math.Exp(gen[i] - median);
             return values;
+        }
+
+        // The mean of these residuals (in their order), or their PlayerAdjustedQuantile quantile (sorts them; linear between
+        // the two nearest, as numpy's). 0 when empty.
+        private static double Center(Span<double> values)
+        {
+            if (values.Length == 0) return 0;
+            if (PlayerAdjustedQuantile <= 0)
+            {
+                double sum = 0;
+                foreach (var v in values) sum += v;
+                return sum / values.Length;
+            }
+            values.Sort();
+            double position = Math.Min(PlayerAdjustedQuantile, 1) * (values.Length - 1);
+            int below = (int)position;
+            return below + 1 < values.Length ? values[below] + (position - below) * (values[below + 1] - values[below]) : values[below];
         }
 
         // Indices of key's entries grouped by key (counting sort, each key's in their order): Order[Start[k]..Start[k + 1]]
@@ -1136,17 +1132,13 @@ namespace portaBLe.Refresh
             return worth;
         }
 
-        // Gaussian kernel width (stars) of WorthReference. 0.25: the ranges' average worth stays within +-0.02 from 3 stars
-        // (wider kernels underrated 3-5 stars by 0.03-0.07 where Megametric75 bends), and maps' position inside a range no
-        // longer matters (-0.07 at the bottom, +0.09 at the top with the step; within +-0.02).
+        // Gaussian kernel width (stars) of WorthReference: narrow enough to follow bends in the value curve, wide enough
+        // that a map's position inside its star range doesn't matter.
         public static double WorthBandwidth { get; set; } = 0.25;
 
-        // The Megametric75 a map's worth is measured against: what maps of its stars average, a local linear fit of
-        // Megametric75 on stars (Gaussian kernel of WorthBandwidth stars; points: every map with a worth). Measured against its
-        // own range's average (a step), a map crossing a range boundary was compared with the next range at once, which pushed
-        // the acc reweighter's changes further across: the outer tenth of each range lost ~20% of its maps to the middle.
-        // Interpolating between the ranges' averages instead (tried) underrated whole ranges where Megametric75 bends or a
-        // range has few maps (2-3 stars -0.11 on average, from the 5 maps of 1-2 stars), which moved the balance slopes.
+        // The value a map's worth is measured against: what maps of its stars average, as a local linear fit of value on
+        // stars (Gaussian kernel of WorthBandwidth; points: every map with a worth). A smooth reference rather than per-range
+        // averages, so maps near a range boundary aren't compared with the next range all at once.
         public static double WorthReference(IReadOnlyList<(double Stars, double Megametric)> points, double stars)
         {
             double h = WorthBandwidth;
@@ -1164,9 +1156,9 @@ namespace portaBLe.Refresh
             return local > 0 ? local : sy / sw;
         }
 
-        // kinds: the ratings that say what kind each map is (pp shares at the predicted acc), when they differ from data's: the
-        // acc reweighter classifies maps by their ratings without reweighting, else nerfing a map's acc raises its pass share
-        // and the slopes measure the reweighting itself
+        // kinds: ratings used to classify maps (pp shares at the predicted acc) when they differ from data's. The acc
+        // reweighter passes its un-reweighted ratings, else nerfing a map's acc raises its pass share and the slopes
+        // measure the reweighting itself.
         internal static BalanceStats MeasureBalance(Data data, Evaluation e, double?[] residual, Data? kinds = null)
         {
             int mapCount = data.Maps.Length;
@@ -1409,7 +1401,7 @@ namespace portaBLe.Refresh
     public class BalanceTuningResult
     {
         public DateTime GeneratedAt { get; set; }
-        // BalanceTuner.WorthMeasure the run used (empty: Megametric75, before it could be chosen)
+        // BalanceTuner.WorthMeasure the run used (empty in old files: Megametric75)
         public string WorthMeasure { get; set; } = "";
         public int OneSaberMaps { get; set; }
         public RatingConstants RatedWith { get; set; } = new();
@@ -1489,8 +1481,8 @@ namespace portaBLe.Refresh
     public class BalanceStats
     {
         public int Maps { get; set; }
-        // Change of a map's worth (BalanceTuner.WorthMeasure, relative to what maps of its stars average) per +10% of pass / acc / tech pp share at the
-        // predicted acc, and per +1 point of predicted acc. 0 = balanced.
+        // Change of a map's worth (BalanceTuner.WorthMeasure) per +10% of pass / acc / tech pp share at the predicted acc,
+        // and per +1 point of predicted acc. 0 = balanced.
         public double PassShareSlope { get; set; }
         public double AccShareSlope { get; set; }
         public double TechShareSlope { get; set; }

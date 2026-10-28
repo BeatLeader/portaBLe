@@ -233,8 +233,8 @@ namespace portaBLe.Services
         }
 
         // Makes a database's cache file match it, building it when it's missing or for another version of the database (true:
-        // built). Before uploading: a cache uploaded next to a database it doesn't match is rejected by the server, which then
-        // builds it on the first visit after every deploy (Dev's, 22 Oct, was Database.db's after the acc reweight).
+        // built). Run before uploading: the server rejects a cache that doesn't match the database next to it and rebuilds it
+        // on the first visit after the deploy.
         public static async Task<bool> EnsureCurrentAsync(DbContext context)
         {
             string content = await ContentStampAsync(context);

@@ -10,7 +10,6 @@ namespace portaBLe.Pages
 
         public void OnGet()
         {
-            // Add your page links here
             Links = new List<LinkItem>
             {
                 new LinkItem { Title = "Weighted Scores Graph", Url = "/WeightedScoresGraph" },

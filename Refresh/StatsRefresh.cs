@@ -40,7 +40,7 @@ namespace portaBLe.Refresh
         {
             Console.WriteLine("Calculating database statistics...");
 
-            // Ensure Stats table exists
+            // Create the Stats table if it doesn't exist
             try
             {
                 await dbContext.Database.ExecuteSqlRawAsync(
@@ -97,7 +97,6 @@ namespace portaBLe.Refresh
                 // Table already exists
             }
 
-            // Clear existing stats
             await dbContext.Database.ExecuteSqlRawAsync("DELETE FROM Stats");
 
             // Load all data once to avoid repeated database queries
@@ -131,20 +130,18 @@ namespace portaBLe.Refresh
                 .Select(p => new PlayerData { Pp = p.Pp, AccPp = p.AccPp, TechPp = p.TechPp, PassPp = p.PassPp })
                 .ToListAsync();
 
-            // Get all characteristics
             var characteristics = allLeaderboards
                 .Select(l => l.ModeName)
                 .Distinct()
                 .ToList();
 
-            // Add empty string for "All" statistics
+            // "" is the "All" characteristic
             characteristics.Insert(0, "");
 
             Console.WriteLine($"Calculating stats for {characteristics.Count} characteristics...");
 
             var statsList = new ConcurrentBag<Stats>();
 
-            // Process characteristics in parallel
             await Parallel.ForEachAsync(characteristics,
                 new ParallelOptions { MaxDegreeOfParallelism = Program.CoreCount },
                 async (characteristic, ct) =>
@@ -162,7 +159,6 @@ namespace portaBLe.Refresh
                     await Task.CompletedTask;
                 });
 
-            // Add all stats to context
             foreach (var stats in statsList)
             {
                 dbContext.Stats.Add(stats);
@@ -183,7 +179,6 @@ namespace portaBLe.Refresh
                 ModeName = string.IsNullOrEmpty(characteristic) ? "" : characteristic
             };
 
-            // Filter leaderboards by characteristic
             var leaderboards = string.IsNullOrEmpty(characteristic)
                 ? allLeaderboards
                 : allLeaderboards.Where(l => l.ModeName == characteristic).ToList();
@@ -215,10 +210,9 @@ namespace portaBLe.Refresh
             var topMegametric40 = leaderboards.OrderByDescending(l => l.Megametric40).Take(50).ToList();
             stats.AvgMegametric40 = topMegametric40.Any() ? topMegametric40.Average(l => l.Megametric40) : 0;
 
-            // Score counts - filter scores for this characteristic's leaderboards
+            // Score counts by pp threshold
             var characteristicScores = allScores.Where(s => leaderboardIds.Contains(s.LeaderboardId)).ToList();
 
-            // Use single pass for counting multiple thresholds
             foreach (var score in characteristicScores)
             {
                 float pp = score.Pp;
@@ -235,8 +229,7 @@ namespace portaBLe.Refresh
             stats.HighestPassRating = leaderboards.Max(l => l.PassRating);
             stats.HighestTechRating = leaderboards.Max(l => l.TechRating);
 
-            // Player rankings - use allPlayers for global stats
-            // (All characteristics use the same global player pool)
+            // Player rankings are global, the same for every characteristic
             SetPlayerRankingStats(stats, allPlayers);
 
             return stats;
@@ -244,7 +237,6 @@ namespace portaBLe.Refresh
 
         private static void SetPlayerRankingStats(Stats stats, List<PlayerData> allPlayers)
         {
-            // Sort once for PP
             var playersByPp = allPlayers.OrderByDescending(p => p.Pp).ToList();
             stats.Top1PP = GetAtOrDefault(playersByPp, 0, p => p.Pp);
             stats.Top10PP = GetAtOrDefault(playersByPp, 9, p => p.Pp);
@@ -254,7 +246,6 @@ namespace portaBLe.Refresh
             stats.Top5000PP = GetAtOrDefault(playersByPp, 4999, p => p.Pp);
             stats.Top10000PP = GetAtOrDefault(playersByPp, 9999, p => p.Pp);
 
-            // Sort once for AccPP
             var playersByAccPp = allPlayers.OrderByDescending(p => p.AccPp).ToList();
             stats.Top1AccPP = GetAtOrDefault(playersByAccPp, 0, p => p.AccPp);
             stats.Top10AccPP = GetAtOrDefault(playersByAccPp, 9, p => p.AccPp);
@@ -264,7 +255,6 @@ namespace portaBLe.Refresh
             stats.Top5000AccPP = GetAtOrDefault(playersByAccPp, 4999, p => p.AccPp);
             stats.Top10000AccPP = GetAtOrDefault(playersByAccPp, 9999, p => p.AccPp);
 
-            // Sort once for TechPP
             var playersByTechPp = allPlayers.OrderByDescending(p => p.TechPp).ToList();
             stats.Top1TechPP = GetAtOrDefault(playersByTechPp, 0, p => p.TechPp);
             stats.Top10TechPP = GetAtOrDefault(playersByTechPp, 9, p => p.TechPp);
@@ -274,7 +264,6 @@ namespace portaBLe.Refresh
             stats.Top5000TechPP = GetAtOrDefault(playersByTechPp, 4999, p => p.TechPp);
             stats.Top10000TechPP = GetAtOrDefault(playersByTechPp, 9999, p => p.TechPp);
 
-            // Sort once for PassPP
             var playersByPassPp = allPlayers.OrderByDescending(p => p.PassPp).ToList();
             stats.Top1PassPP = GetAtOrDefault(playersByPassPp, 0, p => p.PassPp);
             stats.Top10PassPP = GetAtOrDefault(playersByPassPp, 9, p => p.PassPp);

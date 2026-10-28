@@ -16,8 +16,8 @@ public interface IBplistWriter
     Task WriteAsync(IReadOnlyList<ScoredSong> scoredSongs, ExportOptions options, CancellationToken cancellationToken = default);
 
     /// <summary>
-    /// Builds a .bplist file from the given scored songs and returns its raw UTF-8 JSON bytes,
-    /// without writing anything to disk. Useful for serving the playlist as a web download.
+    /// Builds a .bplist file from the given scored songs and returns its UTF-8 JSON bytes
+    /// (for serving the playlist as a download) without writing to disk.
     /// </summary>
     byte[] BuildBytes(IReadOnlyList<ScoredSong> scoredSongs, ExportOptions options);
 }
@@ -81,8 +81,7 @@ public sealed class BplistWriter : IBplistWriter
             bplist.Image = ImageUtils.ToSquareImageDataUri(options.ImagePath);
         }
 
-        // Preserve the scored/ranked order of first appearance, but merge difficulties for
-        // songs that share the same hash (e.g. a song recommended at multiple difficulties).
+        // Keep the ranked order of first appearance, merging difficulties of songs that share a hash
         var songsByHash = new Dictionary<string, BplistSong>();
         var orderedHashes = new List<string>();
 

@@ -8,7 +8,7 @@ using Microsoft.EntityFrameworkCore.Storage.ValueConversion;
 
 namespace portaBLe.DB
 {
-    // Per-leaderboard acc curves are stored as text, "x,y;x,y;..." (from the AccCurvePerMap branch).
+    // Per-leaderboard acc curves are stored as text, "x,y;x,y;...".
     // Applied in OnModelCreating of every context that maps Leaderboard / ModifiersRating.
     public static class CurveModelConfig
     {
@@ -147,12 +147,12 @@ namespace portaBLe.DB
         public ICollection<Score> Scores { get; set; }
 
         public float Duration { get; set; }
-        // Base note jump speed of the difficulty (Info.dat, without speed modifiers). 0 = not filled yet: RatingsRefresh.Overwrite
-        // stores it, RatingsRefresh.RefreshNjs fills it without rating the maps again.
+        // Base note jump speed (Info.dat, no speed modifier). 0 = not filled yet: RatingsRefresh.Overwrite stores it,
+        // RatingsRefresh.RefreshNjs fills it without rating the maps again.
         public float Njs { get; set; }
-        // Color notes of the difficulty (no bombs, chains or arcs), as the low note nerf counts them (CurveSettings.LowNoteStart).
-        // 0 = not filled yet: RatingsRefresh.Overwrite and CurvesRefresh.Regenerate store it, CurvesRefresh.RefreshNoteCounts
-        // fills it without rating the maps again.
+        // Color notes (no bombs, chains or arcs), as the low note nerf counts them (CurveSettings.LowNoteStart). 0 = not
+        // filled yet: RatingsRefresh.Overwrite and CurvesRefresh.Regenerate store it, CurvesRefresh.RefreshNoteCounts fills
+        // it without rating the maps again.
         public int NoteCount { get; set; }
         // First to last color note, seconds (no speed modifier): the length nerf's (CurveSettings.ShortFactor; SS / FS / SF
         // curves use it over the speed). 0 = not filled yet: RatingsRefresh.Overwrite and
@@ -193,32 +193,30 @@ namespace portaBLe.DB
         public float Megametric125 { get; set; }
         public float Megametric75 { get; set; }
         public float Megametric40 { get; set; }
-        // How much the map pays its players compared with the other maps of its stars, in the balance tuner's worth measure
-        // (BalanceTuner.WorthMeasure, PlayerAdjusted: how much it pays the same players than their other maps at their level,
-        // see BalanceTuner.WorthMeasures). +0.04 = 4% more than average. Null with too few in-range scores. The same value
-        // the balance tuner and the acc reweighter use (LeaderboardsRefresh.Refresh, BalanceTuner.StoredWorth). Nomod scores
-        // only: SS / FS / SF scores have their own (ModifiersRating.SSWorth ...), NF scores none.
+        // How much the map pays its players compared with other maps of its stars (BalanceTuner.WorthMeasure, PlayerAdjusted:
+        // the same players against their other maps at their level). +0.04 = 4% more than average. Null with too few in-range
+        // scores. Used by the balance tuner and the acc reweighter (LeaderboardsRefresh.Refresh, BalanceTuner.StoredWorth).
+        // Nomod scores only: SS / FS / SF scores have their own (ModifiersRating.SSWorth ...), NF scores none.
         public float? Worth { get; set; }
-        // The previous worth: Megametric75 / what maps of its stars average - 1 (a local linear fit of Megametric75 on stars,
-        // Gaussian kernel of BalanceTuner.WorthBandwidth stars: BalanceTuner.WorthReference). +0.27 = 27% more than average.
-        // Null when the map has no Megametric75 or its star range (0-1 ... 12-13, 13+) fewer than 5 maps. Megametric75
-        // weights each score by where it lands in the player's profile, which overreacts to rating changes and inflates maps
-        // played by players with few high plays; kept for comparison.
+        // Megametric-based worth, kept for comparison: Megametric75 / what maps of its stars average - 1 (local linear fit on
+        // stars, Gaussian kernel of BalanceTuner.WorthBandwidth stars: BalanceTuner.WorthReference). +0.27 = 27% more.
+        // Null without Megametric75 or when its star range (0-1 ... 12-13, 13+) has fewer than 5 maps. Megametric75 weights
+        // scores by profile position, so it overreacts to rating changes and inflates maps played by players with few
+        // high plays.
         public float? MegametricWorth { get; set; }
-        // Top play share (LeaderboardsRefresh.RefreshTopPlayShares): of the map's players with AccReweighter.
-        // TopPlayShareMinScores ranked plays or more, those whose best play it is by AccReweighter.TopPlayMarginPp or more
-        // over their second best (any modifier). 0.046 = 4.6%. Relative: over the median share of the maps within
-        // AccReweighter.TopPlayShareBandwidth stars (at least AccReweighter.TopPlayShareFloor); the acc reweighter's top play
-        // share limiter cuts maps past AccReweighter.TopPlayShareRatio. Null with fewer than AccReweighter.
-        // TopPlayShareMinPlayers such players.
+        // Top play share (LeaderboardsRefresh.RefreshTopPlayShares): of the map's players with
+        // AccReweighter.TopPlayShareMinScores+ ranked plays, the share whose best play it is by AccReweighter.TopPlayMarginPp
+        // or more over their second best (any modifier). 0.046 = 4.6%. Null with fewer than
+        // AccReweighter.TopPlayShareMinPlayers such players. Relative: over the median share of the maps within
+        // AccReweighter.TopPlayShareBandwidth stars (at least TopPlayShareFloor); the acc reweighter's top play share limiter
+        // cuts maps past AccReweighter.TopPlayShareRatio.
         public float? TopPlayShare { get; set; }
         public float? TopPlayShareRelative { get; set; }
         // Worth by player rank (LeaderboardsRefresh.RefreshWorthByRank): each score's pp / the player's top pp, averaged over
         // the map's scores by the players ranked in that range (#1-20, #21-100, #101-1000, #1001-3000, #3001-10000; more than
         // 75 ranked plays, as Megametric75), divided by what maps of its stars average (BalanceTuner.WorthReference) - 1.
-        // Without Worth's weight: the weight depends on how full each player's top plays are, so maps played by players
-        // with few high plays (survivors of very high pass maps) looked worth more than what they give. Null with fewer
-        // than LeaderboardsRefresh.WorthRankMinScores scores in the range.
+        // Unweighted, unlike Worth: the weight depends on how full each player's top plays are, which inflates maps played
+        // by players with few high plays. Null with fewer than LeaderboardsRefresh.WorthRankMinScores scores in the range.
         public float? WorthRank20 { get; set; }
         public float? WorthRank100 { get; set; }
         public float? WorthRank1000 { get; set; }

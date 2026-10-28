@@ -9,8 +9,7 @@ public sealed class LinkedPlayer
     public required Player Player { get; init; }
 
     /// <summary>
-    /// The seed songs (from the target player's top plays) on which this player was also
-    /// found among the leaderboard's top scorers.
+    /// The seed songs on which this player was found as a peer of the target player.
     /// </summary>
     public required IReadOnlyList<Song> SharedSeedSongs { get; init; }
 }

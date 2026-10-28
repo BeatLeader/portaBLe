@@ -3,15 +3,9 @@ using portaBLe.DB;
 
 namespace portaBLe.Refresh
 {
-    // ScoresRefresh.Refresh + PlayersRefresh.Refresh in one pass: same results, about 3x faster.
-    //
-    // The two separate steps read every score twice (Players in 70+ batched queries joined with Players) and write most
-    // of them twice (pp and rank, then the weights, which nearly all change after a rating change). Here every score is
-    // read once, pp / leaderboard ranks / weights / player totals are computed in memory, and each score is written once.
-    //
-    // Differences with the old steps, none of which change a value: ties (same rounded pp and accuracy on a leaderboard,
-    // same pp in a profile, same total pp) are broken by score / player id instead of database order, and every weight is
-    // written instead of only the changed ones.
+    // ScoresRefresh.Refresh + PlayersRefresh.Refresh in one pass, about 3x faster: every score is read once, pp,
+    // leaderboard ranks, weights and player totals are computed in memory, and each score is written once. Results
+    // match the two separate steps; ties are broken by score / player id instead of database order.
     public class ScoresPlayersRefresh
     {
         private const int WRITE_CHUNK = 500_000;

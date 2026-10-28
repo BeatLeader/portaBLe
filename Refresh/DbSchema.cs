@@ -6,8 +6,8 @@ namespace portaBLe.Refresh
 {
     public static class DbSchema
     {
-        // Adds a column (DEFAULT 0) only when the table doesn't have it yet. Trying the ALTER TABLE and catching the error
-        // worked too, but EF Core logs every failed command as "fail: ... Failed executing DbCommand".
+        // Adds a column (DEFAULT 0) only when the table lacks it. Checked first rather than catching the error, because
+        // EF Core logs every failed ALTER TABLE as an error.
         public static async Task AddColumnIfMissing(AppContext dbContext, string table, string column, string type)
         {
             var connection = dbContext.Database.GetDbConnection();

@@ -7,17 +7,13 @@ using DbContextType = Microsoft.EntityFrameworkCore.DbContext;
 namespace beatleader_songrec.Api;
 
 /// <summary>
-/// <see cref="IBeatLeaderClient"/> implementation backed directly by portaBLe's local SQLite database instead of the
-/// BeatLeader HTTP API. Consumes whichever <see cref="DbContext"/> the caller is currently working with (portaBLe
-/// supports multiple selectable database files), so this class is constructed per request rather than resolved from DI.
+/// <see cref="IBeatLeaderClient"/> backed by portaBLe's local SQLite database. Uses whichever <see cref="DbContext"/>
+/// (database file) the caller works with, so it's constructed per request rather than resolved from DI.
 ///
-/// Built for speed, as a run asks for about a thousand score lists: plain SQL reading only the score columns
-/// (the songs come from the file's <see cref="LeaderboardCatalog"/>, not a join per row), several players' top plays
-/// in one query (<see cref="GetPlayersTopScoresAsync"/>), and each leaderboard read once and kept for the client's
-/// life: the seed selection and the peer search ask for the same ones, and without an index on (LeaderboardId, Pp)
-/// SQLite reads a leaderboard's every score for each of them anyway. (Such indexes made those queries 10-20x faster
-/// but made rewriting every score's PP 20x slower, 43 s against 2 s, which the rating pipeline does on each refresh.)
-/// Scores come without their <see cref="Score.Player"/>.
+/// Built for speed, as a run asks for about a thousand score lists: plain SQL reading only the score columns (songs
+/// come from the file's <see cref="LeaderboardCatalog"/>), several players' top plays in one query, and each
+/// leaderboard read once and kept. There is deliberately no (LeaderboardId, Pp) index: it would make the rating
+/// pipeline's PP rewrite of every score far slower. Scores come without their <see cref="Score.Player"/>.
 /// </summary>
 public sealed class DbBeatLeaderClient : IBeatLeaderClient
 {
@@ -26,8 +22,8 @@ public sealed class DbBeatLeaderClient : IBeatLeaderClient
     private readonly DbContextType _dbContext;
     private LeaderboardCatalog? _catalog;
 
-    // Each leaderboard's scores, best PP first (then by id), once read. A page's run reads up to about 80 (the seed
-    // pool's 75 and the maps added); a client kept longer (songreceval's) drops them all past MaxKeptLeaderboards
+    // Each leaderboard's scores once read, best PP first (then by id). A page's run reads about 80; a long-lived
+    // client (songreceval's) drops them all past MaxKeptLeaderboards
     private const int MaxKeptLeaderboards = 256;
     private readonly Dictionary<string, ScoreRow[]> _leaderboardRows = new(StringComparer.Ordinal);
 
@@ -240,9 +236,8 @@ public sealed class DbBeatLeaderClient : IBeatLeaderClient
         command.Parameters.Add(parameter);
     }
 
-    // Opened through the context, which closes it when it's disposed. Memory-mapped: SQLite reads the file's pages in
-    // place instead of copying each one into its own cache, which halved the queries' time (the pages are the
-    // system's file cache, shared by every connection, so no memory per connection)
+    // Opened through the context, which closes it on dispose. Memory-mapped so SQLite reads pages in place from the
+    // OS file cache instead of copying them into its own (about twice as fast, no memory per connection)
     private async Task<DbConnection> OpenConnectionAsync(CancellationToken cancellationToken)
     {
         var connection = _dbContext.Database.GetDbConnection();

@@ -1,13 +1,11 @@
 namespace beatleader_songrec.Models;
 
 /// <summary>
-/// Speed-altering score modifiers. Beat Saber treats a speed-modified play as effectively a
-/// different chart, so a song played with a speed modifier is treated as a distinct entity
-/// from its unmodified version throughout the recommendation pipeline.
+/// Speed-altering score modifiers. A speed-modified play is effectively a different chart, so the
+/// pipeline treats it as a distinct song from the unmodified version.
 /// </summary>
 public enum SpeedModifier
 {
-    /// <summary>No speed modifier applied.</summary>
     None,
 
     /// <summary>Slower Song (0.8x speed).</summary>

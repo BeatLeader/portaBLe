@@ -9,30 +9,18 @@ namespace beatleader_songrec.Core;
 /// </summary>
 public sealed record RecommendationOptions
 {
-    /// <summary>
-    /// The player's plays the peers are found from (SeedSongSelector). Seeds 25 / 50 / 75 / 100 (songreceval seeds, 200
-    /// players): −1.4 [−2.6, −0.3] / 0 / −0.8 / −1.2 [−2.2, −0.1] points of the maps that enter players' top 50 found.
-    /// </summary>
+    /// <summary>How many of the player's plays the peers are found from (<see cref="SeedSongSelector"/>).</summary>
     public int SeedCount { get; init; } = 50;
 
-    // Peers linked per seed song (the scorers nearest the player's pp on it), and how many of each peer's top plays become
-    // candidates (one setting, Top-K 20, before). Peers x plays 10 / 20 / 40 each (songreceval links, 200 players):
-    // more plays found more of the maps that enter players' top 50, more peers barely (40 x 40 within noise of
-    // 20 x 40, at twice the queries). Plays 20 / 40 / 60 / 80 / 120 (songreceval plays): 0 / +2.0 [+0.8, +3.1] /
-    // +1.4 / +1.6 / +0.8 points, so 40, the cheapest of the plateau.
+    // Peers linked per seed song (the scorers nearest the player's pp on it), and how many of each peer's top plays
+    // become candidates. More plays find more maps; more peers barely help at more queries. 40 plays is the cheapest
+    // point of the plateau.
     public int PeersPerSeed { get; init; } = 20;
 
     public int PlaysPerPeer { get; init; } = 40;
 
-    // Style and Easier weights (Easier: maps under the player's level over maps above it, ScoringWeights.Easier): the
-    // best of Style x Easier 0-100 by 25 (songreceval weights, 200 players): 24.5% of the maps that enter players'
-    // top 50 found, the suggestions' median 0.3 stars above the level (where those maps are: +0.1). Without Easier
-    // 22.2% and +1.3; more Easier than half of Style pulled them under the level and found fewer (Style 100 Easier
-    // 100: 18.4%, -1.9). Since the star window, Easier 100 finds as many (+0.4 [-0.8, +1.6] / -0.7 [-2.0, +0.6] points
-    // against 50, samples 7 / 11) with most suggestions under the level (median -0.34 stars against +0.20), so it's
-    // the default; the page's "Easier maps" slider sets it from 0 to 100. Under the level otherwise cost more: offset
-    // -0.5 / -1 -1.3 / -3.4 points (median -0.14 / -0.50), the window only 0.75 / 0.5 / 0 stars above the level -1.0 /
-    // -2.2 / -6.1 (median -0.11 / -0.24 / -0.56; means of the two samples).
+    // Style and Easier weights (ScoringWeights). With the star window, Easier 100 finds as many maps as 50 while keeping
+    // most suggestions under the player's level, so it's the default; the page's "Easier maps" slider sets it 0-100.
     public double StyleWeight { get; init; } = 100;
 
     public double EasierWeight { get; init; } = 100;
@@ -40,10 +28,8 @@ public sealed record RecommendationOptions
     /// <summary>
     /// Neutral linked players added to each candidate's Style (<see cref="SongScorer"/>): a map few peers link has its
     /// Style pulled toward the pool's mean, so one peer sharing many seeds with the player can't push their outliers to
-    /// the top on their own (3: a map one peer links keeps a quarter of its pull, 3 peers half). 0 for none. A safeguard,
-    /// it finds as many of the maps that enter players' top 50 (songreceval neutral, 200 players, samples 7 / 11, k 1 /
-    /// 2 / 3 / 5 / 8: +0.2 / +0.1 / +0.1 / −0.1 / −0.4 and −0.1 / −0.1 / 0 / 0 / −0.2 points, every interval across 0),
-    /// the suggestions' median 0.03 stars nearer the level.
+    /// the top on their own (with 3, a map one peer links keeps a quarter of its pull). 0 for none. A safeguard: it
+    /// doesn't measurably change how many good maps are found.
     /// </summary>
     public double NeutralPlayers { get; init; } = 3;
 
@@ -52,9 +38,8 @@ public sealed record RecommendationOptions
     /// <see cref="MinLevelOffset"/> to <see cref="MaxLevelOffset"/>): negative for easier suggestions, positive for
     /// harder ones. 0 is where players gain (see <see cref="RecommendationPipeline.PlayerLevel"/>). The aimed level
     /// moves three things: the peers (players about that much weaker or stronger), the star window
-    /// (<see cref="RecommendationPipeline.StarWindow"/>) and the Easier factor's center. Each star of offset moved the
-    /// suggestions' median 0.6-0.7 stars (songreceval offset, 100 players: -2 / -1 / +1 / +2 → -1.44 / -0.71 / +0.58 /
-    /// +1.24); without the window only 0.3-0.5, and moving only the Easier factor's center 0.15.
+    /// (<see cref="RecommendationPipeline.StarWindow"/>) and the Easier factor's center. Each star of offset moves the
+    /// suggestions' median about 0.6-0.7 stars.
     /// </summary>
     public double LevelOffset { get; init; } = 0;
 
@@ -80,9 +65,8 @@ public sealed record RecommendationOptions
 
     /// <summary>
     /// Leaderboards the player added as seeds. Those they have a score on seed like their other plays; on the others
-    /// the peers are the scorers whose overall pp is nearest theirs. Never suggested back. That's weaker than their own
-    /// score: with every seed linked that way, 20.9% of the maps that enter players' top 50 were found against 26.1%
-    /// (−5.2 [−6.8, −3.6] points, every rank band lower; the most played maps at their level 13.1%; 200 players).
+    /// the peers are the scorers whose overall pp is nearest theirs, a weaker link than their own score. Never
+    /// suggested back.
     /// </summary>
     public IReadOnlyCollection<string> AddedSeedLeaderboardIds { get; init; } = [];
 
@@ -151,19 +135,15 @@ public sealed class RecommendationPipeline
     public const double MinTargetStars = 1;
 
     /// <summary>
-    /// Suggestions are maps within this many stars of the aimed level (when any candidate is). 79% of the maps that
-    /// went on to enter players' top 50 were within it of their level (63% within 1, 89% within 2; holdout, 274
-    /// players). At offset 0 it changed nothing measurable (gainRecall −0.1 [−2.0, +1.7] points; 1 star: −1.2,
-    /// 2: −0.3), and it's what makes the level offset move the suggestions (see
-    /// <see cref="RecommendationOptions.LevelOffset"/>; with 1 star 0.8 stars per star of offset, with 2 0.55).
+    /// Suggestions are maps within this many stars of the aimed level (when any candidate is). About 80% of the maps
+    /// that enter players' top 50 are within it of their level; it's what makes
+    /// <see cref="RecommendationOptions.LevelOffset"/> move the suggestions.
     /// </summary>
     public const double StarWindow = 1.5;
 
     /// <summary>
-    /// Below this many ranked plays the level and the suggestions are rough: new players simulated with their first
-    /// 1, 3, 5 plays got no better suggestions than the most played maps around their level (1 play: 6.3% of their
-    /// next 40 plays suggested against 7.8%), with 10 better (8.9% against 7.7%; songreceval with first plays, 100
-    /// players each).
+    /// Below this many ranked plays the level and the suggestions are rough: with fewer, suggestions are no better
+    /// than the most played maps around the player's level.
     /// </summary>
     public const int FewPlays = 10;
 
@@ -173,12 +153,8 @@ public sealed class RecommendationPipeline
     /// <summary>
     /// A player's level in stars: the median stars (each map with its speed modifier) of their
     /// <see cref="LevelTopPlays"/> best plays, or of all their plays with fewer. Null without plays.
-    /// Half of their best plays are on harder maps, half on easier ones; one or two lucky passes don't
-    /// move it. It's where players gain: the maps that went on to enter players' top 50 were +0.1 stars
-    /// above it (median), against -1.3 under the balance tuner's level (the 5th hardest of the 50,
-    /// BalanceTuner.PlayerLevels: the top of a player's range, not what they usually play), and it
-    /// varies less between players (sd of each player's median gain 0.75 stars against 0.89; holdout,
-    /// 274 players).
+    /// One or two lucky passes don't move it, and it's where players gain: the maps that enter their top 50
+    /// center on it, unlike BalanceTuner.PlayerLevels (the top of a player's range, not what they usually play).
     /// </summary>
     public static double? PlayerLevel(IEnumerable<Score> topPlays)
     {

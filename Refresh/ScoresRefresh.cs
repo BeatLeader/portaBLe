@@ -15,7 +15,6 @@ namespace portaBLe.Refresh
             Console.WriteLine("Recalculating Scores");
             dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
 
-            // Get all leaderboard IDs first to enable batch processing
             var leaderboardIds = await dbContext.Leaderboards
                 .Select(lb => lb.Id)
                 .ToListAsync();
@@ -25,12 +24,10 @@ namespace portaBLe.Refresh
             var allProcessedScores = new ConcurrentBag<Score>();
             int processedCount = 0;
 
-            // Process leaderboards in batches
             for (int i = 0; i < leaderboardIds.Count; i += LEADERBOARD_BATCH_SIZE)
             {
                 var batchIds = leaderboardIds.Skip(i).Take(LEADERBOARD_BATCH_SIZE).ToList();
                 
-                // Load batch data
                 var batchLeaderboards = await dbContext.Leaderboards
                     .Where(lb => batchIds.Contains(lb.Id))
                     .Select(lb => new
@@ -45,7 +42,6 @@ namespace portaBLe.Refresh
                     })
                     .ToListAsync();
 
-                // Process leaderboards in parallel
                 var batchScores = new ConcurrentBag<Score>();
                 
                 await Parallel.ForEachAsync(batchLeaderboards, 
@@ -54,7 +50,6 @@ namespace portaBLe.Refresh
                     {
                         var leaderboardScores = new List<Score>(leaderboard.Scores.Count);
 
-                        // Calculate PP for all scores
                         foreach (var s in leaderboard.Scores)
                         {
                             (float pp, float bonuspp, float passPP, float accPP, float techPP) = ReplayUtils.PpFromScore(
@@ -83,7 +78,7 @@ namespace portaBLe.Refresh
                             });
                         }
 
-                        // Optimize ranking by pre-calculating rounded values
+                        // Ranked by rounded pp, then rounded accuracy
                         var rankedScores = leaderboardScores
                             .Select(s => new { Score = s, RoundedPp = Math.Round(s.Pp, 2), RoundedAcc = Math.Round(s.Accuracy, 4) })
                             .OrderByDescending(x => x.RoundedPp)
@@ -95,7 +90,6 @@ namespace portaBLe.Refresh
                             rankedScores[rank].Score.Rank = rank + 1;
                         }
 
-                        // Add to concurrent bag
                         foreach (var score in leaderboardScores)
                         {
                             batchScores.Add(score);
@@ -104,7 +98,6 @@ namespace portaBLe.Refresh
                         await Task.CompletedTask;
                     });
 
-                // Add batch to total
                 foreach (var score in batchScores)
                 {
                     allProcessedScores.Add(score);
@@ -113,7 +106,7 @@ namespace portaBLe.Refresh
                 processedCount += batchLeaderboards.Count;
                 Console.WriteLine($"Processed {processedCount}/{leaderboardIds.Count} leaderboards ({(processedCount * 100 / leaderboardIds.Count)}%)");
 
-                // Flush to database every batch to avoid memory issues
+                // Flush every batch to keep memory down
                 if (allProcessedScores.Count >= UPDATE_BATCH_SIZE)
                 {
                     var toUpdate = allProcessedScores.ToList();
@@ -124,7 +117,6 @@ namespace portaBLe.Refresh
                 }
             }
 
-            // Final update for remaining scores
             if (allProcessedScores.Count > 0)
             {
                 var finalScores = allProcessedScores.ToList();

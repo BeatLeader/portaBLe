@@ -27,6 +27,16 @@
             (CurveSettings.SliderTilt / SliderTiltRange; share = sliders and curved sliders per swing)</span>
     </div>
     <div class="ce-corr-row">
+        <label class="ce-check"><input type="checkbox" id="useTop" onchange="draw()" /> <b>Acc top compression</b></label>
+        <label>above <input type="number" id="topKnee" step="0.05" min="0" max="100" oninput="draw()" />%</label>
+        <label>slope <input type="number" id="topSlope" step="0.05" min="0" oninput="draw()" /></label>
+        <label class="ce-check"><input type="checkbox" id="topRelative" onchange="draw()" /> relative to the predicted acc:</label>
+        <label>above predicted + <input type="number" id="topShare" step="0.05" min="0" max="1" oninput="draw()" /> &times; (100% &minus; predicted)</label>
+        <span class="ce-hint">curve(knee) + (curve &minus; curve(knee)) &times; slope above the knee, before the acc curve power
+            (PpFormula.AccTopKnee / AccTopSlope). Relative to the predicted acc: a knee by map instead (not in use, to try it):
+            <b id="topValue"></b></span>
+    </div>
+    <div class="ce-corr-row">
         <label class="ce-check"><input type="checkbox" id="usePower" onchange="draw()" /> <b>Acc curve power</b></label>
         <label>map stars <input type="number" id="powStars" step="0.5" min="0" oninput="draw()" /></label>
         <label>power <input type="number" id="powHigh" step="0.01" oninput="draw()" /></label>
@@ -161,6 +171,7 @@
 
         const fields = {
             tiltStrength: () => corr.sliderTilt, tiltShare: () => 30, tiltRange: () => corr.sliderTiltRange,
+            topKnee: () => corr.accTopKnee, topSlope: () => corr.accTopSlope, topShare: () => 0.4,
             powStars: () => 8, powHigh: () => corr.accCurvePower, powLow: () => corr.lowStarCurvePower,
             powStart: () => corr.lowStarCurveStart, powEnd: () => corr.lowStarCurveEnd,
             powVeryLow: () => corr.veryLowStarCurvePower, powVeryStart: () => corr.veryLowStarCurveStart, powVeryEnd: () => corr.veryLowStarCurveEnd,
@@ -210,12 +221,19 @@
         }
         function noteMultiplier() { return noteFactor() * shortFactor(); }
 
+        // The acc top compression's knee (%): PpFormula.AccTopKnee, or the predicted acc + share x what's left to 100%
+        function topKnee(predicted) {
+            return checked('topRelative') ? predicted + num('topShare') * (100 - predicted) : num('topKnee');
+        }
+
         // The map's curve with the corrections turned on: slider tilt and the low note nerf as in Curve.GetCurve (on its
         // sampled points), then the acc curve power as in PpCalculator.GetPp (PpFormula.AccCurve, pivot at the star accuracy)
         function corrected(cur) {
             const source = checked('usePerMap') ? cur.points : data.basePoints;
             const p = cur.predicted;
-            const xs = Array.from(new Set(grid.concat(source.map(q => q[0])))).sort((a, b) => a - b);
+            // (the top compression's knee too, where the curve bends)
+            const knee = checked('useTop') ? [+topKnee(p).toFixed(4)] : [];
+            const xs = Array.from(new Set(grid.concat(source.map(q => q[0]), knee))).sort((a, b) => a - b);
             let pts = xs.map(x => [x, interp(source, x)]);
             if (checked('useTilt') && p > 60 && p < 99.95) {
                 const tilt = num('tiltStrength') * num('tiltShare') / 100, range = Math.max(num('tiltRange'), 0);
@@ -226,8 +244,15 @@
                 const m = noteMultiplier();
                 pts = pts.map(([x, y]) => [x, y * m]);
             }
+            // The acc curve power's pivot is the curve at the star accuracy without the top compression (PpCalculator.GetPp)
+            const at96 = interp(pts, corr.starAccuracy);
+            if (checked('useTop')) {
+                // PpFormula.AccTop: the curve above the knee rises slope as fast, from its value at the knee
+                const at = topKnee(p), slope = num('topSlope'), atKnee = interp(pts, at);
+                if (slope !== 1) pts = pts.map(([x, y]) => [x, x > at && y > atKnee ? atKnee + (y - atKnee) * slope : y]);
+            }
             if (powerOn()) {
-                const pow = power(), at96 = interp(pts, corr.starAccuracy);
+                const pow = power();
                 if (pow !== 1 && at96 > 0) pts = pts.map(([x, y]) => [x, y > 0 ? at96 * Math.pow(y / at96, pow) : y]);
             }
             return pts;
@@ -243,6 +268,7 @@
                     : 'slider tilt: none at 99.95%+ predicted');
             }
             if (checked('useNotes')) parts.push(`low note and length nerf &times;${fmt(noteMultiplier(), 3)} (${fmt(num('noteCount'), 0)} notes &times;${fmt(noteFactor(), 3)}, ${fmt(num('noteSpan'), 0)} s &times;${fmt(shortFactor(), 3)})`);
+            if (checked('useTop')) parts.push(`acc top compression &times;${fmt(num('topSlope'), 2)} above ${fmt(topKnee(cur.predicted), 2)}%`);
             if (powerOn()) parts.push(`acc curve power ${fmt(power(), 3)}`);
             return parts.length ? '<br/>Corrections: ' + parts.join(' &middot; ') : '';
         }
@@ -321,13 +347,14 @@
                 ` &middot; upper (95% to a): ${param('k2', cur.k2, d.k2)}, ${param('p2', cur.p2, d.p2)}` +
                 (cur.isDefault ? ' &middot; same as the base curve' : '') +
                 correctionsText(cur);
+            document.getElementById('topValue').textContent = `knee ${fmt(topKnee(p), 2)}% at ${fmt(p, 2)}% predicted`;
             document.getElementById('powValue').textContent = fmt(power(), 3);
             document.getElementById('veryLowValue').textContent = num('powStars') >= num('powVeryEnd')
                 ? `No effect at ${fmt(num('powStars'), 1)} map stars: set them under ${fmt(num('powVeryEnd'), 1)}.` : '';
             document.getElementById('noteValue').textContent = `notes ×${fmt(noteFactor(), 3)}, length ×${fmt(shortFactor(), 3)}, together ×${fmt(noteMultiplier(), 3)}`;
 
             const corrPoints = corrected(cur);
-            const anyCorrection = !checked('usePerMap') || checked('useTilt') || powerOn() || checked('useNotes');
+            const anyCorrection = !checked('usePerMap') || checked('useTilt') || checked('useTop') || powerOn() || checked('useNotes');
 
             const ratio = document.getElementById('showRatio').checked;
             if (document.getElementById('autoZoom').checked) { range = { from: Math.max(60, Math.floor(p) - 3), to: 100 }; syncRangeInputs(); }

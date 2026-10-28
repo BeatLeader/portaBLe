@@ -7,11 +7,11 @@ namespace portaBLe.Pages
     // never the scores table. The rolling average is over every filtered score; the dots are thinned.
     public class WeightedScoresGraphModel : BasePageModel
     {
-        // Min weight expressed as percentage 0..100 for easier UI. Will be converted to 0..1 fraction.
+        // Min weight in % (0..100), converted to a 0..1 fraction for the filter
         [BindProperty(SupportsGet = true)]
         public float MinWeightPercent { get; set; } = 0;
 
-        // Date components for the date filter (to the day). If Year is 0 -> unfiltered.
+        // Date filter (to the day); year 0 = unfiltered
         [BindProperty(SupportsGet = true)]
         public int MinYear { get; set; } = 0;
         [BindProperty(SupportsGet = true)]
@@ -26,7 +26,7 @@ namespace portaBLe.Pages
         [BindProperty(SupportsGet = true)]
         public int MinRankedPlayCount { get; set; } = 100;
 
-        // Optional specific player id filter
+        // Only this player's scores when set
         [BindProperty(SupportsGet = true)]
         public string PlayerId { get; set; } = string.Empty;
 

@@ -36,7 +36,7 @@ namespace portaBLe.Services
 
             if (!File.Exists(configPath))
             {
-                // Create default configuration
+                // No databases.json yet: write one listing Database.db
                 _config = new DatabasesConfig
                 {
                     MainDB = 0,
@@ -51,7 +51,6 @@ namespace portaBLe.Services
                     }
                 };
 
-                // Save default config
                 var json = JsonSerializer.Serialize(_config, new JsonSerializerOptions { WriteIndented = true });
                 File.WriteAllText(configPath, json);
             }
@@ -164,7 +163,7 @@ namespace portaBLe.Services
         }
     }
 
-    // Dynamic DB Context that can be created at runtime
+    // Context over any database file (see CreateContext)
     public class DynamicDbContext : DbContext
     {
         public DynamicDbContext(DbContextOptions options) : base(options)

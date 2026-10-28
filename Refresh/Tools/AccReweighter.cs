@@ -4,330 +4,149 @@ using portaBLe.DB;
 
 namespace portaBLe.Refresh
 {
-    // Acc reweighter: the only tool that uses scores to change ratings. It moves each map's acc rating up or down so the map is
-    // worth about as much to players as the other maps of its kind, changing the balance between kinds of maps no more than
-    // the balance guard allows. Nomod worth (BalanceTuner.Worth): the multiplier also applies to the SS / FS / SF ratings.
+    // Acc reweighter: the only tool that uses scores to change ratings. It scales each map's acc rating (and its SS / FS /
+    // SF acc ratings) so the map is worth about as much to players as other maps of its kind, without moving the balance
+    // between kinds of maps beyond what the balance guard allows.
     //
-    // A map's worth is BalanceTuner.Worth with BalanceTuner.WorthMeasures.PlayerAdjusted (the only measure it runs with): how
-    // much the map pays the same players than their other maps at their level, relative to what maps of its stars average (a
-    // local linear fit on stars, WorthReference, so crossing a range boundary doesn't change what a map is compared with),
-    // every score re-scored in memory with the multipliers being tried (players' weights and every map's worth move when one
-    // map changes). (Megametric75, how much a map counts in the profiles of its players, moved 3-5x as much as the acc
-    // rating; its strengths and tolerances were removed on 22 Oct.)
-    // On Dev (22 Oct, TechWeight 0.1612): held-out worth spread 0.0452 -> 0.0203, all players 0.0443 -> 0.0211, mean change
-    // 3.3% on 3902 maps (x0.922-x1.085, 160 at x1.085 and 32 at x0.922); pass share slope +0.0039 -> +0.0077 (the guard
-    // allowing 0.0079), the other slopes and gaps within 0.004 of the start's.
-    // Players found small gaps moved for nothing and the maps furthest off not moved enough: the strengths were judged by
-    // the worth spread around 0, not by each map's distance to its target, so strength 2.0 took maps 0.83x the way to their
-    // target at 0-5 stars and 2.14x at 11+ (152 maps past 0, 118 of them 11+ stars). Since 22 Oct: TargetMetric,
-    // StarResponse, NoiseDeadZone 2, Applied 0.7, MaxChange 0.11 and LargeGapMaxChange 0.16 (Dev, same data): 0.80x to
-    // 1.18x the way, 12 maps past 0 (8 of them 11+), 204 maps within +-0.01 to +-0.03 moved over 2% (655), the maps beyond
-    // +-0.1 closed 57% of their worth (44%), 79 maps beyond +-0.05 after (132), x0.885-x1.130, held-out spread to the
-    // targets 0.0183, pass share slope +0.0076 (3% of its tolerance left).
+    // Worth: BalanceTuner.Worth with WorthMeasures.PlayerAdjusted, every score re-scored in memory with the multipliers tried.
+    // Target: before any change, worth is fitted on the balance tuner's features (pass / tech pp shares, predicted acc,
+    // OneSaber, star range); that fit is what the map's kind is worth, and each map's target is Applied of the way from its
+    // worth to it (in log). Imbalances between kinds stay the formula's and the tuner's to fix.
+    // Direction: -evidence x log((1 + worth) / (1 + target)) / response; the response is the acc pp share (at least
+    // MinAccShare) times how strongly the map's worth has been seen to move with its multiplier (StarResponse, Responses).
+    // Passes: each tries Strengths along the direction and keeps the one closest to the targets. Fixed steps oscillate (worth
+    // responds non-linearly), and any spread of multipliers raises acc heavy maps' worth, which the later passes pull back.
+    // Held-out choice: phase 1 fits on half the players and measures on the other half (HeldOutSplits splits) to find how
+    // far the data supports going (pass, strength); phase 2 fits on every player up to that point.
+    // FitAtBaseStars: during the fit maps keep their unreweighted stars and star range, so worth follows the map's pp alone;
+    // at the real stars the slopes are too non-linear for the slope correction.
+    // Balance guard: the tuner's slopes and gaps may not get worse than the start's by more than GuardTolerance /
+    // GapTolerance. Maps must be classified by unreweighted pp shares, or the slopes measure the reweighting itself.
+    // Slope correction: correcting single maps drifts the slopes by itself, so every candidate gets per-map terms on pass
+    // share, tech share and predicted acc (a Newton step from the start's Jacobian, then a Broyden search after phase 2).
+    // Limiters, at the real stars after the fit: worth limiter (WorthLimit), top play limiter (TopPlayMarginPp), top play
+    // share limiter (TopPlayShareRatio). The point stored must pass the guard at the real stars, else lower strengths are
+    // tried (FallbackStrengths), else nothing changes.
     //
-    // Target: before any change, worth is fitted on the balance tuner's features (pass and tech pp shares at the predicted acc,
-    // predicted acc, OneSaber, star range; least squares, as the tuner's slopes). That fitted value is what the map's kind is
-    // worth, and it stays each map's target: kinds of maps worth more or less than others are the formula's and the tuner's to
-    // fix, so they keep what they had. (Without the kinds taken out, the pass share slope went +0.03 -> -0.37 in one step.)
-    //
-    // Direction: -evidence x log((1 + worth) / (1 + target)) / response. evidence = n / (n + EvidenceScores), n the scores
-    // its worth rests on (BalanceTuner.WorthEvidence), so maps with few scores move less. response: the acc pp share (at
-    // least MinAccShare; an acc multiplier moves a map's pp in proportion to it, so a tech or pass heavy map needs more to
-    // move as much), times how much more or less than other maps of that share the map's worth has moved with its
-    // multiplier so far (Responses: from the second pass). Maps don't respond alike: the median map's worth moved 0.6x its
-    // multiplier (in log), the 90th percentile 0.98x, and Godspeed ExpertPlus 1.3x (its stars jumped 13.72 -> 14.86 at
-    // x1.072). With the acc share alone those overshot and the limiter (below) cut them back.
-    //
-    // Passes: in each, Strengths (fractions of the direction) are tried and the pass moves to the lowest worth spread; the next
-    // pass starts again from the new worth. Fixed steps oscillated (worth moves about 3-5x as much as the acc rating, and not
-    // linearly: the map moves within its players' sorted profiles). Any spread of multipliers, even random, raises the worth
-    // of acc heavy maps (a buffed map climbs its players' profiles more than a nerfed one falls: random 4% multipliers moved
-    // the pass share slope +0.034 -> -0.065); the later passes pull every map back to its target, kinds included.
-    //
-    // FitAtBaseStars: during the fit (the passes and the slope correction), each map keeps its stars and star range without
-    // reweighting, so the reference a map's worth is measured against and its players' distance to it don't move with its
-    // multiplier: worth follows the map's pp alone. The worth limiter and the balance stored measure the real stars. At the
-    // real stars (Dev, 22 Oct) the slopes aren't close to linear in the slope correction's terms (a map's stars and range
-    // move with its multiplier): one Newton step overshot (mean change 0.8% at strength 0.1, tech slope -0.012), nearly
-    // every candidate failed the guard, and the held-out spread only reached 0.0385 (0.0203 at the base stars). The real
-    // stars' slopes drift from the fit's: pass share slope +0.0077 stored for +0.0039 fitted (start +0.0039).
-    //
-    // How far: fitted to convergence, worth spread went 0.48 -> 0.07, score noise included. So the players are split in two
-    // halves: phase 1 fits on one half's scores and measures the worth spread on the other half's; the point (pass, strength)
-    // where that held-out spread is lowest is how far the data supports going. Phase 2 fits on every player up to that point.
-    // Phase 1 runs on HeldOutSplits random splits, and each (pass, strength) is judged by its average held-out spread over
-    // them, passing the balance guard on all of them (one split's choice rested on which players fell in which half).
-    //
-    // Balance guard: the point kept must have the balance tuner's slopes (pass, acc and tech shares, predicted acc) no worse
-    // than without reweighting (by GuardTolerance at most), and its gaps by GapTolerance: the gaps between fifths compare the
-    // average worth of the top and bottom fifths of maps, outliers included, so they move when outliers are corrected; the
-    // OneSaber gap compares 73 maps with the rest, as noisy. Maps are classified by their pp shares without reweighting there
-    // (nerfing a map's acc raises its pass share, and the slopes would measure the reweighting itself). When phase 2's end
-    // point doesn't pass, the point of phase 2 with the lowest worth spread that does is kept; without one, nothing changes.
-    //
-    // Slope correction (SlopeCorrection): correcting single maps moves the slopes by itself, steadily with the strength of
-    // the very first pass (Dev, 21 Oct: pass share slope 0.1 -> +0.007, 0.35 -> +0.009, 1.3 -> +0.011 from +0.006), and
-    // neither the targets nor the multipliers explain it: multipliers without their kind part (+0.0119), a separate kind
-    // direction (+0.011) and pass / tech shares per star range in the targets (+0.011) left it. So every map also gets
-    // exp(sum of beta_f x u_f), u_f = -(its feature f - its star range's mean) / the within-range sd / its acc share (at
-    // least MinAccShare), for its pass share, tech share and predicted acc, the betas sized so those three slopes are back
-    // at the start's. The Jacobian of the slopes on the betas is measured once, at the start. Every candidate of every pass
-    // gets one Newton step of it before it's measured, so the passes and phase 1 choose among corrected points (corrected
-    // after phase 2 only, the correction raised the worth spread 0.0248 -> 0.0298, which the choice didn't see). After phase
-    // 2 a Newton search (Broyden updates) takes the slopes within SlopeCorrectionTolerance of the start's; of the points
-    // tried, the one closest to the start's slopes that passes the balance guard is kept, else the uncorrected point if it
-    // does. With FitAtBaseStars the base stars' slopes aren't the stored ones (pass share slope +0.0077 stored for +0.0039
-    // fitted, start +0.0039, the guard allowing 0.0079). RealStarsSlopeCorrection runs the search again at the real stars,
-    // from a Jacobian measured at the kept point; it's off (see there). Drift compensation (DriftCompensationRounds) instead
-    // stays at the base stars: the real stars' drift from the base stars' slopes at the kept point is measured, and phase 2
-    // and the search run again aimed at the start's slopes minus it, so the passes fix the maps the correction moves; kept
-    // when the real stars' slopes end closer to the start's; off (see there). Frozen stars (FrozenStarsRounds) fit again
-    // with each map's stars frozen at the last fit's real ones; also off (see there). The pass share alone (until 22 Oct) took the tech slope -0.0011 -> +0.008 once TechWeight 0.1612 had balanced
-    // it, past the guard, so nothing was corrected (pass slope +0.0087 from +0.0039).
-    //
-    // Worth limiter (WorthLimit): the reweight may not make a map an outlier. A map's worth may not end above max(its worth
-    // without reweighting, +WorthLimit), nor below min(it, -WorthLimit). Its target is clamped to that range first, so a
-    // map already past it isn't pushed further (Dev, 22 Oct: no map's target was, the path didn't change). Then, last,
-    // with the kept multipliers and the real stars: the band mean removal and the slope correction move maps that are on
-    // target, a map whose stars jump climbs past its neighbours (its worth moves more than its multiplier), and maps that
-    // don't change move with the maps around them (worth is relative). A map past its limit by its own multiplier has it
-    // cut by the part of its worth change it overshot (in log); one whose multiplier is 1 or the other way is moved against
-    // the overshoot (over its response, Responses). The other maps of its star range take back the mean, and it's measured
-    // again (WorthLimitRounds at most).
-    //
-    // Top play limiter (TopPlayMarginPp), after the worth limiter: a buff may not make a map pay a player much more than
-    // their best play on another map (see there). Then the top play share limiter (TopPlayShareRatio): a map that is far
-    // more players' best play than the maps of its stars is cut (see there).
-    //
-    // The point to store, after the limiters and at the real stars, must pass the balance guard too (acc-reweight.json,
-    // Rejected). When it fails, the fit runs again at the lower strengths of the last pass, highest first, and the first
-    // that passes is stored (FallbackStrengths, Fallbacks), else nothing changes: a change to the balance then weakens the
-    // reweight instead of dropping it. (Dev, 22 Oct, pass share slope tolerance 0.0037 so that 2.0 failed by 0.0001: 1.6,
-    // 1.3 and 1.0 failed by 0.0006, 0.0007 and 0.0004, the pass share drift doesn't shrink with the strength; 0.7 was
-    // stored, worth spread 0.0333 instead of 0.0211, 0.0443 without reweighting, mean change 1.2%.) How far the point stored
-    // is from failing each part of the guard is written (GuardMargins) and warned when within GuardMarginWarning of its
-    // tolerance (Dev: the pass share slope, 0.0002 of 0.004). It used to be kept anyway: with FitAtBaseStars that's the only check at the real
-    // stars, so the guard was never applied to what was stored (Dev, 22 Oct: Applied 0.45, 0.4 and 0.35 all failed it,
-    // pass share slope +0.0080 to +0.0082 for the 0.0079 allowed, and were stored).
-    //
-    // Applied: each map's target is Applied of the way from its worth before any change to the fitted value (in log), so the
-    // fit closes only part of each map's gap; kinds of maps keep the same average target, so the later passes still pull
-    // them back. The passes pick the strength that brings worth closest to these targets (TargetMetric).
-    //
-    // Maps without a worth (fewer than 20 scores, or 10 or fewer of them from players with more than 75 scores: newly ranked
-    // maps) keep 1, as do maps under MinStars stars and MinNotes notes.
-    // Each star range's median map is at 1 (MedianCenter; the mean in log before: ranges keep their level, players' pp its
-    // scale), multipliers stay within
-    // Applied x +-log(1 / (1 - MaxChange)) (the same distance both ways in log; LargeGapMaxChange's for large gaps), and
-    // multiply the acc rating. Stored in
-    // Leaderboards.AccReweight (0 or 1 = none) and applied by RatingsRefresh (Overwrite and Refresh) to the acc rating and the
-    // SS / FS / SF acc ratings, so they survive re-rating. Each run starts again from the ratings without them. Then re-score
-    // (Program.RefreshEverything). Writes wwwroot/acc-reweight.json.
+    // Maps without a worth (too few scores), under MinStars or under MinNotes keep x1; each star range's median map is x1.
+    // Stored in Leaderboards.AccReweight (0 or 1 = none) and applied by RatingsRefresh, so it survives re-rating; each run
+    // starts again from the ratings without it. Re-score afterwards (Program.RefreshEverything). Writes acc-reweight.json.
     public static class AccReweighter
     {
         public const string FileName = "acc-reweight.json";
 
-        // 6 -> 3 with Strengths up to 2.0: pass 1 took the largest strength then (1.3, worth spread 0.0293 at 1.0 -> 0.0260,
-        // still falling), and passes 2-6 only took it 0.0260 -> 0.0248
         public static int Passes { get; set; } = 3;
-        // Fractions of the direction tried in each pass. Worth moves about 0.6x as much as the map's pp (3% more pp on the tech
-        // 8+ maps moved them +1.9%), and pp about 1.2x acc share x the multiplier (acc pp ~ acc rating^AccRatingPower), so a
-        // strength near 1.3 closes a map's gap in one pass; 1.6 and 2.0 so pass 1 isn't held at the edge of the range. With
-        // the base stars and the slope correction in the passes (Dev, 22 Oct) every split chose pass 1 at 2.0 (held out 0.0211
-        // at 1.6, 0.0202 at 2.0; passes 2-3 raised it), still the edge
+        // Fractions of the direction tried in each pass. About 1.3 closes a map's gap in one pass (worth moves ~0.6x the map's
+        // pp, pp ~1.2x acc share x the multiplier); 1.6 and 2.0 keep pass 1 off the edge of the range
         public static double[] Strengths { get; set; } = { 0.1, 0.2, 0.35, 0.5, 0.7, 1.0, 1.3, 1.6, 2.0 };
         public static double EvidenceScores { get; set; } = 40;
         // How many of a pass's candidate strengths are measured at once (each re-scores every score in memory: ~150 MB)
         public static int CandidateParallelism { get; set; } = 4;
         public static double MinAccShare { get; set; } = 0.3;
-        // The bounds are Applied x +-log(1 / (1 - MaxChange)): x0.922 to x1.085 with Applied 0.5. They were Applied x
-        // [log(1 - MaxChange), log(1 + MaxChange)], x0.922 to x1.072, tighter for buffs in log: 182 maps sat at x1.072 and 14
-        // at x0.922 (Dev, 22 Oct), and those at x1.072 weren't noise (median 634 scores, the other maps 879; worth -0.078 ->
-        // -0.035, still under)
-        // 0.15 -> 0.11 with Applied 0.7 (x0.892-x1.121 otherwise; Applied 0.7 x 0.15's bounds took Break Expert 12.09 -> 14.92
-        // stars), the same bounds as before, x0.922-x1.085 (x0.885-x1.130 with LargeGapMaxChange)
+        // Bounds: Applied x +-log(1 / (1 - MaxChange)), the same distance both ways in log (x0.922-x1.085 with Applied 0.7)
         public static double MaxChange { get; set; } = 0.11;
-        // Fraction of each map's gap to its target the fit closes (in log): 1 = all of it, 0 = none. The full fit (mean change
-        // 4.1%, 76 maps at +-15%) was too strong for players, who found the database better without it.
-        // Part of the fit, not a fraction of the full fit stored afterwards: the passes are fitted together, the later ones
-        // undoing the drift of the first, so a fraction of the whole drifted more than the whole. The full fit passed the
-        // balance guard (pass slope +0.0049 -> +0.0068) but every fraction from 0.5 to 0.15 failed it, and only 0.1 was
-        // stored (mean change 0.43%, worth spread 0.0615 -> 0.056).
-        // 0.5 -> 0.7 with TargetMetric (22 Oct): before it, strength 2.0 took the maps past their targets anyway (0.83x to 2.14x
-        // the way); with it and 0.5 they went 0.48x to 0.68x, the maps beyond +-0.1 closed 28% of their worth, 449 maps beyond
-        // +-0.05 after (132 without it)
+        // Fraction of each map's gap to its target the fit closes (in log; 1 = all). The full fit was too strong for players.
+        // It is part of the targets, not a scaling of the result afterwards: the passes are fitted together (later ones undo the
+        // first's drift), so a fraction of the finished fit drifts the balance more than the whole
         public static double Applied { get; set; } = 0.7;
-        // Scaled by the ratio of the worth spreads to Megametric75's (0.46 / 0.059: 0.00065 / 0.0026), nothing passed: the
-        // measure's own noise (half of the players vs the other half, / 2) was about 0.0009 on the pass slope, 0.0022 on the
-        // tech slope, 0.0027 on the OneSaber gap, and correcting single maps moves the slopes by itself (players' skills are
-        // fitted again: the smallest step took the pass slope +0.005 -> +0.007). Halfway between twice the noise (0.002 /
-        // 0.005) and the Megametric75 tolerances (0.005 / 0.02) was 0.0035; with Applied in the fit nothing passed it (the
-        // pass slope settles at +0.011 from +0.005, the acc slope at -0.006 from -0.001, mean change 2.1%), so 0.0065: that
-        // drift is let through for a reweight that changes something.
-        // With the worth measure without the lower bound and with the distance term (BalanceTuner.PlayerAdjustedBelow) the
-        // noise (rms over 10 splits, Dev, 22 Oct) is 0.0004 on the pass slope, 0.0001 acc, 0.0010 tech, 0.0000 predicted acc;
-        // gaps: OneSaber 0.0020, pass share 0.0004, tech share 0.0007, predicted acc 0.0002 (the old measure: 0.0010, 0.0004,
-        // 0.0011, 0.0002; 0.0026, 0.0008, 0.0010, 0.0004), so 0.0065 / 0.0125 no longer held anything back. The drift is set
-        // by the first pass (acc slope +0.0035, predicted acc slope +0.0027, pass share gap +0.0051, predicted acc gap
-        // +0.0059 by pass 6, all but the OneSaber gap far above the noise), so the tolerance is how strong a reweight is let
-        // through: 0.004 / 0.0075 (about 4x the noise of the noisiest, tech slope and OneSaber gap) kept the full fit, 0.003 /
-        // 0.005 pass 1 at strength 1.0 (worth spread 0.0296 instead of 0.0255), 0.002 / 0.004 nothing.
+        // Balance guard tolerances for the slopes and the gaps: about 4x the measurement noise of the noisiest (tech slope,
+        // OneSaber gap). The drift is real (set by the first pass), so these decide how strong a reweight is let through
         public static double GuardTolerance { get; set; } = 0.004;
         public static double GapTolerance { get; set; } = 0.0075;
-        // Warned when the point stored is within this fraction of a tolerance of failing the guard (acc-reweight.json,
-        // GuardMargins): a small change to the balance (a constant, new maps) may then reject the reweight
+        // Warn when the point stored is within this fraction of a tolerance of failing the guard: a small change to the balance
+        // may then reject the reweight
         public static double GuardMarginWarning { get; set; } = 0.25;
-        // When the point to store fails the guard at the real stars, the fit again at the lower strengths of the last pass,
-        // the first that passes stored (Fallbacks), instead of nothing
+        // When the point to store fails the guard at the real stars, refit at the lower strengths of the last pass and store the
+        // first that passes, instead of nothing
         public static bool FallbackStrengths { get; set; } = true;
-        // Phase 1's random splits of the players (see above)
+        // Phase 1's random splits of the players, averaged so the choice doesn't rest on one split
         public static int HeldOutSplits { get; set; } = 3;
         // Responses: how much of its own worth change a map's multiplier must make before its response counts (in log: a map
-        // moved by ResponseNoise counts half, the rest is the maps around it), and how far its response may be from other
-        // maps' of its acc share (times or over)
+        // moved by ResponseNoise counts half, the rest is the maps around it), and how far it may be from other maps' of its acc
+        // share (times or over)
         public static double ResponseNoise { get; set; } = 0.02;
         public static double ResponseRange { get; set; } = 3;
-        // The fit at each map's stars without reweighting (see above)
+        // Fit at each map's stars and star range without reweighting (see above)
         public static bool FitAtBaseStars { get; set; } = true;
-        // The slope correction (see above): on, how close to the start's slopes the search after phase 2 must get, the step
-        // of each term the Jacobian is measured with (log multiplier per within-range sd, over the acc share), the largest
-        // size of a term, and how many Newton steps the search takes at most
+        // Slope correction (see above): how close to the start's slopes the search after phase 2 must get, the Jacobian's step
+        // per term (log multiplier per within-range sd, over the acc share), the largest term, and the Newton steps at most
         public static bool SlopeCorrection { get; set; } = true;
         public static double SlopeCorrectionTolerance { get; set; } = 0.0005;
         public static double SlopeCorrectionStep { get; set; } = 0.005;
         public static double SlopeCorrectionMax { get; set; } = 0.1;
         public static int SlopeCorrectionSteps { get; set; } = 5;
-        // The search again at the real stars (see above). Off: on Dev (22 Oct) it took the stored slopes back to the start's
-        // (pass share +0.0077 -> +0.0044, predicted acc -0.0021 -> -0.0007) but moved maps by their kind, not their gap:
-        // worth spread 0.0211 -> 0.0247, maps beyond +-0.05 112 -> 152, 236 maps past the worth limit before the limiter
-        // (9 without it), the OneSaber gap +0.0019 -> +0.0044, and pass heavy low tech maps with a high predicted acc buffed
-        // to the cap: 2cf6391 (pass 14.3, tech 2.9, 97.95%) x1.056 -> x1.085, 10.51 -> 10.85 stars, worth -0.006 -> +0.014
-        // (-0.044 without reweighting), which players found too high
+        // The slope search again at the real stars. Off: it restores the stored slopes but moves maps by their kind rather than
+        // their gap (worth spread up, pass heavy low tech maps buffed to the cap)
         public static bool RealStarsSlopeCorrection { get; set; } = false;
-        // Drift compensation (see above): how many times phase 2 and the slope correction run again at the base stars,
-        // aimed at the start's slopes minus how far the real stars moved them from the base stars' (0 = off). Off: on Dev
-        // (22 Oct) the real stars moved the pass, tech and predicted acc slopes +0.0038 +0.0023 -0.0020 from the base stars';
-        // aimed at minus that, the correction's terms went +-0.0015 -> +0.04 to +0.07, the worth spread at the base stars
-        // 0.0129 -> 0.0495 (0.0443 without reweighting), and the real stars' slopes overshot about 3x (pass share +0.0038 ->
-        // -0.0079, tech +0.0023 -> -0.0098 from the start's; real stars' worth spread 0.0211 -> 0.0436): the terms move a
-        // map's stars, so the drift grows with them. The round wasn't kept (nothing changed)
+        // Drift compensation: rounds of phase 2 and the slope search aimed at the start's slopes minus the real stars' drift
+        // (0 = off). Off: the terms move each map's stars, so the drift grows with them and the real slopes overshoot
         public static int DriftCompensationRounds { get; set; } = 0;
-        // Frozen stars (see above): how many times phase 2 and the slope correction run again with each map's stars and star
-        // range frozen at the last fit's real ones instead of those without reweighting (0 = off). Off: on Dev (22 Oct) the
-        // drift is all the stars' (reference, players' levels and distance; the star ranges move no slope), and two rounds
-        // took the real stars' slopes within 0.0008 of the start's (from 0.0038; least guard margin 79% of its tolerance,
-        // was 5%), worth spread 0.0211 -> 0.0207, but by moving maps that had no gap: mean change 3.3% -> 5.1%, 614 maps at
-        // x1.085 (170) and 283 at x0.922 (53), low star maps worth -0.015 to +0.015 before taken to the bounds (Teo Normal
-        // x1.009 -> x1.085, Introduction Hard x0.996 -> x0.923), 2cf6391 x1.056 -> x1.085, Godspeed ExpertPlus worth
-        // +0.013 -> +0.038. The fit at frozen stars found another, much stronger, consistent point
+        // Frozen stars: rounds of phase 2 and the slope search with each map's stars and star range frozen at the last fit's
+        // real ones (0 = off). Off: it fixes the slopes by moving maps that had no gap, to a much stronger point
         public static int FrozenStarsRounds { get; set; } = 0;
-        // The worth limiter, last (see above): how far past average (worth 0) a change may take a map's worth (0 = off), and
-        // how many times the multipliers are measured and cut at most. 0.03: about the worth spread after the reweight. Without
-        // it (Dev, 22 Oct), 66 maps already worth more than +0.03 were buffed, and the most pass heavy 13+ star maps went past
-        // their neighbours: Godspeed ExpertPlus (pass 17) +0.010 -> +0.107 at x1.072, 13.72 -> 14.86 stars (its worth moved
-        // 1.3x its multiplier, the median map 0.6x).
+        // Worth limiter (see above): how far past average (worth 0) a change may take a map's worth, about the worth spread
+        // after the reweight (0 = off), and the measure-and-cut rounds at most. A map's worth may not end above max(its
+        // unreweighted worth, +WorthLimit) nor below min(it, -WorthLimit); maps whose stars jump otherwise pass their neighbours
         public static double WorthLimit { get; set; } = 0.03;
-        // Without the target clamp and without moving maps against the overshoot, 53 maps were still past their limit by the
-        // maps around them (multiplier 1, 48 above: Calamitous Demise ExpertPlus +0.054 -> +0.071)
         public static int WorthLimitRounds { get; set; } = 8;
-        // Star response: before the fit, a probe (random +-StarResponseProbe log multipliers) measures how much each map's
-        // worth moves with its multiplier, over its acc share, at the base and at the real stars, smoothed over stars
-        // (StarResponseBandwidth). The responses (Responses) only count from pass 2, and pass 1 is usually the one kept. On
-        // Dev (22 Oct) the base stars' response was about flat (1.07-1.17x acc share from 1 to 14 stars), the real stars'
-        // 0.47-0.50 up to 5 stars, 0.62 at 7, 0.87 at 9 and 1.02-1.22 from 11 (a map's stars move with its acc rating): the
-        // fit, at the base stars, moved low and mid star maps half as far as it meant to. With it the first pass's step is
-        // divided by the base stars' response (relative to the median map's), and the multipliers to store are scaled by the
-        // base stars' response over the real stars' (0.5x to 2x, FitAtBaseStars), so they move worth at the real stars as
-        // the fit did at the base stars.
+        // Star response: a random +-StarResponseProbe probe measures how much worth moves with the multiplier over the acc share,
+        // at the base and real stars, smoothed over stars (StarResponseBandwidth). Pass 1's step is divided by the base stars'
+        // response (relative to the median map's), and the stored multipliers are scaled by base / real response (0.5x-2x) so
+        // they move worth at the real stars as the fit did at the base stars (low star maps respond about half as much there)
         public static bool StarResponse { get; set; } = true;
-        // Target metric: the strengths (each pass's and phase 1's held-out choice) are judged by each map's distance to its
-        // own target, instead of the worth spread without the part of its gap a map keeps (worth - keep: the kind's worth
-        // left in, so the choice pulled every map towards 0, past the target of maps whose kind is worth more or less than
-        // average). Without it (Dev, 22 Oct) the stored point moved maps 0.83x the way to their target at 0-5 stars, 2.14x
-        // at 11+ (all of the way to their kind's worth, Applied 0.5), and 89 of the 118 11+ star maps that went past 0 had
-        // their kind's worth on the other side.
+        // Judge strengths by each map's distance to its own target. Otherwise the choice pulls every map towards 0, past the
+        // target of maps whose kind is worth more or less than average
         public static bool TargetMetric { get; set; } = true;
         public static double StarResponseProbe { get; set; } = 0.03;
         public static double StarResponseBandwidth { get; set; } = 1.0;
-        // Noise dead zone: each map's gap to its kind's worth (log) is shrunk by gap² / (gap² + (NoiseDeadZone x noise)²),
-        // noise = NoisePerScore / sqrt(the scores its worth rests on, WorthEvidence), instead of the step's n / (n +
-        // EvidenceScores): a gap within the noise barely moves and a large, well measured one moves almost fully (n / (n +
-        // 40) moved every map with 800 scores 95% of the way, 1354 maps within +-0.01 to +-0.03 about 2% each). 0 = off.
-        // NoisePerScore 0.28: what EvidenceScores 40 implies with the start's spread (0.0445 x sqrt 40); the start's spread
-        // with every player and with half of them gave 0.010 at the median map, 0.28 / sqrt(880) 0.0094.
-        // 2: with 1, 443 maps within +-0.01 to +-0.03 still moved over 2% (Applied 0.7), with 2 204
+        // Noise dead zone: each map's gap (log) is shrunk by gap² / (gap² + (NoiseDeadZone x noise)²), noise = NoisePerScore /
+        // sqrt(the scores its worth rests on), replacing the n / (n + EvidenceScores) weight: gaps within the noise barely move
+        // and large, well measured ones move almost fully. 0 = off. NoisePerScore 0.28 matches the measured per-score noise
         public static double NoiseDeadZone { get; set; } = 2;
         public static double NoisePerScore { get; set; } = 0.28;
         // Large gaps: a map whose gap (log, after the dead zone) is beyond LargeGapFrom may go past MaxChange's bounds, up to
-        // LargeGapMaxChange's (Applied x +-log(1 / (1 - LargeGapMaxChange))) from LargeGapFull on, in proportion in between.
-        // MaxChange's held the maps furthest off: those beyond +-0.1 closed 40-50% of their gap, the others about 68%. 0 = off.
-        // 0.16 (x0.885-x1.130 with Applied 0.7, the other maps x0.922-x1.085): with 0.22 (x0.840-x1.190) the maps furthest off closed
-        // 66% of their worth instead of 57%, but stars jumped up to +2.83 and 135 maps went past x1.1 (111)
+        // LargeGapMaxChange's from LargeGapFull on, linearly in between; MaxChange alone held back the maps furthest off. Higher
+        // values make stars jump too far. 0 = off
         public static double LargeGapMaxChange { get; set; } = 0.16;
-        // Low-star nerfs: a nerfed map's bound is LowStarMaxChange's (Applied x log(1 / (1 - LowStarMaxChange))) instead up
-        // to LowStarToleranceStart stars, fading back to its own at LowStarToleranceEnd (as the tolerance). Buffs keep theirs.
-        // With the acc curve top compression (PpFormula.AccTopSlope 0.8 above 99%) taking the top scores down first, Burn
-        // Easy at the x0.885 bound (worth +0.27) paid 605 pp at the top (743 without either) and Thunder Easy x0.910 546 pp,
-        // which players found overnerfed. 0.22 (x0.840) took Burn Easy to 571 and Thunder Easy to 499. With MinStars 4 those
-        // maps keep x1, and it acts from 4 stars to LowStarToleranceEnd only. 0 = off.
+        // Low-star nerfs: a nerfed map's bound is LowStarMaxChange's instead, up to LowStarToleranceStart stars, fading back to
+        // its own at LowStarToleranceEnd; buffs keep theirs. The acc curve top compression already lowers these maps' top
+        // scores, so the full bound overnerfed them. 0 = off
         public static double LowStarMaxChange { get; set; } = 0.10;
         public static double LargeGapFrom { get; set; } = 0.04;
         public static double LargeGapFull { get; set; } = 0.08;
-        // Low star tolerance: a low-star map paying more than its kind keeps LowStarTolerance of its gap (log, after the dead
-        // zone) uncorrected, up to LowStarToleranceStart stars, fading to nothing at LowStarToleranceEnd; underpaying maps
-        // aren't affected. The nerf cuts every score of a map alike, and it kept acc players' best low-star plays off their
-        // profile's first page (Astrais, with PpFormula.LowStarBonus x2: Powerful Normal 98.98% x0.926 #17, Avalanche Easy
-        // 99.14% x0.885 #45, worth +0.094 / +0.129 without reweighting). The outliers are still nerfed for the rest of their
-        // gap (Burn Easy +0.276, Thunder Easy +0.213, let you Easy +0.209, Crying for Rain Easy +0.180, Burn Normal +0.174).
-        // With MinStars 4 the maps under 4 stars keep x1, so it acts from 4 stars to LowStarToleranceEnd only. 0 = off.
+        // Low star tolerance: an overpaying low-star map keeps LowStarTolerance of its gap (log, after the dead zone)
+        // uncorrected, up to LowStarToleranceStart stars, fading to none at LowStarToleranceEnd; underpaying maps aren't affected.
+        // A nerf cuts every score of a map alike and pushed acc players' best low-star plays off their profile's first page.
+        // 0 = off
         public static double LowStarTolerance { get; set; } = 0.13;
         public static double LowStarToleranceStart { get; set; } = 4;
         public static double LowStarToleranceEnd { get; set; } = 5;
-        // Median center: each star range's median multiplier is 1, not its mean (log). The tolerance only holds back nerfs,
-        // so its ranges' mean went up and its removal nerfed every map: Dev Acc Autoreweighted (27 Oct), the maps within
-        // +-0.01 of their kind's worth at 2 / 3 / 4 stars x0.989 / x0.990 / x0.992 (x1.004 / x1.001 / x0.999 the day
-        // before, without it). The range's mean then moves with what isn't symmetric (the tolerance, the bounds, the
-        // limiters' cuts) instead of every map taking it: 3 / 4 stars x0.996 / x0.997, those ranges' mean x1.007 / x1.005.
-        // Also the worth limiter's. The star response's probe keeps the mean (a +-probe's median is one of the two).
+        // Each star range's median multiplier is 1, not its mean (log): the asymmetric parts (low star tolerance, bounds,
+        // limiters' cuts) shift the mean, and removing it would move every map of the range. The worth limiter centers the same
+        // way; the star response probe keeps the mean (a +-probe's median is one of the two)
         public static bool MedianCenter { get; set; } = true;
-        // Maps with fewer color notes (Leaderboard.NoteCount, 0 = unknown: moved) keep x1: the low note nerf's maps
-        // (CurveSettings.LowNoteStart). Their worth is low because players can't reach the steep top of their curve (Naughty
-        // little demon / Your Best Friend Normal, 43 / 47 notes: worth -0.13 / -0.17, best scores 98.6-99.3%), not because
-        // of their acc rating, so a buff only raises what a 100% pays: x1.13 took a 100% SF on Your Best Friend Normal 1165
-        // -> 1292 pp, with the best score anywhere 816. Their scores still count in every player's worth and the balance.
-        // 0 = off.
+        // Maps with fewer color notes (Leaderboard.NoteCount, 0 = unknown: moved) keep x1: their worth is low because players
+        // can't reach the steep top of their curve (CurveSettings.LowNoteStart), not because of their acc rating, so a buff
+        // only raises what a 100% pays. Their scores still count in every player's worth and the balance. 0 = off
         public static int MinNotes { get; set; } = 115;
-        // Maps under MinStars stars (without reweighting) keep x1 too, buffs and nerfs: the worth measure at low stars
-        // wanted the maps whose best plays are acc players' best low-star plays nerfed the most (Dev Acc, 27 Oct: Burn Easy
-        // worth +0.27, let you Easy +0.21, Thunder Easy +0.21, 696 / 735 / 607 pp at the top with the acc curve top
-        // compression alone), and the acc curve (PpFormula.AccTopKnee / AccTopSlope, LowStarBonus) already sets what they
-        // pay. Their scores still count in every player's worth and the balance. LowStarTolerance and LowStarMaxChange act
-        // from here to LowStarToleranceEnd. 0 = off.
+        // Maps under MinStars stars (without reweighting) keep x1 too: the acc curve (PpFormula.AccTopKnee / AccTopSlope,
+        // LowStarBonus) already sets what they pay, and the worth measure overnerfs acc players' best low-star plays. Their
+        // scores still count. 0 = off
         public static double MinStars { get; set; } = 4;
-        // Top play limiter: what a buff adds on top of a player's best play. A buffed map's score may pay at most
-        // TopPlayMarginPp more than the higher of its pp without reweighting and the player's best play on another map (at the
-        // real stars, after the worth limiter); the buff is cut until fewer than TopPlayPlayers players (with TopPlayMinScores
-        // scores or more) are past that. Chrome Vox E+ ended up ~50pp over some players' second best play with x1.13. Most
-        // top plays far over the player's second best are so without reweighting (309 buffed maps had one 30pp+ over, 30 of
-        // them from the buff), so a map already past it isn't held back, only what the buff adds is: a cap on the buff
-        // itself (no buff once a map is a top play by 1%) cut about 1100 of the 2300 buffed maps and failed the balance
-        // guard at every strength. Dev, 24 Oct (hard swing correction): 233 buffed maps added more than 10pp, the most
-        // Break Expert +78pp (x1.130, 19 players), Chrome Vox E+ +60pp (x1.092, 33 players); 243 maps cut (Chrome Vox E+
-        // x1.015), worth spread 0.0232 -> 0.0253. 0 = off.
+        // Top play limiter: a buffed map's score may pay at most TopPlayMarginPp more than the higher of its unreweighted pp and
+        // the player's best play on another map (players with TopPlayMinScores scores or more); the buff is cut until fewer than
+        // TopPlayPlayers players are past that. Only what the buff adds is limited: many maps are far over their players' second
+        // best without reweighting, and capping buffs outright failed the balance guard. 0 = off
         public static double TopPlayMarginPp { get; set; } = 10;
         public static int TopPlayPlayers { get; set; } = 1;
         public static int TopPlayMinScores { get; set; } = 30;
         public static int TopPlayRounds { get; set; } = 6;
-        // Top play share limiter, after the top play limiter: the nerf side. The worth measure missed maps that are far more
-        // players' best play than the other maps of their stars: Ludicrous Speed ExpertPlus (Dev Autoreweighted, 25 Oct, 14.12
-        // stars) was the best play of 131 of its 1688 players with TopPlayShareMinScores ranked plays or more (7.8%, the maps
-        // within 1 star 1.6%), 15pp over their second best at the median, Megametric 0.77 (9th of 50), and its worth +0.038
-        // (about 1 sd) only took it x0.995. A map's share: of its players with TopPlayShareMinScores scores or more, those
-        // whose best play it is by TopPlayMarginPp or more. Past TopPlayShareRatio x the median share of the maps within
-        // TopPlayShareBandwidth stars (those with TopPlayShareMinPlayers such players, at least TopPlayShareFloor), with
-        // TopPlayShareMinTops of them or more, its multiplier is cut (down to its lower bound) until no more than that many
-        // are left, from each score's pp response to a TopPlayShareProbe nerf of every map, TopPlayRounds at most. Players
-        // with few ranked plays are left out: any map they can pass may be their best. 0 = off.
+        // Top play share limiter (the nerf side), for maps far more players' best play than the maps of their stars, which the
+        // worth measure misses. A map's share: of its players with TopPlayShareMinScores ranked plays or more (any map may be the
+        // best of players with few), those whose best play it is by TopPlayMarginPp. Past TopPlayShareRatio x the median share of
+        // the maps within TopPlayShareBandwidth stars (with TopPlayShareMinPlayers such players, at least TopPlayShareFloor), with
+        // TopPlayShareMinTops or more, its multiplier is cut (down to its lower bound) until no more than that many are left,
+        // from each score's pp response to a TopPlayShareProbe nerf, TopPlayRounds at most. 0 = off
         public static double TopPlayShareRatio { get; set; } = 3;
         public static int TopPlayShareMinScores { get; set; } = 75;
         public static int TopPlayShareMinTops { get; set; } = 10;
@@ -360,9 +179,9 @@ namespace portaBLe.Refresh
             public double[] Prior = Array.Empty<double>();
             public double[][] BandFeatures = Array.Empty<double[]>();
             public double?[] StartWorth = Array.Empty<double?>();
-            // 1: the map has a worth and is moved (not under MinNotes)
+            // 1: the map has a worth and is moved (not pinned)
             public double[] HasWorth = Array.Empty<double>();
-            // Under MinNotes: kept at 1
+            // Under MinNotes or MinStars: kept at 1
             public bool[] Pinned = Array.Empty<bool>();
             public BalanceStats StartBalance = new();
             // The slope correction's terms (pass, tech, predicted acc) and the Jacobian of the slopes on them at the start
@@ -466,10 +285,8 @@ namespace portaBLe.Refresh
                 foreach (var p in path) p.Split = split;
                 splits.Add(path);
             }
-            // Each (pass, strength) measured on every split: its average held-out spread, and whether it passes the guard on all.
-            // The lowest that passes (the early passes push kinds of maps apart and the later ones pull them back: with a
-            // balanced start, the lowest held-out spread overall was at pass 2, where the guard failed on every point of phase 2,
-            // so nothing was kept); without one, the lowest overall.
+            // Each (pass, strength) over every split: its average held-out spread, and whether it passes the guard on all. The
+            // lowest that passes, else the lowest overall
             var summary = splits[0].Where(p => p.HeldOutSpread != null).Select(p => (p.Pass, p.Strength)).Distinct()
                 .Select(key => (Key: key, Points: splits.Select(s => s.FirstOrDefault(p => p.Pass == key.Pass && p.Strength == key.Strength && p.HeldOutSpread != null)).ToList()))
                 .Where(k => k.Points.All(p => p != null))
@@ -1028,7 +845,7 @@ namespace portaBLe.Refresh
                 keep[i] = partial - t;
                 target[i] = partial;
             }
-            // The maps under MinNotes stay at 1: every change is clamped to these bounds
+            // Pinned maps (MinNotes, MinStars) stay at 1: every change is clamped to these bounds
             for (int i = 0; i < mapCount; i++) if (c.Pinned[i]) c.MapLo[i] = c.MapHi[i] = 0;
             if (fitPlayers == null)
             {
@@ -1617,8 +1434,7 @@ namespace portaBLe.Refresh
         public List<AccReweightDrift> DriftCompensation { get; set; } = new();
         // The frozen stars' rounds (Drift: the real stars' slopes minus the fit's; empty: off, older runs)
         public List<AccReweightDrift> FrozenStars { get; set; } = new();
-        // The fraction of each map's gap the fit closed (Settings.Applied; 0: nothing changed. Older runs: the fraction of the
-        // kept change stored, Applied or less when that failed the balance guard)
+        // The fraction of each map's gap the fit closed (Settings.Applied; 0: nothing changed)
         public double AppliedFraction { get; set; }
         // Maps whose multiplier the worth limiter cut
         public int MapsLimited { get; set; }
@@ -1674,7 +1490,7 @@ namespace portaBLe.Refresh
         public int MinNotes { get; set; }
         public double LowStarTolerance { get; set; }
         public double LowStarMaxChange { get; set; }
-        // false: before it (the mean)
+        // false: each star range's mean was centered instead
         public bool MedianCenter { get; set; }
         public double MinStars { get; set; }
     }

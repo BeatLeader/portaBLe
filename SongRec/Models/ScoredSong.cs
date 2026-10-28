@@ -1,8 +1,7 @@
 namespace beatleader_songrec.Models;
 
 /// <summary>
-/// A candidate song with its final weighted recommendation score and the individual
-/// factor subscores that produced it, useful for debugging/tuning weights.
+/// A candidate song with its final recommendation score and the factor subscores that produced it.
 /// </summary>
 public sealed class ScoredSong
 {

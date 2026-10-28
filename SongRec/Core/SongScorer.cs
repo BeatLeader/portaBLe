@@ -6,19 +6,16 @@ namespace beatleader_songrec.Core;
 /// <summary>
 /// Scores the candidate song pool produced by <see cref="ILinkedPlayerFinder"/> using a
 /// SmartSongSuggest-style multiplicative model, Style x Easier, and returns the top-ranked
-/// candidates. (SmartSongSuggest's Overweight factor was dropped: it favors harder maps, and any
-/// weight on it found fewer of the maps that enter players' top 50 once Easier was on.)
+/// candidates. SmartSongSuggest's Overweight factor is omitted: it favors harder maps and hurts
+/// results once Easier is on.
 /// </summary>
 public interface ISongScorer
 {
     /// <summary>
     /// Scores every candidate in <paramref name="candidates"/> and returns the top
-    /// <paramref name="topN"/> (default 50), sorted descending by final score.
+    /// <paramref name="topN"/>, best first.
     /// </summary>
-    /// <param name="candidates">The candidate pool from <see cref="ILinkedPlayerFinder"/>.</param>
-    /// <param name="seedScores">The target player's seed scores (kept for interface/API compatibility; not used in the SmartSongSuggest-style score).</param>
-    /// <param name="weights">User-configurable weights; the weights of <see cref="ScoringWeights.Style"/> and <see cref="ScoringWeights.Easier"/>.</param>
-    /// <param name="topN">Maximum number of results to return (default 50).</param>
+    /// <param name="seedScores">The target player's seed scores; validated but unused by the score.</param>
     /// <param name="playerLevel">
     /// The player's level in stars (<see cref="RecommendationPipeline.PlayerLevel"/>), for the Easier
     /// factor; null leaves it neutral.
@@ -42,8 +39,7 @@ public sealed class SongScorer : ISongScorer
     /// <summary>
     /// Stars over which the Easier factor goes from neutral (a map at the player's level) to 73% / 27%
     /// of its range (1 star under / above it): the logistic 1 / (1 + e^(stars above level / scale)).
-    /// About the spread of the maps that enter players' top 50: their middle half spans 1.5 stars, centered
-    /// on the player's level (holdout, 274 players).
+    /// About the spread of the maps that enter players' top 50 around their level.
     /// </summary>
     private const double EasierScaleStars = 1d;
 
@@ -68,10 +64,8 @@ public sealed class SongScorer : ISongScorer
             return [];
         }
 
-        // Raw per-candidate stats. Note that `Entries` may contain multiple raw links for the
-        // same linked player (one per shared seed/origin song), by design - that repetition is
-        // what the Style factor below measures. For player-facing stats (count/PP/rank) we
-        // de-duplicate by player so a single player isn't counted multiple times.
+        // `Entries` may hold several links from the same linked player (one per shared seed); Style measures that
+        // repetition. Player-facing stats (count, PP) are de-duplicated by player.
         var stats = candidates
             .Select(pair =>
             {
@@ -90,10 +84,8 @@ public sealed class SongScorer : ISongScorer
             })
             .ToList();
 
-        // Style: proportional share of origin-song links pointing at this candidate, summed
-        // across each distinct origin song, mirroring SongEndPoint.SetStyle. For each origin
-        // song that links to this candidate, add (links from that origin to this candidate) /
-        // (total links originating from that origin song across the whole pool).
+        // Style (as SmartSongSuggest's SongEndPoint.SetStyle): for each origin song linking to this candidate, add
+        // (links from that origin to this candidate) / (all links from that origin across the pool).
         var linksByOriginSong = candidates.Values
             .SelectMany(entries => entries)
             .GroupBy(e => e.OriginSong)
@@ -116,10 +108,8 @@ public sealed class SongScorer : ISongScorer
             proportionalStyles.Add(style);
         }
 
-        // Neutral players: each candidate's Style pulled toward the pool's mean as if neutralPlayers more linked players
-        // had it at that mean, (style x n + mean x k) / (n + k), n its distinct linked players. A candidate one or two
-        // peers link (one sharing many seeds with the player can link their outliers strongly) keeps some of its signal,
-        // one many peers agree on nearly all of it.
+        // Neutral players: pull each Style toward the pool's mean, (style x n + mean x k) / (n + k) with n its distinct
+        // linked players, so a candidate few peers link keeps only part of its signal.
         if (neutralPlayers > 0)
         {
             var meanStyle = proportionalStyles.Average();
@@ -164,8 +154,7 @@ public sealed class SongScorer : ISongScorer
             });
         }
 
-        // Sort descending by final score; break ties deterministically by leaderboard id so
-        // results are stable across runs (e.g. when all candidates are tied).
+        // Ties broken by leaderboard id and modifier so results are stable across runs
         return scored
             .OrderByDescending(s => s.Score)
             .ThenBy(s => s.Song.LeaderboardId, StringComparer.Ordinal)
@@ -175,9 +164,7 @@ public sealed class SongScorer : ISongScorer
     }
 
     /// <summary>
-    /// Min-max normalizes <paramref name="value"/> into [0,1] given the pool's [min,max] range.
-    /// When the pool has no spread (min == max), every candidate is treated as equally favorable
-    /// (normalized to 1).
+    /// Min-max normalizes <paramref name="value"/> into [0,1]; 1 when the pool has no spread.
     /// </summary>
     private static double Normalize(double value, double min, double max)
     {
@@ -186,16 +173,13 @@ public sealed class SongScorer : ISongScorer
     }
 
     /// <summary>
-    /// Compresses a normalized [0,1] value into the [0.5, 1.5] multiplicative range used by
-    /// SmartSongSuggest-style scoring, scaled by the corresponding 0-100 weight slider so a
-    /// weight of 0 flattens the factor to neutral (1.0) and a weight of 100 applies the full
-    /// compressed spread.
+    /// Maps a normalized [0,1] value into [0.5, 1.5], blended toward neutral (1.0) by the 0-100 weight:
+    /// 0 flattens the factor, 100 applies the full spread.
     /// </summary>
     private static double Compress(double normalizedValue, double weight)
     {
         var strength = Math.Clamp(weight, 0, 100) / 100d;
         var fullSpread = FactorRangeMin + (normalizedValue * (FactorRangeMax - FactorRangeMin));
-        // Blend between neutral (1.0, weight = 0) and the full compressed spread (weight = 100).
         return 1d + ((fullSpread - 1d) * strength);
     }
 }

@@ -4,8 +4,8 @@ using portaBLe.Services;
 namespace portaBLe.Pages
 {
     // Every score in one list, best pp first (or another sort), with filters. Reads Services/TopScoresCache (in memory, from
-    // a file per database, built in the background when missing or outdated), never the scores table. Modded scores use their modifier's stars
-    // and predicted acc (an SFS score shows the SFS stars), like the scores graph pages.
+    // a file per database, built in the background when missing or outdated), never the scores table. Modded scores use
+    // their modifier's stars and predicted acc (an SFS score shows the SFS stars), like the scores graph pages.
     public class TopScoresModel : BasePageModel
     {
         public const int PageSize = 50;

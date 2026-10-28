@@ -26,7 +26,6 @@ namespace portaBLe.Refresh
             const float outlierThreshold = 8f;
             const int maxTopScoresToCheck = 10;
 
-            // Step 1: Get all scores with PP and player info in one query
             var allScores = await dbContext.Scores
                 .Where(s => s.Pp > 0)
                 .Select(s => new
@@ -39,7 +38,7 @@ namespace portaBLe.Refresh
 
             Console.WriteLine($"Loaded {allScores.Count} scores with PP > 0");
 
-            // Step 2: Group by player and identify outlier scores in top 10
+            // Per player with enough scores: top scores above a drop of over outlierThreshold% to the next are outliers
             var playerScoreGroups = allScores
                 .GroupBy(s => s.PlayerId)
                 .Where(g => g.Count() >= minScoresCount)
@@ -48,7 +47,6 @@ namespace portaBLe.Refresh
                     var orderedScores = g.OrderByDescending(s => s.Pp).Take(maxTopScoresToCheck).ToList();
                     var outlierScores = new HashSet<float>();
 
-                    // Find the cutoff point where there's a >8% drop
                     for (int i = 0; i < orderedScores.Count - 1; i++)
                     {
                         float currentPp = orderedScores[i].Pp;
@@ -59,7 +57,6 @@ namespace portaBLe.Refresh
                             float ppDifference = currentPp - nextPp;
                             float percentageDifference = (ppDifference / nextPp) * 100f;
 
-                            // If there's a >8% drop, all scores above this point are outliers
                             if (percentageDifference > outlierThreshold)
                             {
                                 for (int j = 0; j <= i; j++)
@@ -82,13 +79,12 @@ namespace portaBLe.Refresh
 
             Console.WriteLine($"Found {playerScoreGroups.Count} eligible players with {minScoresCount}+ scores");
 
-            // Create a dictionary for fast lookup: PlayerId -> Set of outlier PP values
             var playerOutlierScores = playerScoreGroups.ToDictionary(
                 p => p.PlayerId,
                 p => p.OutlierScores
             );
 
-            // Step 3: Calculate outliers per leaderboard
+            // Outlier count per leaderboard
             var leaderboardOutliers = allScores
                 .Where(s => playerOutlierScores.ContainsKey(s.PlayerId))
                 .GroupBy(s => s.LeaderboardId)
@@ -100,7 +96,6 @@ namespace portaBLe.Refresh
                         if (!playerOutlierScores.TryGetValue(score.PlayerId, out var outlierScores))
                             return false;
 
-                        // Check if this score's PP is in the player's outlier set
                         return outlierScores.Contains(score.Pp);
                     })
                 })
@@ -108,7 +103,6 @@ namespace portaBLe.Refresh
 
             Console.WriteLine($"Calculated outliers for {leaderboardOutliers.Count} leaderboards");
 
-            // Step 4: Update leaderboards
             var leaderboards = await dbContext.Leaderboards
                 .Select(l => new Leaderboard { Id = l.Id })
                 .ToListAsync();
@@ -132,17 +126,15 @@ namespace portaBLe.Refresh
             Console.WriteLine("Recalculating Megametric");
             dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
 
-            // Pre-calculate weight threshold
+            // Weight of a profile's 40th score (Top250: scores of top 250 players within their top 40)
             float weightThreshold = MathF.Pow(0.965f, 40);
 
-            // Load all leaderboard IDs first for batch processing
             var leaderboardIds = await dbContext.Leaderboards
                 .Select(lb => lb.Id)
                 .ToListAsync();
 
             Console.WriteLine($"Processing {leaderboardIds.Count} leaderboards");
 
-            // Load all scores with necessary data in a single query
             var allScores = await dbContext.Scores
                 .Select(s => new
                 {
@@ -157,21 +149,18 @@ namespace portaBLe.Refresh
 
             Console.WriteLine($"Loaded {allScores.Count} scores");
 
-            // Group by leaderboard in memory (more efficient than database grouping)
             var leaderboardGroups = allScores
                 .GroupBy(s => s.LeaderboardId)
                 .ToDictionary(g => g.Key, g => g.ToList());
 
             var updates = new ConcurrentBag<Leaderboard>();
 
-            // Process leaderboards in parallel
             await Parallel.ForEachAsync(leaderboardIds,
                 new ParallelOptions { MaxDegreeOfParallelism = Program.CoreCount },
                 async (leaderboardId, ct) =>
                 {
                     if (!leaderboardGroups.TryGetValue(leaderboardId, out var scores))
                     {
-                        // Leaderboard has no scores
                         updates.Add(new Leaderboard
                         {
                             Id = leaderboardId,
@@ -193,13 +182,11 @@ namespace portaBLe.Refresh
                         return;
                     }
 
-                    // Pre-filter megametric data
                     var megametricData = scores
                         .Where(s => s.TopPp != 0)
                         .Select(s => new MegametricData { Weight = s.Weight, RankedPlayCount = s.RankedPlayCount, Pp = s.Pp, TopPp = s.TopPp })
                         .ToList();
 
-                    // Calculate basic stats
                     int count = scores.Count;
                     float average = scores.Average(s => s.Weight);
                     int count80 = scores.Count(s => s.Weight > 0.8f);
@@ -207,7 +194,6 @@ namespace portaBLe.Refresh
                     float ppSum = scores.Sum(s => s.Pp * s.Weight);
                     int top250 = scores.Count(s => s.Rank < 250 && s.Weight > weightThreshold);
 
-                    // Calculate PP ratios
                     var filteredScores = scores.Where(s => s.RankedPlayCount >= 50 && s.TopPp != 0).ToList();
                     float ppRatioFiltered = filteredScores.Count > 0
                         ? filteredScores.Average(s => s.Pp / s.TopPp)
@@ -218,12 +204,11 @@ namespace portaBLe.Refresh
                         ? unfilteredScores.Average(s => s.Pp / s.TopPp)
                         : 0;
 
-                    // Calculate percentile (top 33% by weight)
+                    // Percentile: average weight of the top third of scores by weight
                     int topCount = (int)(megametricData.Count * 0.33);
                     var topByWeight = megametricData.OrderByDescending(s => s.Weight).Take(topCount).ToList();
                     float percentile = topByWeight.Count > 10 ? topByWeight.Average(s => s.Weight) : 0;
 
-                    // Calculate megametric variants
                     float megametric = CalculateMegametric(megametricData, topCount, 75);
                     float megametric125 = CalculateMegametric(megametricData, topCount, 125);
                     float megametric75 = CalculateMegametric(megametricData, topCount, 75);
@@ -297,7 +282,35 @@ namespace portaBLe.Refresh
                     c.MegametricWorth
                 });
 
-            // SSWorth / FSWorth / SFWorth (BalanceTuner.WorthSpeeds order: nomod, SS, FS, SF)
+            await StoreModifierWorth(dbContext, worth);
+
+            dbContext.ChangeTracker.AutoDetectChangesEnabled = true;
+            Console.WriteLine($"Complete! Total time: {Program.Stopwatch.ElapsedMilliseconds / 1000} seconds");
+
+            await RefreshWorthByRank(dbContext);
+            await RefreshTopPlayShares(dbContext);
+            await DetermineTags(dbContext);
+        }
+
+        // Recomputes Leaderboard.Worth and ModifiersRating.SSWorth / FSWorth / SFWorth from the stored scores (Refresh does
+        // it too): for a change to the worth measure alone, without re-scoring
+        public static async Task RefreshWorth(AppContext dbContext)
+        {
+            Console.WriteLine("Recalculating worth");
+            dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
+            await DbSchema.AddColumnIfMissing(dbContext, "Leaderboards", "Worth", "REAL");
+            var worth = await BalanceTuner.StoredWorth(dbContext);
+            var ids = await dbContext.Leaderboards.AsNoTracking().Select(l => l.Id).ToListAsync();
+            var updates = ids.Select(id => new Leaderboard { Id = id, Worth = worth.TryGetValue(id, out var w) ? w[0] : null }).ToList();
+            await dbContext.BulkUpdateAsync(updates, options => options.ColumnInputExpression = c => new { c.Worth });
+            await StoreModifierWorth(dbContext, worth);
+            dbContext.ChangeTracker.AutoDetectChangesEnabled = true;
+            Console.WriteLine($"Worth: {worth.Values.Count(w => w[0] != null)} leaderboards ({Program.Stopwatch.ElapsedMilliseconds / 1000} seconds)");
+        }
+
+        // SSWorth / FSWorth / SFWorth (BalanceTuner.WorthSpeeds order: nomod, SS, FS, SF)
+        private static async Task StoreModifierWorth(AppContext dbContext, Dictionary<string, float?[]> worth)
+        {
             foreach (var column in new[] { "SSWorth", "FSWorth", "SFWorth" })
             {
                 await DbSchema.AddColumnIfMissing(dbContext, "ModifiersRating", column, "REAL");
@@ -311,17 +324,10 @@ namespace portaBLe.Refresh
                 return new ModifiersRating { Id = l.ModifiersRatingId, SSWorth = w[1], FSWorth = w[2], SFWorth = w[3] };
             }).ToList();
             await dbContext.BulkUpdateAsync(modifierUpdates, options => options.ColumnInputExpression = c => new { c.SSWorth, c.FSWorth, c.SFWorth });
-
-            dbContext.ChangeTracker.AutoDetectChangesEnabled = true;
-            Console.WriteLine($"Complete! Total time: {Program.Stopwatch.ElapsedMilliseconds / 1000} seconds");
-
-            await RefreshWorthByRank(dbContext);
-            await RefreshTopPlayShares(dbContext);
-            await DetermineTags(dbContext);
         }
 
-        // Leaderboard.TopPlayShare / TopPlayShareRelative only (Refresh runs it; also on its own, it changes nothing else),
-        // with the acc reweighter's top play share limiter's settings
+        // Recomputes Leaderboard.TopPlayShare / TopPlayShareRelative alone (Refresh runs it too), with the acc reweighter's
+        // top play share limiter settings
         public static async Task RefreshTopPlayShares(AppContext dbContext)
         {
             Console.WriteLine("Recalculating top play shares");
@@ -362,7 +368,7 @@ namespace portaBLe.Refresh
         private const int WorthRankMinNeighbours = 5;   // other maps with a value within WorthRankNeighbourStars stars
         private const double WorthRankNeighbourStars = 0.5;
 
-        // Leaderboard.WorthRank20 ... WorthRank10000 only (Refresh runs it; also on its own, it changes nothing else)
+        // Recomputes Leaderboard.WorthRank20 ... WorthRank10000 alone (Refresh runs it too)
         public static async Task RefreshWorthByRank(AppContext dbContext)
         {
             Console.WriteLine("Recalculating worth by player rank");

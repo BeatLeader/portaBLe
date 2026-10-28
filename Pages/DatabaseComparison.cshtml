@@ -606,7 +606,6 @@
             function updateRatingsChart() {
                 if (!mapsData || mapsData.length === 0) return;
 
-                // Destroy existing chart if it exists
                 if (ratingsChart) {
                     ratingsChart.destroy();
                     ratingsChart = null;
@@ -623,7 +622,6 @@
                 const selectedRating = document.getElementById('ratingSelect').value;
                 const independentSort = document.getElementById('independentSortToggle').checked;
 
-                // Map rating type to current/comparison field names
                 const ratingFieldMap = {
                     'stars': { current: 'currentStars', comparison: 'comparisonStars', label: 'Stars' },
                     'accRating': { current: 'currentAccRating', comparison: 'comparisonAccRating', label: 'Acc Rating' },
@@ -633,11 +631,10 @@
 
                 const fields = ratingFieldMap[selectedRating];
 
-                // Calculate average difference (Main - Comparison)
+                // Average difference, main minus comparison
                 const differences = mapsData.map(m => m[fields.current] - m[fields.comparison]);
                 const avgDifference = differences.reduce((sum, diff) => sum + diff, 0) / differences.length;
 
-                // Update the average difference display
                 const avgDiffElement = document.getElementById('avgDifference');
                 const formattedAvg = avgDifference.toFixed(4);
                 const colorClass = Math.abs(avgDifference) < 0.01 ? 'text-success' : Math.abs(avgDifference) < 0.1 ? 'text-warning' : 'text-danger';

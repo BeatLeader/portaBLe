@@ -81,13 +81,11 @@ namespace portaBLe.Pages
                 stats = await statsQuery.FirstOrDefaultAsync(s => s.ModeName == characteristic);
             }
 
-            // If stats don't exist, return empty metrics
             if (stats == null)
             {
                 return new DatabaseMetrics();
             }
 
-            // Map Stats entity to DatabaseMetrics
             return new DatabaseMetrics
             {
                 // Outliers
@@ -119,7 +117,7 @@ namespace portaBLe.Pages
                 HighestTechPP = stats.Top1TechPP,
                 HighestPassPP = stats.Top1PassPP,
 
-                // Total PP - using averages from Stats
+                // Total PP (averages from Stats)
                 PpTop1 = stats.Top1PP,
                 PpTop10 = stats.Top10PP,
                 PpTop100 = stats.Top100PP,

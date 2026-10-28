@@ -31,10 +31,9 @@ namespace portaBLe.Pages
 
         public async Task OnGetAsync(string mainDb = null, string comparisonDb = null)
         {
-            // Get available databases
             AvailableDatabases = await _dbService.GetAvailableDatabasesAsync();
 
-            // Set default selections
+            // Unlisted or missing: the main database, and the first other one to compare with
             SelectedMainDb = _dbService.Listed(mainDb) ?? _dbService.GetMainDatabaseFileName();
             SelectedComparisonDb = _dbService.Listed(comparisonDb) ?? AvailableDatabases.FirstOrDefault(db => db.FileName != SelectedMainDb)?.FileName
                                    ?? AvailableDatabases.FirstOrDefault()?.FileName;
@@ -105,10 +104,9 @@ namespace portaBLe.Pages
 
         public async Task<IActionResult> OnGetPlayerComparisonAsync(string playerId, string mainDb = null, string comparisonDb = null)
         {
-            // Get available databases
             var availableDatabases = await _dbService.GetAvailableDatabasesAsync();
 
-            // Set default selections
+            // Unlisted or missing: the main database, and the first other one to compare with
             var selectedMainDb = _dbService.Listed(mainDb) ?? _dbService.GetMainDatabaseFileName();
             var selectedComparisonDb = _dbService.Listed(comparisonDb) ?? availableDatabases.FirstOrDefault(db => db.FileName != selectedMainDb)?.FileName
                                        ?? availableDatabases.FirstOrDefault()?.FileName;
@@ -307,15 +305,13 @@ namespace portaBLe.Pages
             using var currentDb = (DynamicDbContext)_dbService.CreateContext(selectedMainDb);
             using var comparisonDbContext = (DynamicDbContext)_dbService.CreateContext(selectedComparisonDb);
 
-            // Load ALL leaderboards from both databases first
+            // Every leaderboard of both databases; maps with Megametric125 > 0.5 in either one are compared
             var currentMapsAll = await currentDb.Leaderboards.ToListAsync();
             var comparisonMapsAll = await comparisonDbContext.Leaderboards.ToListAsync();
 
-            // Filter for maps with Megametric125 > 0.5 after loading
             var currentMaps = currentMapsAll.Where(l => l.Megametric125 > 0.5f).ToList();
             var comparisonMapsDict = comparisonMapsAll.ToDictionary(l => l.Id, l => l);
 
-            // Get all IDs from maps that have Megametric125 > 0.5 in at least one database
             var allIds = currentMaps.Select(m => m.Id)
                 .Union(comparisonMapsAll.Where(l => l.Megametric125 > 0.5f).Select(l => l.Id))
                 .ToHashSet();
@@ -327,7 +323,6 @@ namespace portaBLe.Pages
                 var current = currentMapsAll.FirstOrDefault(m => m.Id == id);
                 var comparison = comparisonMapsDict.GetValueOrDefault(id);
 
-                // Only include if at least one has Megametric125 > 0.5
                 if ((current != null && current.Megametric125 > 0.5f) ||
                     (comparison != null && comparison.Megametric125 > 0.5f))
                 {
@@ -452,15 +447,13 @@ namespace portaBLe.Pages
             using var currentDb = (DynamicDbContext)_dbService.CreateContext(selectedMainDb);
             using var comparisonDbContext = (DynamicDbContext)_dbService.CreateContext(selectedComparisonDb);
 
-            // Load ALL leaderboards from both databases first
+            // Every leaderboard of both databases; maps with Megametric125 > 0.5 in either one are compared
             var currentMapsAll = await currentDb.Leaderboards.ToListAsync();
             var comparisonMapsAll = await comparisonDbContext.Leaderboards.ToListAsync();
 
-            // Filter for maps with Megametric125 > 0.5 after loading
             var currentMaps = currentMapsAll.Where(l => l.Megametric125 > 0.5f).ToList();
             var comparisonMapsDict = comparisonMapsAll.ToDictionary(l => l.Id, l => l);
 
-            // Get all IDs from maps that have Megametric125 > 0.5 in at least one database
             var allIds = currentMaps.Select(m => m.Id)
                 .Union(comparisonMapsAll.Where(l => l.Megametric125 > 0.5f).Select(l => l.Id))
                 .ToHashSet();

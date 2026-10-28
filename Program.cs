@@ -130,7 +130,6 @@ namespace portaBLe
 
             var fileTransferUtility = new TransferUtility(client);
 
-            // Create a unique name for the database file
             var dbName = $"db-{DateTime.UtcNow:yyyyMMddHHmmss}-{new Random().Next(1000, 9999)}.db";
             var key = $"{dbName}";
 
@@ -139,26 +138,24 @@ namespace portaBLe
             // The Top Scores page cache goes next to it (the server downloads it with the database instead of building it)
             await UploadTopScoresCacheAsync(filePath, key);
 
-            // Save the database name to a file in wwwroot
             File.WriteAllText(Path.Combine("wwwroot", "current_db_name.txt"), dbName);
 
             return dbName;
         }
-        // Uploads wwwroot/cache/<db>.topscores.bin as "<dbKey>.topscores.bin", next to the database in S3, built first when
-        // it does not match the database (TopScoresCache.EnsureCurrentAsync). Built by
-        // RefreshEverything (or the Top Scores page). It's matched to a database by content, so a cache built from
-        // Database.db works for the same database uploaded under another name.
+        // Uploads the database's Top Scores cache as "<dbKey>.topscores.bin" next to it in S3, building it first if it
+        // doesn't match the database. The cache is matched by content, so one built from Database.db stays valid under
+        // another file name.
         public static async Task UploadTopScoresCacheAsync(string dbPath, string dbKey)
         {
             var cachePath = TopScoresCache.CachePathOf(dbPath);
-            // Built first when it's missing or for another version of the database: the server would reject it
+            // The server rejects a cache built from another version of the database
             var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(dbPath)};").Options;
             using (var context = new AppContext(options)) await TopScoresCache.EnsureCurrentAsync(context);
             await new TransferUtility(GetS3Client()).UploadAsync(cachePath, "portabledbs", dbKey + ".topscores.bin");
             Console.WriteLine($"Uploaded {Path.GetFileName(cachePath)} as {dbKey}.topscores.bin");
         }
 
-        // The top scores cache of every database in databases.json that has one locally
+        // Uploads the local Top Scores cache of every database in databases.json
         public static async Task UploadAllTopScoresCachesAsync(IDynamicDbContextService dbService, string webRootPath)
         {
             foreach (var db in await dbService.GetAvailableDatabasesAsync())
@@ -253,18 +250,15 @@ namespace portaBLe
         public static async Task Main(string[] args)
         {
             Stopwatch = Stopwatch.StartNew();
-            // dotnet run -c Release -- accreweight [Setting=value ...] [rescore] [file.db]: the acc reweighter alone on
-            // wwwroot/Database.db (or that database), with any of its settings (e.g. NoiseDeadZone=1 StarResponse=false), without
-            // the website or the database downloads; rescore: RefreshEverything after it
-            // dotnet run -c Release -- upload <wwwroot/file.db>: UploadDatabaseAsync on that database alone (and its Top Scores
-            // cache); the S3 name it gets is written to wwwroot/current_db_name.txt
+            // dotnet run -c Release -- upload <wwwroot/file.db>: uploads that database and its Top Scores cache; the S3 name
+            // is written to wwwroot/current_db_name.txt
             if (args.Length > 1 && args[0] == "upload")
             {
                 Console.WriteLine($"Uploaded {args[1]} as {await UploadDatabaseAsync(args[1])}");
                 return;
             }
-            // dotnet run -c Release -- cache <wwwroot/file.db> [upload]: that database's Top Scores cache built when it doesn't
-            // match it; upload: then uploaded next to it in S3, under its file name
+            // dotnet run -c Release -- cache <wwwroot/file.db> [upload]: builds that database's Top Scores cache if it's stale;
+            // upload: then uploads it to S3 under the database's file name
             if (args.Length > 1 && args[0] == "cache")
             {
                 if (args.Contains("upload")) await UploadTopScoresCacheAsync(args[1], Path.GetFileName(args[1]));
@@ -290,7 +284,7 @@ namespace portaBLe
             {
                 var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};").Options;
                 using var recurveContext = new AppContext(options);
-                // Columns newer than the database that the curves' query reads
+                // Columns the curves' query reads that older databases may lack
                 await DbSchema.AddColumnIfMissing(recurveContext, "Leaderboards", "TopPlayShare", "REAL");
                 await DbSchema.AddColumnIfMissing(recurveContext, "Leaderboards", "TopPlayShareRelative", "REAL");
                 await CurvesRefresh.Regenerate(recurveContext);
@@ -329,10 +323,9 @@ namespace portaBLe
                 await RatingsRefresh.RefreshMapStatistics(statsContext);
                 return;
             }
-            // dotnet run -c Release -- songreceval <wwwroot/file.db> [players] [set] [seed] [first plays]: the song
-            // recommendations' offline evaluation (beatleader_songrec.Tools.RecommendationEvaluation: 50 players, the
-            // default set of variants, sample seed 7 by default; first plays: new players simulated with that many ranked
-            // plays) on that database, read only
+            // dotnet run -c Release -- songreceval <wwwroot/file.db> [players=50] [set=default] [seed=7] [first plays]: the
+            // song recommendations' offline evaluation (RecommendationEvaluation); first plays simulates new players with that
+            // many ranked plays. Read only.
             if (args.Length > 1 && args[0] == "songreceval")
             {
                 var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};Mode=ReadOnly;").Options;
@@ -350,6 +343,71 @@ namespace portaBLe
                 await beatleader_songrec.Tools.RecommendationBenchmark.Run(() => new AppContext(options), args.Length > 2 ? int.Parse(args[2]) : 10);
                 return;
             }
+            // dotnet run -c Release -- import [nopipeline]: wwwroot/dump.zip into a new wwwroot/Database.db (the old one moved to
+            // Database-<date>.db), then FullPipeline with the acc reweighter and the balancer; nopipeline: the scores, players and
+            // leaderboards refreshed with the dump's ratings instead. Takes 5-20 minutes and 8-15GB of RAM
+            if (args.Length > 0 && args[0] == "import")
+            {
+                var webRoot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+                var path = Path.Combine(webRoot, "Database.db");
+                if (File.Exists(path))
+                {
+                    var backup = Path.Combine(webRoot, $"Database-{DateTime.Now:yyyyMMddHHmmss}.db");
+                    File.Move(path, backup);
+                    Console.WriteLine($"Moved the old Database.db to {Path.GetFileName(backup)}");
+                }
+                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={path};").Options;
+                using (var schemaContext = new AppContext(options))
+                {
+                    schemaContext.Database.Migrate();
+                }
+                await EnsureSchema("Database.db", path);
+                using (var dataContext = new AppContext(options))
+                {
+                    DataImporter.ImportData(ParseProtobuf(Path.Combine(webRoot, "dump.zip")), dataContext);
+                }
+                Console.WriteLine($"Imported in {Stopwatch.ElapsedMilliseconds / 1000} seconds");
+                // A fresh context: the importer turns automatic change detection off and keeps its entities tracked
+                using var importContext = new AppContext(options);
+                if (args.Contains("nopipeline"))
+                {
+                    await ScoresRefresh.Refresh(importContext);
+                    await PlayersRefresh.Refresh(importContext);
+                    await LeaderboardsRefresh.Refresh(importContext);
+                }
+                else
+                {
+                    // The model comparison's prod database (opening it when missing would leave an empty file in its place)
+                    var prodPath = Path.Combine(webRoot, ProdDatabase);
+                    if (!File.Exists(prodPath) && !await DownloadDatabaseFileAsync(ProdDatabase, prodPath))
+                        throw new FileNotFoundException($"Could not download {ProdDatabase} for the model comparison");
+                    await FullPipeline(importContext, webRoot, true, true, true);
+                }
+                Console.WriteLine($"Done in {Stopwatch.ElapsedMilliseconds / 1000} seconds");
+                return;
+            }
+            // dotnet run -c Release -- worth [Setting=value ...] <wwwroot/file.db>: LeaderboardsRefresh.RefreshWorth alone on that
+            // database (the stored worth, no re-score), with any of the balance tuner's settings (e.g. PlayerAdjustedQuantile=0.9)
+            if (args.Length > 1 && args[0] == "worth")
+            {
+                var file = args.Skip(1).First(a => a.EndsWith(".db", StringComparison.OrdinalIgnoreCase));
+                foreach (var setting in args.Skip(1).Where(a => a != file))
+                {
+                    var parts = setting.Split('=', 2);
+                    var property = typeof(BalanceTuner).GetProperty(parts[0]) ?? throw new ArgumentException($"No balance tuner setting {parts[0]}");
+                    property.SetValue(null, property.PropertyType.IsEnum
+                        ? Enum.Parse(property.PropertyType, parts[1], true)
+                        : Convert.ChangeType(parts[1], property.PropertyType, System.Globalization.CultureInfo.InvariantCulture));
+                    Console.WriteLine($"Worth: {parts[0]} = {parts[1]}");
+                }
+                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(file)};").Options;
+                using var worthContext = new AppContext(options);
+                await LeaderboardsRefresh.RefreshWorth(worthContext);
+                return;
+            }
+            // dotnet run -c Release -- accreweight [Setting=value ...] [rescore] [file.db]: the acc reweighter alone on
+            // wwwroot/Database.db (or file.db), with any acc reweighter or balance tuner setting (e.g. NoiseDeadZone=1,
+            // PlayerAdjustedQuantile=0.5); rescore: RefreshEverything after it
             if (args.Length > 0 && args[0] == "accreweight")
             {
                 bool rescore = args.Contains("rescore");
@@ -357,7 +415,9 @@ namespace portaBLe
                 foreach (var setting in args.Skip(1).Where(a => a != "rescore" && a != file))
                 {
                     var parts = setting.Split('=', 2);
-                    var property = typeof(AccReweighter).GetProperty(parts[0]) ?? throw new ArgumentException($"No acc reweighter setting {parts[0]}");
+                    // An acc reweighter setting, or a balance tuner one (the worth measure, e.g. PlayerAdjustedQuantile=0.5)
+                    var property = typeof(AccReweighter).GetProperty(parts[0]) ?? typeof(BalanceTuner).GetProperty(parts[0])
+                        ?? throw new ArgumentException($"No acc reweighter or balance tuner setting {parts[0]}");
                     property.SetValue(null, property.PropertyType.IsEnum
                         ? Enum.Parse(property.PropertyType, parts[1], true)
                         : Convert.ChangeType(parts[1], property.PropertyType, System.Globalization.CultureInfo.InvariantCulture));
@@ -382,7 +442,7 @@ namespace portaBLe
             try
             {
                 // The file current_db_name.txt in wwwroot should contain the S3 key of the current DB
-                // Uncomment to download the DB from S3 if Database.db from wwwroot is missing, this usually take 1-2 minutes
+                // Uncomment to download the DB from S3 if wwwroot/Database.db is missing (1-2 minutes)
                 // await DownloadDatabaseIfNeeded(builder.Environment.WebRootPath);
 
                 // Uncomment to upload the local Database.db to S3
@@ -398,10 +458,9 @@ namespace portaBLe
                 // Uncomment to set the current .db file as comparison target
                 // SetComparisonDBTarget();
 
-                // Register the dynamic DB context service
                 builder.Services.AddSingleton<IDynamicDbContextService, DynamicDbContextService>();
 
-                // Uncomment to download all databases from S3 based on databases.json
+                // Download the databases listed in databases.json from S3
                 var tempDbService = new DynamicDbContextService(builder.Environment);
                 await tempDbService.DownloadAllDatabasesAsync(builder.Environment.WebRootPath);
                 // The Top Scores caches of databases no longer in databases.json
@@ -426,7 +485,7 @@ namespace portaBLe
                 // so the page is ready when someone opens it
                 var startupDbService = app.Services.GetRequiredService<IDynamicDbContextService>();
                 _ = Task.Run(() => TopScoresCache.TryGetAsync(() => startupDbService.CreateContext(startupDbService.GetMainDatabaseFileName())));
-                // And its leaderboards for the song recommendations (loaded on the first run otherwise, about half a second)
+                // And its leaderboards for the song recommendations (otherwise loaded on first use, about half a second)
                 _ = Task.Run(async () =>
                 {
                     using var context = startupDbService.CreateContext(startupDbService.GetMainDatabaseFileName());
@@ -467,7 +526,7 @@ namespace portaBLe
                     // (only pp formula changes, RatingAPI/Pp/PpFormula.cs: skip Overwrite)
                     // Run FullPipeline to do all of the above in one pass (about 3.5 minutes in Release and 8-15GB of RAM). autoreweight:
                     // the acc reweighter and its re-score; balancer: the balance tuner and the model comparison.
-                    // await FullPipeline(dbContext, env, true, true, true);
+                    // await FullPipeline(dbContext, env.WebRootPath, true, true, true);
 
                     // Rate every leaderboard again with RatingAPI (Analyzer + Acc AI). Keeps the acc reweighter's multipliers;
                     // Overwrite(dbContext, false) for raw acc ratings (multipliers cleared)
@@ -550,27 +609,24 @@ namespace portaBLe
             }
         }
 
-        // autoreweight: run the acc reweighter (and re-score after it). keepAccReweight: when it doesn't run, keep the
-        // multipliers of the last run on the acc ratings; false = raw acc ratings, multipliers cleared. (When it runs, it
-        // starts again from the raw acc ratings either way.)
-        public static async Task FullPipeline(AppContext dbContext, IWebHostEnvironment env, bool autoreweight, bool balancer, bool keepAccReweight)
+        // autoreweight: run the acc reweighter, then re-score. balancer: run the balance tuner and the model comparison.
+        // keepAccReweight: without the reweighter, keep the last run's multipliers on the acc ratings (false: cleared).
+        public static async Task FullPipeline(AppContext dbContext, string webRootPath, bool autoreweight, bool balancer, bool keepAccReweight)
         {
-            // With the acc reweighter, the raw acc ratings: it starts from them anyway, and keeping the last multipliers stored
-            // them as acc rating x multiplier in float, which it divides out again, so each run started from ratings a float
-            // rounding away from the last (23 maps 0.5-2.9% off between two runs on the same data)
+            // The acc reweighter always starts from raw acc ratings: dividing stored multipliers back out would drift by a
+            // float rounding error on every run
             await RatingsRefresh.Overwrite(dbContext, keepAccReweight && !autoreweight);
-            // The acc reweighter only reads the ratings and the scores' accuracy, modifiers and time (BalanceTuner.Load) and
-            // re-scores in memory, so with it the re-score is only needed after it
+            // The acc reweighter re-scores in memory, so the stored re-score is only needed after it
             if (!autoreweight) await RefreshEverything(dbContext);
             if (autoreweight)
             {
-                await AccReweighter.Run(dbContext, env.WebRootPath);
+                await AccReweighter.Run(dbContext, webRootPath);
                 await RefreshEverything(dbContext);
             }
             if (balancer)
             {
-                await BalanceTuner.Run(dbContext, env.WebRootPath);
-                await ModelComparisonExport.Run(env.WebRootPath, ProdDatabase);
+                await BalanceTuner.Run(dbContext, webRootPath);
+                await ModelComparisonExport.Run(webRootPath, ProdDatabase);
             }
         }
         public static async Task RefreshEverything(AppContext dbContext)
@@ -582,7 +638,6 @@ namespace portaBLe
             await LeaderboardsRefresh.Refresh(dbContext);
             await LeaderboardsRefresh.RefreshStars(dbContext);
 
-            // Update the Megametric and Stats
             await UpdateStats(dbContext);
 
             // The Top Scores page cache (wwwroot/cache/<db>.topscores.bin), so the page opens without building it
@@ -615,73 +670,79 @@ namespace portaBLe
                     continue;
                 }
 
-                try
-                {
-                    var optionsBuilder = new DbContextOptionsBuilder<AppContext>();
-                    optionsBuilder.UseSqlite($"Data Source={path};");
-
-                    using var dbContext = new AppContext(optionsBuilder.Options);
-                    var connection = dbContext.Database.GetDbConnection();
-                    await connection.OpenAsync();
-
-                    foreach (var entityType in dbContext.Model.GetEntityTypes())
-                    {
-                        var tableName = entityType.GetTableName();
-                        if (tableName == null) continue;
-
-                        var existingColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-                        using (var command = connection.CreateCommand())
-                        {
-                            command.CommandText = $"PRAGMA table_info(\"{tableName}\")";
-                            using var reader = await command.ExecuteReaderAsync();
-                            while (await reader.ReadAsync())
-                            {
-                                existingColumns.Add(reader.GetString(1));
-                            }
-                        }
-
-                        if (existingColumns.Count == 0)
-                        {
-                            var script = dbContext.Database.GenerateCreateScript();
-                            var createSql = script
-                                .Split(";\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
-                                .FirstOrDefault(s => s.StartsWith($"CREATE TABLE \"{tableName}\""));
-                            if (createSql != null)
-                            {
-                                await dbContext.Database.ExecuteSqlRawAsync(createSql);
-                                Console.WriteLine($"[{db.Name}] Created missing table {tableName}");
-                            }
-                            continue;
-                        }
-
-                        var storeObject = StoreObjectIdentifier.Table(tableName, entityType.GetSchema());
-                        foreach (var property in entityType.GetProperties())
-                        {
-                            var columnName = property.GetColumnName(storeObject);
-                            if (columnName == null || existingColumns.Contains(columnName)) continue;
-
-                            var columnType = property.GetColumnType(storeObject);
-                            var clrType = Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType;
-                            // Columns stored through a converter (the curves: List<Vector2> as text) default to their stored type
-                            var storedType = property.GetValueConverter()?.ProviderClrType ?? clrType;
-                            var defaultValue = storedType == typeof(string) ? "''" : "0";
-                            var sql = property.IsNullable
-                                ? $"ALTER TABLE \"{tableName}\" ADD COLUMN \"{columnName}\" {columnType} NULL"
-                                : $"ALTER TABLE \"{tableName}\" ADD COLUMN \"{columnName}\" {columnType} NOT NULL DEFAULT {defaultValue}";
-
-                            await dbContext.Database.ExecuteSqlRawAsync(sql);
-                            Console.WriteLine($"[{db.Name}] Added missing column {tableName}.{columnName}");
-                        }
-                    }
-                }
-                catch (Exception ex)
-                {
-                    Console.WriteLine($"Error verifying schema for {db.Name}: {ex.Message}");
-                }
+                await EnsureSchema(db.Name, path);
             }
         }
 
-        // Helper method to refresh stats for all databases
+        // Ensures every table and column from DBModels exists in that database, adding missing ones with default values
+        private static async Task EnsureSchema(string name, string path)
+        {
+            try
+            {
+                var optionsBuilder = new DbContextOptionsBuilder<AppContext>();
+                optionsBuilder.UseSqlite($"Data Source={path};");
+
+                using var dbContext = new AppContext(optionsBuilder.Options);
+                var connection = dbContext.Database.GetDbConnection();
+                await connection.OpenAsync();
+
+                foreach (var entityType in dbContext.Model.GetEntityTypes())
+                {
+                    var tableName = entityType.GetTableName();
+                    if (tableName == null) continue;
+
+                    var existingColumns = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+                    using (var command = connection.CreateCommand())
+                    {
+                        command.CommandText = $"PRAGMA table_info(\"{tableName}\")";
+                        using var reader = await command.ExecuteReaderAsync();
+                        while (await reader.ReadAsync())
+                        {
+                            existingColumns.Add(reader.GetString(1));
+                        }
+                    }
+
+                    if (existingColumns.Count == 0)
+                    {
+                        var script = dbContext.Database.GenerateCreateScript();
+                        var createSql = script
+                            .Split(";\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                            .FirstOrDefault(s => s.StartsWith($"CREATE TABLE \"{tableName}\""));
+                        if (createSql != null)
+                        {
+                            await dbContext.Database.ExecuteSqlRawAsync(createSql);
+                            Console.WriteLine($"[{name}] Created missing table {tableName}");
+                        }
+                        continue;
+                    }
+
+                    var storeObject = StoreObjectIdentifier.Table(tableName, entityType.GetSchema());
+                    foreach (var property in entityType.GetProperties())
+                    {
+                        var columnName = property.GetColumnName(storeObject);
+                        if (columnName == null || existingColumns.Contains(columnName)) continue;
+
+                        var columnType = property.GetColumnType(storeObject);
+                        var clrType = Nullable.GetUnderlyingType(property.ClrType) ?? property.ClrType;
+                        // Columns stored through a converter (the curves: List<Vector2> as text) default to their stored type
+                        var storedType = property.GetValueConverter()?.ProviderClrType ?? clrType;
+                        var defaultValue = storedType == typeof(string) ? "''" : "0";
+                        var sql = property.IsNullable
+                            ? $"ALTER TABLE \"{tableName}\" ADD COLUMN \"{columnName}\" {columnType} NULL"
+                            : $"ALTER TABLE \"{tableName}\" ADD COLUMN \"{columnName}\" {columnType} NOT NULL DEFAULT {defaultValue}";
+
+                        await dbContext.Database.ExecuteSqlRawAsync(sql);
+                        Console.WriteLine($"[{name}] Added missing column {tableName}.{columnName}");
+                    }
+                }
+            }
+            catch (Exception ex)
+            {
+                Console.WriteLine($"Error verifying schema for {name}: {ex.Message}");
+            }
+        }
+
+        // Refreshes the stats of every database in databases.json
         private static async Task RefreshStatsForAllDatabases(IDynamicDbContextService dbService, string webRootPath)
         {
             var databases = await dbService.GetAvailableDatabasesAsync();
@@ -770,7 +831,7 @@ namespace portaBLe
             }
         }
 
-        // Helper method to refresh leaderboards (Megametrics) for all databases
+        // Refreshes the leaderboards (Megametric) of every database in databases.json
         private static async Task RefreshLeaderboardsForAllDatabases(IDynamicDbContextService dbService, string webRootPath)
         {
             var databases = await dbService.GetAvailableDatabasesAsync();

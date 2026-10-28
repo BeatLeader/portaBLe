@@ -112,7 +112,6 @@ namespace portaBLe.Pages
                 };
             }
 
-            // Apply sorting based on SortBy parameter
             leaderboardQuery = SortBy switch
             {
                 "PassRating" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.PassRating) : leaderboardQuery.OrderBy(l => l.PassRating),

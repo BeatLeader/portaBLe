@@ -31,33 +31,29 @@ namespace portaBLe
 
             using var context = (Services.DynamicDbContext)GetDbContext();
 
-            int pageSize = 50; // Set the number of items per page
+            int pageSize = 50;
             CurrentPage = currentPage;
 
-            // Start with all players, excluding those with rank 0 or 0 PP
+            // Ranked players with pp
             var query = context.Players.Where(p => p.Rank > 0 && p.Pp > 0);
 
-            // Apply search filter if provided
             if (!string.IsNullOrEmpty(SearchString))
             {
                 query = query.Where(p => EF.Functions.Like(p.Name.ToLower(), $"%{SearchString.ToLower()}%"));
             }
 
-            // Apply sorting based on selected option
             query = SortBy switch
             {
                 "topPP" => query.OrderByDescending(p => p.TopPp),
                 "accPP" => query.OrderByDescending(p => p.AccPp),
                 "passPP" => query.OrderByDescending(p => p.PassPp),
                 "techPP" => query.OrderByDescending(p => p.TechPp),
-                "rank" or _ => query.OrderBy(p => p.Rank) // Default to rank
+                "rank" or _ => query.OrderBy(p => p.Rank)
             };
 
-            // Get total count for pagination
             var totalRecords = await query.CountAsync();
             TotalPages = (int)System.Math.Ceiling(totalRecords / (double)pageSize);
 
-            // Get paginated results
             Players = await query
                                     .Skip((currentPage - 1) * pageSize)
                                     .Take(pageSize)

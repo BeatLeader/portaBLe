@@ -21,9 +21,7 @@ public sealed class ExportOptions
     public string OutputPath { get; init; } = "playlist.bplist";
 
     /// <summary>
-    /// Optional path for an .html report explaining why each song was recommended (final score,
-    /// factor subscores, and the linked players/scores that contributed to it). No report is
-    /// written when this is null or empty.
+    /// Optional path for an .html report explaining why each song was recommended; none when null or empty.
     /// </summary>
     public string? HtmlReportPath { get; init; }
 }

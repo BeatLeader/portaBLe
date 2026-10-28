@@ -7,7 +7,7 @@ namespace portaBLe.Services
 {
     // Data for the Weighted / Unweighted Scores Graph pages, read from the Top Scores cache (Services/TopScoresCache), never
     // the scores table.
-    // - Dots: the filtered scores thinned to one per cell of a 500 x 500 stars x pp grid (as before), sent as columns.
+    // - Dots: the filtered scores thinned to one per cell of a 500 x 500 stars x pp grid, sent as columns.
     // - Rolling averages: over every filtered score, not only the dots. For each x axis the scores are sorted by it and cut
     //   into AverageBins bins of equal count; each bin sends its mean x and the mean of every y. The page averages
     //   neighbouring bins, so its window is a share of the scores and changing it doesn't reload anything.

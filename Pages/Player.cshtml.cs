@@ -32,7 +32,7 @@ namespace portaBLe.Pages
                 return NotFound();
             }
 
-            int pageSize = 10; // Set the number of items per page
+            int pageSize = 10;
             CurrentPage = currentPage;
 
             var totalScores = await context.Scores.CountAsync(s => s.PlayerId == id);

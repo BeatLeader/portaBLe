@@ -39,28 +39,8 @@ public static class RecommendationEvaluation
     private static readonly (int From, int To)[] RankBands = [(1, 500), (500, 2000), (2000, 6000), (6000, 15000), (15000, 40000)];
     private const string Baseline = "Popular at level";
 
-    // Sets of the pipeline's options to compare (songreceval's [set] argument), each with the current defaults
-    // as the reference.
-    // - default: the current defaults without Easier, and the current defaults. Tried and rejected on 200 players
-    //   (gainRecall vs the defaults then, before removal; see CHANGELOG.md for the numbers): the leaderboard's top
-    //   scorers as linked players, SmartSongSuggest's Overweight factor (by leaderboard rank or top play position),
-    //   one candidate per chart with its speed-modified plays merged, seeds by leaderboard percentile, Style
-    //   normalized by rank instead of min-max, the weakest quarter of the plays left out of the seeds, and keeping
-    //   only the links closest by SmartSongSuggest's distance (0.25 / 0.5 / 0.75 of them: -3.5 / -1.7 / -0.8 against
-    //   all of them). Peers ranked by that distance, |(peer pp / player pp)^e - 1|, leaning to weaker peers, instead of
-    //   by pp ratio (e 1 / 2.5 / 5, samples 7 and 11): +0.1 / +0.1 / 0 and +0.2 / +0.1 / 0 points [about -0.3, +0.5],
-    //   no band outside noise, the suggestions' stars within 0.01: the 20 nearest peers are already close either way.
-    //   A Skillset factor: maps near the pass/acc/tech balance of the player's 50 best plays favored (pass and tech
-    //   ratings' shares, e^(-d^2 / 2) of the distance in the pool's sds, against the maps of the same stars or not),
-    //   weights 25 / 50 / 75 / 100: +0.2 / -1.1 / -2.0 / -3.2 and +0.3 / +0.3 / -1.1 / -2.4 points (samples 7 / 11),
-    //   no band outside noise at 25 (2000-6000 -4.1 at 50 on sample 7), and it pulled the suggestions under the
-    //   level (stars-level +0.20 -> +0.14 / +0.06 / -0.01 / -0.06, mean of the samples).
-    //   New players (firstPlays, 100 players each), share of their next 40 plays suggested, current / popular at
-    //   level: 1 play 6.3% / 7.8% (+1.5 [+0.1, +3.0] for popular), 3 plays 6.2 / 6.7, 5 plays 7.8 / 7.3, 10 plays
-    //   8.9 / 7.7 (-1.2 [-2.3, -0.1]), 20 plays 8.6 / 8.0.
-    // - easier, weights, offset: sweeps of the Easier weight, of Style x Easier and of the level offset (how far each
-    //   star of offset moves the suggestions: their stars-level against Current's).
-    // - neutral: neutral players added to each candidate's Style (RecommendationOptions.NeutralPlayers), 0 for none.
+    // Sets of pipeline options to compare (songreceval's [set] argument), each against the current defaults.
+    // Results of past experiments are in CHANGELOG.md.
     public const string Reference = "Current";
     private static readonly RecommendationOptions Current = new();
     private static readonly double[] WeightSteps = [0, 25, 50, 75, 100];

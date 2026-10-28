@@ -15,7 +15,7 @@ namespace portaBLe.DB
         {
             dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
 
-            // Disable WAL
+            // No rollback journal or fsync: faster bulk import
             dbContext.Database.ExecuteSql($"PRAGMA journal_mode=OFF;");
             dbContext.Database.ExecuteSql($"PRAGMA synchronous=OFF;");
 

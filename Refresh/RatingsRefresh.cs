@@ -75,7 +75,6 @@ namespace portaBLe.Refresh
             var lockObj = new object();
             var startTime = DateTime.Now;
 
-            // Use CPU core count for CPU-bound inference operations
             var parallelOptions = new ParallelOptions 
             { 
                 MaxDegreeOfParallelism = Program.CoreCount
@@ -166,6 +165,8 @@ namespace portaBLe.Refresh
             });
 
             Console.WriteLine($"\nCompleted: {processedCount - errorCount} successful, {errorCount} errors");
+            // The importer and refresh steps can leave automatic change detection off; BulkSaveChanges then saves nothing
+            dbContext.ChangeTracker.DetectChanges();
             dbContext.BulkSaveChanges();
             Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
         }
@@ -326,6 +327,8 @@ namespace portaBLe.Refresh
                 }
             }
 
+            // The importer and refresh steps can leave automatic change detection off; BulkSaveChanges then saves nothing
+            dbContext.ChangeTracker.DetectChanges();
             dbContext.BulkSaveChanges();
             Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
         }

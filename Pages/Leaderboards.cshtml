@@ -134,7 +134,7 @@
     // Invariant so the number input and the query string read it back the same in any culture; null when empty
     static string? RangeValue(float? value) => value?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
 
-    // The range type in links only when a range is set (keeps the default URLs as they were)
+    // The range type in links only when a range is set (keeps the default URLs short)
     private string? RangeByRoute() => Model.HasRange ? Model.RangeBy : null;
 
     static string DifficultyLabel(string? difficulty) => difficulty == "ExpertPlus" ? "Expert+" : difficulty ?? "";
