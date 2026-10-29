@@ -6,6 +6,18 @@ model comes from `beatsaber-replays-ai-2`.
 The goal is ratings that never need scores at rating time. Scores, replays and fail attempts are used offline, to fit and
 validate constants. The one exception is the acc reweighter (below), the only tool that changes ratings from scores.
 
+## Acc reweighter: maps with a thin worth kept at ×1
+
+- **`AccReweighter.MinWorthScores` 40**: maps whose worth before the reweight rests on fewer in-range scores
+  (`BalanceTuner.WorthEvidence`) keep ×1, like those under `MinNotes` / `MinStars`. Their scores still count.
+  - Why: the noise dead zone already shrinks their own gap to almost nothing, so they were moved only by the slope
+    correction terms and the star range centering. A map just over the worth measure's 20 score minimum also loses its
+    worth once its stars or its players' levels move, so the Leaderboards page showed a multiplier on a map without a
+    worth: The Purple Dimension ExpertPlus (16 stars, 461 scores, about 20 in range) ×1.0087, worth before +0.007,
+    target +0.007, worth after none.
+  - Dev, 28 Oct (estimated on the stored worth): 14 of 3955 maps with a worth, which had moved 0.7% on average (5.2%
+    at most).
+
 ## Song recommendations: easier maps by default, Easier maps slider
 
 - **Easier weight 50 → 100** (`RecommendationOptions.EasierWeight`): most suggestions are now under the player's level

@@ -112,7 +112,7 @@ tech share, predicted acc, OneSaber, star range), and its acc rating is moved to
   `WorthBandwidth` 0.25 stars), so a map's reference doesn't jump at a star range boundary.
 - Everything is re-scored in memory for each try, since one map's change moves every player's weights.
 - Gaps within a map's measurement noise barely move (`NoiseDeadZone`: noise = 0.28 / √scores), and maps without a worth
-  (newly ranked) keep ×1.
+  (newly ranked) or whose worth rests on fewer than 40 scores (`MinWorthScores`) keep ×1.
 - Each try is judged by each map's distance to its own target (`TargetMetric`), and the stored multipliers are scaled so
   they move worth at the real stars as much as the fit meant to (`StarResponse`: low and mid star maps respond about half
   as much once their stars move).
