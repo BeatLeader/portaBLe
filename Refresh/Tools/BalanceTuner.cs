@@ -781,6 +781,37 @@ namespace portaBLe.Refresh
             return Enumerable.Range(0, data.Maps.Length).ToDictionary(i => data.Maps[i].Leaderboard.Id,
                 i => Enumerable.Range(0, n).Select(k => worth[i * n + k] is double w ? (float?)w : null).ToArray());
         }
+        // StoredWorth's nomod worth at each of these PlayerAdjustedQuantile values (0: mean), from one load of the database.
+        // Empty arrays when WorthMeasure isn't PlayerAdjusted (the quantile only applies to it).
+        public static async Task<Dictionary<string, float?[]>> StoredWorthQuantiles(AppContext dbContext, double[] quantiles)
+        {
+            if (WorthMeasure != WorthMeasures.PlayerAdjusted) return new Dictionary<string, float?[]>();
+            var data = await Load(dbContext);
+            Parallel.ForEach(data.Maps, m =>
+            {
+                var lb = m.Leaderboard;
+                m.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve);
+                m.StarBand = StarBandOf(m.Stars);
+            });
+            var e = Evaluate(data);
+            var result = Enumerable.Range(0, data.Maps.Length).ToDictionary(i => data.Maps[i].Leaderboard.Id, _ => new float?[quantiles.Length]);
+            double kept = PlayerAdjustedQuantile;
+            try
+            {
+                for (int q = 0; q < quantiles.Length; q++)
+                {
+                    PlayerAdjustedQuantile = quantiles[q];
+                    var worth = Worth(data, e, out _);
+                    for (int i = 0; i < data.Maps.Length; i++) result[data.Maps[i].Leaderboard.Id][q] = worth[i] is double w ? (float)w : null;
+                }
+            }
+            finally
+            {
+                PlayerAdjustedQuantile = kept;
+            }
+            return result;
+        }
+
         public static double InRangeMargin { get; set; } = 0.5;
         public static int InRangeTopPlays { get; set; } = 50;
         public static int InRangeHardest { get; set; } = 5;

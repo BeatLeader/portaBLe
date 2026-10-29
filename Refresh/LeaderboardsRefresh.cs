@@ -288,6 +288,7 @@ namespace portaBLe.Refresh
             Console.WriteLine($"Complete! Total time: {Program.Stopwatch.ElapsedMilliseconds / 1000} seconds");
 
             await RefreshWorthByRank(dbContext);
+            await RefreshWorthQuantiles(dbContext);
             await RefreshTopPlayShares(dbContext);
             await DetermineTags(dbContext);
         }
@@ -306,6 +307,32 @@ namespace portaBLe.Refresh
             await StoreModifierWorth(dbContext, worth);
             dbContext.ChangeTracker.AutoDetectChangesEnabled = true;
             Console.WriteLine($"Worth: {worth.Values.Count(w => w[0] != null)} leaderboards ({Program.Stopwatch.ElapsedMilliseconds / 1000} seconds)");
+            await RefreshWorthQuantiles(dbContext);
+        }
+
+        // PlayerAdjustedQuantile of Leaderboard.WorthMean, WorthMedian, WorthP75, WorthP90
+        public static readonly double[] WorthQuantiles = { 0, 0.5, 0.75, 0.9 };
+
+        // Recomputes Leaderboard.WorthMean / WorthMedian / WorthP75 / WorthP90 and their WorthSpread alone (Refresh and RefreshWorth run it too)
+        public static async Task RefreshWorthQuantiles(AppContext dbContext)
+        {
+            Console.WriteLine("Recalculating worth by quantile (mean, median, 75th, 90th percentile)");
+            dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
+            foreach (var column in new[] { "WorthMean", "WorthMedian", "WorthP75", "WorthP90", "WorthSpread" })
+            {
+                await DbSchema.AddColumnIfMissing(dbContext, "Leaderboards", column, "REAL");
+            }
+            var worth = await BalanceTuner.StoredWorthQuantiles(dbContext, WorthQuantiles);
+            var ids = await dbContext.Leaderboards.AsNoTracking().Select(l => l.Id).ToListAsync();
+            var updates = ids.Select(id =>
+            {
+                var w = worth.TryGetValue(id, out var values) ? values : new float?[WorthQuantiles.Length];
+                float? spread = w.All(v => v != null) ? w.Max() - w.Min() : null;
+                return new Leaderboard { Id = id, WorthMean = w[0], WorthMedian = w[1], WorthP75 = w[2], WorthP90 = w[3], WorthSpread = spread };
+            }).ToList();
+            await dbContext.BulkUpdateAsync(updates, options => options.ColumnInputExpression = c => new { c.WorthMean, c.WorthMedian, c.WorthP75, c.WorthP90, c.WorthSpread });
+            dbContext.ChangeTracker.AutoDetectChangesEnabled = true;
+            Console.WriteLine($"Worth by quantile: {worth.Values.Count(w => w[0] != null)} leaderboards ({Program.Stopwatch.ElapsedMilliseconds / 1000} seconds)");
         }
 
         // SSWorth / FSWorth / SFWorth (BalanceTuner.WorthSpeeds order: nomod, SS, FS, SF)

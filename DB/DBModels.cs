@@ -198,6 +198,16 @@ namespace portaBLe.DB
         // scores. Used by the balance tuner and the acc reweighter (LeaderboardsRefresh.Refresh, BalanceTuner.StoredWorth).
         // Nomod scores only: SS / FS / SF scores have their own (ModifiersRating.SSWorth ...), NF scores none.
         public float? Worth { get; set; }
+        // Worth as above (PlayerAdjusted, nomod), with each player's skill, map's generosity and distance bin fitted to the
+        // mean, median, 75th or 90th percentile of their residuals (BalanceTuner.PlayerAdjustedQuantile 0, 0.5, 0.75, 0.9;
+        // LeaderboardsRefresh.RefreshWorthQuantiles). For comparison only: nothing reads them. Null with too few in-range
+        // scores, or when WorthMeasure isn't PlayerAdjusted.
+        public float? WorthMean { get; set; }
+        public float? WorthMedian { get; set; }
+        public float? WorthP75 { get; set; }
+        public float? WorthP90 { get; set; }
+        // How much those four disagree: the highest minus the lowest. 0.05 = 5 points apart. Null when any of them is.
+        public float? WorthSpread { get; set; }
         // Megametric-based worth, kept for comparison: Megametric75 / what maps of its stars average - 1 (local linear fit on
         // stars, Gaussian kernel of BalanceTuner.WorthBandwidth stars: BalanceTuner.WorthReference). +0.27 = 27% more.
         // Null without Megametric75 or when its star range (0-1 ... 12-13, 13+) has fewer than 5 maps. Megametric75 weights

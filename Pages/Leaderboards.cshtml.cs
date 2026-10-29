@@ -119,6 +119,11 @@ namespace portaBLe.Pages
                 "AccRating" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.AccRating) : leaderboardQuery.OrderBy(l => l.AccRating),
                 "NoteCount" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.NoteCount) : leaderboardQuery.OrderBy(l => l.NoteCount),
                 "Worth" => SortHelpers.NullsLast(leaderboardQuery, l => l.Worth, SortDescending),
+                "WorthMean" => SortHelpers.NullsLast(leaderboardQuery, l => l.WorthMean, SortDescending),
+                "WorthMedian" => SortHelpers.NullsLast(leaderboardQuery, l => l.WorthMedian, SortDescending),
+                "WorthP75" => SortHelpers.NullsLast(leaderboardQuery, l => l.WorthP75, SortDescending),
+                "WorthP90" => SortHelpers.NullsLast(leaderboardQuery, l => l.WorthP90, SortDescending),
+                "WorthSpread" => SortHelpers.NullsLast(leaderboardQuery, l => l.WorthSpread, SortDescending),
                 "TopPlayShare" => SortHelpers.NullsLast(leaderboardQuery, l => l.TopPlayShareRelative, SortDescending),
                 _ => SortDescending ? leaderboardQuery.OrderByDescending(l => l.Stars) : leaderboardQuery.OrderBy(l => l.Stars),
             };
@@ -132,7 +137,7 @@ namespace portaBLe.Pages
         }
 
         // The leaderboards with the modifier's stars, ratings and worth in their own fields (display only, not tracked),
-        // so the filters and sorting below apply to them
+        // so the filters and sorting below apply to them. The worth by quantile (WorthMean ...) is nomod only: left empty.
         private static IQueryable<Leaderboard> WithModifier(IQueryable<Leaderboard> leaderboards, string? modifier)
         {
             if (modifier == null) return leaderboards;

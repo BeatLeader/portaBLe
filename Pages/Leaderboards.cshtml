@@ -66,6 +66,11 @@
             @SortHeader("TechRating", "Tech", "Tech rating")
             @SortHeader("NoteCount", "Notes", "Color notes in the difficulty")
             @SortHeader("Worth", Model.Modifier == null ? "Worth" : $"Worth ({Model.Modifier})", "How much the map pays its players compared with maps of the same stars: for the same players, how much more or less they get here than on their other maps at their level (+4% = 4% more). The balance tuner and the acc reweighter use this measure. Blank with too few scores. With a speed modifier, that of the scores with it.")
+            @SortHeader("WorthMean", "Mean", WorthQuantileTitle("the mean of"))
+            @SortHeader("WorthMedian", "Median", WorthQuantileTitle("the median of"))
+            @SortHeader("WorthP75", "P75", WorthQuantileTitle("the 75th percentile of"))
+            @SortHeader("WorthP90", "P90", WorthQuantileTitle("the 90th percentile of"))
+            @SortHeader("WorthSpread", "Spread", "How much Mean, Median, P75 and P90 disagree: the highest minus the lowest, in points (5.0 = 5 points apart). Highlighted from 5 points (about the top 5% of maps). Blank when any of them is.")
             @SortHeader("TopPlayShare", "Top play share", FormattableString.Invariant($"Of the map's players with {portaBLe.Refresh.AccReweighter.TopPlayShareMinScores}+ ranked plays, those whose best play it is by {portaBLe.Refresh.AccReweighter.TopPlayMarginPp:0.#}pp or more over their second best (any modifier), and that share over the median of the maps within {portaBLe.Refresh.AccReweighter.TopPlayShareBandwidth:0.#} star (sorted by it). The acc reweighter cuts maps past x{portaBLe.Refresh.AccReweighter.TopPlayShareRatio:0.#}. Blank with fewer than {portaBLe.Refresh.AccReweighter.TopPlayShareMinPlayers} such players."))
         </tr>
     </thead>
@@ -92,12 +97,17 @@
                 <td class="lb-num">@leaderboard.TechRating.ToString("0.00")</td>
                 <td class="lb-num">@(leaderboard.NoteCount > 0 ? leaderboard.NoteCount.ToString() : "—")</td>
                 <td class="lb-num"><span class="lb-worth @WorthClass(leaderboard.Worth)">@WorthText(leaderboard.Worth)</span></td>
+                <td class="lb-num"><span class="lb-worth @WorthClass(leaderboard.WorthMean)">@WorthText(leaderboard.WorthMean)</span></td>
+                <td class="lb-num"><span class="lb-worth @WorthClass(leaderboard.WorthMedian)">@WorthText(leaderboard.WorthMedian)</span></td>
+                <td class="lb-num"><span class="lb-worth @WorthClass(leaderboard.WorthP75)">@WorthText(leaderboard.WorthP75)</span></td>
+                <td class="lb-num"><span class="lb-worth @WorthClass(leaderboard.WorthP90)">@WorthText(leaderboard.WorthP90)</span></td>
+                <td class="lb-num"><span class="lb-worth @SpreadClass(leaderboard.WorthSpread)">@SpreadText(leaderboard.WorthSpread)</span></td>
                 <td class="lb-num"><span class="lb-worth @TopShareClass(leaderboard.TopPlayShareRelative)">@TopShareText(leaderboard.TopPlayShare, leaderboard.TopPlayShareRelative)</span></td>
             </tr>
         }
         @if (Model.Leaderboards.Count == 0)
         {
-            <tr><td colspan="11" class="text-center text-muted py-4">No maps found</td></tr>
+            <tr><td colspan="16" class="text-center text-muted py-4">No maps found</td></tr>
         }
     </tbody>
 </table>
@@ -126,6 +136,13 @@
 
     // 8% or more above / below what maps of its stars average: about the outer 7-8% of maps each side
     static string WorthClass(float? worth) => worth is float w ? (w >= 0.08f ? "worth-high" : w <= -0.08f ? "worth-low" : "worth-even") : "worth-none";
+
+    // Tooltip of the worth by quantile columns (Leaderboard.WorthMean ...)
+    static string WorthQuantileTitle(string center) => $"Worth (as the Worth column) with each player's level, map's pay and distance term fitted to {center} the scores' residuals instead of the setting the balance tuner uses. Higher percentiles follow each player's best efforts on the map, so low effort scores count less. Nomod only: blank with a speed modifier. Blank with too few scores.";
+
+    // Disagreement of the worth by quantile columns, in points; highlighted from 5 (about the top 5% of maps)
+    static string SpreadText(float? spread) => spread is float s ? (s * 100).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) : "—";
+    static string SpreadClass(float? spread) => spread is float s ? (s >= 0.05f ? "worth-high" : "worth-even") : "worth-none";
 
     // The top play share and that over the maps of its stars'; highlighted past the acc reweighter's cut (TopPlayShareRatio)
     static string TopShareText(float? share, float? relative) => share is float s && relative is float r ? FormattableString.Invariant($"{s * 100:0.0}% (x{r:0.0})") : "—";

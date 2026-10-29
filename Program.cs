@@ -273,6 +273,7 @@ namespace portaBLe
             // dotnet run -c Release -- rescore: RefreshEverything alone on wwwroot/Database.db (after a pp formula change)
             if (args.Length > 0 && args[0] == "rescore")
             {
+                await EnsureSchema("Database.db", Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "Database.db"));
                 var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.Combine(Directory.GetCurrentDirectory(), "wwwroot")}/Database.db;").Options;
                 using var rescoreContext = new AppContext(options);
                 await RefreshEverything(rescoreContext);
@@ -282,11 +283,10 @@ namespace portaBLe
             // (after a curve or pp formula change; keeps its ratings and acc reweighter multipliers)
             if (args.Length > 1 && args[0] == "recurve")
             {
+                // Columns the queries read that older databases may lack
+                await EnsureSchema(args[1], Path.GetFullPath(args[1]));
                 var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};").Options;
                 using var recurveContext = new AppContext(options);
-                // Columns the curves' query reads that older databases may lack
-                await DbSchema.AddColumnIfMissing(recurveContext, "Leaderboards", "TopPlayShare", "REAL");
-                await DbSchema.AddColumnIfMissing(recurveContext, "Leaderboards", "TopPlayShareRelative", "REAL");
                 await CurvesRefresh.Regenerate(recurveContext);
                 await RefreshEverything(recurveContext);
                 return;
@@ -295,6 +295,7 @@ namespace portaBLe
             // multipliers cleared) then RefreshEverything on that database (after an Analyzer or rating constant change)
             if (args.Length > 1 && args[0] == "rerate")
             {
+                await EnsureSchema(args[1], Path.GetFullPath(args[1]));
                 var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};").Options;
                 using var rerateContext = new AppContext(options);
                 await RatingsRefresh.Overwrite(rerateContext, false);
@@ -387,7 +388,8 @@ namespace portaBLe
                 return;
             }
             // dotnet run -c Release -- worth [Setting=value ...] <wwwroot/file.db>: LeaderboardsRefresh.RefreshWorth alone on that
-            // database (the stored worth, no re-score), with any of the balance tuner's settings (e.g. PlayerAdjustedQuantile=0.9)
+            // database (the stored worth, no re-score), with any of the balance tuner's settings (e.g. PlayerAdjustedQuantile=0.9).
+            // Also fills the worth by quantile columns (WorthMean, WorthMedian, WorthP75, WorthP90) of older databases.
             if (args.Length > 1 && args[0] == "worth")
             {
                 var file = args.Skip(1).First(a => a.EndsWith(".db", StringComparison.OrdinalIgnoreCase));
@@ -400,6 +402,7 @@ namespace portaBLe
                         : Convert.ChangeType(parts[1], property.PropertyType, System.Globalization.CultureInfo.InvariantCulture));
                     Console.WriteLine($"Worth: {parts[0]} = {parts[1]}");
                 }
+                await EnsureSchema(file, Path.GetFullPath(file));
                 var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(file)};").Options;
                 using var worthContext = new AppContext(options);
                 await LeaderboardsRefresh.RefreshWorth(worthContext);
@@ -424,7 +427,9 @@ namespace portaBLe
                     Console.WriteLine($"Acc reweight: {parts[0]} = {parts[1]}");
                 }
                 var webRoot = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
-                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={(file != null ? Path.GetFullPath(file) : $"{webRoot}/Database.db")};").Options;
+                var reweightPath = file != null ? Path.GetFullPath(file) : $"{webRoot}/Database.db";
+                await EnsureSchema(reweightPath, reweightPath);
+                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={reweightPath};").Options;
                 using var reweightContext = new AppContext(options);
                 await AccReweighter.Run(reweightContext, webRoot);
                 if (rescore) await RefreshEverything(reweightContext);
