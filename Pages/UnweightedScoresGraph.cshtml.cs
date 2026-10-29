@@ -4,7 +4,8 @@ using portaBLe.Services;
 namespace portaBLe.Pages
 {
     // Every score's pp against its map's stars or ratings. Reads the Top Scores cache (Services/ScoresGraphData), never the
-    // scores table. The rolling average is over every filtered score; the dots are thinned.
+    // scores table. The rolling average is over every filtered score; the dots are thinned. "Compare with" loads another
+    // database with the same filters (the page calls the data handler for both) and draws their difference.
     public class UnweightedScoresGraphModel : BasePageModel
     {
         [BindProperty(SupportsGet = true)]
@@ -36,6 +37,10 @@ namespace portaBLe.Pages
         // Rolling average window as a share of the filtered scores (%), kept in the URL so it survives switching databases
         [BindProperty(SupportsGet = true)]
         public double RollingPercent { get; set; } = 1;
+
+        // Another database drawn on the same graph with the same filters, plus their difference ("" for none)
+        [BindProperty(SupportsGet = true)]
+        public string CompareDb { get; set; } = "";
 
         public UnweightedScoresGraphModel(IDynamicDbContextService dbService) : base(dbService)
         {

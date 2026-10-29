@@ -44,6 +44,19 @@
                                 <input id="playerId" type="text" class="form-control" value="@Model.PlayerId" placeholder="Enter player ID" />
                             </div>
                         </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
+                                <label for="compareDb">Compare with</label>
+                                <select id="compareDb" class="form-control">
+                                    <option value="" selected="@(string.IsNullOrEmpty(Model.CompareDb))">None</option>
+                                    @foreach (var other in Model.AvailableDatabases.Where(d => d.FileName != Model.SelectedDatabase))
+                                    {
+                                        <option value="@other.FileName" selected="@(Model.CompareDb == other.FileName)">@other.Name</option>
+                                    }
+                                </select>
+                                <small class="form-text text-muted">Same filters on another database</small>
+                            </div>
+                        </div>
                     </div>
                     <div class="row">
                         <div class="col-md-12">
@@ -127,6 +140,12 @@
                         <span id="magicLabel" class="mr-2">Rolling average value (0 = perfectly linear):</span>
                         <strong id="magicValue" class="text-primary" style="font-size: 1.2em;">-</strong>
                     </div>
+                    <div id="compareMagicRow" style="display:none;">
+                        <div class="d-flex align-items-center">
+                            <span id="compareMagicLabel" class="mr-2"></span>
+                            <strong id="compareMagicValue" style="font-size: 1.2em; color: #e67e22;">-</strong>
+                        </div>
+                    </div>
                 </div>
             </div>
         </div>
@@ -145,6 +164,20 @@
             </div>
         </div>
     </div>
+
+    <div id="diffCard" class="row mt-3" style="display:none;">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 id="diffTitle" class="mb-0">Difference</h5>
+                    <small class="text-muted">The comparison database's rolling average against this one's, at the same x</small>
+                </div>
+                <div class="card-body">
+                    <div id="diffPlot" style="width:100%;height:300px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
 </div>
 
 @section Scripts {
@@ -152,6 +185,10 @@
     <script>
         // Data: { count, dots: { field: [...] }, bins: { xField: { count, at, yField: [...] } } } (Services/ScoresGraphData)
         let data = null;
+        // The "Compare with" database's data (same filters), null when none is picked
+        let compareData = null;
+        const DB_NAMES = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.AvailableDatabases.ToDictionary(d => d.FileName, d => d.Name)));
+        const MAIN_DB = @Html.Raw(System.Text.Json.JsonSerializer.Serialize(Model.SelectedDatabase));
         const WEIGHTED = false;
         const LABEL = WEIGHTED ? 'Weighted' : 'Unweighted';
 
@@ -239,8 +276,56 @@
             return Math.sqrt(sumSq / count) / (maxY - minY);
         }
 
+        // Linear interpolation of a rolling average (xs ascending) at x; null outside its range
+        function interpolate(ra, x) {
+            const xs = ra.xs, n = xs.length;
+            if (n === 0 || x < xs[0] || x > xs[n - 1]) return null;
+            let lo = 0, hi = n - 1;
+            while (hi - lo > 1) {
+                const mid = (lo + hi) >> 1;
+                if (xs[mid] <= x) lo = mid; else hi = mid;
+            }
+            const y0 = ra.ys[lo], y1 = ra.ys[hi];
+            if (y0 == null || y1 == null) return null;
+            return xs[hi] === xs[lo] ? y0 : y0 + (y1 - y0) * (x - xs[lo]) / (xs[hi] - xs[lo]);
+        }
+
+        // The comparison database's rolling average against the main one's, at the main one's x: in % for pp, in
+        // accuracy points for acc
+        function renderDiff(ra, cra, xField, yField, mainName, compareName) {
+            const card = document.getElementById('diffCard');
+            if (!cra) {
+                card.style.display = 'none';
+                return;
+            }
+            card.style.display = '';
+            const isAcc = yField === 'acc';
+            const xs = [], ys = [];
+            for (let i = 0; i < ra.xs.length; i++) {
+                const a = ra.ys[i], b = interpolate(cra, ra.xs[i]);
+                if (a == null || b == null) continue;
+                if (isAcc) { xs.push(ra.xs[i]); ys.push((b - a) * 100); }
+                else if (a > 0) { xs.push(ra.xs[i]); ys.push((b / a - 1) * 100); }
+            }
+            const unit = isAcc ? 'acc points' : '%';
+            document.getElementById('diffTitle').textContent = `${compareName} vs ${mainName}: ${getAxisLabel(yField)} (${isAcc ? 'difference in acc points' : '% difference'})`;
+            Plotly.react('diffPlot', [
+                { x: xs, y: ys, mode: 'lines', type: 'scatter', line: { color: '#e67e22', width: 2 }, name: 'Difference',
+                  hovertemplate: `%{x:.2f}  %{y:+.2f} ${unit}<extra></extra>` },
+            ], {
+                xaxis: { title: getAxisLabel(xField) },
+                yaxis: { title: isAcc ? 'Acc points' : '%', zeroline: true, zerolinecolor: '#888', zerolinewidth: 1.5 },
+                margin: { t: 10, b: 50, l: 60, r: 10 },
+                showlegend: false,
+                hovermode: 'x',
+            });
+        }
+
         function renderPlot(d, xField, yField, percent) {
+            const cmp = compareData && compareData.count ? compareData : null;
+            document.getElementById('compareMagicRow').style.display = 'none';
             if (!d || !d.count) {
+                document.getElementById('diffCard').style.display = 'none';
                 Plotly.react('myPlot', [], {
                     xaxis: { title: getAxisLabel(xField) },
                     yaxis: { title: getAxisLabel(yField) },
@@ -255,13 +340,14 @@
                 return;
             }
 
+            const mainName = DB_NAMES[MAIN_DB] || MAIN_DB;
             const tracePoints = {
                 x: d.dots[xField],
                 y: d.dots[yField],
                 mode: 'markers',
                 type: 'scattergl',
                 marker: { size: 4, color: 'blue', opacity: 0.2 },
-                name: 'Points'
+                name: cmp ? `Points: ${mainName}` : 'Points'
             };
 
             const ra = computeRollingAverage(d.bins[xField], yField, percent);
@@ -271,19 +357,53 @@
                 mode: 'lines',
                 type: 'scattergl',
                 line: { color: 'red', width: 2 },
-                name: `Rolling Avg (${percent}% of scores)`
+                name: cmp ? `Rolling Avg: ${mainName} (${percent}% of scores)` : `Rolling Avg (${percent}% of scores)`
             };
+            const traces = [tracePoints, traceAvg];
+
+            // The comparison database: its dots (hidden at first, click the legend to show them) and rolling average
+            let cra = null;
+            if (cmp) {
+                const compareName = DB_NAMES[cmp.db] || cmp.db;
+                cra = computeRollingAverage(cmp.bins[xField], yField, percent);
+                traces.splice(1, 0, {
+                    x: cmp.dots[xField],
+                    y: cmp.dots[yField],
+                    mode: 'markers',
+                    type: 'scattergl',
+                    marker: { size: 4, color: '#e67e22', opacity: 0.2 },
+                    name: `Points: ${compareName}`,
+                    visible: 'legendonly'
+                });
+                traces.push({
+                    x: cra.xs,
+                    y: cra.ys,
+                    mode: 'lines',
+                    type: 'scattergl',
+                    line: { color: '#e67e22', width: 2, dash: 'dash' },
+                    name: `Rolling Avg: ${compareName}`
+                });
+                document.getElementById('compareMagicRow').style.display = '';
+                document.getElementById('compareMagicLabel').textContent = `${compareName} (0 = perfectly linear):`;
+                document.getElementById('compareMagicValue').textContent = computeMagicValue(cra.xs, cra.ys).toFixed(4);
+                renderDiff(ra, cra, xField, yField, mainName, compareName);
+            } else {
+                renderDiff(ra, null);
+            }
 
             const layout = {
                 xaxis: { title: getAxisLabel(xField) },
                 yaxis: { title: getAxisLabel(yField) },
                 hovermode: 'closest',
-                margin: { t: 10, b: 50, l: 50, r: 10 }
+                margin: { t: 10, b: cmp ? 90 : 50, l: 50, r: 10 },
+                legend: cmp ? { orientation: 'h', y: -0.15 } : undefined,
+                // Keeps the zoom and the traces shown / hidden in the legend until the axes change
+                uirevision: `${xField}|${yField}`
             };
-            Plotly.react('myPlot', [tracePoints, traceAvg], layout);
+            Plotly.react('myPlot', traces, layout);
 
             const magic = computeMagicValue(ra.xs, ra.ys);
-            document.getElementById('magicLabel').textContent = `Rolling average for ${getAxisLabel(yField)} vs ${getAxisLabel(xField)} (0 = perfectly linear):`;
+            document.getElementById('magicLabel').textContent = `Rolling average for ${getAxisLabel(yField)} vs ${getAxisLabel(xField)}${cmp ? ', ' + mainName : ''} (0 = perfectly linear):`;
             document.getElementById('magicValue').textContent = magic.toFixed(4);
         }
 
@@ -327,32 +447,39 @@
 
         let retryTimer = null;
 
+        // The data handler's JSON for a database (null: the page's own), with the filters
+        async function fetchData(filters, db) {
+            const url = new URL(window.location.href);
+            url.pathname = url.pathname.replace(/\/$/, '');
+            const dbParam = db || url.searchParams.get('db');
+            url.search = '';
+            url.searchParams.set('handler', 'Data');
+            for (const [k, v] of Object.entries(filters)) url.searchParams.set(k, v);
+            if (dbParam) url.searchParams.set('db', dbParam);
+            const resp = await fetch(url.toString(), { headers: { 'Accept': 'application/json' } });
+            if (!resp.ok) return { failed: resp.status };
+            return await resp.json();
+        }
+
         async function fetchFiltered() {
             if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
             const filters = filterValues();
+            const compareDb = document.getElementById('compareDb').value;
 
             // Update the browser URL with filter parameters so they persist when switching databases
             const pageUrl = new URL(window.location.href);
             for (const [k, v] of Object.entries(filters)) pageUrl.searchParams.set(k, v);
             pageUrl.searchParams.set('rollingPercent', readPercent());
+            if (compareDb) pageUrl.searchParams.set('compareDb', compareDb); else pageUrl.searchParams.delete('compareDb');
             window.history.replaceState({}, '', pageUrl);
-
-            const url = new URL(window.location.href);
-            url.pathname = url.pathname.replace(/\/$/, '');
-            const dbParam = url.searchParams.get('db');
-            url.search = '';
-            url.searchParams.set('handler', 'Data');
-            for (const [k, v] of Object.entries(filters)) url.searchParams.set(k, v);
-            if (dbParam) url.searchParams.set('db', dbParam);
 
             showSpinner(true);
             try {
-                const resp = await fetch(url.toString(), { headers: { 'Accept': 'application/json' } });
-                if (!resp.ok) {
-                    statusEl.textContent = `Could not load the data (${resp.status}).`;
+                const [json, cjson] = await Promise.all([fetchData(filters, null), compareDb ? fetchData(filters, compareDb) : null]);
+                if (json.failed) {
+                    statusEl.textContent = `Could not load the data (${json.failed}).`;
                     return;
                 }
-                const json = await resp.json();
                 if (json.count === undefined) {
                     statusEl.textContent = json.error
                         ? `The scores cache failed to build: ${json.error}`
@@ -362,8 +489,25 @@
                 }
                 data = json;
                 const shown = json.dots.pp ? json.dots.pp.length : 0;
-                statusEl.textContent = `${json.count.toLocaleString()} scores (${shown.toLocaleString()} dots shown, the average uses all of them)`
+                let status = `${json.count.toLocaleString()} scores (${shown.toLocaleString()} dots shown, the average uses all of them)`
                     + (json.building ? ' · the database changed, its cache is being rebuilt' : '');
+
+                compareData = null;
+                if (cjson) {
+                    const compareName = DB_NAMES[compareDb] || compareDb;
+                    if (cjson.failed) status += ` · ${compareName}: could not load the data (${cjson.failed})`;
+                    else if (cjson.count === undefined) {
+                        if (cjson.error) status += ` · ${compareName}: its scores cache failed to build (${cjson.error})`;
+                        else {
+                            status += ` · ${compareName}: building its scores cache, retrying in 10 s…`;
+                            retryTimer = setTimeout(fetchFiltered, 10000);
+                        }
+                    } else {
+                        compareData = { ...cjson, db: compareDb };
+                        status += ` · compared with ${compareName}: ${cjson.count.toLocaleString()} scores`;
+                    }
+                }
+                statusEl.textContent = status;
                 redraw();
             } catch (e) {
                 statusEl.textContent = 'Could not load the data.';
@@ -374,11 +518,15 @@
         }
 
         document.getElementById('applyFilters').addEventListener('click', fetchFiltered);
+        // Picking a comparison database loads it straight away when the graph is already shown
+        document.getElementById('compareDb').addEventListener('change', function() {
+            if (data) fetchFiltered();
+        });
 
         // Load straight away when the URL has filters
         function shouldAutoLoad() {
             const urlParams = new URLSearchParams(window.location.search);
-            const filterParams = ['minWeightPercent', 'minYear', 'minMonth', 'minDay', 'maxPlayerRank', 'minRankedPlayCount', 'playerId', 'modNone', 'modSS', 'modFS', 'modSFS'];
+            const filterParams = ['minWeightPercent', 'minYear', 'minMonth', 'minDay', 'maxPlayerRank', 'minRankedPlayCount', 'playerId', 'modNone', 'modSS', 'modFS', 'modSFS', 'compareDb'];
             return filterParams.some(param => urlParams.has(param) && urlParams.get(param) !== '' && urlParams.get(param) !== '0' && urlParams.get(param) !== 'true');
         }
 
