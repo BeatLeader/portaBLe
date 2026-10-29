@@ -325,6 +325,12 @@
     }
 </div>
 
+<div class="weight-count chart-filter">
+    Scores of players with
+    <input id="chartMinPlays" type="number" min="0" step="1" value="0" oninput="updateAxes()" /> to
+    <input id="chartMaxPlays" type="number" min="0" step="1" placeholder="any" oninput="updateAxes()" /> ranked plays
+    <span id="chartCount" class="modifier-note"></span>
+</div>
 <div class="chart-container">
     <div class="x-selector">
         <select id="xAxisSelect" onchange="updateAxes()">
@@ -546,6 +552,10 @@
 
     .weight-count input {
         width: 4.5em;
+    }
+
+    .chart-filter {
+        margin-top: 1em;
     }
 
     .leaderboard-comparison {
@@ -970,8 +980,25 @@
             return null;
         }
 
+        // The chart's ranked plays filter (min, max; max null = no limit), kept in the URL so it survives a reload
+        function chartPlaysFilter() {
+            const min = Math.max(0, Number(document.getElementById('chartMinPlays').value) || 0);
+            const maxText = document.getElementById('chartMaxPlays').value;
+            const max = maxText === '' ? null : Math.max(0, Number(maxText) || 0);
+            const url = new URL(window.location.href);
+            if (min > 0) url.searchParams.set('chartMinPlays', min); else url.searchParams.delete('chartMinPlays');
+            if (max !== null) url.searchParams.set('chartMaxPlays', max); else url.searchParams.delete('chartMaxPlays');
+            window.history.replaceState({}, '', url);
+            return { min, max };
+        }
+        function playsOk(s, filter) {
+            const plays = s?.playerRankedPlays ?? 0;
+            return plays >= filter.min && (filter.max === null || plays <= filter.max);
+        }
+
         function setupChart(scores, compareScores, xAxis = 'playerRank', yAxis = 'weight') {
             if (!scores?.length) return;
+            const playsFilter = chartPlaysFilter();
 
             const ctx = document.getElementById('scoreChart').getContext('2d');
             const isXNullable = sortByToNullable(xAxis);
@@ -979,7 +1006,7 @@
 
             function processScores(scores, isCompare = false) {
                 return scores
-                    .filter(s => !!s?.playerRank)
+                    .filter(s => !!s?.playerRank && playsOk(s, playsFilter))
                     .map(s => {
                         const xValue = valueFromSortBy(s, xAxis, isCompare);
                         if (!xValue && !isXNullable) return null;
@@ -1000,6 +1027,9 @@
 
             const chartData = processScores(scores);
             const compareChartData = compareScores?.length ? processScores(compareScores, true) : [];
+            const shown = (all, kept) => `${kept.length.toLocaleString()} of ${all.filter(s => !!s?.playerRank).length.toLocaleString()}`;
+            document.getElementById('chartCount').textContent = `(${shown(scores, chartData)} scores shown`
+                + (compareScores?.length ? `, ${shown(compareScores, compareChartData)} on the second leaderboard` : '') + ')';
 
             const options = {
                 responsive: true,
@@ -1148,6 +1178,12 @@
             setupChart(leaderboardScores, compareLeaderboardScores, xValue, yValue);
         }
 
+        // The chart's ranked plays filter from the URL (?chartMinPlays=&chartMaxPlays=)
+        {
+            const params = new URLSearchParams(window.location.search);
+            if (params.has('chartMinPlays')) document.getElementById('chartMinPlays').value = params.get('chartMinPlays');
+            if (params.has('chartMaxPlays')) document.getElementById('chartMaxPlays').value = params.get('chartMaxPlays');
+        }
         setupChart(leaderboardScores, compareLeaderboardScores);
         drawCurveChart();
         drawPpChart();
