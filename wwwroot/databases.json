@@ -30,6 +30,16 @@
       "Name": "Dev Acc Autoreweighted",
       "FileName": "db-20261029145510-6196.db",
       "Description": "Dev Acc (autoreweighted)"
+    },
+    {
+      "Name": "Dev Acc Steeper 90-95",
+      "FileName": "db-20261029163829-9904.db",
+      "Description": "Dev Acc, base curve steeper at 90-95%"
+    },
+    {
+      "Name": "Dev Acc Steeper 90-95 Reweighted",
+      "FileName": "db-20261029163915-4692.db",
+      "Description": "Dev Acc, base curve steeper at 90-95% (autoreweighted)"
     }
   ]
 }
