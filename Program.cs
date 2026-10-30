@@ -291,15 +291,41 @@ namespace portaBLe
                 await RefreshEverything(recurveContext);
                 return;
             }
-            // dotnet run -c Release -- rerate <wwwroot/file.db>: RatingsRefresh.Overwrite with raw acc ratings (acc reweighter
-            // multipliers cleared) then RefreshEverything on that database (after an Analyzer or rating constant change)
+            // dotnet run -c Release -- rerate <wwwroot/file.db> [setting=value ...]: RatingsRefresh.Overwrite with raw acc
+            // ratings (acc reweighter multipliers cleared) then RefreshEverything on that database (after an Analyzer or rating
+            // constant change)
             if (args.Length > 1 && args[0] == "rerate")
             {
+                // Experiments: ParityPredictor settings (name=value, see paritycheck) and pp formula ones (Pp.TechWeight=0.13)
+                foreach (var setting in args.Skip(2))
+                {
+                    var parts = setting.Split('=');
+                    double value = double.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
+                    if (parts[0].StartsWith("Pp.")) (typeof(RatingAPI.Pp.PpFormula).GetProperty(parts[0][3..]) ?? throw new ArgumentException(parts[0])).SetValue(RatingAPI.Pp.PpFormula.Current, value);
+                    else Analyzer.BeatmapScanner.Algorithm.ParityPredictor.Set(parts[0], value);
+                }
                 await EnsureSchema(args[1], Path.GetFullPath(args[1]));
                 var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};").Options;
                 using var rerateContext = new AppContext(options);
                 await RatingsRefresh.Overwrite(rerateContext, false);
                 await RefreshEverything(rerateContext);
+                return;
+            }
+            // dotnet run -c Release -- paritycheck <wwwroot/file.db> [setting=value ...]: ParityCheck.Run against
+            // beatsaber-replays-ai-2/parity2 with those ParityPredictor settings (ParityPredictor.Set: flow.Extra=3,
+            // ResetMapRate=0.15...). Read only; writes wwwroot/parity-check.json and parity-swings.json.gz
+            if (args.Length > 1 && args[0] == "paritycheck")
+            {
+                var inv = System.Globalization.CultureInfo.InvariantCulture;
+                foreach (var setting in args.Skip(2))
+                {
+                    var parts = setting.Split('=');
+                    Analyzer.BeatmapScanner.Algorithm.ParityPredictor.Set(parts[0], double.Parse(parts[1], inv));
+                }
+                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};Mode=ReadOnly;").Options;
+                using var parityContext = new AppContext(options);
+                var root = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+                await ParityCheck.Run(parityContext, root, Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "beatsaber-replays-ai-2", "parity2")));
                 return;
             }
             // dotnet run -c Release -- pp <wwwroot/file.db> <leaderboard id> [accuracy] [modifiers]: a score's pp on that
@@ -406,6 +432,87 @@ namespace portaBLe
                 var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(file)};").Options;
                 using var worthContext = new AppContext(options);
                 await LeaderboardsRefresh.RefreshWorth(worthContext);
+                return;
+            }
+            // dotnet run -c Release -- reacc <wwwroot/file.db> [NAME=value ...]: the acc ratings and stars again from the stored
+            // predicted acc (RatingsRefresh.Refresh, raw: acc reweighter multipliers cleared) then RefreshEverything, with those
+            // AccRating correction constants (e.g. HIGH_PASS_BUFF=0.003) and pp formula settings (Pp.TechWeight=0.13). For
+            // experiments on a copy.
+            if (args.Length > 1 && args[0] == "reacc")
+            {
+                foreach (var setting in args.Skip(2))
+                {
+                    var parts = setting.Split('=', 2);
+                    double value = double.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
+                    if (parts[0].StartsWith("Pp."))
+                    {
+                        var pp = typeof(RatingAPI.Pp.PpFormula).GetProperty(parts[0][3..]) ?? throw new ArgumentException($"No PpFormula setting {parts[0]}");
+                        pp.SetValue(RatingAPI.Pp.PpFormula.Current, value);
+                    }
+                    else
+                    {
+                        var property = typeof(RatingAPI.Controllers.AccRating).GetProperty(parts[0]) ?? throw new ArgumentException($"No AccRating setting {parts[0]}");
+                        property.SetValue(null, value);
+                    }
+                    Console.WriteLine($"Acc rating: {parts[0]} = {parts[1]}");
+                }
+                await EnsureSchema(args[1], Path.GetFullPath(args[1]));
+                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};").Options;
+                using var reaccContext = new AppContext(options);
+                await RatingsRefresh.Refresh(reaccContext, false);
+                await RefreshEverything(reaccContext);
+                return;
+            }
+            // dotnet run -c Release -- balancetune <wwwroot/file.db> [constants|formula] [Setting=value ...]: the balance tuner
+            // (BalanceTuner.Run, wwwroot/balance-tuning.json) and / or its pp formula sweep (RunPpFormula, wwwroot/pp-formula.json)
+            // on that database, both by default. Settings: the balance tuner's (e.g. PlayerAdjustedQuantile=0.5) or RatedWith.X,
+            // the constants the database was rated with (e.g. RatedWith.PassCalibration=0.7115). Read only on the database.
+            if (args.Length > 1 && args[0] == "balancetune")
+            {
+                var inv = System.Globalization.CultureInfo.InvariantCulture;
+                bool constants = !args.Contains("formula") || args.Contains("constants"), formula = !args.Contains("constants") || args.Contains("formula");
+                foreach (var setting in args.Skip(2).Where(a => a.Contains('=')))
+                {
+                    var parts = setting.Split('=', 2);
+                    if (parts[0].StartsWith("RatedWith."))
+                    {
+                        var property = typeof(RatingConstants).GetProperty(parts[0]["RatedWith.".Length..]) ?? throw new ArgumentException(parts[0]);
+                        property.SetValue(BalanceTuner.RatedWith, double.Parse(parts[1], inv));
+                    }
+                    else
+                    {
+                        var property = typeof(BalanceTuner).GetProperty(parts[0]) ?? throw new ArgumentException($"No balance tuner setting {parts[0]}");
+                        property.SetValue(null, property.PropertyType.IsEnum ? Enum.Parse(property.PropertyType, parts[1], true)
+                            : Convert.ChangeType(parts[1], property.PropertyType, inv));
+                    }
+                    Console.WriteLine($"Balance tuning: {parts[0]} = {parts[1]}");
+                }
+                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};Mode=ReadOnly;").Options;
+                using var tuneContext = new AppContext(options);
+                var root = Path.Combine(Directory.GetCurrentDirectory(), "wwwroot");
+                if (constants) await BalanceTuner.Run(tuneContext, root);
+                if (formula) await BalanceTuner.RunPpFormula(tuneContext, root);
+                return;
+            }
+            // dotnet run -c Release -- slidershare <wwwroot/file.db> <out.csv>: every leaderboard's slider share (CurvesRefresh.
+            // ExportSliderShares, the slider tilt's input). Read only.
+            if (args.Length > 2 && args[0] == "slidershare")
+            {
+                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};Mode=ReadOnly;").Options;
+                using var sliderContext = new AppContext(options);
+                await CurvesRefresh.ExportSliderShares(sliderContext, Path.GetFullPath(args[2]));
+                return;
+            }
+            // dotnet run -c Release -- worthnoise <wwwroot/file.db> [quantile ...]: BalanceTuner.WorthNoise, the worth's noise per
+            // score (the acc reweighter's NoisePerScore) at those PlayerAdjustedQuantile values (default 0 and 0.75). Read only.
+            if (args.Length > 1 && args[0] == "worthnoise")
+            {
+                var quantiles = args.Length > 2
+                    ? args.Skip(2).Select(a => double.Parse(a, System.Globalization.CultureInfo.InvariantCulture)).ToArray()
+                    : new[] { 0, 0.75 };
+                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};Mode=ReadOnly;").Options;
+                using var noiseContext = new AppContext(options);
+                await BalanceTuner.WorthNoise(noiseContext, quantiles);
                 return;
             }
             // dotnet run -c Release -- accreweight [Setting=value ...] [rescore] [file.db]: the acc reweighter alone on

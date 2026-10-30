@@ -1,4 +1,4 @@
-@page
+﻿@page
 @model BalanceTuningModel
 @using portaBLe.Refresh
 @{
@@ -42,7 +42,7 @@
 </div>
 
 <h4>Suggested constants</h4>
-<p class="small text-muted">Worth measure: <strong>@(string.IsNullOrEmpty(r.WorthMeasure) ? "Megametric75" : r.WorthMeasure)</strong> (<code>BalanceTuner.WorthMeasure</code>). A constant is kept when its target is already within @BalanceTuner.TargetTolerance.ToString("0.###") of 0, or moves less than @BalanceTuner.MinResponse.ToString("0.###") over the range tried.</p>
+<p class="small text-muted">Worth measure: <strong>@(string.IsNullOrEmpty(r.WorthMeasure) ? "Megametric75" : r.WorthMeasure)</strong> (<code>BalanceTuner.WorthMeasure</code>, P75: <code>PlayerAdjustedQuantile</code> 0.75). A constant is kept when its target is already within @BalanceTuner.TargetTolerance.ToString("0.###") of 0, or moves less than @BalanceTuner.MinResponse.ToString("0.###") over the range tried.</p>
 <div class="table-responsive">
     <table class="table table-sm">
         <thead><tr><th>Constant</th><th>Where</th><th class="text-end">In code</th><th class="text-end">Suggested</th><th class="text-end">Change</th></tr></thead>

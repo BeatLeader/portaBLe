@@ -194,13 +194,15 @@ namespace portaBLe.DB
         public float Megametric75 { get; set; }
         public float Megametric40 { get; set; }
         // How much the map pays its players compared with other maps of its stars (BalanceTuner.WorthMeasure, PlayerAdjusted:
-        // the same players against their other maps at their level). +0.04 = 4% more than average. Null with too few in-range
+        // the same players against their other maps at their level, at BalanceTuner.PlayerAdjustedQuantile: 0.75, as WorthP75;
+        // databases refreshed before it are the mean, as WorthMean). +0.04 = 4% more than average. Null with too few in-range
         // scores. Used by the balance tuner and the acc reweighter (LeaderboardsRefresh.Refresh, BalanceTuner.StoredWorth).
         // Nomod scores only: SS / FS / SF scores have their own (ModifiersRating.SSWorth ...), NF scores none.
         public float? Worth { get; set; }
         // Worth as above (PlayerAdjusted, nomod), with each player's skill, map's generosity and distance bin fitted to the
         // mean, median, 75th or 90th percentile of their residuals (BalanceTuner.PlayerAdjustedQuantile 0, 0.5, 0.75, 0.9;
-        // LeaderboardsRefresh.RefreshWorthQuantiles). For comparison only: nothing reads them. Null with too few in-range
+        // LeaderboardsRefresh.RefreshWorthQuantiles). For comparison only: nothing reads them (Worth is the one at
+        // PlayerAdjustedQuantile). Null with too few in-range
         // scores, or when WorthMeasure isn't PlayerAdjusted.
         public float? WorthMean { get; set; }
         public float? WorthMedian { get; set; }

@@ -6,6 +6,94 @@ model comes from `beatsaber-replays-ai-2`.
 The goal is ratings that never need scores at rating time. Scores, replays and fail attempts are used offline, to fit and
 validate constants. The one exception is the acc reweighter (below), the only tool that changes ratings from scores.
 
+## Tech from rotation^1.5 and a soft capped angle strain
+
+- **Swing tech = soft capped angle strain + 4.649 × rotation^1.5** (Analyzer `AngleStrain` `STRAIN_SOFT_CAP` 1.5,
+  `AnalyzeMap` `ROTATION_TECH_SCALE` / `ROTATION_TECH_POWER`; was strain + rotation). Strain is 1.5 × tanh(strain / 1.5):
+  ordinary swings unchanged (45 degrees off natural 0.25 → 0.24), the extreme ones held under 1.5 (160 degrees 3.16 →
+  1.46). Large turns count more than small ones (on average twice the plain rotation). The pass rating's stress keeps the
+  plain strain (`SwingData.AngleStrainTech` is tech's). `BALANCED_TECH_SCALER` 20.611 → 14.707 keeps the tech scale (p50
+  3.84, p90 7.36, p99 12.43).
+  - Why: the top of the tech ratings went to extreme wrist angles over turns (Sanity Krush ExpertPlus, 77% of its tech
+    from inverted forehands 160 degrees off). Now stasis ExpertPlus leads (17.41, then Sanity Krush 16.69, I Love It,
+    Sacrifice of Fools, Konpeito Extremists); FAR OUT, #1f1e33, PISSCORD and Official move into the top 10, D/N/A,
+    Medicine Expert and Gravisphere Crisis down. Tried first: a lower strain weight (Sanity Krush first down to 0.3),
+    soft caps alone (it stays first), tech over fewer swings, linear strain (low star maps' tech up).
+- Refit for it (P75 worth): `PpFormula.TechTopKnee` 12 → 9 and `TechAccExponent` 3.27 → 3.2 (tech 9-14 maps 1.2-2.2% over
+  without; tech share slope +0.009 → +0.002), `PpMultiplier` 1.0199 → 1.0299 (players' pp back: #1000 15074, 15093
+  before), `HIGH_PASS_BUFF` 0.0025 → 0.001 (pass 14.5+ maps +1.8-1.9% over after the tech refit, now +0.9-1.1%).
+- Dev Acc: P75 worth RMS 0.0292 → 0.0295 (5-8 stars 0.0228, 8-11 0.0267, 11+ 0.0284), the cost of the new order; with
+  the acc reweighter 0.0211 → 0.0213. Uploaded as `db-20261030224654-3714.db` and `db-20261030224738-6540.db`
+  (autoreweighted).
+
+## Worth from the 75th percentile
+
+- **`BalanceTuner.PlayerAdjustedQuantile` 0 → 0.75**: worth fits each player's level, each map's pay and the distance
+  term to the 75th percentile of the scores' residuals instead of their mean, so it follows each player's better efforts
+  on the map, which is what their pp is made of. `Leaderboard.Worth`, the SS / FS / SF worths, worth by player rank, the
+  balance tuner and the acc reweighter all use it; `WorthMean` keeps the mean. The balance tuner's and acc reweighter's
+  outputs record the measure as "PlayerAdjusted P75".
+  - Why: the mean also follows the low effort tail. It tilted worth by note count (maps with twice the notes +0.015 at
+    8-11 stars, +0.018 at 5-8 stars), while at P75 the tilt is gone from 5 stars (+0.000 / +0.004 / −0.006 by band).
+    Turning the Acc AI's farmability scaling off flattened the mean but overcorrected P75 and inflated pp (about +3.8%).
+  - Rerated Dev Acc copy (`worth`, no re-score): every map's worth now equals its P75 column.
+  - Databases refreshed before this keep the mean in `Worth` until `RefreshWorth` / `RefreshEverything` runs on them.
+- **Acc reweighter retuned for it:** `NoisePerScore` 0.28 → 0.10, the P75 worth's measured noise per score (new
+  `worthnoise` command, `BalanceTuner.WorthNoise`: each map's worth from two random halves of the players; 0.102, the
+  mean's 0.126). `WorthLimit` 0.03 → 0.025, `LargeGapFrom` / `LargeGapFull` 0.04 / 0.08 → 0.033 / 0.066 and
+  `ResponseNoise` 0.02 → 0.016: × 0.82, the P75 worth's spread against the mean's.
+  - Why: 0.28 was 2.2× even the mean's measured noise, and with P75 it held back gaps of 4.5× the noise: the reweighter
+    moved maps less than on the mean (mean multiplier 1.2% against 1.6%).
+  - Dev Acc rerated, then reweighted (P75 worth RMS, unreweighted 0.0304): old settings 0.0236, only the × 0.82 scaling
+    0.0232, `NoisePerScore` 0.15 0.0225, 0.10 0.0222 (5-8 stars 0.0137 → 0.0107, 8-11 0.0158 → 0.0136, 11+ 0.0165 →
+    0.0132); held-out spread unchanged (0.0092-0.0094), 2173 maps changed (1488), mean multiplier 1.7%. The guard
+    tolerances scaled the same way changed nothing.
+
+## Corrections checked again on the P75 worth
+
+Each correction's variable against the P75 worth of the rerated Dev Acc (new parity, before the acc reweighter), every
+change tried alone first (`reacc`, new: acc ratings from the stored predicted acc with any `AccRating` correction constant
+or pp formula setting, then re-score), then together. The low star corrections were left as they were.
+
+- **`PpFormula.TechAccExponent` 3.5 → 3.27**: tech 9-13 maps were 1.3-1.6% over the others of their stars, tech / stars
+  0.75-1.2 at 10+ stars 1.3-1.9% over; now 0.8-0.9%. The balance tuner kept `TechWeight` (tech share slope +0.006, within
+  its tolerance); 0.131 would have done the same as 3.27, with a slightly higher spread. Tech isn't rescaled: its
+  distribution didn't move (p90 7.25 → 7.32), only the maps that lost false resets went up (top 18.0 → 20.6).
+- **`HIGH_PASS_BUFF` 0.0055 → 0.0025**: pass 14+ maps were 1.4-2.3% over; now 0.6-1.3%.
+- **`HIT_DISTANCE_EASY_SHARE` 0.2** (new; was 0): a fifth of the hit distance correction stays above 97.5% predicted acc.
+  Easy maps over 0.7 m were 1.1% under; now 0.2%.
+- **`HARD_SWING_KNEE` 2 → 1**: the maps just past the knee were still 0.3-0.7% under; now about 0. A slope of 0.03 instead
+  left them under. With the lower tech exponent the 700pp+ scores spread over more maps (447 → 484, at most 26 → 15).
+- Together: P75 worth RMS 0.0304 → 0.0292 (5-8 stars 0.0232 → 0.0225, 8-11 0.0268 → 0.0258, 11+ 0.0300 → 0.0280), players'
+  pp about the same (#1 −0.4%, #1000 −0.5%), 700pp+ scores 878 → 866.
+- Tried for the highest tech maps (Sanity Krush ExpertPlus: 77% of its tech is angle strain, from inverted forehands
+  160 degrees off their natural direction), neither kept:
+  - Arrows at the angle players cut them (offsets fitted on the replays: players cut 10-25 degrees towards the parity's
+    natural direction): tech p90 7.32 → 6.64, the tech 9-12 overpay mostly
+    gone, but the P75 worth RMS 0.0293 at best (`TechAccExponent` 3.4) against 0.0292; in rotation too, 0.0295.
+  - A softer strain past a knee (90-120 degrees, x0.25-0.5 above): top tech
+    15.7-16.2, RMS 0.0294. Neither changed what those maps pay (Sanity Krush stays at 12.8 stars, P75 +0.045-0.048):
+    tech pp above 12 counts a third, and their stars come from the acc rating.
+  - Also tried and dropped: angle strain linear in the angle (strain became 83% of tech everywhere, low star maps'
+    tech up), a lower strain weight (Sanity Krush stays first above 0.3), repositioning in tech, parity comfort scaled by
+    the gap between swings (Wommotion read right, but more swings wrong elsewhere).
+- Checked and kept: the slider tilt (flat at every slider share), the hard map correction (`HARD_MAP_SLOPE` 1.6 only moved
+  96-96.75% from −0.0076 to −0.0063 and added 158 700pp+ scores), the pass pp compression. Not settled: hit distance
+  0.62-0.7 m under 97% predicted acc stays 0.8% under whatever the correction's strength (its shape, not tried). The mid
+  star top bonus can't be checked on worth (worth is against maps of the same stars).
+- **`ONE_SABER_NERF` 0.39 → 0.474** (Analyzer): the balance tuner's suggestion on the P75 worth (OneSaber gap +0.010 →
+  0). The nerf applies to every map by how one-handed its pass is, so it also lowers the pass of 2138 Standard maps with
+  one-handed parts (up to −12pp on a score); the P75 worth spread of Standard maps is unchanged (0.0292).
+  Its `RatedWith` defaults now match the Analyzer (were pass 0.7721 / one saber 0.44, the Analyzer's 0.7115 / 0.39), and
+  the new `balancetune` command runs it on any database.
+- **Tech rating top compression, display only** (`Ratings.TechRatingKnee` 15, `TechRatingSlope` 0.53, Analyzer): above 15
+  each point of the tech rating counts 0.53, so the top stays near 18 (Sanity Krush ExpertPlus 20.64 → 18.0, SONG
+  REQUEST 19.74 → 17.5) after the parity rework lifted the maps it had read with false resets. `PpFormula.TechPp` undoes
+  it before its own compression (`Ratings.UncompressTech`), and `PpCalculator.ScorePp` scales the uncompressed rating by
+  the modifiers' multiplier (NA's −0.3), so tech pp and stars are unchanged: a rerate without it gives
+  the same pp on every score (at most 0.0001pp apart, players 0.002pp). Databases rated before it
+  need a rerate (their stored tech isn't compressed, and the pp formula would now uncompress it).
+
 ## Acc reweighter: maps with a thin worth kept at ×1
 
 - **`AccReweighter.MinWorthScores` 40**: maps whose worth before the reweight rests on fewer in-range scores

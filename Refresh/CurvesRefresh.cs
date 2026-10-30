@@ -51,6 +51,17 @@ namespace portaBLe.Refresh
             Console.WriteLine($"Curves regenerated in {timer.Elapsed:mm\\:ss}");
         }
 
+        // Every leaderboard's slider share (CurveSettings.SliderTilt's input) to a CSV (id,sliders,notes), from the maps folder.
+        // Read only (portaBLe slidershare)
+        public static async Task ExportSliderShares(AppContext dbContext, string path)
+        {
+            var lbs = await dbContext.Leaderboards.AsNoTracking().ToListAsync();
+            var maps = await MapCounts(lbs);
+            await File.WriteAllLinesAsync(path, new[] { "id,sliders,notes" }.Concat(maps.Select(m =>
+                FormattableString.Invariant($"{m.Key},{m.Value.sliders},{m.Value.notes}"))));
+            Console.WriteLine($"Slider shares: {maps.Count} leaderboards to {path}");
+        }
+
         // Slider share, color note count and note span (seconds, no modifier) of every leaderboard, from the maps folder
         // (downloaded when missing)
         private static async Task<Dictionary<string, (double sliders, int notes, double span)>> MapCounts(List<Leaderboard> lbs)

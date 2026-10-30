@@ -65,10 +65,9 @@
             @SortHeader("AccRating", "Acc", "Acc rating")
             @SortHeader("TechRating", "Tech", "Tech rating")
             @SortHeader("NoteCount", "Notes", "Color notes in the difficulty")
-            @SortHeader("Worth", Model.Modifier == null ? "Worth" : $"Worth ({Model.Modifier})", "How much the map pays its players compared with maps of the same stars: for the same players, how much more or less they get here than on their other maps at their level (+4% = 4% more). The balance tuner and the acc reweighter use this measure. Blank with too few scores. With a speed modifier, that of the scores with it.")
             @SortHeader("WorthMean", "Mean", WorthQuantileTitle("the mean of"))
             @SortHeader("WorthMedian", "Median", WorthQuantileTitle("the median of"))
-            @SortHeader("WorthP75", "P75", WorthQuantileTitle("the 75th percentile of"))
+            @SortHeader("WorthP75", Model.Modifier == null ? "P75" : $"P75 ({Model.Modifier})", "Worth, the main measure: how much the map pays its players compared with maps of the same stars: for the same players, how much more or less they get here than on their other maps at their level (+4% = 4% more), with each player's level, map's pay and distance term fitted to the 75th percentile of the scores' residuals (each player's better efforts). The balance tuner and the acc reweighter use this measure. Blank with too few scores. With a speed modifier, that of the scores with it.", "lb-main-col")
             @SortHeader("WorthP90", "P90", WorthQuantileTitle("the 90th percentile of"))
             @SortHeader("WorthSpread", "Spread", "How much Mean, Median, P75 and P90 disagree: the highest minus the lowest, in points (5.0 = 5 points apart). Highlighted from 5 points (about the top 5% of maps). Blank when any of them is.")
             @SortHeader("TopPlayShare", "Top play share", FormattableString.Invariant($"Of the map's players with {portaBLe.Refresh.AccReweighter.TopPlayShareMinScores}+ ranked plays, those whose best play it is by {portaBLe.Refresh.AccReweighter.TopPlayMarginPp:0.#}pp or more over their second best (any modifier), and that share over the median of the maps within {portaBLe.Refresh.AccReweighter.TopPlayShareBandwidth:0.#} star (sorted by it). The acc reweighter cuts maps past x{portaBLe.Refresh.AccReweighter.TopPlayShareRatio:0.#}. Blank with fewer than {portaBLe.Refresh.AccReweighter.TopPlayShareMinPlayers} such players."))
@@ -96,7 +95,6 @@
                 <td class="lb-num">@leaderboard.AccRating.ToString("0.00")</td>
                 <td class="lb-num">@leaderboard.TechRating.ToString("0.00")</td>
                 <td class="lb-num">@(leaderboard.NoteCount > 0 ? leaderboard.NoteCount.ToString() : "—")</td>
-                <td class="lb-num"><span class="lb-worth @WorthClass(leaderboard.Worth)">@WorthText(leaderboard.Worth)</span></td>
                 <td class="lb-num"><span class="lb-worth @WorthClass(leaderboard.WorthMean)">@WorthText(leaderboard.WorthMean)</span></td>
                 <td class="lb-num"><span class="lb-worth @WorthClass(leaderboard.WorthMedian)">@WorthText(leaderboard.WorthMedian)</span></td>
                 <td class="lb-num"><span class="lb-worth @WorthClass(leaderboard.WorthP75)">@WorthText(leaderboard.WorthP75)</span></td>
@@ -107,7 +105,7 @@
         }
         @if (Model.Leaderboards.Count == 0)
         {
-            <tr><td colspan="16" class="text-center text-muted py-4">No maps found</td></tr>
+            <tr><td colspan="15" class="text-center text-muted py-4">No maps found</td></tr>
         }
     </tbody>
 </table>
@@ -138,7 +136,7 @@
     static string WorthClass(float? worth) => worth is float w ? (w >= 0.08f ? "worth-high" : w <= -0.08f ? "worth-low" : "worth-even") : "worth-none";
 
     // Tooltip of the worth by quantile columns (Leaderboard.WorthMean ...)
-    static string WorthQuantileTitle(string center) => $"Worth (as the Worth column) with each player's level, map's pay and distance term fitted to {center} the scores' residuals instead of the setting the balance tuner uses. Higher percentiles follow each player's best efforts on the map, so low effort scores count less. Nomod only: blank with a speed modifier. Blank with too few scores.";
+    static string WorthQuantileTitle(string center) => $"Worth (as P75, the main measure) with each player's level, map's pay and distance term fitted to {center} the scores' residuals instead. Higher percentiles follow each player's best efforts on the map, so low effort scores count less. Nomod only: blank with a speed modifier. Blank with too few scores.";
 
     // Disagreement of the worth by quantile columns, in points; highlighted from 5 (about the top 5% of maps)
     static string SpreadText(float? spread) => spread is float s ? (s * 100).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) : "—";
@@ -157,14 +155,14 @@
     static string DifficultyLabel(string? difficulty) => difficulty == "ExpertPlus" ? "Expert+" : difficulty ?? "";
 
     // Clicking the current sort column flips the order; another column starts descending
-    private Microsoft.AspNetCore.Html.IHtmlContent SortHeader(string sortBy, string label, string title)
+    private Microsoft.AspNetCore.Html.IHtmlContent SortHeader(string sortBy, string label, string title, string thClass = "")
     {
         bool active = (Model.SortBy ?? "Stars") == sortBy;
         bool descending = active ? !Model.SortDescending : true;
         string arrow = active ? (Model.SortDescending ? " ▼" : " ▲") : "";
         string url = Url.Page("./Leaderboards", new { sortBy, sortDescending = descending, searchString = Model.SearchString, modeName = Model.ModeName, rangeBy = RangeByRoute(), rangeMin = RangeValue(Model.RangeMin), rangeMax = RangeValue(Model.RangeMax), modifier = Model.Modifier, tag = Model.Tag, db = Model.SelectedDatabase })!;
         return new Microsoft.AspNetCore.Html.HtmlString(
-            $"<th class=\"lb-num\" title=\"{System.Net.WebUtility.HtmlEncode(title)}\"><a class=\"lb-sort{(active ? " active" : "")}\" href=\"{url}\">{label}{arrow}</a></th>");
+            $"<th class=\"lb-num{(thClass.Length > 0 ? " " + thClass : "")}\" title=\"{System.Net.WebUtility.HtmlEncode(title)}\"><a class=\"lb-sort{(active ? " active" : "")}\" href=\"{url}\">{label}{arrow}</a></th>");
     }
 
     private Microsoft.AspNetCore.Html.IHtmlContent PageLink(int page, string label)
@@ -256,6 +254,17 @@
     }
 
     .lb-sort:hover, .lb-sort.active {
+        color: #0d6efd;
+    }
+
+    /* P75, the worth the balance tuner and the acc reweighter use */
+    th.lb-main-col {
+        background: #e7f1ff;
+        box-shadow: inset 0 -2px 0 #0d6efd;
+    }
+
+    th.lb-main-col .lb-sort {
+        font-weight: 700;
         color: #0d6efd;
     }
 

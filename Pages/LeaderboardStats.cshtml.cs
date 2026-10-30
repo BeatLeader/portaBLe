@@ -1,4 +1,4 @@
-using Microsoft.AspNetCore.Mvc;
+﻿using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using portaBLe.DB;
 using portaBLe.Services;
@@ -32,7 +32,7 @@ namespace portaBLe.Pages
             new("PassRating", "Pass", "Pass rating", "Overview", x => x.PassRating, x => x.PassRating.ToString("0.00")),
             new("AccRating", "Acc", "Acc rating", "Overview", x => x.AccRating, x => x.AccRating.ToString("0.00")),
             new("TechRating", "Tech", "Tech rating", "Overview", x => x.TechRating, x => x.TechRating.ToString("0.00")),
-            new("Worth", "Worth", "How much the map pays its players compared with maps of the same stars: for the same players, how much more or less they get here than on their other maps at their level. The balance tuner and the acc reweighter use this measure.", "Overview", x => x.Worth, x => Pct(x.Worth), x => x.Worth),
+            new("Worth", "Worth", "How much the map pays its players compared with maps of the same stars: for the same players, how much more or less they get here than on their other maps at their level, from each player's better efforts (75th percentile). The balance tuner and the acc reweighter use this measure.", "Overview", x => x.Worth, x => Pct(x.Worth), x => x.Worth),
             new("MegametricWorth", "Megametric worth", "The previous worth: Megametric75 / what maps of its stars average - 1 (weighted by where the score lands in each profile, which overreacts to rating changes)", "Overview", x => x.MegametricWorth, x => Signed(x.MegametricWorth)),
             new("Count", "Scores", "Total number of scores on the leaderboard", "Overview", x => x.Count, x => x.Count.ToString()),
 

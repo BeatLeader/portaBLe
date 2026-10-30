@@ -20,7 +20,7 @@
     double maxRating = maxRatingValue > defaultMaxRating ? Math.Ceiling(maxRatingValue) : defaultMaxRating;
     string? dbQuery = string.IsNullOrEmpty(Request.Query["db"]) ? null : Request.Query["db"].ToString();
     string worthLabel = Model.Modifier == "none" ? "Worth" : $"Worth ({Model.Modifier})";
-    const string worthTitle = "How much the map pays its players compared with maps of the same stars: for the same players, how much more or less they get here than on their other maps at their level (+4% = 4% more). With a speed modifier: that modifier's scores, against nomod maps of its stars.";
+    const string worthTitle = "How much the map pays its players compared with maps of the same stars: for the same players, how much more or less they get here than on their other maps at their level (+4% = 4% more), from each player's better efforts (75th percentile of their scores' residuals). With a speed modifier: that modifier's scores, against nomod maps of its stars.";
     string topShareTitle = FormattableString.Invariant($"Of the map's players with {portaBLe.Refresh.AccReweighter.TopPlayShareMinScores}+ ranked plays, those whose best play it is by {portaBLe.Refresh.AccReweighter.TopPlayMarginPp:0.#}pp or more over their second best (any modifier), and that share over the median of the maps within {portaBLe.Refresh.AccReweighter.TopPlayShareBandwidth:0.#} star. The acc reweighter cuts maps past x{portaBLe.Refresh.AccReweighter.TopPlayShareRatio:0.#}.");
 
     // Rating triangle corners (tech, acc, pass) of the leaderboard

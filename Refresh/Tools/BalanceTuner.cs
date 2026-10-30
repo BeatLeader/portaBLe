@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using portaBLe.DB;
 using RatingAPI.Pp;
@@ -19,9 +19,9 @@ namespace portaBLe.Refresh
     // The stored acc ratings include the acc reweighter's multipliers (Leaderboard.AccReweight).
     public class RatingConstants
     {
-        public double PassCalibration { get; set; } = 0.7721;
-        public double OneSaberNerf { get; set; } = 0.44;
-        public double TechScaler { get; set; } = 20.611;
+        public double PassCalibration { get; set; } = 0.7115;
+        public double OneSaberNerf { get; set; } = 0.474;
+        public double TechScaler { get; set; } = 14.707;
         // Follows the PpFormula default, since the tuner re-scores with the formula in code
         public double TechWeight { get; set; } = new PpFormula().TechWeight;
         public double AccScale { get; set; } = 13.5382;
@@ -226,7 +226,7 @@ namespace portaBLe.Refresh
                 GeneratedAt = DateTime.UtcNow,
                 RatedWith = ratedWith.Clone(),
                 OneSaberMaps = data.Maps.Count(m => IsOneSaber(m.Leaderboard)),
-                WorthMeasure = WorthMeasure.ToString(),
+                WorthMeasure = WorthMeasureLabel,
             };
             result.Current = Score(data, ratedWith, ratedWith, reference);
             Console.WriteLine($"Balance tuning: in code: {Describe(result.Current.Balance)}");
@@ -762,6 +762,9 @@ namespace portaBLe.Refresh
         // nomod scores: SS / FS / SF scores are their own items (WorthSpeeds, ItemWorth), NF scores count in none.
         public enum WorthMeasures { Megametric75, InRange, PlayerAdjusted }
         public static WorthMeasures WorthMeasure { get; set; } = WorthMeasures.PlayerAdjusted;
+        // WorthMeasure with PlayerAdjustedQuantile, as the balance tuner and acc reweighter outputs record it ("PlayerAdjusted P75")
+        public static string WorthMeasureLabel => WorthMeasure == WorthMeasures.PlayerAdjusted && PlayerAdjustedQuantile > 0
+            ? $"{WorthMeasure} P{Math.Round(Math.Min(PlayerAdjustedQuantile, 1) * 100)}" : WorthMeasure.ToString();
 
         // Each leaderboard's worth (WorthMeasure) from the database as it is, ratings and scores, per WorthSpeeds (nomod, SS,
         // FS, SF): LeaderboardsRefresh stores it in Leaderboard.Worth and ModifiersRating.SSWorth ... Stars from the ratings,
@@ -812,6 +815,63 @@ namespace portaBLe.Refresh
             return result;
         }
 
+        // The worth's measurement noise per score at each of these PlayerAdjustedQuantile values (portaBLe worthnoise; the acc
+        // reweighter's NoisePerScore): each map's worth from two random halves of the players, whose difference in log is
+        // 2 x noise / sqrt(scores), the noise being NoisePerScore / sqrt(scores) with every player. Robust (1.4826 x the
+        // median absolute deviation) over maps, averaged over `splits` random splits. Read only.
+        public static async Task WorthNoise(AppContext dbContext, double[] quantiles, int splits = 3)
+        {
+            var data = await Load(dbContext);
+            Parallel.ForEach(data.Maps, m =>
+            {
+                var lb = m.Leaderboard;
+                m.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve);
+                m.StarBand = StarBandOf(m.Stars);
+            });
+            var e = Evaluate(data);
+            double kept = PlayerAdjustedQuantile;
+            try
+            {
+                foreach (var q in quantiles)
+                {
+                    PlayerAdjustedQuantile = q;
+                    var full = Worth(data, e, out _);
+                    var evidence = WorthEvidence(data, e);
+                    var perSplit = new List<double>();
+                    for (int split = 0; split < splits; split++)
+                    {
+                        var random = new Random(1000 + split);
+                        var a = new bool[data.PlayerCount];
+                        for (int p = 0; p < a.Length; p++) a[p] = random.Next(2) == 0;
+                        var b = a.Select(x => !x).ToArray();
+                        var wa = Worth(data, e, out _, a);
+                        var wb = Worth(data, e, out _, b);
+                        var est = new List<double>();
+                        for (int m = 0; m < data.Maps.Length; m++)
+                        {
+                            if (full[m] == null || wa[m] is not double x || wb[m] is not double y || evidence[m] < 40 || x <= -0.99 || y <= -0.99) continue;
+                            est.Add((Math.Log(1 + x) - Math.Log(1 + y)) * Math.Sqrt(evidence[m]) / 2);
+                        }
+                        est.Sort();
+                        double median = est[est.Count / 2];
+                        var dev = est.Select(v => Math.Abs(v - median)).OrderBy(v => v).ToList();
+                        perSplit.Add(1.4826 * dev[dev.Count / 2]);
+                    }
+                    var measured = Enumerable.Range(0, data.Maps.Length).Where(m => full[m] is double w && w > -0.99 && evidence[m] >= 40).ToList();
+                    var logs = measured.Select(m => Math.Log(1 + full[m]!.Value)).ToList();
+                    double mean = logs.Average(), spread = Math.Sqrt(logs.Average(v => (v - mean) * (v - mean)));
+                    double medianEvidence = measured.Select(m => (double)evidence[m]).OrderBy(v => v).ElementAt(measured.Count / 2);
+                    double noise = perSplit.Average();
+                    Console.WriteLine(FormattableString.Invariant(
+                        $"Worth noise, quantile {q:0.##}: NoisePerScore {noise:0.000} (splits {string.Join(" ", perSplit.Select(v => v.ToString("0.000", System.Globalization.CultureInfo.InvariantCulture)))}), median map {noise / Math.Sqrt(medianEvidence):0.0000} at {medianEvidence:0} scores, worth spread {spread:0.0000} ({measured.Count} maps with 40+ scores)"));
+                }
+            }
+            finally
+            {
+                PlayerAdjustedQuantile = kept;
+            }
+        }
+
         public static double InRangeMargin { get; set; } = 0.5;
         public static int InRangeTopPlays { get; set; } = 50;
         public static int InRangeHardest { get; set; } = 5;
@@ -832,7 +892,9 @@ namespace portaBLe.Refresh
         // Fit each group's skill, item's generosity and distance bin to this quantile of their residuals (0.5: median) instead
         // of the mean (0). Low effort scores form a long tail under the fit, mostly on low star acc maps, which a quantile
         // resists; it is more stable split-half but makes the acc reweighter move maps further.
-        public static double PlayerAdjustedQuantile { get; set; } = 0;
+        // 0.75: each player's better efforts on the map, what their pp is made of. The mean also followed the low effort
+        // tail, which tilted it by note count (long maps over) though top players get no more from long maps.
+        public static double PlayerAdjustedQuantile { get; set; } = 0.75;
 
         // Each player's level for InRange and PlayerAdjusted (see above), each score at its worth item's stars (ItemStars)
         internal static double[] PlayerLevels(Data data, Evaluation e, double[]? itemStars = null)

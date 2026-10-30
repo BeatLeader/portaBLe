@@ -1,4 +1,4 @@
-using System.Text.Json;
+﻿using System.Text.Json;
 using Microsoft.EntityFrameworkCore;
 using portaBLe.DB;
 
@@ -63,8 +63,8 @@ namespace portaBLe.Refresh
         public static int HeldOutSplits { get; set; } = 3;
         // Responses: how much of its own worth change a map's multiplier must make before its response counts (in log: a map
         // moved by ResponseNoise counts half, the rest is the maps around it), and how far it may be from other maps' of its acc
-        // share (times or over)
-        public static double ResponseNoise { get; set; } = 0.02;
+        // share (times or over). 0.016: 0.02 x 0.82, as WorthLimit
+        public static double ResponseNoise { get; set; } = 0.016;
         public static double ResponseRange { get; set; } = 3;
         // Fit at each map's stars and star range without reweighting (see above)
         public static bool FitAtBaseStars { get; set; } = true;
@@ -86,8 +86,9 @@ namespace portaBLe.Refresh
         public static int FrozenStarsRounds { get; set; } = 0;
         // Worth limiter (see above): how far past average (worth 0) a change may take a map's worth, about the worth spread
         // after the reweight (0 = off), and the measure-and-cut rounds at most. A map's worth may not end above max(its
-        // unreweighted worth, +WorthLimit) nor below min(it, -WorthLimit); maps whose stars jump otherwise pass their neighbours
-        public static double WorthLimit { get; set; } = 0.03;
+        // unreweighted worth, +WorthLimit) nor below min(it, -WorthLimit); maps whose stars jump otherwise pass their neighbours.
+        // 0.025: 0.03 x 0.82, the P75 worth's spread against the mean's (BalanceTuner.PlayerAdjustedQuantile)
+        public static double WorthLimit { get; set; } = 0.025;
         public static int WorthLimitRounds { get; set; } = 8;
         // Star response: a random +-StarResponseProbe probe measures how much worth moves with the multiplier over the acc share,
         // at the base and real stars, smoothed over stars (StarResponseBandwidth). Pass 1's step is divided by the base stars'
@@ -101,9 +102,11 @@ namespace portaBLe.Refresh
         public static double StarResponseBandwidth { get; set; } = 1.0;
         // Noise dead zone: each map's gap (log) is shrunk by gap² / (gap² + (NoiseDeadZone x noise)²), noise = NoisePerScore /
         // sqrt(the scores its worth rests on), replacing the n / (n + EvidenceScores) weight: gaps within the noise barely move
-        // and large, well measured ones move almost fully. 0 = off. NoisePerScore 0.28 matches the measured per-score noise
+        // and large, well measured ones move almost fully. 0 = off. NoisePerScore 0.10: the P75 worth's measured noise per score
+        // (BalanceTuner.WorthNoise, portaBLe worthnoise: 0.102, the mean's 0.126; the mean's 0.28 before was 2.2x its measured
+        // noise and held back gaps of 4.5x the P75's)
         public static double NoiseDeadZone { get; set; } = 2;
-        public static double NoisePerScore { get; set; } = 0.28;
+        public static double NoisePerScore { get; set; } = 0.10;
         // Large gaps: a map whose gap (log, after the dead zone) is beyond LargeGapFrom may go past MaxChange's bounds, up to
         // LargeGapMaxChange's from LargeGapFull on, linearly in between; MaxChange alone held back the maps furthest off. Higher
         // values make stars jump too far. 0 = off
@@ -112,8 +115,9 @@ namespace portaBLe.Refresh
         // its own at LowStarToleranceEnd; buffs keep theirs. The acc curve top compression already lowers these maps' top
         // scores, so the full bound overnerfed them. 0 = off
         public static double LowStarMaxChange { get; set; } = 0.10;
-        public static double LargeGapFrom { get; set; } = 0.04;
-        public static double LargeGapFull { get; set; } = 0.08;
+        // 0.033 / 0.066: 0.04 / 0.08 x 0.82, as WorthLimit
+        public static double LargeGapFrom { get; set; } = 0.033;
+        public static double LargeGapFull { get; set; } = 0.066;
         // Low star tolerance: an overpaying low-star map keeps LowStarTolerance of its gap (log, after the dead zone)
         // uncorrected, up to LowStarToleranceStart stars, fading to none at LowStarToleranceEnd; underpaying maps aren't affected.
         // A nerf cuts every score of a map alike and pushed acc players' best low-star plays off their profile's first page.
@@ -551,7 +555,7 @@ namespace portaBLe.Refresh
             var result = new AccReweightResult
             {
                 GeneratedAt = DateTime.UtcNow,
-                Settings = new AccReweightSettings { WorthMeasure = BalanceTuner.WorthMeasure.ToString(), Passes = Passes, Strengths = Strengths, EvidenceScores = EvidenceScores, MinAccShare = MinAccShare, MaxChange = MaxChange, Applied = Applied, GuardTolerance = GuardTolerance, GapTolerance = GapTolerance, SlopeCorrection = SlopeCorrection, SlopeCorrectionTolerance = SlopeCorrectionTolerance, WorthLimit = WorthLimit, HeldOutSplits = HeldOutSplits, FitAtBaseStars = FitAtBaseStars, ResponseNoise = ResponseNoise, DriftCompensationRounds = DriftCompensationRounds, FrozenStarsRounds = FrozenStarsRounds, GuardMarginWarning = GuardMarginWarning, FallbackStrengths = FallbackStrengths, StarResponse = StarResponse, TargetMetric = TargetMetric, NoiseDeadZone = NoiseDeadZone, NoisePerScore = NoisePerScore, LargeGapMaxChange = LargeGapMaxChange, TopPlayMarginPp = TopPlayMarginPp, TopPlayPlayers = TopPlayPlayers, TopPlayMinScores = TopPlayMinScores, TopPlayShareRatio = TopPlayShareRatio, TopPlayShareMinScores = TopPlayShareMinScores, TopPlayShareMinTops = TopPlayShareMinTops, MinNotes = MinNotes, LowStarTolerance = LowStarTolerance, LowStarMaxChange = LowStarMaxChange, MedianCenter = MedianCenter, MinStars = MinStars, MinWorthScores = MinWorthScores, MinStarsNerfs = MinStarsNerfs, MinStarsNerfMinTopPlays = MinStarsNerfMinTopPlays, MinStarsNerfTopQuantile = MinStarsNerfTopQuantile },
+                Settings = new AccReweightSettings { WorthMeasure = BalanceTuner.WorthMeasureLabel, Passes = Passes, Strengths = Strengths, EvidenceScores = EvidenceScores, MinAccShare = MinAccShare, MaxChange = MaxChange, Applied = Applied, GuardTolerance = GuardTolerance, GapTolerance = GapTolerance, SlopeCorrection = SlopeCorrection, SlopeCorrectionTolerance = SlopeCorrectionTolerance, WorthLimit = WorthLimit, HeldOutSplits = HeldOutSplits, FitAtBaseStars = FitAtBaseStars, ResponseNoise = ResponseNoise, DriftCompensationRounds = DriftCompensationRounds, FrozenStarsRounds = FrozenStarsRounds, GuardMarginWarning = GuardMarginWarning, FallbackStrengths = FallbackStrengths, StarResponse = StarResponse, TargetMetric = TargetMetric, NoiseDeadZone = NoiseDeadZone, NoisePerScore = NoisePerScore, LargeGapMaxChange = LargeGapMaxChange, TopPlayMarginPp = TopPlayMarginPp, TopPlayPlayers = TopPlayPlayers, TopPlayMinScores = TopPlayMinScores, TopPlayShareRatio = TopPlayShareRatio, TopPlayShareMinScores = TopPlayShareMinScores, TopPlayShareMinTops = TopPlayShareMinTops, MinNotes = MinNotes, LowStarTolerance = LowStarTolerance, LowStarMaxChange = LowStarMaxChange, MedianCenter = MedianCenter, MinStars = MinStars, MinWorthScores = MinWorthScores, MinStarsNerfs = MinStarsNerfs, MinStarsNerfMinTopPlays = MinStarsNerfMinTopPlays, MinStarsNerfTopQuantile = MinStarsNerfTopQuantile },
                 MapsLimited = limited.Count(l => l),
                 MapsTopPlayLimited = topLimited.Count(l => l),
                 MapsTopPlayShareLimited = shareLimited.Count(l => l),
@@ -1551,7 +1555,7 @@ namespace portaBLe.Refresh
 
     public class AccReweightSettings
     {
-        // BalanceTuner.WorthMeasure the run used (empty: Megametric75, before it could be chosen)
+        // BalanceTuner.WorthMeasureLabel the run used (empty: Megametric75, before it could be chosen; no quantile: the mean)
         public string WorthMeasure { get; set; } = "";
         public int Passes { get; set; }
         public double[] Strengths { get; set; } = Array.Empty<double>();
