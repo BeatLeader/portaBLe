@@ -2,16 +2,6 @@
   "MainDB": -1,
   "Databases": [
     {
-      "Name": "Prod",
-      "FileName": "db-20261012191847-9271.db",
-      "Description": "Current production website (no autoreweight)"
-    },
-    {
-      "Name": "Prod Autoreweighted",
-      "FileName": "db-20261007142817-8941.db",
-      "Description": "Current production website (autoreweighted)"
-    },
-    {
       "Name": "Dev",
       "FileName": "db-20261026215343-2430.db",
       "Description": "Dev"
@@ -30,6 +20,16 @@
       "Name": "Dev Acc Autoreweighted",
       "FileName": "db-20261030224738-6540.db",
       "Description": "Dev Acc, autoreweighted on P75 (tech from rotation^1.5 + soft capped angle strain)"
+    },
+    {
+      "Name": "Dev Acc Speed Sigmoid 6",
+      "FileName": "db-20261031130308-5295.db",
+      "Description": "Dev Acc, base curve steeper at 90-95%, low star NJS nerf removed; FS/SF/BFS/BSF ratings blended toward nomod by a sigmoid on nomod stars (half the speed gain removed at 6 stars, 88% at 4, 12% at 8)"
+    },
+    {
+      "Name": "Dev Acc Speed Sigmoid 7",
+      "FileName": "db-20261031130351-5842.db",
+      "Description": "Dev Acc, base curve steeper at 90-95%, low star NJS nerf removed; FS/SF/BFS/BSF ratings blended toward nomod by a sigmoid on nomod stars (half the speed gain removed at 7 stars, 95% at 4, 27% at 8)"
     }
   ]
 }
