@@ -23,13 +23,13 @@
     },
     {
       "Name": "Dev Acc Speed Sigmoid 6",
-      "FileName": "db-20261031130308-5295.db",
-      "Description": "Dev Acc, base curve steeper at 90-95%, low star NJS nerf removed; FS/SF/BFS/BSF ratings blended toward nomod by a sigmoid on nomod stars (half the speed gain removed at 6 stars, 88% at 4, 12% at 8)"
+      "FileName": "db-20261031133255-9885.db",
+      "Description": "Dev Acc, base curve steeper at 90-95%, low star NJS nerf removed; FS/SF/BFS/BSF ratings blended toward nomod by a sigmoid on nomod stars (half the speed gain removed at 6 stars, 88% at 3.5, 12% at 8.5; width 1.25)"
     },
     {
-      "Name": "Dev Acc Speed Sigmoid 7",
-      "FileName": "db-20261031130351-5842.db",
-      "Description": "Dev Acc, base curve steeper at 90-95%, low star NJS nerf removed; FS/SF/BFS/BSF ratings blended toward nomod by a sigmoid on nomod stars (half the speed gain removed at 7 stars, 95% at 4, 27% at 8)"
+      "Name": "Dev Acc Speed Sigmoid 6 Autoreweighted",
+      "FileName": "db-20261031134248-5957.db",
+      "Description": "Dev Acc Speed Sigmoid 6 (width 1.25), autoreweighted on P75"
     }
   ]
 }
