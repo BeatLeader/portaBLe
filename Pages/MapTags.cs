@@ -1,10 +1,10 @@
-using portaBLe.DB;
+﻿using portaBLe.DB;
 using portaBLe.Refresh;
 
 namespace portaBLe.Pages
 {
     // A map's tags (LeaderboardsRefresh.DetermineTags) for the pages: its type from RatingAPI's tagging model (acc, tech,
-    // midspeed, speed) and Linear, Fitbeat, Bomb Reset and Inline from the Analyzer's counts
+    // midspeed, speed, extreme) and Linear, Fitbeat, Bomb Reset and Inline from the Analyzer's counts
     public static class MapTags
     {
         public record Tag(string Key, string Label, string Css, string Tooltip);
@@ -15,6 +15,7 @@ namespace portaBLe.Pages
             new("tech", "Tech", "map-tag-tech", "Map type (RatingAPI's tagging model on the acc, tech and pass ratings): tech"),
             new("midspeed", "Midspeed", "map-tag-midspeed", "Map type (RatingAPI's tagging model on the acc, tech and pass ratings): midspeed"),
             new("speed", "Speed", "map-tag-speed", "Map type (RatingAPI's tagging model on the acc, tech and pass ratings): speed"),
+            new("extreme", "Extreme", "map-tag-extreme", "Map type (RatingAPI's tagging model on the acc, tech and pass ratings): extreme"),
             new("linear", "Linear", "map-tag-trait", $"At least {LeaderboardsRefresh.LinearPercentThreshold:P0} of the swings are linear"),
             new("fitbeat", "Fitbeat", "map-tag-trait", "Dense dodge and crouch walls for its length"),
             new("bombreset", "Bomb Reset", "map-tag-trait", $"At least {LeaderboardsRefresh.BombResetsPerMinuteThreshold:0.#} bomb resets per minute"),
@@ -44,7 +45,7 @@ namespace portaBLe.Pages
             "fitbeat" => query.Where(l => l.IsFitbeat),
             "bombreset" => query.Where(l => l.IsBombReset),
             "inline" => query.Where(l => l.IsInline),
-            "acc" or "tech" or "midspeed" or "speed" => query.Where(l => l.MapType == key),
+            "acc" or "tech" or "midspeed" or "speed" or "extreme" => query.Where(l => l.MapType == key),
             _ => query,
         };
 

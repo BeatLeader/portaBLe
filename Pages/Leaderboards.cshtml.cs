@@ -41,7 +41,7 @@ namespace portaBLe.Pages
 
         public bool HasRange => RangeMin != null || RangeMax != null;
 
-        // Tag filter: a MapTags.All key (acc, tech, midspeed, speed, linear, fitbeat, bombreset, inline), or null for all maps
+        // Tag filter: a MapTags.All key (acc, tech, midspeed, speed, extreme, linear, fitbeat, bombreset, inline), or null for all maps
         [BindProperty(SupportsGet = true)]
         public string? Tag { get; set; }
 

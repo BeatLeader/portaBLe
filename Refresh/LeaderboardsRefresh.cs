@@ -496,7 +496,7 @@ namespace portaBLe.Refresh
                 })
                 .ToListAsync();
 
-            // The map type from RatingAPI's tagging model (acc, tech, midspeed, speed) on the ratings
+            // The map type from RatingAPI's tagging model (acc, tech, midspeed, speed, extreme) on the ratings
             var tagger = new global::RatingAPI.Controllers.InferPublish();
             foreach (var leaderboard in leaderboards)
             {

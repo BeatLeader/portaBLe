@@ -174,7 +174,7 @@ namespace portaBLe.DB
         public bool IsFitbeat { get; set; }
         public bool IsBombReset { get; set; }
         public bool IsInline { get; set; }
-        // "acc", "tech", "midspeed" or "speed" (RatingAPI InferPublish.Tag on the acc, tech and pass ratings); null = not set
+        // "acc", "tech", "midspeed", "speed" or "extreme" (RatingAPI InferPublish.Tag on the acc, tech and pass ratings); null = not set
         public string? MapType { get; set; }
         // Analyzer Statistics.Inlines. Stored by RatingsRefresh.Overwrite and RefreshMapStatistics.
         public int Inlines { get; set; }

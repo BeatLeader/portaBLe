@@ -94,5 +94,6 @@ body {
 .map-tag-tech { background: #ede4fb; color: #6a35c2; border-color: #d3c1f2; }
 .map-tag-midspeed { background: #fdf0d9; color: #a35f00; border-color: #f2d6a3; }
 .map-tag-speed { background: #fde2e1; color: #b02a37; border-color: #f3b9bd; }
+.map-tag-extreme { background: #212529; color: #ffd43b; border-color: #000; }
 .map-tag-trait { background: #f1f3f5; color: #495057; border-color: #dee2e6; }
 .map-tags { margin-top: 0.25rem; display: flex; flex-wrap: wrap; gap: 0.25rem; }
