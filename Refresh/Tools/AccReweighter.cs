@@ -158,6 +158,11 @@ namespace portaBLe.Refresh
         public static double TopPlayMarginPp { get; set; } = 10;
         public static int TopPlayPlayers { get; set; } = 1;
         public static int TopPlayMinScores { get; set; } = 30;
+        // Only the map's TopPlayTopScores best scores (unreweighted pp) count: a score far down a map's leaderboard being its
+        // player's best play says the player hasn't played harder maps, not that the map pays enough (SONG REQUEST E+ was held
+        // at x1.019 by a 94.3% that was its player's best by 14pp, under its top 8; Chrome Vox Expert's #1 and #6 still hold
+        // it). 0 = every score
+        public static int TopPlayTopScores { get; set; } = 10;
         public static int TopPlayRounds { get; set; } = 6;
         // Top play share limiter (the nerf side), for maps far more players' best play than the maps of their stars, which the
         // worth measure misses. A map's share: of its players with TopPlayShareMinScores ranked plays or more (any map may be the
@@ -555,7 +560,7 @@ namespace portaBLe.Refresh
             var result = new AccReweightResult
             {
                 GeneratedAt = DateTime.UtcNow,
-                Settings = new AccReweightSettings { WorthMeasure = BalanceTuner.WorthMeasureLabel, Passes = Passes, Strengths = Strengths, EvidenceScores = EvidenceScores, MinAccShare = MinAccShare, MaxChange = MaxChange, Applied = Applied, GuardTolerance = GuardTolerance, GapTolerance = GapTolerance, SlopeCorrection = SlopeCorrection, SlopeCorrectionTolerance = SlopeCorrectionTolerance, WorthLimit = WorthLimit, HeldOutSplits = HeldOutSplits, FitAtBaseStars = FitAtBaseStars, ResponseNoise = ResponseNoise, DriftCompensationRounds = DriftCompensationRounds, FrozenStarsRounds = FrozenStarsRounds, GuardMarginWarning = GuardMarginWarning, FallbackStrengths = FallbackStrengths, StarResponse = StarResponse, TargetMetric = TargetMetric, NoiseDeadZone = NoiseDeadZone, NoisePerScore = NoisePerScore, LargeGapMaxChange = LargeGapMaxChange, TopPlayMarginPp = TopPlayMarginPp, TopPlayPlayers = TopPlayPlayers, TopPlayMinScores = TopPlayMinScores, TopPlayShareRatio = TopPlayShareRatio, TopPlayShareMinScores = TopPlayShareMinScores, TopPlayShareMinTops = TopPlayShareMinTops, MinNotes = MinNotes, LowStarTolerance = LowStarTolerance, LowStarMaxChange = LowStarMaxChange, MedianCenter = MedianCenter, MinStars = MinStars, MinWorthScores = MinWorthScores, MinStarsNerfs = MinStarsNerfs, MinStarsNerfMinTopPlays = MinStarsNerfMinTopPlays, MinStarsNerfTopQuantile = MinStarsNerfTopQuantile },
+                Settings = new AccReweightSettings { WorthMeasure = BalanceTuner.WorthMeasureLabel, Passes = Passes, Strengths = Strengths, EvidenceScores = EvidenceScores, MinAccShare = MinAccShare, MaxChange = MaxChange, Applied = Applied, GuardTolerance = GuardTolerance, GapTolerance = GapTolerance, SlopeCorrection = SlopeCorrection, SlopeCorrectionTolerance = SlopeCorrectionTolerance, WorthLimit = WorthLimit, HeldOutSplits = HeldOutSplits, FitAtBaseStars = FitAtBaseStars, ResponseNoise = ResponseNoise, DriftCompensationRounds = DriftCompensationRounds, FrozenStarsRounds = FrozenStarsRounds, GuardMarginWarning = GuardMarginWarning, FallbackStrengths = FallbackStrengths, StarResponse = StarResponse, TargetMetric = TargetMetric, NoiseDeadZone = NoiseDeadZone, NoisePerScore = NoisePerScore, LargeGapMaxChange = LargeGapMaxChange, TopPlayMarginPp = TopPlayMarginPp, TopPlayPlayers = TopPlayPlayers, TopPlayMinScores = TopPlayMinScores, TopPlayTopScores = TopPlayTopScores, TopPlayShareRatio = TopPlayShareRatio, TopPlayShareMinScores = TopPlayShareMinScores, TopPlayShareMinTops = TopPlayShareMinTops, MinNotes = MinNotes, LowStarTolerance = LowStarTolerance, LowStarMaxChange = LowStarMaxChange, MedianCenter = MedianCenter, MinStars = MinStars, MinWorthScores = MinWorthScores, MinStarsNerfs = MinStarsNerfs, MinStarsNerfMinTopPlays = MinStarsNerfMinTopPlays, MinStarsNerfTopQuantile = MinStarsNerfTopQuantile },
                 MapsLimited = limited.Count(l => l),
                 MapsTopPlayLimited = topLimited.Count(l => l),
                 MapsTopPlayShareLimited = shareLimited.Count(l => l),
@@ -1155,6 +1160,13 @@ namespace portaBLe.Refresh
             var logM = (double[])kept.LogM.Clone();
             c.ZeroPp ??= Measure(c, new double[mapCount], false).E.Pp;
             var zeroPp = c.ZeroPp;
+            // Each map's scores that count (TopPlayTopScores best by unreweighted pp)
+            var counted = new int[mapCount][];
+            Parallel.For(0, mapCount, i =>
+            {
+                var scores = c.Loaded.Maps[i].Scores;
+                counted[i] = TopPlayTopScores > 0 ? scores.OrderByDescending(s => zeroPp[s]).Take(TopPlayTopScores).ToArray() : scores;
+            });
             for (int round = 0; ; round++)
             {
                 var measured = Measure(c, logM, false);
@@ -1185,7 +1197,7 @@ namespace portaBLe.Refresh
                 {
                     if (logM[i] <= 1e-6) return;
                     var allowed = new List<double>();
-                    foreach (var s in data.Maps[i].Scores)
+                    foreach (var s in counted[i])
                     {
                         int p = data.ScorePlayer[s];
                         if (data.PlayerScores[p].Length < TopPlayMinScores) continue;
@@ -1583,6 +1595,7 @@ namespace portaBLe.Refresh
         public double TopPlayMarginPp { get; set; }
         public int TopPlayPlayers { get; set; }
         public int TopPlayMinScores { get; set; }
+        public int TopPlayTopScores { get; set; }
         public double TopPlayShareRatio { get; set; }
         public int TopPlayShareMinScores { get; set; }
         public int TopPlayShareMinTops { get; set; }

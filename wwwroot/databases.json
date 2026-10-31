@@ -28,8 +28,8 @@
     },
     {
       "Name": "Dev Acc Speed Sigmoid 6 Autoreweighted",
-      "FileName": "db-20261031134248-5957.db",
-      "Description": "Dev Acc Speed Sigmoid 6 (width 1.25), autoreweighted on P75"
+      "FileName": "db-20261031152130-6825.db",
+      "Description": "Dev Acc Speed Sigmoid 6 (width 1.25), autoreweighted on P75; top play limiter checks only each map's top 10 scores"
     }
   ]
 }

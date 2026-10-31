@@ -34,3 +34,4 @@ maps
 /wwwroot/cache/
 /wwwroot/acc-reweight.json
 /wwwroot/pass-window-check.json
+/wwwroot/top10-limiter-gains.csv
