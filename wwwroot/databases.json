@@ -22,14 +22,24 @@
       "Description": "Dev Acc, autoreweighted on P75 (tech from rotation^1.5 + soft capped angle strain)"
     },
     {
-      "Name": "Dev Acc Pass Acc",
-      "FileName": "db-20261102185722-4834.db",
+      "Name": "Dev Acc Pass Acc v2",
+      "FileName": "db-20261102230642-4839.db",
       "Description": "Dev Acc Pass Acc"
     },
     {
-      "Name": "Dev Acc Pass Acc Autoreweighted",
-      "FileName": "db-20261102185807-6718.db",
-      "Description": "Dev Acc Pass Acc Autoreweighted"
+      "Name": "Dev Acc Pass Acc v2 Autoreweighted",
+      "FileName": "db-20261102230730-9081.db",
+      "Description": "Dev Acc Pass Acc"
+    },
+    {
+      "Name": "Dev Acc Pass Acc v2 (speed max 0.8)",
+      "FileName": "db-20261102225607-2627.db",
+      "Description": "Dev Acc Pass Acc (speed max 0.8)"
+    },
+    {
+      "Name": "Dev Acc Pass Acc v2 (speed max 0.8) Autoreweighted",
+      "FileName": "db-20261102225658-5252.db",
+      "Description": "Dev Acc Pass Acc (speed max 0.8) Autoreweighted"
     }
   ]
 }
