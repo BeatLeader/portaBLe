@@ -202,7 +202,7 @@ else
                         <th>Value</th>
                         @foreach (var band in bandNames) { <th class="text-end">pp at predicted @(band)★</th> }
                         <th class="text-end" title="pp gained per star at the predicted acc / for the top 100 players' scores">pp per star: predicted / top 100</th>
-                        <th class="text-end">700pp+ maps &lt;10★</th>
+                        <th class="text-end">700pp+ maps &lt;9★</th>
                         <th class="text-end" title="Spread of the share of 700pp+ maps between star ranges (lower = more similar)">700pp+ evenness ↓</th>
                         <th class="text-end" title="Star ranges where pp at predicted / top 100 median pp drops">Order breaks</th>
                         <th class="text-end">Worth gap: pass / tech / easy acc</th>
@@ -225,7 +225,7 @@ else
                                 <td class="text-end">@(v.HasValue ? v.Value.ToString("F0") : "–")</td>
                             }
                             <td class="text-end">@s.PpPerStarAtPredicted.ToString("F1") / @s.PpPerStarTopPlayers.ToString("F1")</td>
-                            <td class="text-end">@s.MapsUnder10Stars700</td>
+                            <td class="text-end">@s.MapsUnder9Stars700</td>
                             <td class="text-end">@s.Share700Spread.ToString("F2")</td>
                             <td class="text-end @(s.PpAtPredictedInversions + s.ProgressionInversions > 0 ? "text-danger" : "")">@s.PpAtPredictedInversions / @s.ProgressionInversions</td>
                             <td class="text-end text-nowrap">@Signed(bal.PassShareSlope, "0.00") / @Signed(bal.TechShareSlope, "0.00") / @Signed(bal.PredictedAccGap, "0.00")</td>

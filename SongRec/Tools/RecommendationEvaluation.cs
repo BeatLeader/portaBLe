@@ -63,7 +63,8 @@ public static class RecommendationEvaluation
             .Prepend((Reference, Current)).ToArray(),
         ["seeds"] = new[] { 25, 50, 75, 100 }.Select(n => ($"Seeds {n}", Current with { SeedCount = n }))
             .Prepend((Reference, Current)).ToArray(),
-        ["offset"] = new double[] { -2, -1, 1, 2 }.Select(o => ($"Offset {o:+0;-0}", Current with { LevelOffset = o }))
+        ["offset"] = new double[] { -1.7, -0.87, 0.87, 1.7 }   // -2, -1, 1, 2 on the old prod-scale stars
+            .Select(o => ($"Offset {o:+0.0#;-0.0#}", Current with { LevelOffset = o }))
             .Prepend((Reference, Current)).ToArray(),
         ["neutral"] = new double[] { 0, 1, 2, 5, 8 }.Select(k => ($"Neutral {k}", Current with { NeutralPlayers = k }))
             .Prepend((Reference, Current)).ToArray(),
@@ -139,7 +140,7 @@ public static class RecommendationEvaluation
                 }
                 var pastIds = past.Select(s => s.LeaderboardId).ToHashSet();
                 lists[Baseline] = leaderboards
-                    .Where(l => Math.Abs(l.Value.Stars - level) <= 1 && !pastIds.Contains(l.Key))
+                    .Where(l => Math.Abs(l.Value.Stars - level) <= 0.87 && !pastIds.Contains(l.Key))   // 1 on the old prod-scale stars
                     .OrderByDescending(l => l.Value.Count)
                     .ThenBy(l => l.Key, StringComparer.Ordinal)
                     .Take(SuggestionCount)

@@ -6,6 +6,87 @@ model comes from `beatsaber-replays-ai-2`.
 The goal is ratings that never need scores at rating time. Scores, replays and fail attempts are used offline, to fit and
 validate constants. The one exception is the acc reweighter (below), the only tool that changes ratings from scores.
 
+## Parity and swing directions from a model trained on replays
+
+- **The Analyzer's parity is a model** (Analyzer `BeatmapScanner/Parity/MlParityModel.cs`), trained in `beatsaber-replays-ai-2`
+  `paritymodel/` on the top 10 nomods replays of 8,142 Standard leaderboards (ranked and the Acc AI's unranked lists): the
+  players' forehand / backhand at every cut (calibrated per replay and hand, left-handed replays mirrored back), their cut
+  direction, and whether their saber reversed between two cuts. A bidirectional GRU over each hand's swings with a map
+  style vector (3 models averaged) and gradient boosted trees give per swing scores and per swing pair scores of keeping
+  the parity, decoded with Viterbi, so a hand's parity is consistent from start to end. Map data only at rating time.
+  - Test split (1,219 maps, songs never trained or tuned on), against `ParityPredictor`: swing pair errors 1,966 -> 782
+    (1,275 -> 310 where 90%+ of the players agree; half of the rest is where players split), 110 maps better / 17
+    worse; palm-up sections 90.1% -> 94.9% of the swings right; down -> dot -> down errors 397 -> 93.
+  - **Merged swings**: where the players hit two Analyzer swings with one (fast dot streams, 3,790 pairs; the Analyzer's
+    grouping is otherwise 99.5% precise / 98.5% complete), the swings are joined before swing creation (56.5% found at
+    97.3% precision) instead of being a reset.
+  - **Swing directions**: every swing takes the model's direction (Analyzer `ModelDirections`; arrows kept within their
+    cut tolerance, 0.05% clamped), 10.6 -> 5.1 degrees mean error against the players' cut directions. Single dots keep
+    their per-position arc offset.
+  - The Analyzer's default (`ParityModel.Current`; both hands are preprocessed first), with ONNX Runtime and the model
+    files embedded in the Analyzer (`parity_nn.onnx` 14 MB, `parity_trees.gzbin` 2 MB). `ParityPredictor` stays as the
+    fallback for hands too short for the model and for the training data export. 114 ms per map (a map's result is
+    reused for its speed modifier ratings).
+  - Tools in the Analyzer's Benchmark project: `paritymaps` (the model's map data, exported with `ParityPredictor`),
+    `parityml-verify` (the C# port against Python: tree inputs bit-exact, the same parity on every reference swing),
+    `paritybench`. portaBLe: `parity=dp` on `rerate` / `paritycheck` rates with the old predictor.
+- Recalibrated for the model's directions (real cut directions turn about 16 degrees between swings on a plain down / up
+  stream, find more linear swings and register some of a linear run's travel):
+  - Rotation: small turns kept with almost no weight, rotation x (1 - e^(-(rotation / 30 degrees)^3)) (16 -> 2.3, 45 ->
+    43.5, 90+ whole) (`SwingMovement`).
+  - `LINEAR_PASS_SLOPE` 0.375 -> 0.15 (worth slope by linear share +0.054 -> -0.021), `ONE_SABER_NERF` 0.474 -> 0.343.
+- Analyzer (Loloppe): angle strain without its soft cap, tech averaged over the hardest half of the swings (was 75%).
+
+## Raw ratings: no power to look like prod's
+
+- **Tech** = `BALANCED_TECH_SCALER` x swing tech x pass factor, without the power 0.8015 and the top compression above 15;
+  **acc** = `ACC_SCALE` / curve, without the power 0.8222; **stars** = pp of a 96% score / 83.6925, without
+  1.1653 x ()^1.17507. Acc and tech pp are linear in them (`PpFormula.AccRatingPower` / `TechRatingPower` removed).
+  - Scales: `ACC_SCALE` 13.5382 -> 14.8727 and `AccWeight` 21.584 -> 34.519 (the same median acc rating and acc pp),
+    `BALANCED_TECH_SCALER` 27.08 -> 43.948 and `TechWeight` 0.0979 -> 0.13657 (the same tech pp), then
+    `BALANCED_TECH_SCALER` 10 with `TechWeight` 0.587 (balance tuner: tech share slope 0).
+  - Star thresholds converted, new = (old / 1.1653)^(1 / 1.17507) (7 stars -> 4.6, 4 -> 2.86); widths by the local
+    slope: curve power ramps, the mid star top bonus, the speed blend (midpoint 6 -> 4.03, width 1.25 -> 0.72), the acc
+    reweighter's low star bounds and bandwidths, the balance tuner's worth kernel, in-range margin and distance bins, song
+    recommendation windows. Low star bonus refit on the new stars: 0.01948 x (5.504 - stars)^1.98. The balance tuner and
+    leaderboard refresh use half-star bands.
+  - Multipliers on the acc rating move pp by themselves now, not to the power 1.2163: the hard swing correction (slope
+    0.02 -> 0.0243, cap 0.12 -> 0.148) and the acc reweighter's bounds (`MaxChange` 0.11 -> 0.1322, `LargeGapMaxChange`
+    0.16 -> 0.1911, `LowStarMaxChange` 0.10 -> 0.1203) keep their pp. Score modifiers multiply the raw ratings (a +4%
+    modifier: +4% acc / tech pp instead of +4.9%).
+  - `TechTopKnee` 9 -> 9.7 on the linear tech at the 43.948 scale (median about 9.4, p99 about 39), 2.207 at the 10 scale
+    (the same maps compressed): tech share slope -0.010 at 8, +0.0085 at 11.1, +0.037 without the compression (43.948
+    scale).
+- Rerated Dev Acc copy (not uploaded), with the parity model, its directions and the Analyzer
+  changes above: balance tuner worth spread 0.03153 (tech slope +0.0015, pass +0.0047, OneSaber +0.0001), against
+  0.03137 with the parity model and the Analyzer's old directions. Pass unchanged (median 4.54), acc median 8.73.
+- **`StarDivisor` 83.6925 -> 54**: stars about prod's numbers again (7 prod stars -> 7.1 instead of 4.6). Every star
+  threshold above x 83.6925 / 54 = 1.54986: curve power ramps (very low 3.35-5.17, low 6.89-9.33), the mid star top bonus
+  (6.25-7.13-7.99-9.24), the speed blend (midpoint 6.25, width 1.108), the acc reweighter's low star bounds (4.43-5.35,
+  `MinStars` 4.43) and bandwidths (0.867), the balance tuner's worth kernel (0.217), in-range margin and distance bins
+  (0.433), the worth rank neighbourhood (0.433), song recommendation windows. Low star bonus 0.008181 x (8.5304 -
+  stars)^1.98 (the same bonus). The balance tuner and leaderboard refresh are back to 1-star bands (13+); the tuner's
+  700pp+ count is under 9 stars.
+
+## Tech top compression from the 89th percentile, no very high pass buff
+
+- `TechTopKnee` 2.207 -> 4.5 and `TechWeight` 0.587 -> 0.47: the knee sat at the median tech, so half the maps were
+  compressed and the highest tech ones underpaid (P75 worth, top 10% of tech -0.6 to -0.8%, players ranked ~10000 -1.6 to
+  -2.7%). Now -0.4 to +0.5% (top 100 about 0), the 75-90th percentile +0.8%, under the median -0.5%; worth RMS 0.0308 ->
+  0.0312. Knee 3.5 left the top under, 6 overpaid it.
+- `HIGH_PASS_BUFF` 0.001 -> 0 (off): pass 13.5+ maps about +0.6% -> +0.2% over others of their stars.
+- Tried with `reacc` on copies of the 83.69-star rerate (`StarDivisor` 83.6925). The balance tuner then suggested
+  `TechWeight` 0.361 (tech share slope +0.016 -> 0, worth spread 0.03191 -> 0.03190); a real `reacc` with it left the top
+  3% of tech -1.0 to -1.5% and 700pp+ scores 620 -> 491, so 0.47 stays.
+- Uploaded (rerated with `StarDivisor` 54): "Dev Acc ML Parity" db-20261102035049-4276.db and "Dev Acc ML Parity
+  Autoreweighted" db-20261102035820-7858.db (acc reweighter worth spread 0.0319 -> 0.0218).
+
+## Low star speed blend again, from an 80% to a 20% nerf
+
+- `RatingsController.BlendLowStarSpeeds` back (reverting `adc76fb`), with the share of a speed modifier's difference from
+  nomod kept going from 20% on the lowest maps to 80% on the hardest (was 0% to 100%): `LowStarSpeedMinShare` 0.2 +
+  0.6 x the sigmoid (midpoint and width on the new stars, above).
+
 ## Tech from rotation^1.5 and a soft capped angle strain
 
 - **Swing tech = soft capped angle strain + 4.649 × rotation^1.5** (Analyzer `AngleStrain` `STRAIN_SOFT_CAP` 1.5,

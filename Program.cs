@@ -247,6 +247,17 @@ namespace portaBLe
         private static string ReplaysRepo(IWebHostEnvironment env) =>
             Path.GetFullPath(Path.Combine(env.ContentRootPath, "..", "beatsaber-replays-ai-2"));
 
+        // Setting of rerate / paritycheck: parity=dp rates with the Analyzer's old ParityPredictor instead of its parity model
+        // (MlParityModel, the default since 2026-11), to compare
+        static bool ParitySetting(string name, string value)
+        {
+            if (name != "parity") return false;
+            Analyzer.BeatmapScanner.Algorithm.ParityModel.Current = value == "ml" ? new Analyzer.BeatmapScanner.Parity.MlParityModel()
+                : value == "dp" ? null : throw new ArgumentException($"parity={value}: ml or dp");
+            Console.WriteLine($"Parity: {(value == "ml" ? "MlParityModel" : "ParityPredictor")}");
+            return true;
+        }
+
         public static async Task Main(string[] args)
         {
             Stopwatch = Stopwatch.StartNew();
@@ -300,6 +311,7 @@ namespace portaBLe
                 foreach (var setting in args.Skip(2))
                 {
                     var parts = setting.Split('=');
+                    if (ParitySetting(parts[0], parts[1])) continue;
                     double value = double.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
                     if (parts[0].StartsWith("Pp.")) (typeof(RatingAPI.Pp.PpFormula).GetProperty(parts[0][3..]) ?? throw new ArgumentException(parts[0])).SetValue(RatingAPI.Pp.PpFormula.Current, value);
                     else Analyzer.BeatmapScanner.Algorithm.ParityPredictor.Set(parts[0], value);
@@ -313,13 +325,15 @@ namespace portaBLe
             }
             // dotnet run -c Release -- paritycheck <wwwroot/file.db> [setting=value ...]: ParityCheck.Run against
             // beatsaber-replays-ai-2/parity2 with those ParityPredictor settings (ParityPredictor.Set: flow.Extra=3,
-            // ResetMapRate=0.15...). Read only; writes wwwroot/parity-check.json and parity-swings.json.gz
+            // ResetMapRate=0.15..., with parity=dp) or parity=dp alone (ParitySetting). Read only; writes wwwroot/parity-check.json
+            // and parity-swings.json.gz
             if (args.Length > 1 && args[0] == "paritycheck")
             {
                 var inv = System.Globalization.CultureInfo.InvariantCulture;
                 foreach (var setting in args.Skip(2))
                 {
                     var parts = setting.Split('=');
+                    if (ParitySetting(parts[0], parts[1])) continue;
                     Analyzer.BeatmapScanner.Algorithm.ParityPredictor.Set(parts[0], double.Parse(parts[1], inv));
                 }
                 var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};Mode=ReadOnly;").Options;
@@ -638,7 +652,7 @@ namespace portaBLe
                     // (only pp formula changes, RatingAPI/Pp/PpFormula.cs: skip Overwrite)
                     // Run FullPipeline to do all of the above in one pass (about 3.5 minutes in Release and 8-15GB of RAM). autoreweight:
                     // the acc reweighter and its re-score; balancer: the balance tuner and the model comparison.
-                    // await FullPipeline(dbContext, env.WebRootPath, true, true, true);
+                    // await FullPipeline(dbContext, env.WebRootPath, false, false, false);
 
                     // Rate every leaderboard again with RatingAPI (Analyzer + Acc AI). Keeps the acc reweighter's multipliers;
                     // Overwrite(dbContext, false) for raw acc ratings (multipliers cleared)
@@ -661,7 +675,7 @@ namespace portaBLe
                     // await CurvesRefresh.RefreshNoteCounts(dbContext);
 
                     // Scores, players, leaderboards (Megametric), stars, outliers and stats from the current ratings
-                    // await RefreshEverything(dbContext);
+                    //await RefreshEverything(dbContext);
 
                     // ---- Balance tools (Refresh/Tools, read only) ---------------------------------------------------------
                     // Suggested pass / tech / acc constants so no kind of map is worth more than others of its stars

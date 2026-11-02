@@ -47,7 +47,7 @@ public sealed record RecommendationOptions
     /// The offset's range: 3 stars either way, about twice the spread of the maps that enter players' top 50
     /// around their level (middle half 1.5 stars wide), so from clearly easier to clearly harder than usual.
     /// </summary>
-    public const double MinLevelOffset = -3, MaxLevelOffset = 3;
+    public const double MinLevelOffset = -2.6, MaxLevelOffset = 2.6;   // (was -3 and 3 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
 
     /// <summary>
     /// The level the suggestions aim at, in stars, chosen by the player (the page's level slider, 0 to the hardest
@@ -132,14 +132,14 @@ public sealed class RecommendationPipeline
     }
 
     /// <summary>The lowest level the suggestions aim at, whatever the offset: about the easiest ranked maps.</summary>
-    public const double MinTargetStars = 1;
+    public const double MinTargetStars = 1.36;   // (was 1 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
 
     /// <summary>
     /// Suggestions are maps within this many stars of the aimed level (when any candidate is). About 80% of the maps
     /// that enter players' top 50 are within it of their level; it's what makes
     /// <see cref="RecommendationOptions.LevelOffset"/> move the suggestions.
     /// </summary>
-    public const double StarWindow = 1.5;
+    public const double StarWindow = 1.3;   // (was 1.5 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
 
     /// <summary>
     /// Below this many ranked plays the level and the suggestions are rough: with fewer, suggestions are no better

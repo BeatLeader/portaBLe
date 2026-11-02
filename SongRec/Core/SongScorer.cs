@@ -41,7 +41,7 @@ public sealed class SongScorer : ISongScorer
     /// of its range (1 star under / above it): the logistic 1 / (1 + e^(stars above level / scale)).
     /// About the spread of the maps that enter players' top 50 around their level.
     /// </summary>
-    private const double EasierScaleStars = 1d;
+    private const double EasierScaleStars = 0.87;   // (was 1 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
 
     /// <summary>Compressed multiplicative range for the Style and Easier factors.</summary>
     private const double FactorRangeMin = 0.5d;

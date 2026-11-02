@@ -37,14 +37,16 @@ namespace portaBLe.Refresh
 
         public static int Passes { get; set; } = 3;
         // Fractions of the direction tried in each pass. About 1.3 closes a map's gap in one pass (worth moves ~0.6x the map's
-        // pp, pp ~1.2x acc share x the multiplier); 1.6 and 2.0 keep pass 1 off the edge of the range
+        // pp, pp ~ acc share x the multiplier); 1.6 and 2.0 keep pass 1 off the edge of the range
         public static double[] Strengths { get; set; } = { 0.1, 0.2, 0.35, 0.5, 0.7, 1.0, 1.3, 1.6, 2.0 };
         public static double EvidenceScores { get; set; } = 40;
         // How many of a pass's candidate strengths are measured at once (each re-scores every score in memory: ~150 MB)
         public static int CandidateParallelism { get; set; } = 4;
         public static double MinAccShare { get; set; } = 0.3;
-        // Bounds: Applied x +-log(1 / (1 - MaxChange)), the same distance both ways in log (x0.922-x1.085 with Applied 0.7)
-        public static double MaxChange { get; set; } = 0.11;
+        // Bounds: Applied x +-log(1 / (1 - MaxChange)), the same distance both ways in log (x0.906-x1.103 with Applied 0.7).
+        // The bounds below are 1 - (1 - old)^1.2163 of what they were when acc pp followed the acc rating to the power 1.2163
+        // (0.11, 0.16, 0.10): the same pp each way, now that acc pp is linear in the rating.
+        public static double MaxChange { get; set; } = 0.1322;
         // Fraction of each map's gap to its target the fit closes (in log; 1 = all). The full fit was too strong for players.
         // It is part of the targets, not a scaling of the result afterwards: the passes are fitted together (later ones undo the
         // first's drift), so a fraction of the finished fit drifts the balance more than the whole
@@ -99,7 +101,7 @@ namespace portaBLe.Refresh
         // target of maps whose kind is worth more or less than average
         public static bool TargetMetric { get; set; } = true;
         public static double StarResponseProbe { get; set; } = 0.03;
-        public static double StarResponseBandwidth { get; set; } = 1.0;
+        public static double StarResponseBandwidth { get; set; } = 0.8665;   // (was 1.0 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
         // Noise dead zone: each map's gap (log) is shrunk by gap² / (gap² + (NoiseDeadZone x noise)²), noise = NoisePerScore /
         // sqrt(the scores its worth rests on), replacing the n / (n + EvidenceScores) weight: gaps within the noise barely move
         // and large, well measured ones move almost fully. 0 = off. NoisePerScore 0.10: the P75 worth's measured noise per score
@@ -110,11 +112,11 @@ namespace portaBLe.Refresh
         // Large gaps: a map whose gap (log, after the dead zone) is beyond LargeGapFrom may go past MaxChange's bounds, up to
         // LargeGapMaxChange's from LargeGapFull on, linearly in between; MaxChange alone held back the maps furthest off. Higher
         // values make stars jump too far. 0 = off
-        public static double LargeGapMaxChange { get; set; } = 0.16;
+        public static double LargeGapMaxChange { get; set; } = 0.1911;
         // Low-star nerfs: a nerfed map's bound is LowStarMaxChange's instead, up to LowStarToleranceStart stars, fading back to
         // its own at LowStarToleranceEnd; buffs keep theirs. The acc curve top compression already lowers these maps' top
         // scores, so the full bound overnerfed them. 0 = off
-        public static double LowStarMaxChange { get; set; } = 0.10;
+        public static double LowStarMaxChange { get; set; } = 0.1203;
         // 0.033 / 0.066: 0.04 / 0.08 x 0.82, as WorthLimit
         public static double LargeGapFrom { get; set; } = 0.033;
         public static double LargeGapFull { get; set; } = 0.066;
@@ -123,8 +125,9 @@ namespace portaBLe.Refresh
         // A nerf cuts every score of a map alike and pushed acc players' best low-star plays off their profile's first page.
         // 0 = off
         public static double LowStarTolerance { get; set; } = 0.13;
-        public static double LowStarToleranceStart { get; set; } = 4;
-        public static double LowStarToleranceEnd { get; set; } = 5;
+        // (was 4 and 5 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
+        public static double LowStarToleranceStart { get; set; } = 4.427;
+        public static double LowStarToleranceEnd { get; set; } = 5.3529;
         // Each star range's median multiplier is 1, not its mean (log): the asymmetric parts (low star tolerance, bounds,
         // limiters' cuts) shift the mean, and removing it would move every map of the range. The worth limiter centers the same
         // way; the star response probe keeps the mean (a +-probe's median is one of the two)
@@ -136,7 +139,7 @@ namespace portaBLe.Refresh
         // Maps under MinStars stars (without reweighting) keep x1 too: the acc curve (CurveSettings.Table's 99%+ rows,
         // LowStarBonus) already sets what they pay, and the worth measure overnerfs acc players' best low-star plays. Their
         // scores still count. 0 = off
-        public static double MinStars { get; set; } = 4;
+        public static double MinStars { get; set; } = 4.427;   // (was 4 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
         // Maps whose start worth rests on fewer in-range scores (BalanceTuner.WorthEvidence) keep x1 too: their gap is all
         // noise (NoiseDeadZone leaves them nothing to correct), so only the slope terms and centering moved them, and a map at
         // the worth measure's minimum (MinScoresPerMap) loses its worth once its stars or its players' levels move. Their
@@ -174,7 +177,7 @@ namespace portaBLe.Refresh
         public static int TopPlayShareMinScores { get; set; } = 75;
         public static int TopPlayShareMinTops { get; set; } = 10;
         public static int TopPlayShareMinPlayers { get; set; } = 30;
-        public static double TopPlayShareBandwidth { get; set; } = 1;
+        public static double TopPlayShareBandwidth { get; set; } = 0.8665;   // (was 1 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
         public static double TopPlayShareFloor { get; set; } = 0.005;
         public static double TopPlayShareProbe { get; set; } = 0.03;
 
@@ -633,8 +636,8 @@ namespace portaBLe.Refresh
             }
             double bound = Applied * -Math.Log(1 - LowStarMaxChange);
             // Each round: re-score with the current multipliers, then each candidate's step from its pp response so far
-            // (log pp per log multiplier; 1.1 to start, about acc pp's share x AccRatingPower on these maps)
-            var response = candidates.ToDictionary(i => i, i => 1.1);
+            // (log pp per log multiplier; 0.9 to start, about acc pp's share on these maps)
+            var response = candidates.ToDictionary(i => i, i => 0.9);
             var kth = (double[])kth0.Clone();
             for (int round = 0; round < MinStarsNerfRounds && candidates.Count > 0; round++)
             {

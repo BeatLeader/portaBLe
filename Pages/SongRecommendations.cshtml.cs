@@ -43,7 +43,7 @@ namespace portaBLe.Pages
         public double? TargetLevel { get; set; }
 
         /// <summary>The level slider's top: the stars of the hardest ranked map.</summary>
-        public double MaxStars { get; private set; } = 15;
+        public double MaxStars { get; private set; } = 14;
 
         /// <summary>How much maps under the level are favored over the ones above it, 0 to 100 (the Easier maps slider).</summary>
         [BindProperty]

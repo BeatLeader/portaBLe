@@ -22,14 +22,14 @@
       "Description": "Dev Acc, autoreweighted on P75 (tech from rotation^1.5 + soft capped angle strain)"
     },
     {
-      "Name": "Dev Acc Speed Sigmoid 6",
-      "FileName": "db-20261031133255-9885.db",
-      "Description": "Dev Acc, base curve steeper at 90-95%, low star NJS nerf removed; FS/SF/BFS/BSF ratings blended toward nomod by a sigmoid on nomod stars (half the speed gain removed at 6 stars, 88% at 3.5, 12% at 8.5; width 1.25)"
+      "Name": "Dev Acc ML Parity",
+      "FileName": "db-20261102035049-4276.db",
+      "Description": "Dev Acc rerated: parity, merged swings and swing directions from the model trained on top players' replays; raw linear ratings, stars = pp at 96% / 54 (about prod's numbers); tech top compression from tech 4.5 (TechWeight 0.47), no very high pass buff; speed blend 80% -> 20% nerf. Not autoreweighted"
     },
     {
-      "Name": "Dev Acc Speed Sigmoid 6 Autoreweighted",
-      "FileName": "db-20261031152130-6825.db",
-      "Description": "Dev Acc Speed Sigmoid 6 (width 1.25), autoreweighted on P75; top play limiter checks only each map's top 10 scores"
+      "Name": "Dev Acc ML Parity Autoreweighted",
+      "FileName": "db-20261102035820-7858.db",
+      "Description": "Dev Acc rerated: parity, merged swings and swing directions from the model trained on top players' replays; raw linear ratings, stars = pp at 96% / 54 (about prod's numbers); tech top compression from tech 4.5 (TechWeight 0.47), no very high pass buff; speed blend 80% -> 20% nerf, autoreweighted on P75"
     }
   ]
 }

@@ -10,21 +10,21 @@ namespace portaBLe.Refresh
     // - PassCalibration (AnalyzeMap.PASS_CALIBRATION_FACTOR): pass rating is proportional to it.
     // - OneSaberNerf (AnalyzeMap.ONE_SABER_NERF): pass *= 1 - (1 - handsRatio) * nerf. handsRatio isn't stored, so only
     //   OneSaber maps (handsRatio 0) are transformed, although one-handed Standard maps are affected too in reality.
-    // - TechScaler (AnalyzeMap.BALANCED_TECH_SCALER): tech = swing tech * (1 - 1.4^-pass) * scaler, so tech follows the new
-    //   pass rating. Not tuned; records what the database was rated with.
-    // - TechWeight (PpFormula.TechWeight): scales tech pp like TechScaler^TechRatingPower would, without changing the tech
-    //   ratings, so this is the tech constant the tuner moves.
-    // - AccScale and AccOffset (AccRating.ACC_SCALE / ACC_OFFSET): acc rating = AccScale x Curve(effective acc +
-    //   AccOffset)^-ACC_EXPONENT (effective acc: AccRating.EffectiveAcc).
+    // - TechScaler (AnalyzeMap.BALANCED_TECH_SCALER): tech = swing tech * Ratings.TechPassFactor(pass) * scaler, so tech
+    //   follows the new pass rating. Not tuned; records what the database was rated with.
+    // - TechWeight (PpFormula.TechWeight): scales tech pp like TechScaler would, without changing the tech ratings, so this is
+    //   the tech constant the tuner moves.
+    // - AccScale and AccOffset (AccRating.ACC_SCALE / ACC_OFFSET): acc rating = AccScale / Curve(effective acc + AccOffset)
+    //   (effective acc: AccRating.EffectiveAcc).
     // The stored acc ratings include the acc reweighter's multipliers (Leaderboard.AccReweight).
     public class RatingConstants
     {
         public double PassCalibration { get; set; } = 0.7115;
-        public double OneSaberNerf { get; set; } = 0.474;
-        public double TechScaler { get; set; } = 14.707;
+        public double OneSaberNerf { get; set; } = 0.343;
+        public double TechScaler { get; set; } = 10;
         // Follows the PpFormula default, since the tuner re-scores with the formula in code
         public double TechWeight { get; set; } = new PpFormula().TechWeight;
-        public double AccScale { get; set; } = 13.5382;
+        public double AccScale { get; set; } = 14.8727;
         public double AccOffset { get; set; } = 0.0019;
 
         public RatingConstants Clone() => (RatingConstants)MemberwiseClone();
@@ -58,11 +58,16 @@ namespace portaBLe.Refresh
 
         private const int MinScoresPerMap = 20;     // maps with fewer scores are left out of the per-map metrics
         private const int MegametricMinPlays = 75;  // as LeaderboardsRefresh's Megametric75
-        private const int StarBandCount = 14;       // 0-1 ... 12-13, 13+
+        // 1-star bands, 0-1 ... 12-13, 13+ (half-star bands up to 8.5+ on StarDivisor 83.6925, where a star was about 1.55
+        // of one now)
+        private const double StarBandWidth = 1;
+        private const int StarBandCount = 14;
         private const int MinOneSaberMaps = 10;
 
-        public static string StarBandName(int band) => band >= StarBandCount - 1 ? $"{StarBandCount - 1}+" : $"{band}-{band + 1}";
-        internal static int StarBandOf(float stars) => Math.Clamp((int)MathF.Floor(stars), 0, StarBandCount - 1);
+        public static string StarBandName(int band) => band >= StarBandCount - 1
+            ? FormattableString.Invariant($"{(StarBandCount - 1) * StarBandWidth}+")
+            : FormattableString.Invariant($"{band * StarBandWidth}-{(band + 1) * StarBandWidth}");
+        internal static int StarBandOf(float stars) => Math.Clamp((int)MathF.Floor(stars / (float)StarBandWidth), 0, StarBandCount - 1);
         // Worth is measured per map and speed modifier ("item" = map * WorthSpeeds.Length + speed), each at its own stars.
         // A score's speed is its first speed modifier, as in ReplayUtils.PpFromScore; -1 for NF, which no worth counts.
         internal static readonly string[] WorthSpeeds = { "none", "SS", "FS", "SF" };
@@ -342,7 +347,8 @@ namespace portaBLe.Refresh
                 Name = nameof(PpFormula.TechTopKnee),
                 Explanation = "Tech where the tech pp top compression starts. Lower = more maps compressed.",
                 Get = f => f.TechTopKnee, Set = (f, v) => f.TechTopKnee = v,
-                Values = new[] { 10.0, 11, 12, 13, 14 },
+                // On the linear tech rating with BALANCED_TECH_SCALER 10 (median about 2.1, p99 about 8.9)
+                Values = new[] { 1.8, 2.207, 2.5, 3.4, 4.5, 6.8, 9.1, 1000 },
             },
             new FormulaKnob
             {
@@ -590,26 +596,24 @@ namespace portaBLe.Refresh
                 newPass *= (1 - to.OneSaberNerf) / Math.Max(1e-6, 1 - from.OneSaberNerf);
             }
 
-            // tech = scaler x (swing tech x pass factor)^TechExponent (Analyzer AnalyzeMap)
+            // tech = scaler x swing tech x pass factor (Analyzer AnalyzeMap)
             double newTech = tech;
             double oldFactor = global::beatleader_analyzer.BeatmapScanner.Data.Ratings.TechPassFactor(pass);
             double newFactor = global::beatleader_analyzer.BeatmapScanner.Data.Ratings.TechPassFactor(newPass);
             if (oldFactor > 1e-6)
             {
-                newTech = tech * (to.TechScaler / from.TechScaler)
-                    * Math.Pow(newFactor / oldFactor, global::beatleader_analyzer.BeatmapScanner.Data.Ratings.TechExponent);
+                newTech = tech * (to.TechScaler / from.TechScaler) * (newFactor / oldFactor);
             }
 
             double newAcc = accRating;
             if (predictedAcc > 0)
             {
                 // Same as AccRating.GetRating, with its corrections (the high pass one follows the new pass)
-                double exponent = global::RatingAPI.Controllers.AccRating.ACC_EXPONENT;
                 double oldEffective = global::RatingAPI.Controllers.AccRating.EffectiveAcc(predictedAcc, pass, hitDistance, nomodPass?.Old);
                 double newEffective = global::RatingAPI.Controllers.AccRating.EffectiveAcc(predictedAcc, newPass, hitDistance, nomodPass?.New);
-                double oldBase = from.AccScale * Math.Pow(global::RatingAPI.Controllers.AccRating.Curve(predictedAcc, oldEffective + from.AccOffset), -exponent)
+                double oldBase = from.AccScale / global::RatingAPI.Controllers.AccRating.Curve(predictedAcc, oldEffective + from.AccOffset)
                     * global::RatingAPI.Controllers.AccRating.HardSwingMultiplier(pass, hardSwingRatio);
-                double newBase = to.AccScale * Math.Pow(global::RatingAPI.Controllers.AccRating.Curve(predictedAcc, newEffective + to.AccOffset), -exponent)
+                double newBase = to.AccScale / global::RatingAPI.Controllers.AccRating.Curve(predictedAcc, newEffective + to.AccOffset)
                     * global::RatingAPI.Controllers.AccRating.HardSwingMultiplier(newPass, hardSwingRatio);
                 if (oldBase > 0 && double.IsFinite(newBase)) newAcc = accRating * newBase / oldBase;
             }
@@ -872,7 +876,7 @@ namespace portaBLe.Refresh
             }
         }
 
-        public static double InRangeMargin { get; set; } = 0.5;
+        public static double InRangeMargin { get; set; } = 0.4332;   // (was 0.5 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
         public static int InRangeTopPlays { get; set; } = 50;
         public static int InRangeHardest { get; set; } = 5;
         // How far under the player's level a map still counts (stars). Unbounded: a bound hides the high paying scores on
@@ -883,7 +887,7 @@ namespace portaBLe.Refresh
         // PlayerAdjustedDistanceBin stars, 0 to +bin the reference), so a map's generosity doesn't depend on how far under
         // its players it is. Off: skill + generosity only.
         public static bool PlayerAdjustedDistanceTerm { get; set; } = true;
-        public static double PlayerAdjustedDistanceBin { get; set; } = 0.5;
+        public static double PlayerAdjustedDistanceBin { get; set; } = 0.4332;   // (was 0.5 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
         public static int PlayerAdjustedPeriodDays { get; set; } = 182;
         private const int PlayerAdjustedMinPlayerScores = 30;   // in-range scores of a player
         private const int PlayerAdjustedMinPeriodScores = 10;   // in-range scores of a player in a half year
@@ -1230,7 +1234,7 @@ namespace portaBLe.Refresh
 
         // Gaussian kernel width (stars) of WorthReference: narrow enough to follow bends in the value curve, wide enough
         // that a map's position inside its star range doesn't matter.
-        public static double WorthBandwidth { get; set; } = 0.25;
+        public static double WorthBandwidth { get; set; } = 0.2167;   // (was 0.25 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
 
         // The value a map's worth is measured against: what maps of its stars average, as a local linear fit of value on
         // stars (Gaussian kernel of WorthBandwidth; points: every map with a worth). A smooth reference rather than per-range
@@ -1430,9 +1434,10 @@ namespace portaBLe.Refresh
             double shareMean = shares.Count > 0 ? shares.Average() : 0;
             return new BalanceSummary
             {
-                PpPerStarAtPredicted = RegressionSlope(withMaps.Select(x => (double)x.Index).ToList(), withMaps.Select(x => x.Band.PpAtPredicted).ToList()),
-                PpPerStarTopPlayers = RegressionSlope(withPlayers.Select(x => (double)x.Index).ToList(), withPlayers.Select(x => x.Band.TopPlayersMedianPp).ToList()),
-                MapsUnder10Stars700 = bands.Take(10).Sum(x => x.Maps700),
+                PpPerStarAtPredicted = RegressionSlope(withMaps.Select(x => x.Index * StarBandWidth).ToList(), withMaps.Select(x => x.Band.PpAtPredicted).ToList()),
+                PpPerStarTopPlayers = RegressionSlope(withPlayers.Select(x => x.Index * StarBandWidth).ToList(), withPlayers.Select(x => x.Band.TopPlayersMedianPp).ToList()),
+                // Under 9 stars (9.6 on the old prod-scale stars, which this counted under 10 of)
+                MapsUnder9Stars700 = bands.Take((int)(9 / StarBandWidth)).Sum(x => x.Maps700),
                 Share700Spread = shares.Count > 1 && shareMean > 0 ? Math.Sqrt(shares.Average(v => (v - shareMean) * (v - shareMean))) / shareMean : 0,
                 Top1Pp = At(0),
                 Top10Pp = At(9),
@@ -1533,7 +1538,7 @@ namespace portaBLe.Refresh
         public double PpPerStarTopPlayers { get; set; }
         // Maps under 10 stars whose best score is worth 700pp+, and how different the share of 700pp+ maps is between star
         // ranges with 30+ maps (coefficient of variation, lower = more similar)
-        public int MapsUnder10Stars700 { get; set; }
+        public int MapsUnder9Stars700 { get; set; }
         public double Share700Spread { get; set; }
     }
 
