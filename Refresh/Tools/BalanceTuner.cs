@@ -566,7 +566,7 @@ namespace portaBLe.Refresh
                         SSCurve = mod.SSCurve, FSCurve = mod.FSCurve, SFCurve = mod.SFCurve,
                     };
                 }
-                float stars = ReplayUtils.ToStars(copy.AccRating, copy.PassRating, copy.TechRating, copy.Curve);
+                float stars = ReplayUtils.ToStars(copy.AccRating, copy.PassRating, copy.TechRating, copy.Curve, copy.PredictedAcc);
                 maps[i] = new MapInfo { Leaderboard = copy, Stars = stars, StarBand = StarBandOf(stars), Scores = original.Scores };
             });
 
@@ -646,7 +646,7 @@ namespace portaBLe.Refresh
             Parallel.For(0, data.Maps.Length, m =>
             {
                 var lb = data.Maps[m].Leaderboard;
-                prepared[m * speedCount] = global::RatingAPI.Pp.PpCalculator.Prepare(new global::RatingAPI.Pp.MapRatings(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve));
+                prepared[m * speedCount] = global::RatingAPI.Pp.PpCalculator.Prepare(new global::RatingAPI.Pp.MapRatings(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve, lb.PredictedAcc));
                 if (lb.ModifiersRating == null) return;
                 for (int k = 1; k < speedCount; k++)
                 {
@@ -779,7 +779,7 @@ namespace portaBLe.Refresh
             Parallel.ForEach(data.Maps, m =>
             {
                 var lb = m.Leaderboard;
-                m.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve);
+                m.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve, lb.PredictedAcc);
                 m.StarBand = StarBandOf(m.Stars);
             });
             var e = Evaluate(data);
@@ -797,7 +797,7 @@ namespace portaBLe.Refresh
             Parallel.ForEach(data.Maps, m =>
             {
                 var lb = m.Leaderboard;
-                m.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve);
+                m.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve, lb.PredictedAcc);
                 m.StarBand = StarBandOf(m.Stars);
             });
             var e = Evaluate(data);
@@ -829,7 +829,7 @@ namespace portaBLe.Refresh
             Parallel.ForEach(data.Maps, m =>
             {
                 var lb = m.Leaderboard;
-                m.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve);
+                m.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve, lb.PredictedAcc);
                 m.StarBand = StarBandOf(m.Stars);
             });
             var e = Evaluate(data);
@@ -876,7 +876,7 @@ namespace portaBLe.Refresh
             }
         }
 
-        public static double InRangeMargin { get; set; } = 0.4812;   // (was 0.5 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
+        public static double InRangeMargin { get; set; } = 0.4233;   // (was 0.5 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
         public static int InRangeTopPlays { get; set; } = 50;
         public static int InRangeHardest { get; set; } = 5;
         // How far under the player's level a map still counts (stars). Unbounded: a bound hides the high paying scores on
@@ -887,7 +887,7 @@ namespace portaBLe.Refresh
         // PlayerAdjustedDistanceBin stars, 0 to +bin the reference), so a map's generosity doesn't depend on how far under
         // its players it is. Off: skill + generosity only.
         public static bool PlayerAdjustedDistanceTerm { get; set; } = true;
-        public static double PlayerAdjustedDistanceBin { get; set; } = 0.4812;   // (was 0.5 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
+        public static double PlayerAdjustedDistanceBin { get; set; } = 0.4233;   // (was 0.5 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
         public static int PlayerAdjustedPeriodDays { get; set; } = 182;
         private const int PlayerAdjustedMinPlayerScores = 30;   // in-range scores of a player
         private const int PlayerAdjustedMinPeriodScores = 10;   // in-range scores of a player in a half year
@@ -1234,7 +1234,7 @@ namespace portaBLe.Refresh
 
         // Gaussian kernel width (stars) of WorthReference: narrow enough to follow bends in the value curve, wide enough
         // that a map's position inside its star range doesn't matter.
-        public static double WorthBandwidth { get; set; } = 0.2408;   // (was 0.25 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
+        public static double WorthBandwidth { get; set; } = 0.2118;   // (was 0.25 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
 
         // The value a map's worth is measured against: what maps of its stars average, as a local linear fit of value on
         // stars (Gaussian kernel of WorthBandwidth; points: every map with a worth). A smooth reference rather than per-range
@@ -1269,7 +1269,7 @@ namespace portaBLe.Refresh
             {
                 var lb = (kinds ?? data).Maps[m].Leaderboard;
                 if (lb.PredictedAcc <= 0 || lb.PredictedAcc >= 1) return;
-                var (_, _, passPp, accPp, techPp) = ReplayUtils.PpFromScore(lb.PredictedAcc, "", null, lb.AccRating, lb.PassRating, lb.TechRating);
+                var (_, _, passPp, accPp, techPp) = ReplayUtils.PpFromScore(lb.PredictedAcc, "", null, lb.AccRating, lb.PassRating, lb.TechRating, null, lb.PredictedAcc);
                 double total = passPp + accPp + techPp;
                 if (total <= 0) return;
                 passShare[m] = passPp / total;
@@ -1388,7 +1388,7 @@ namespace portaBLe.Refresh
                 var atPredicted = maps
                     .Select(m => data.Maps[m].Leaderboard)
                     .Where(lb => lb.PredictedAcc > 0 && lb.PredictedAcc < 1)
-                    .Select(lb => (double)ReplayUtils.PpFromScore(lb.PredictedAcc, "", null, lb.AccRating, lb.PassRating, lb.TechRating).Item1)
+                    .Select(lb => (double)ReplayUtils.PpFromScore(lb.PredictedAcc, "", null, lb.AccRating, lb.PassRating, lb.TechRating, null, lb.PredictedAcc).Item1)
                     .ToList();
                 var best = maps.Where(m => data.Maps[m].Scores.Length > 0).Select(m => (double)data.Maps[m].Scores.Max(s => e.Pp[s])).ToList();
                 bands.Add(new BandPoint

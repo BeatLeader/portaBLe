@@ -36,6 +36,7 @@ namespace portaBLe.Refresh
                         lb.AccRating,
                         lb.PassRating,
                         lb.TechRating,
+                        lb.PredictedAcc,
                         lb.Curve,
                         lb.ModifiersRating,
                         Scores = lb.Scores.Select(s => new { s.Id, s.Accuracy, s.Modifiers }).ToList()
@@ -59,7 +60,8 @@ namespace portaBLe.Refresh
                                 leaderboard.AccRating,
                                 leaderboard.PassRating,
                                 leaderboard.TechRating,
-                                leaderboard.Curve);
+                                leaderboard.Curve,
+                                leaderboard.PredictedAcc);
 
                             if (float.IsNaN(pp))
                             {

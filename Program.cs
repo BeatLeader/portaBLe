@@ -353,7 +353,7 @@ namespace portaBLe
                 var lb = await ppContext.Leaderboards.Include(l => l.ModifiersRating).FirstAsync(l => l.Id == args[2]);
                 float accuracy = args.Length > 3 ? float.Parse(args[3], System.Globalization.CultureInfo.InvariantCulture) : 1f;
                 string modifiers = args.Length > 4 ? args[4] : "";
-                var (pp, bonus, pass, acc, tech) = ReplayUtils.PpFromScore(accuracy, modifiers, lb.ModifiersRating, lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve);
+                var (pp, bonus, pass, acc, tech) = ReplayUtils.PpFromScore(accuracy, modifiers, lb.ModifiersRating, lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve, lb.PredictedAcc);
                 Console.WriteLine(FormattableString.Invariant($"{lb.Name} {lb.DifficultyName} ({lb.Stars:0.00} stars) at {accuracy * 100:0.##}% {modifiers}: {pp:0.0}pp (pass {pass:0.0}, acc {acc:0.0}, tech {tech:0.0}, modifiers {bonus:+0.0;-0.0})"));
                 return;
             }

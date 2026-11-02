@@ -216,7 +216,7 @@ namespace portaBLe.Pages
             var points = new List<double[]>(accuracies.Count);
             foreach (var acc in accuracies)
             {
-                var (pp, _, passPp, accPp, techPp) = ReplayUtils.PpFromScore((float)(acc / 100), "", null, lb.AccRating, lb.PassRating, lb.TechRating, curve);
+                var (pp, _, passPp, accPp, techPp) = ReplayUtils.PpFromScore((float)(acc / 100), "", null, lb.AccRating, lb.PassRating, lb.TechRating, curve, lb.PredictedAcc);
                 double Finite(float v) => float.IsFinite(v) ? Math.Round(v, 2) : 0;
                 points.Add(parts
                     ? new[] { Math.Round(acc, 2), Finite(pp), Finite(passPp), Finite(accPp), Finite(techPp) }

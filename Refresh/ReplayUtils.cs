@@ -29,13 +29,14 @@ namespace portaBLe.Refresh
         public static float Reweighted(float accRating, double multiplier) => (float)(accRating * multiplier);
 
         // What a 96% score is worth on the star scale (PpCalculator.ToStars). curve: the leaderboard's (null: the base curve).
-        public static float ToStars(float accRating, float passRating, float techRating, IReadOnlyList<Vector2>? curve = null) =>
-            PpCalculator.ToStars(accRating, passRating, techRating, curve);
+        // predictedAcc: the leaderboard's (PpFormula's acc relative pass pp; 0: off)
+        public static float ToStars(float accRating, float passRating, float techRating, IReadOnlyList<Vector2>? curve = null, float predictedAcc = 0) =>
+            PpCalculator.ToStars(accRating, passRating, techRating, curve, predictedAcc);
 
         // Stars of a leaderboard and of its SS / FS / SF ratings, each with its own curve
         public static void SetStars(Leaderboard lb)
         {
-            lb.Stars = ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve);
+            lb.Stars = PpCalculator.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve, lb.PredictedAcc);
             var mod = lb.ModifiersRating;
             if (mod == null) return;
             mod.SSStars = PpCalculator.ToStars(SpeedRatings(mod, "SS", lb.Curve)!.Value);
@@ -50,9 +51,9 @@ namespace portaBLe.Refresh
             var used = own != null && own.Count >= 2 ? own : curve;
             return modifier switch
             {
-                "SS" => new MapRatings(mod.SSAccRating, mod.SSPassRating, mod.SSTechRating, used),
-                "FS" => new MapRatings(mod.FSAccRating, mod.FSPassRating, mod.FSTechRating, used),
-                "SF" => new MapRatings(mod.SFAccRating, mod.SFPassRating, mod.SFTechRating, used),
+                "SS" => new MapRatings(mod.SSAccRating, mod.SSPassRating, mod.SSTechRating, used, mod.SSPredictedAcc),
+                "FS" => new MapRatings(mod.FSAccRating, mod.FSPassRating, mod.FSTechRating, used, mod.FSPredictedAcc),
+                "SF" => new MapRatings(mod.SFAccRating, mod.SFPassRating, mod.SFTechRating, used, mod.SFPredictedAcc),
                 _ => null
             };
         }
@@ -65,7 +66,8 @@ namespace portaBLe.Refresh
             float accRating,
             float passRating,
             float techRating,
-            IReadOnlyList<Vector2>? curve = null)   // the leaderboard's acc curve (null: the base curve)
+            IReadOnlyList<Vector2>? curve = null,   // the leaderboard's acc curve (null: the base curve)
+            float predictedAcc = 0)                 // the leaderboard's predicted acc (PpFormula's acc relative pass / tech pp)
         {
             MapRatings? speedRatings = null;
             // Only scores with modifiers can use the modifier ratings: the first speed modifier
@@ -76,7 +78,7 @@ namespace portaBLe.Refresh
                     if (speedRatings != null) break;
                 }
             }
-            return PpCalculator.ScorePp(accuracy, modifiers, new MapRatings(accRating, passRating, techRating, curve), speedRatings, modifiersRating != null);
+            return PpCalculator.ScorePp(accuracy, modifiers, new MapRatings(accRating, passRating, techRating, curve, predictedAcc), speedRatings, modifiersRating != null);
         }
 
         public static int MaxScoreForNote(int count) {
