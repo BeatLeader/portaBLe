@@ -22,14 +22,9 @@
       "Description": "Dev Acc, autoreweighted on P75 (tech from rotation^1.5 + soft capped angle strain)"
     },
     {
-      "Name": "Dev Acc ML Parity",
-      "FileName": "db-20261102035049-4276.db",
-      "Description": "Dev Acc rerated: parity, merged swings and swing directions from the model trained on top players' replays; raw linear ratings, stars = pp at 96% / 54 (about prod's numbers); tech top compression from tech 4.5 (TechWeight 0.47), no very high pass buff; speed blend 80% -> 20% nerf. Not autoreweighted"
-    },
-    {
-      "Name": "Dev Acc ML Parity Autoreweighted",
-      "FileName": "db-20261102035820-7858.db",
-      "Description": "Dev Acc rerated: parity, merged swings and swing directions from the model trained on top players' replays; raw linear ratings, stars = pp at 96% / 54 (about prod's numbers); tech top compression from tech 4.5 (TechWeight 0.47), no very high pass buff; speed blend 80% -> 20% nerf, autoreweighted on P75"
+      "Name": "Dev Acc Tech Powers",
+      "FileName": "db-20261102163537-9744.db",
+      "Description": "Dev Acc ML Parity rerated: swing tech = angle strain^1.25 + 6.475 x rotation^1.5 (half each), top map's tech and stars on Dev Acc's (BALANCED_TECH_SCALER 6.2457, StarDivisor 48.61), pass calibration 0.6917, tech pp TechWeight 0.2677 x1.2 above tech 6.28; speed blend middle 5.4 stars with a faster rise above it (15% kept on the lowest maps, 50% at 5.4, 80% at 7, 85% from 10). Not autoreweighted"
     }
   ]
 }

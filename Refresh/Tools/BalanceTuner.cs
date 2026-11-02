@@ -19,9 +19,9 @@ namespace portaBLe.Refresh
     // The stored acc ratings include the acc reweighter's multipliers (Leaderboard.AccReweight).
     public class RatingConstants
     {
-        public double PassCalibration { get; set; } = 0.7115;
+        public double PassCalibration { get; set; } = 0.6917;
         public double OneSaberNerf { get; set; } = 0.343;
-        public double TechScaler { get; set; } = 10;
+        public double TechScaler { get; set; } = 6.2457;
         // Follows the PpFormula default, since the tuner re-scores with the formula in code
         public double TechWeight { get; set; } = new PpFormula().TechWeight;
         public double AccScale { get; set; } = 14.8727;
@@ -876,7 +876,7 @@ namespace portaBLe.Refresh
             }
         }
 
-        public static double InRangeMargin { get; set; } = 0.4332;   // (was 0.5 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
+        public static double InRangeMargin { get; set; } = 0.4812;   // (was 0.5 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
         public static int InRangeTopPlays { get; set; } = 50;
         public static int InRangeHardest { get; set; } = 5;
         // How far under the player's level a map still counts (stars). Unbounded: a bound hides the high paying scores on
@@ -887,7 +887,7 @@ namespace portaBLe.Refresh
         // PlayerAdjustedDistanceBin stars, 0 to +bin the reference), so a map's generosity doesn't depend on how far under
         // its players it is. Off: skill + generosity only.
         public static bool PlayerAdjustedDistanceTerm { get; set; } = true;
-        public static double PlayerAdjustedDistanceBin { get; set; } = 0.4332;   // (was 0.5 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
+        public static double PlayerAdjustedDistanceBin { get; set; } = 0.4812;   // (was 0.5 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
         public static int PlayerAdjustedPeriodDays { get; set; } = 182;
         private const int PlayerAdjustedMinPlayerScores = 30;   // in-range scores of a player
         private const int PlayerAdjustedMinPeriodScores = 10;   // in-range scores of a player in a half year
@@ -1234,7 +1234,7 @@ namespace portaBLe.Refresh
 
         // Gaussian kernel width (stars) of WorthReference: narrow enough to follow bends in the value curve, wide enough
         // that a map's position inside its star range doesn't matter.
-        public static double WorthBandwidth { get; set; } = 0.2167;   // (was 0.25 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
+        public static double WorthBandwidth { get; set; } = 0.2408;   // (was 0.25 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
 
         // The value a map's worth is measured against: what maps of its stars average, as a local linear fit of value on
         // stars (Gaussian kernel of WorthBandwidth; points: every map with a worth). A smooth reference rather than per-range

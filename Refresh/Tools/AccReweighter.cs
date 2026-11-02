@@ -101,7 +101,7 @@ namespace portaBLe.Refresh
         // target of maps whose kind is worth more or less than average
         public static bool TargetMetric { get; set; } = true;
         public static double StarResponseProbe { get; set; } = 0.03;
-        public static double StarResponseBandwidth { get; set; } = 0.8665;   // (was 1.0 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
+        public static double StarResponseBandwidth { get; set; } = 0.9626;   // (was 1.0 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
         // Noise dead zone: each map's gap (log) is shrunk by gap² / (gap² + (NoiseDeadZone x noise)²), noise = NoisePerScore /
         // sqrt(the scores its worth rests on), replacing the n / (n + EvidenceScores) weight: gaps within the noise barely move
         // and large, well measured ones move almost fully. 0 = off. NoisePerScore 0.10: the P75 worth's measured noise per score
@@ -126,8 +126,8 @@ namespace portaBLe.Refresh
         // 0 = off
         public static double LowStarTolerance { get; set; } = 0.13;
         // (was 4 and 5 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
-        public static double LowStarToleranceStart { get; set; } = 4.427;
-        public static double LowStarToleranceEnd { get; set; } = 5.3529;
+        public static double LowStarToleranceStart { get; set; } = 4.9178;
+        public static double LowStarToleranceEnd { get; set; } = 5.9464;
         // Each star range's median multiplier is 1, not its mean (log): the asymmetric parts (low star tolerance, bounds,
         // limiters' cuts) shift the mean, and removing it would move every map of the range. The worth limiter centers the same
         // way; the star response probe keeps the mean (a +-probe's median is one of the two)
@@ -139,7 +139,7 @@ namespace portaBLe.Refresh
         // Maps under MinStars stars (without reweighting) keep x1 too: the acc curve (CurveSettings.Table's 99%+ rows,
         // LowStarBonus) already sets what they pay, and the worth measure overnerfs acc players' best low-star plays. Their
         // scores still count. 0 = off
-        public static double MinStars { get; set; } = 4.427;   // (was 4 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
+        public static double MinStars { get; set; } = 4.9178;   // (was 4 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
         // Maps whose start worth rests on fewer in-range scores (BalanceTuner.WorthEvidence) keep x1 too: their gap is all
         // noise (NoiseDeadZone leaves them nothing to correct), so only the slope terms and centering moved them, and a map at
         // the worth measure's minimum (MinScoresPerMap) loses its worth once its stars or its players' levels move. Their
@@ -177,7 +177,7 @@ namespace portaBLe.Refresh
         public static int TopPlayShareMinScores { get; set; } = 75;
         public static int TopPlayShareMinTops { get; set; } = 10;
         public static int TopPlayShareMinPlayers { get; set; } = 30;
-        public static double TopPlayShareBandwidth { get; set; } = 0.8665;   // (was 1 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
+        public static double TopPlayShareBandwidth { get; set; } = 0.9626;   // (was 1 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
         public static double TopPlayShareFloor { get; set; } = 0.005;
         public static double TopPlayShareProbe { get; set; } = 0.03;
 
