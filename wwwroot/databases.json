@@ -2,24 +2,24 @@
   "MainDB": -1,
   "Databases": [
     {
-      "Name": "Dev",
+      "Name": "Old Prod",
+      "FileName": "db-20261012191847-9271.db",
+      "Description": "Dev"
+    },
+    {
+      "Name": "Old Prod Autoreweighted",
+      "FileName": "db-20261007142817-8941.db",
+      "Description": "Dev (autoreweighted)"
+    },
+    {
+      "Name": "New Prod",
       "FileName": "db-20261026215343-2430.db",
       "Description": "Dev"
     },
     {
-      "Name": "Dev Autoreweighted",
+      "Name": "New Prod Autoreweighted",
       "FileName": "db-20261026215428-2462.db",
       "Description": "Dev (autoreweighted)"
-    },
-    {
-      "Name": "Dev Acc",
-      "FileName": "db-20261030224654-3714.db",
-      "Description": "Dev Acc: new parity, P75 worth, tech from rotation^1.5 + soft capped angle strain"
-    },
-    {
-      "Name": "Dev Acc Autoreweighted",
-      "FileName": "db-20261030224738-6540.db",
-      "Description": "Dev Acc, autoreweighted on P75 (tech from rotation^1.5 + soft capped angle strain)"
     },
     {
       "Name": "Dev Acc Pass Acc v2",
