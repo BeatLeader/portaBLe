@@ -22,24 +22,24 @@
       "Description": "Dev (autoreweighted)"
     },
     {
-      "Name": "Dev Acc Pass Acc v2",
-      "FileName": "db-20261102235927-7174.db",
-      "Description": "Dev Acc Pass Acc"
+      "Name": "Dev Acc",
+      "FileName": "db-20261103145500-9382.db",
+      "Description": "Dev Acc"
     },
     {
-      "Name": "Dev Acc Pass Acc v2 Autoreweighted",
-      "FileName": "db-20261103001302-9454.db",
-      "Description": "Dev Acc Pass Acc"
+      "Name": "Dev Acc Autoreweighted",
+      "FileName": "db-20261103145548-6737.db",
+      "Description": "Dev Acc Autoreweighted"
     },
     {
-      "Name": "Dev Acc Pass Acc v2 (speed max 0.8)",
-      "FileName": "db-20261103000252-9269.db",
-      "Description": "Dev Acc Pass Acc (speed max 0.8)"
+      "Name": "Dev Acc Mid Star Top Bonus v3",
+      "FileName": "db-20261103145229-6265.db",
+      "Description": "Mid star top bonus x1.05 on 4 -> 6 ... 9 -> 11.5 stars (from predicted acc - 3%, fading 600-700pp), PpMultiplier 1.0128"
     },
     {
-      "Name": "Dev Acc Pass Acc v2 (speed max 0.8) Autoreweighted",
-      "FileName": "db-20261103001343-3798.db",
-      "Description": "Dev Acc Pass Acc (speed max 0.8) Autoreweighted"
+      "Name": "Dev Acc Mid Star Top Bonus v3 Autoreweighted",
+      "FileName": "db-20261103145314-2265.db",
+      "Description": "Dev Acc Mid Star Top Bonus v3 Autoreweighted"
     }
   ]
 }

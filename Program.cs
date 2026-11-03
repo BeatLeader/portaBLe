@@ -551,7 +551,7 @@ namespace portaBLe
             }
             // dotnet run -c Release -- accreweight [Setting=value ...] [rescore] [file.db]: the acc reweighter alone on
             // wwwroot/Database.db (or file.db), with any acc reweighter or balance tuner setting (e.g. NoiseDeadZone=1,
-            // PlayerAdjustedQuantile=0.5); rescore: RefreshEverything after it
+            // PlayerAdjustedQuantile=0.5) or pp formula one (Pp.MidStarTopBonus=0); rescore: RefreshEverything after it
             if (args.Length > 0 && args[0] == "accreweight")
             {
                 bool rescore = args.Contains("rescore");
@@ -559,6 +559,14 @@ namespace portaBLe
                 foreach (var setting in args.Skip(1).Where(a => a != "rescore" && a != file))
                 {
                     var parts = setting.Split('=', 2);
+                    // A pp formula setting (Pp.MidStarTopBonus=0), as rerate's: scores re-scored in memory and by rescore use it
+                    if (parts[0].StartsWith("Pp."))
+                    {
+                        (typeof(RatingAPI.Pp.PpFormula).GetProperty(parts[0][3..]) ?? throw new ArgumentException($"No PpFormula setting {parts[0]}"))
+                            .SetValue(RatingAPI.Pp.PpFormula.Current, double.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture));
+                        Console.WriteLine($"Acc reweight: {parts[0]} = {parts[1]}");
+                        continue;
+                    }
                     // An acc reweighter setting, or a balance tuner one (the worth measure, e.g. PlayerAdjustedQuantile=0.5)
                     var property = typeof(AccReweighter).GetProperty(parts[0]) ?? typeof(BalanceTuner).GetProperty(parts[0])
                         ?? throw new ArgumentException($"No acc reweighter or balance tuner setting {parts[0]}");
