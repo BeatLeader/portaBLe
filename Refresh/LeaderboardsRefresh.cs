@@ -393,7 +393,7 @@ namespace portaBLe.Refresh
         public const int WorthRankMinScores = 5;
         private const int WorthRankMinPlays = 75;   // as Megametric75
         private const int WorthRankMinNeighbours = 5;   // other maps with a value within WorthRankNeighbourStars stars
-        private const double WorthRankNeighbourStars = 0.4233;   // (was 0.5 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
+        private const double WorthRankNeighbourStars = 0.4498;   // (was 0.5 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
 
         // Recomputes Leaderboard.WorthRank20 ... WorthRank10000 alone (Refresh runs it too)
         public static async Task RefreshWorthByRank(AppContext dbContext)

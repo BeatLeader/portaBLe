@@ -923,7 +923,7 @@ namespace portaBLe.Refresh
             }
         }
 
-        public static double InRangeMargin { get; set; } = 0.4233;   // (was 0.5 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
+        public static double InRangeMargin { get; set; } = 0.4498;   // (was 0.5 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
         public static int InRangeTopPlays { get; set; } = 50;
         public static int InRangeHardest { get; set; } = 5;
         // How far under the player's level a map still counts (stars). Unbounded: a bound hides the high paying scores on
@@ -934,7 +934,7 @@ namespace portaBLe.Refresh
         // PlayerAdjustedDistanceBin stars, 0 to +bin the reference), so a map's generosity doesn't depend on how far under
         // its players it is. Off: skill + generosity only.
         public static bool PlayerAdjustedDistanceTerm { get; set; } = true;
-        public static double PlayerAdjustedDistanceBin { get; set; } = 0.4233;   // (was 0.5 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
+        public static double PlayerAdjustedDistanceBin { get; set; } = 0.4498;   // (was 0.5 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
         public static int PlayerAdjustedPeriodDays { get; set; } = 182;
         private const int PlayerAdjustedMinPlayerScores = 30;   // in-range scores of a player
         private const int PlayerAdjustedMinPeriodScores = 10;   // in-range scores of a player in a half year
@@ -1296,7 +1296,7 @@ namespace portaBLe.Refresh
 
         // Gaussian kernel width (stars) of WorthReference: narrow enough to follow bends in the value curve, wide enough
         // that a map's position inside its star range doesn't matter.
-        public static double WorthBandwidth { get; set; } = 0.2118;   // (was 0.25 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
+        public static double WorthBandwidth { get; set; } = 0.2251;   // (was 0.25 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
 
         // The value a map's worth is measured against: what maps of its stars average, as a local linear fit of value on
         // stars (Gaussian kernel of WorthBandwidth; points: every map with a worth). A smooth reference rather than per-range

@@ -6,6 +6,17 @@ model comes from `beatsaber-replays-ai-2`.
 The goal is ratings that never need scores at rating time. Scores, replays and fail attempts are used offline, to fit and
 validate constants. The one exception is the acc reweighter (below), the only tool that changes ratings from scores.
 
+## Acc reweighter: low star maps reweighted too
+
+- **`AccReweighter.MinStars` removed** (was 4.326: maps under it kept ×1), and with it the low-star top play nerfs
+  (`MinStarsNerfs`), which only ran on those maps. Low star maps now go through the worth fit like the others;
+  `LowStarTolerance` and `LowStarMaxChange` still soften their nerfs up to 4.33-5.23 stars.
+  - Impact (Dev Acc Mid Star Top Bonus v3, against its autoreweighted DB): under 4.33 stars the multipliers' sd
+    0.4-0.9% -> ~2% (3-4 stars mean +0.75%, x0.93-x1.12; Crying for Rain Easy, worth +21%, x0.999 -> x0.929). Above, 7+
+    stars move by 0.36% sd (the largest buffs a little smaller), 9.5+ +0.05% on average. Plays over 600 / 650 / 700 /
+    750pp 31,731 / 6,701 / 814 / 68 -> 31,781 / 6,728 / 813 / 67 (+6 over 700pp under 4.33 stars). Players with 5+ low
+    star plays in their top 100: ranks 1001-10000's pp curves smoother for 66% of them, the others' about the same.
+
 ## Parity and swing directions from a model trained on replays
 
 - **The Analyzer's parity is a model** (Analyzer `BeatmapScanner/Parity/MlParityModel.cs`), trained in `beatsaber-replays-ai-2`
@@ -178,7 +189,7 @@ or pp formula setting, then re-score), then together. The low star corrections w
 ## Acc reweighter: maps with a thin worth kept at ×1
 
 - **`AccReweighter.MinWorthScores` 40**: maps whose worth before the reweight rests on fewer in-range scores
-  (`BalanceTuner.WorthEvidence`) keep ×1, like those under `MinNotes` / `MinStars`. Their scores still count.
+  (`BalanceTuner.WorthEvidence`) keep ×1, like those under `MinNotes` (and `MinStars`, since removed). Their scores still count.
   - Why: the noise dead zone already shrinks their own gap to almost nothing, so they were moved only by the slope
     correction terms and the star range centering. A map just over the worth measure's 20 score minimum also loses its
     worth once its stars or its players' levels move, so the Leaderboards page showed a multiplier on a map without a

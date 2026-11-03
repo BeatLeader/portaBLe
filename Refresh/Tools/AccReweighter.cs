@@ -28,7 +28,7 @@ namespace portaBLe.Refresh
     // share limiter (TopPlayShareRatio). The point stored must pass the guard at the real stars, else lower strengths are
     // tried (FallbackStrengths), else nothing changes.
     //
-    // Maps without a worth (too few scores), under MinWorthScores, MinStars or MinNotes keep x1; each star range's median map is x1.
+    // Maps without a worth (too few scores), under MinWorthScores or MinNotes keep x1; each star range's median map is x1.
     // Stored in Leaderboards.AccReweight (0 or 1 = none) and applied by RatingsRefresh, so it survives re-rating; each run
     // starts again from the ratings without it. Re-score afterwards (Program.RefreshEverything). Writes acc-reweight.json.
     public static class AccReweighter
@@ -101,7 +101,7 @@ namespace portaBLe.Refresh
         // target of maps whose kind is worth more or less than average
         public static bool TargetMetric { get; set; } = true;
         public static double StarResponseProbe { get; set; } = 0.03;
-        public static double StarResponseBandwidth { get; set; } = 0.8468;   // (was 1.0 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
+        public static double StarResponseBandwidth { get; set; } = 0.8999;   // (was 1.0 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
         // Noise dead zone: each map's gap (log) is shrunk by gap² / (gap² + (NoiseDeadZone x noise)²), noise = NoisePerScore /
         // sqrt(the scores its worth rests on), replacing the n / (n + EvidenceScores) weight: gaps within the noise barely move
         // and large, well measured ones move almost fully. 0 = off. NoisePerScore 0.10: the P75 worth's measured noise per score
@@ -126,8 +126,8 @@ namespace portaBLe.Refresh
         // 0 = off
         public static double LowStarTolerance { get; set; } = 0.13;
         // (was 4 and 5 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
-        public static double LowStarToleranceStart { get; set; } = 4.326;
-        public static double LowStarToleranceEnd { get; set; } = 5.2308;
+        public static double LowStarToleranceStart { get; set; } = 4.5972;
+        public static double LowStarToleranceEnd { get; set; } = 5.5587;
         // Each star range's median multiplier is 1, not its mean (log): the asymmetric parts (low star tolerance, bounds,
         // limiters' cuts) shift the mean, and removing it would move every map of the range. The worth limiter centers the same
         // way; the star response probe keeps the mean (a +-probe's median is one of the two)
@@ -136,24 +136,11 @@ namespace portaBLe.Refresh
         // can't reach the steep top of their curve (CurveSettings.LowNoteStart), not because of their acc rating, so a buff
         // only raises what a 100% pays. Their scores still count in every player's worth and the balance. 0 = off
         public static int MinNotes { get; set; } = 115;
-        // Maps under MinStars stars (without reweighting) keep x1 too: the acc curve (CurveSettings.Table's 99%+ rows,
-        // LowStarBonus) already sets what they pay, and the worth measure overnerfs acc players' best low-star plays. Their
-        // scores still count. 0 = off
-        public static double MinStars { get; set; } = 4.326;   // (was 4 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
         // Maps whose start worth rests on fewer in-range scores (BalanceTuner.WorthEvidence) keep x1 too: their gap is all
         // noise (NoiseDeadZone leaves them nothing to correct), so only the slope terms and centering moved them, and a map at
         // the worth measure's minimum (MinScoresPerMap) loses its worth once its stars or its players' levels move. Their
         // scores still count. 0 = off
         public static int MinWorthScores { get; set; } = 40;
-        // Low-star top play nerfs: maps under MinStars (kept at 1 in the fit) are nerfed after it until their
-        // MinStarsNerfMinTopPlays-th best play is no more than the MinStarsNerfTopQuantile quantile of the best plays of the
-        // maps within TopPlayShareBandwidth stars (unreweighted), at most LowStarMaxChange's bound; never buffed. From their top
-        // plays, not the worth measure, which is off for most low-star maps: only the few farm maps whose top plays stand out
-        // move (e.g. let you Easy). Not in the fit, so their star range's median stays 1. false = off
-        public static bool MinStarsNerfs { get; set; } = true;
-        public static int MinStarsNerfMinTopPlays { get; set; } = 2;
-        public static double MinStarsNerfTopQuantile { get; set; } = 0.9;
-        public static int MinStarsNerfRounds { get; set; } = 6;
         // Top play limiter: a buffed map's score may pay at most TopPlayMarginPp more than the higher of its unreweighted pp and
         // the player's best play on another map (players with TopPlayMinScores scores or more); the buff is cut until fewer than
         // TopPlayPlayers players are past that. Only what the buff adds is limited: many maps are far over their players' second
@@ -177,7 +164,7 @@ namespace portaBLe.Refresh
         public static int TopPlayShareMinScores { get; set; } = 75;
         public static int TopPlayShareMinTops { get; set; } = 10;
         public static int TopPlayShareMinPlayers { get; set; } = 30;
-        public static double TopPlayShareBandwidth { get; set; } = 0.8468;   // (was 1 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
+        public static double TopPlayShareBandwidth { get; set; } = 0.8999;   // (was 1 on the old prod-scale stars, 1.1653 x (pp / 83.6925)^1.17507)
         public static double TopPlayShareFloor { get; set; } = 0.005;
         public static double TopPlayShareProbe { get; set; } = 0.03;
 
@@ -207,7 +194,7 @@ namespace portaBLe.Refresh
             public double?[] StartWorth = Array.Empty<double?>();
             // 1: the map has a worth and is moved (not pinned)
             public double[] HasWorth = Array.Empty<double>();
-            // Under MinNotes, MinStars or MinWorthScores: kept at 1
+            // Under MinNotes or MinWorthScores: kept at 1
             public bool[] Pinned = Array.Empty<bool>();
             public BalanceStats StartBalance = new();
             // The slope correction's terms (pass, tech, predicted acc) and the Jacobian of the slopes on them at the start
@@ -291,13 +278,11 @@ namespace portaBLe.Refresh
             context.StartWorth = startMeasure.Worth;
             context.StartBalance = startMeasure.Balance;
             var lowNotes = loaded.Maps.Select(m => m.Leaderboard.NoteCount > 0 && m.Leaderboard.NoteCount < MinNotes).ToArray();
-            var lowStars = context.Unweighted.Maps.Select(m => m.Stars < MinStars).ToArray();
             var startEvidence = BalanceTuner.WorthEvidence(startMeasure.Data, startMeasure.E);
             var lowEvidence = context.StartWorth.Select((w, i) => MinWorthScores > 0 && w != null && startEvidence[i] < MinWorthScores).ToArray();
-            context.Pinned = lowNotes.Select((p, i) => p || lowStars[i] || lowEvidence[i]).ToArray();
+            context.Pinned = lowNotes.Select((p, i) => p || lowEvidence[i]).ToArray();
             context.HasWorth = context.StartWorth.Select((w, i) => w != null && !context.Pinned[i] ? 1.0 : 0.0).ToArray();
             if (MinNotes > 0) Console.WriteLine($"Acc reweight: {lowNotes.Count(p => p)} maps under {MinNotes} notes kept at 1");
-            if (MinStars > 0) Console.WriteLine(FormattableString.Invariant($"Acc reweight: {lowStars.Count(p => p)} maps under {MinStars:0.##} stars kept at 1"));
             if (MinWorthScores > 0) Console.WriteLine($"Acc reweight: {lowEvidence.Count(p => p)} maps with a worth from under {MinWorthScores} scores kept at 1");
             context.U = SlopeTerms(context);
             if (SlopeCorrection) context.Jacobian = MeasureJacobian(context, null, context.StartBalance, FitAtBaseStars, "start");
@@ -504,24 +489,8 @@ namespace portaBLe.Refresh
                     $"Acc reweight: WARNING: close to failing the balance guard ({string.Join(", ", close.Select(m => FormattableString.Invariant($"{m.Name} {m.Margin:0.0000} of {m.Tolerance:0.0000}")))}): a small change to the balance may reject or weaken the reweight"));
             }
 
-            // Applied is part of the fit (the targets), so the kept point is stored as is, with the low-star nerfs (MinStarsNerfs)
+            // Applied is part of the fit (the targets), so the kept point is stored as is
             var applied = kept;
-            var lowStarNerfed = new bool[mapCount];
-            if (MinStarsNerfs && MinStars > 0)
-            {
-                var lowStarLogM = LowStarNerfs(context, lowStars, lowNotes);
-                if (lowStarLogM.Any(v => v != 0))
-                {
-                    var logM = (double[])kept.LogM.Clone();
-                    for (int i = 0; i < mapCount; i++)
-                    {
-                        if (lowStarLogM[i] == 0) continue;
-                        logM[i] = lowStarLogM[i];
-                        lowStarNerfed[i] = true;
-                    }
-                    applied = new Point { Split = kept.Split, Pass = kept.Pass, Strength = kept.Strength, SlopeCorrection = kept.SlopeCorrection, LogM = logM, Balance = kept.Balance, GuardOk = kept.GuardOk, HeldOutSpread = kept.HeldOutSpread };
-                }
-            }
             double fraction = applied != start ? Applied : 0;
 
             // Store the multipliers and the reweighted acc ratings and stars
@@ -563,7 +532,7 @@ namespace portaBLe.Refresh
             var result = new AccReweightResult
             {
                 GeneratedAt = DateTime.UtcNow,
-                Settings = new AccReweightSettings { WorthMeasure = BalanceTuner.WorthMeasureLabel, Passes = Passes, Strengths = Strengths, EvidenceScores = EvidenceScores, MinAccShare = MinAccShare, MaxChange = MaxChange, Applied = Applied, GuardTolerance = GuardTolerance, GapTolerance = GapTolerance, SlopeCorrection = SlopeCorrection, SlopeCorrectionTolerance = SlopeCorrectionTolerance, WorthLimit = WorthLimit, HeldOutSplits = HeldOutSplits, FitAtBaseStars = FitAtBaseStars, ResponseNoise = ResponseNoise, DriftCompensationRounds = DriftCompensationRounds, FrozenStarsRounds = FrozenStarsRounds, GuardMarginWarning = GuardMarginWarning, FallbackStrengths = FallbackStrengths, StarResponse = StarResponse, TargetMetric = TargetMetric, NoiseDeadZone = NoiseDeadZone, NoisePerScore = NoisePerScore, LargeGapMaxChange = LargeGapMaxChange, TopPlayMarginPp = TopPlayMarginPp, TopPlayPlayers = TopPlayPlayers, TopPlayMinScores = TopPlayMinScores, TopPlayTopScores = TopPlayTopScores, TopPlayShareRatio = TopPlayShareRatio, TopPlayShareMinScores = TopPlayShareMinScores, TopPlayShareMinTops = TopPlayShareMinTops, MinNotes = MinNotes, LowStarTolerance = LowStarTolerance, LowStarMaxChange = LowStarMaxChange, MedianCenter = MedianCenter, MinStars = MinStars, MinWorthScores = MinWorthScores, MinStarsNerfs = MinStarsNerfs, MinStarsNerfMinTopPlays = MinStarsNerfMinTopPlays, MinStarsNerfTopQuantile = MinStarsNerfTopQuantile },
+                Settings = new AccReweightSettings { WorthMeasure = BalanceTuner.WorthMeasureLabel, Passes = Passes, Strengths = Strengths, EvidenceScores = EvidenceScores, MinAccShare = MinAccShare, MaxChange = MaxChange, Applied = Applied, GuardTolerance = GuardTolerance, GapTolerance = GapTolerance, SlopeCorrection = SlopeCorrection, SlopeCorrectionTolerance = SlopeCorrectionTolerance, WorthLimit = WorthLimit, HeldOutSplits = HeldOutSplits, FitAtBaseStars = FitAtBaseStars, ResponseNoise = ResponseNoise, DriftCompensationRounds = DriftCompensationRounds, FrozenStarsRounds = FrozenStarsRounds, GuardMarginWarning = GuardMarginWarning, FallbackStrengths = FallbackStrengths, StarResponse = StarResponse, TargetMetric = TargetMetric, NoiseDeadZone = NoiseDeadZone, NoisePerScore = NoisePerScore, LargeGapMaxChange = LargeGapMaxChange, TopPlayMarginPp = TopPlayMarginPp, TopPlayPlayers = TopPlayPlayers, TopPlayMinScores = TopPlayMinScores, TopPlayTopScores = TopPlayTopScores, TopPlayShareRatio = TopPlayShareRatio, TopPlayShareMinScores = TopPlayShareMinScores, TopPlayShareMinTops = TopPlayShareMinTops, MinNotes = MinNotes, LowStarTolerance = LowStarTolerance, LowStarMaxChange = LowStarMaxChange, MedianCenter = MedianCenter, MinWorthScores = MinWorthScores },
                 MapsLimited = limited.Count(l => l),
                 MapsTopPlayLimited = topLimited.Count(l => l),
                 MapsTopPlayShareLimited = shareLimited.Count(l => l),
@@ -593,7 +562,6 @@ namespace portaBLe.Refresh
                         Limited = limited[i],
                         TopPlayLimited = topLimited[i],
                         TopPlayShareLimited = shareLimited[i],
-                        LowStarNerfed = lowStarNerfed[i],
                     })
                     .Where(m => Math.Abs(m.Multiplier - 1) > 0.0005)
                     .OrderBy(m => m.Multiplier)
@@ -602,67 +570,6 @@ namespace portaBLe.Refresh
             var path2 = System.IO.Path.Combine(webRootPath, FileName);
             await File.WriteAllTextAsync(path2, JsonSerializer.Serialize(result));
             Console.WriteLine($"Acc reweight saved to {path2} ({timer.Elapsed:mm\\:ss}). Re-score next (RefreshEverything).");
-        }
-
-        // MinStarsNerfs (see above): each map's log multiplier (0: not nerfed). Its scores re-scored each round (their pp
-        // response to the multiplier, measured), MinStarsNerfRounds at most.
-        private static double[] LowStarNerfs(Context c, bool[] lowStars, bool[] lowNotes)
-        {
-            var data = c.Unweighted;
-            int mapCount = data.Maps.Length;
-            var result = new double[mapCount];
-            var e = BalanceTuner.Evaluate(data);
-            int k = Math.Max(MinStarsNerfMinTopPlays, 1);
-            double KthBest(BalanceTuner.Data d, BalanceTuner.Evaluation ev, int i)
-            {
-                var pp = d.Maps[i].Scores.Select(s => ev.Pp[s]).OrderByDescending(v => v).ToList();
-                return pp.Count >= k ? pp[k - 1] : 0;
-            }
-            // Each map's best play, and each candidate's level: its neighbours' quantile of them
-            var best = data.Maps.Select(m => m.Scores.Length > 0 ? m.Scores.Max(s => e.Pp[s]) : 0).ToArray();
-            var level = new double[mapCount];
-            var kth0 = new double[mapCount];
-            var candidates = new List<int>();
-            for (int i = 0; i < mapCount; i++)
-            {
-                if (!lowStars[i] || lowNotes[i]) continue;
-                double stars = data.Maps[i].Stars;
-                var near = Enumerable.Range(0, mapCount).Where(j => best[j] > 0 && Math.Abs(data.Maps[j].Stars - stars) <= TopPlayShareBandwidth)
-                    .Select(j => best[j]).OrderBy(v => v).ToList();
-                if (near.Count == 0) continue;
-                level[i] = near[Math.Min((int)(MinStarsNerfTopQuantile * near.Count), near.Count - 1)];
-                kth0[i] = KthBest(data, e, i);
-                if (kth0[i] > level[i]) candidates.Add(i);
-            }
-            double bound = Applied * -Math.Log(1 - LowStarMaxChange);
-            // Each round: re-score with the current multipliers, then each candidate's step from its pp response so far
-            // (log pp per log multiplier; 0.9 to start, about acc pp's share on these maps)
-            var response = candidates.ToDictionary(i => i, i => 0.9);
-            var kth = (double[])kth0.Clone();
-            for (int round = 0; round < MinStarsNerfRounds && candidates.Count > 0; round++)
-            {
-                bool moved = false;
-                foreach (var i in candidates)
-                {
-                    if (kth[i] <= level[i] * 1.0005 || result[i] <= -bound) continue;
-                    double step = Math.Log(level[i] / kth[i]) / response[i];
-                    result[i] = Math.Max(result[i] + step, -bound);
-                    moved = true;
-                }
-                if (!moved) break;
-                var d = WithMultipliers(c.Loaded, c.BaseAcc, c.BaseModAcc, result);
-                var ev = BalanceTuner.Evaluate(d);
-                foreach (var i in candidates)
-                {
-                    double now = KthBest(d, ev, i);
-                    if (result[i] < 0 && now > 0 && kth0[i] > 0) response[i] = Math.Clamp(Math.Log(now / kth0[i]) / result[i], 0.3, 2);
-                    kth[i] = now;
-                }
-            }
-            var nerfed = candidates.Where(i => result[i] < 0).OrderBy(i => result[i]).Select(i => FormattableString.Invariant(
-                $"{data.Maps[i].Leaderboard.Name} {data.Maps[i].Leaderboard.DifficultyName} x{Math.Exp(result[i]):0.000} (play #{k} {kth0[i]:0} -> {kth[i]:0}pp, level {level[i]:0})")).ToList();
-            Console.WriteLine(FormattableString.Invariant($"Acc reweight: low-star top play nerfs under {MinStars:0.##} stars: {nerfed.Count} maps{(nerfed.Count > 0 ? ": " + string.Join(", ", nerfed) : "")}"));
-            return result;
         }
 
         // Every score re-scored with these multipliers: every player's worth and the balance. baseStars: each map at its stars
@@ -952,7 +859,7 @@ namespace portaBLe.Refresh
                 keep[i] = partial - t;
                 target[i] = partial;
             }
-            // Pinned maps (MinNotes, MinStars, MinWorthScores) stay at 1: every change is clamped to these bounds
+            // Pinned maps (MinNotes, MinWorthScores) stay at 1: every change is clamped to these bounds
             for (int i = 0; i < mapCount; i++) if (c.Pinned[i]) c.MapLo[i] = c.MapHi[i] = 0;
             if (fitPlayers == null)
             {
@@ -1607,11 +1514,7 @@ namespace portaBLe.Refresh
         public double LowStarMaxChange { get; set; }
         // false: each star range's mean was centered instead
         public bool MedianCenter { get; set; }
-        public double MinStars { get; set; }
         public int MinWorthScores { get; set; }
-        public bool MinStarsNerfs { get; set; }
-        public int MinStarsNerfMinTopPlays { get; set; }
-        public double MinStarsNerfTopQuantile { get; set; }
     }
 
     // A round of the drift compensation: pass share, tech share and predicted acc slopes
@@ -1662,7 +1565,5 @@ namespace portaBLe.Refresh
         public bool TopPlayLimited { get; set; }
         // The top play share limiter cut its multiplier
         public bool TopPlayShareLimited { get; set; }
-        // Nerfed after the fit for its top plays (MinStarsNerfs)
-        public bool LowStarNerfed { get; set; }
     }
 }

@@ -344,6 +344,36 @@ namespace portaBLe
                 await ParityCheck.Run(parityContext, root, Path.GetFullPath(Path.Combine(Directory.GetCurrentDirectory(), "..", "beatsaber-replays-ai-2", "parity2")));
                 return;
             }
+            // dotnet run -c Release -- speedstars <wwwroot/file.db> <out.csv>: every leaderboard's stars (RatingResult.Stars, without
+            // the acc reweighter) and predicted acc for none / FS / SFS / BFS / BSF from RatingsController.Get (BFS / BSF aren't
+            // stored), read only
+            if (args.Length > 2 && args[0] == "speedstars")
+            {
+                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};Mode=ReadOnly;").Options;
+                using var starsContext = new AppContext(options);
+                var lbs = await starsContext.Leaderboards.AsNoTracking().Select(l => new { l.Id, l.Hash, l.ModeName, l.DifficultyName }).ToListAsync();
+                var config = new ConfigurationBuilder().AddInMemoryCollection(new Dictionary<string, string?> { { "MapsPath", "maps" } }).Build();
+                string[] names = { "none", "FS", "SFS", "BFS", "BSF" };
+                var lines = new System.Collections.Concurrent.ConcurrentBag<string>();
+                int done = 0;
+                await Parallel.ForEachAsync(lbs, new ParallelOptions { MaxDegreeOfParallelism = CoreCount }, async (lb, ct) =>
+                {
+                    try
+                    {
+                        using var loggerFactory = LoggerFactory.Create(builder => { });
+                        var controller = new RatingAPI.Controllers.RatingsController(config, loggerFactory.CreateLogger<RatingAPI.Controllers.RatingsController>());
+                        var response = controller.Get(lb.Hash, lb.ModeName, RatingsRefresh.GetDiffCode(lb.DifficultyName), names).Value;
+                        if (response == null || names.Any(n => !response.ContainsKey(n))) return;
+                        lines.Add(lb.Id + "," + string.Join(",", names.Select(n => FormattableString.Invariant($"{response[n].Stars:0.####},{response[n].PredictedAcc:0.#####}"))));
+                    }
+                    catch { }
+                    if (Interlocked.Increment(ref done) % 500 == 0) Console.WriteLine($"{done}/{lbs.Count}");
+                    await Task.CompletedTask;
+                });
+                File.WriteAllLines(args[2], new[] { "Id," + string.Join(",", names.Select(n => $"{n}Stars,{n}PredictedAcc")) }.Concat(lines));
+                Console.WriteLine($"{lines.Count} of {lbs.Count} leaderboards written to {args[2]}");
+                return;
+            }
             // dotnet run -c Release -- pp <wwwroot/file.db> <leaderboard id> [accuracy] [modifiers]: a score's pp on that
             // leaderboard with its stored ratings and curves (accuracy 1 and nomod by default), read only
             if (args.Length > 2 && args[0] == "pp")
