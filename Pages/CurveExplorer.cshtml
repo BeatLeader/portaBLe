@@ -78,7 +78,7 @@
                     <input type="number" id="compareStars" class="form-control form-control-sm ce-num" step="0.1" min="0" placeholder="set" oninput="draw()" />
                 </span>
             </div>
-            <div class="ce-hint">The acc curve power, the very low star power and the mid star top bonus depend on the map's stars:
+            <div class="ce-hint">The acc curve power and the very low star power depend on the map's stars:
                 they only apply once the stars are set (the stars of the version played, a speed modifier's own).</div>
             <div id="starsWarning" class="ce-warn"></div>
         </div>
@@ -167,25 +167,6 @@
         <div class="ce-hint">The whole curve &times; the notes' factor 1 &minus; (1 &minus; &times;) &times; ln(from / notes) / ln(from / at)
             &times; the length's factor (same form, in seconds of real time: song time / the speed modifier). Each is 1 at most
             (CurveSettings.LowNoteMultiplier).</div>
-    </div>
-</details>
-
-<details class="ce-corr" data-switch="useMid">
-    <summary>
-        <span class="form-check form-switch d-inline-block mb-0"><input class="form-check-input" type="checkbox" id="useMid" onchange="switched(this)" /></span>
-        <b>Mid star top bonus</b> <span class="ce-sum" id="sumMid"></span>
-    </summary>
-    <div class="ce-corr-body">
-        <label>bonus <input type="number" id="midBonus" step="0.5" oninput="draw()" />%</label>
-        <label>stars <input type="number" id="midStart" step="0.5" oninput="draw()" /></label>
-        <label>full <input type="number" id="midFull" step="0.5" oninput="draw()" /></label>
-        <label>to <input type="number" id="midFullEnd" step="0.5" oninput="draw()" /></label>
-        <label>end <input type="number" id="midEnd" step="0.5" oninput="draw()" /></label>
-        <label>acc from <input type="number" id="midAccStart" step="0.1" oninput="draw()" />%</label>
-        <label>full at <input type="number" id="midAccFull" step="0.1" oninput="draw()" />%</label>
-        <div class="ce-hint">pp &times; (1 + bonus &times; stars bump &times; acc ramp), both easing in smoothly; the stars bump is full between
-            "full" and "to" (PpFormula.MidStarTopBonus). It multiplies the whole pp (pass and tech too); shown here on the acc
-            curve. The stars of the version played (a speed modifier's own). Stars don't move: it's 0 at 96%.</div>
     </div>
 </details>
 
@@ -295,9 +276,6 @@
             noteRefNotes: () => corr.lowNoteRefNotes, noteMinMult: () => corr.lowNoteMinMultiplier,
             noteSpan: () => corr.shortRefSpan, shortStart: () => corr.shortStart, shortRefMult: () => corr.shortRefMultiplier,
             shortRefSpan: () => corr.shortRefSpan, shortMinMult: () => corr.shortMinMultiplier,
-            midBonus: () => corr.midStarTopBonus, midStart: () => corr.midStarTopStart, midFull: () => corr.midStarTopFull,
-            midFullEnd: () => corr.midStarTopFullEnd, midEnd: () => corr.midStarTopEnd,
-            midAccStart: () => corr.midStarTopAccStart, midAccFull: () => corr.midStarTopAccFull,
         };
         function resetCorrections() {
             for (const [id, def] of Object.entries(fields)) document.getElementById(id).value = +def().toFixed(4);
@@ -355,27 +333,13 @@
         }
         function noteMultiplier() { return noteFactor() * shortFactor(); }
 
-        // PpFormula.MidStarTopMultiplier (accuracy in %)
-        function ease(t) { t = Math.min(Math.max(t, 0), 1); return t * t * (3 - 2 * t); }
-        function midBump() {
-            const s = stars(), start = num('midStart'), full = num('midFull'), fullEnd = num('midFullEnd'), end = num('midEnd');
-            if (!(s > start && s < end)) return 0;
-            return s < full ? ease((s - start) / (full - start)) : s > fullEnd ? ease((end - s) / (end - fullEnd)) : 1;
-        }
-        function midMultiplier(acc) {
-            const from = num('midAccStart'), to = num('midAccFull');
-            if (!(acc > from)) return 1;
-            return 1 + num('midBonus') / 100 * midBump() * ease((acc - from) / (to - from));
-        }
-
         // The what-if acc top compression's knee (%): fixed, or the predicted acc + share x what's left to 100%
         function topKnee(predicted) {
             return checked('topRelative') ? predicted + num('topShare') * (100 - predicted) : num('topKnee');
         }
 
         // The map's curve with the corrections turned on: slider tilt and the low note nerf as in Curve.GetCurve (on its
-        // sampled points), then the acc curve power as in PpCalculator.GetPp (PpFormula.AccCurve, pivot at the star accuracy),
-        // then the mid star top bonus (a multiplier of the score's pp)
+        // sampled points), then the acc curve power as in PpCalculator.GetPp (PpFormula.AccCurve, pivot at the star accuracy)
         function corrected(cur, field = 'mapStars') {
             starsField = field;
             const source = checked('usePerMap') ? cur.points : data.basePoints;
@@ -404,7 +368,6 @@
                 const pow = power();
                 if (pow !== 1 && at96 > 0) pts = pts.map(([x, y]) => [x, y > 0 ? at96 * Math.pow(y / at96, pow) : y]);
             }
-            if (checked('useMid') && starsSet()) pts = pts.map(([x, y]) => [x, y * midMultiplier(x)]);
             starsField = 'mapStars';
             return pts;
         }
@@ -423,10 +386,6 @@
                 ? `no effect at ${fmt(stars(), 1)} stars (under ${fmt(num('powVeryEnd'), 1)} only)`
                 : `power ${fmt(power(), 3)} at ${fmt(stars(), 1)} stars`);
             set('sumNotes', `&times;${fmt(noteMultiplier(), 3)} (${fmt(num('noteCount'), 0)} notes &times;${fmt(noteFactor(), 3)}, ${fmt(num('noteSpan'), 0)} s &times;${fmt(shortFactor(), 3)})`);
-            const bump = starsSet() ? midBump() : 0;
-            set('sumMid', !starsSet() ? noStars : bump > 0
-                ? `+${fmt(num('midBonus') * bump, 2)}% at ${fmt(stars(), 1)} stars from ${fmt(num('midAccFull'), 1)}% acc (eases in from ${fmt(num('midAccStart'), 1)}%)`
-                : `none at ${fmt(stars(), 1)} stars (${fmt(num('midStart'), 1)} to ${fmt(num('midEnd'), 1)} only)`);
             set('sumTop', `&times;${fmt(num('topSlope'), 2)} above ${fmt(topKnee(cur.predicted), 2)}%`);
             document.querySelectorAll('.ce-corr').forEach(box => box.classList.toggle('ce-on', checked(box.dataset.switch)));
         }
@@ -542,7 +501,7 @@
             const cmpPoints = cmp ? corrected(cmp, 'compareStars') : null;
             document.getElementById('compareStarsBox').style.display = cmp ? '' : 'none';
             // The star-based corrections switched on while a curve's stars aren't set
-            const starBased = ['usePower', 'useVeryLow', 'useMid'].filter(checked);
+            const starBased = ['usePower', 'useVeryLow'].filter(checked);
             const missing = [];
             for (const [id, label] of cmp ? [['mapStars', 'this map'], ['compareStars', 'the compared map']] : [['mapStars', 'this map']]) {
                 const empty = isNaN(parseFloat(document.getElementById(id).value));
@@ -550,7 +509,7 @@
                 if (empty && starBased.length) missing.push(label);
             }
             document.getElementById('starsWarning').textContent = missing.length
-                ? `Set the stars of ${missing.join(' and ')}: the acc curve power, very low star power and mid star top bonus don't apply without them.` : '';
+                ? `Set the stars of ${missing.join(' and ')}: the acc curve power and very low star power don't apply without them.` : '';
             const anyCorrection = !checked('usePerMap') || ['useTilt', 'useTop', 'useNotes'].some(checked) || (starsSet() && starBased.length > 0);
 
             const mode = document.getElementById('yMode').value;
