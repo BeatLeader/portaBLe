@@ -122,6 +122,8 @@ namespace portaBLe.Refresh
             public sbyte[] ScoreSpeed = Array.Empty<sbyte>();   // WorthSpeedOf(ScoreModifiers)
             public sbyte[] ScorePpSpeed = Array.Empty<sbyte>();   // PpSpeedOf(ScoreModifiers)
             public int[] ScoreTime = Array.Empty<int>();   // Score.Timepost (unix seconds)
+            // The scores' stored pp, total then pass / acc / tech (UseStoredPp only, empty otherwise)
+            public float[][] StoredPp = Array.Empty<float[]>();
             public int[][] PlayerScores = Array.Empty<int[]>();
             public string[] PlayerIds = Array.Empty<string>();   // Player.Id of each player index
             public int PlayerCount;
@@ -152,8 +154,9 @@ namespace portaBLe.Refresh
             }
 
             var scores = await dbContext.Scores.AsNoTracking()
-                .Select(s => new { s.LeaderboardId, s.PlayerId, s.Accuracy, s.Modifiers, s.Timepost })
+                .Select(s => new { s.LeaderboardId, s.PlayerId, s.Accuracy, s.Modifiers, s.Timepost, s.Pp, s.PassPP, s.AccPP, s.TechPP })
                 .ToListAsync();
+            var storedPp = UseStoredPp ? new[] { new List<float>(), new List<float>(), new List<float>(), new List<float>() } : null;
 
             var playerIndex = new Dictionary<string, int>();
             var interned = new Dictionary<string, string>();
@@ -183,6 +186,13 @@ namespace portaBLe.Refresh
                 scoreSpeed.Add(speed.Worth);
                 scorePpSpeed.Add(speed.Pp);
                 scoreTime.Add(s.Timepost);
+                if (storedPp != null)
+                {
+                    storedPp[0].Add(s.Pp);
+                    storedPp[1].Add(s.PassPP);
+                    storedPp[2].Add(s.AccPP);
+                    storedPp[3].Add(s.TechPP);
+                }
             }
 
             var byMap = new List<int>[maps.Length];
@@ -206,6 +216,7 @@ namespace portaBLe.Refresh
                 ScoreSpeed = scoreSpeed.ToArray(),
                 ScorePpSpeed = scorePpSpeed.ToArray(),
                 ScoreTime = scoreTime.ToArray(),
+                StoredPp = storedPp?.Select(l => l.ToArray()).ToArray() ?? Array.Empty<float[]>(),
                 PlayerScores = byPlayer.Select(l => l.ToArray()).ToArray(),
                 PlayerIds = playerIndex.OrderBy(kv => kv.Value).Select(kv => kv.Key).ToArray(),
                 PlayerCount = playerIndex.Count,
@@ -656,6 +667,14 @@ namespace portaBLe.Refresh
 
             Parallel.For(0, scoreCount, new ParallelOptions { MaxDegreeOfParallelism = Program.CoreCount }, s =>
             {
+                if (data.StoredPp.Length > 0)
+                {
+                    e.Pp[s] = data.StoredPp[0][s];
+                    e.PassPp[s] = data.StoredPp[1][s];
+                    e.AccPp[s] = data.StoredPp[2][s];
+                    e.TechPp[s] = data.StoredPp[3][s];
+                    return;
+                }
                 int m = data.ScoreMap[s];
                 bool rated = data.Maps[m].Leaderboard.ModifiersRating != null;
                 int speed = rated ? data.ScorePpSpeed[s] : 0;
@@ -779,7 +798,7 @@ namespace portaBLe.Refresh
             Parallel.ForEach(data.Maps, m =>
             {
                 var lb = m.Leaderboard;
-                m.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve, lb.PredictedAcc);
+                m.Stars = UseStoredPp ? lb.Stars : ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve, lb.PredictedAcc);
                 m.StarBand = StarBandOf(m.Stars);
             });
             var e = Evaluate(data);
@@ -797,7 +816,7 @@ namespace portaBLe.Refresh
             Parallel.ForEach(data.Maps, m =>
             {
                 var lb = m.Leaderboard;
-                m.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve, lb.PredictedAcc);
+                m.Stars = UseStoredPp ? lb.Stars : ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve, lb.PredictedAcc);
                 m.StarBand = StarBandOf(m.Stars);
             });
             var e = Evaluate(data);
@@ -819,6 +838,34 @@ namespace portaBLe.Refresh
             return result;
         }
 
+        // The worth (WorthMeasure at PlayerAdjustedQuantile) of the database as it is: MeasureBalance's worth spread, overall
+        // and by star range, and by map type (portaBLe worthspread). Read only.
+        public static async Task WorthSpread(AppContext dbContext)
+        {
+            var data = await Load(dbContext);
+            Parallel.ForEach(data.Maps, m =>
+            {
+                var lb = m.Leaderboard;
+                m.Stars = UseStoredPp ? lb.Stars : ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve, lb.PredictedAcc);
+                m.StarBand = StarBandOf(m.Stars);
+            });
+            var e = Evaluate(data);
+            var worth = Worth(data, e, out _);
+            var balance = MeasureBalance(data, e, worth);
+            var used = Enumerable.Range(0, data.Maps.Length).Where(m => worth[m] != null && data.Maps[m].Leaderboard.PredictedAcc > 0).ToList();
+            string Rms(Func<float, bool> range)
+            {
+                var band = used.Where(m => range(data.Maps[m].Stars)).ToList();
+                return band.Count > 1 ? FormattableString.Invariant($"{Math.Sqrt(band.Average(m => worth[m]!.Value * worth[m]!.Value)):0.0000} ({band.Count})") : "-";
+            }
+            Console.WriteLine(FormattableString.Invariant(
+                $"Worth spread (quantile {PlayerAdjustedQuantile:0.##}{(UseStoredPp ? ", stored pp" : "")}): {balance.WorthSpread:0.0000} on {balance.Maps} maps; under 5 stars {Rms(s => s < 5)}, 5-8 {Rms(s => s >= 5 && s < 8)}, 8-11 {Rms(s => s >= 8 && s < 11)}, 11+ {Rms(s => s >= 11)}"));
+            foreach (var type in balance.ByType)
+            {
+                Console.WriteLine(FormattableString.Invariant($"  {type.Type}: {type.Maps} maps, worth {type.Worth:+0.0000;-0.0000}"));
+            }
+        }
+
         // The worth's measurement noise per score at each of these PlayerAdjustedQuantile values (portaBLe worthnoise; the acc
         // reweighter's NoisePerScore): each map's worth from two random halves of the players, whose difference in log is
         // 2 x noise / sqrt(scores), the noise being NoisePerScore / sqrt(scores) with every player. Robust (1.4826 x the
@@ -829,7 +876,7 @@ namespace portaBLe.Refresh
             Parallel.ForEach(data.Maps, m =>
             {
                 var lb = m.Leaderboard;
-                m.Stars = ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve, lb.PredictedAcc);
+                m.Stars = UseStoredPp ? lb.Stars : ReplayUtils.ToStars(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve, lb.PredictedAcc);
                 m.StarBand = StarBandOf(m.Stars);
             });
             var e = Evaluate(data);
@@ -899,6 +946,9 @@ namespace portaBLe.Refresh
         // 0.75: each player's better efforts on the map, what their pp is made of. The mean also followed the low effort
         // tail, which tilted it by note count (long maps over) though top players get no more from long maps.
         public static double PlayerAdjustedQuantile { get; set; } = 0.75;
+        // Worth from the database's stored pp and stars instead of re-scoring with the current pp formula (StoredWorth,
+        // StoredWorthQuantiles, WorthNoise, WorthSpread): for databases rated with another formula, e.g. old prod's
+        public static bool UseStoredPp { get; set; }
 
         // Each player's level for InRange and PlayerAdjusted (see above), each score at its worth item's stars (ItemStars)
         internal static double[] PlayerLevels(Data data, Evaluation e, double[]? itemStars = null)
@@ -940,6 +990,18 @@ namespace portaBLe.Refresh
                 stars[m * n] = data.Maps[m].Stars;
                 for (int k = 1; k < n; k++)
                 {
+                    if (data.StoredPp.Length > 0)
+                    {
+                        float stored = lb.ModifiersRating == null ? 0 : WorthSpeeds[k] switch
+                        {
+                            "SS" => lb.ModifiersRating.SSStars,
+                            "FS" => lb.ModifiersRating.FSStars,
+                            "SF" => lb.ModifiersRating.SFStars,
+                            _ => 0,
+                        };
+                        stars[m * n + k] = stored > 0 ? stored : double.NaN;
+                        continue;
+                    }
                     var ratings = lb.ModifiersRating == null ? null : ReplayUtils.SpeedRatings(lb.ModifiersRating, WorthSpeeds[k], lb.Curve);
                     stars[m * n + k] = ratings is MapRatings r ? PpCalculator.ToStars(r) : double.NaN;
                 }

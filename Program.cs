@@ -519,6 +519,24 @@ namespace portaBLe
                 await CurvesRefresh.ExportSliderShares(sliderContext, Path.GetFullPath(args[2]));
                 return;
             }
+            // dotnet run -c Release -- worthspread <wwwroot/file.db> [Setting=value ...]: BalanceTuner.WorthSpread, the worth
+            // spread (overall, by star range) and map type tilts of the database as it is, with any of the balance tuner's settings;
+            // UseStoredPp=true for a database rated with another pp formula (old prod). Read only.
+            if (args.Length > 1 && args[0] == "worthspread")
+            {
+                foreach (var setting in args.Skip(2))
+                {
+                    var parts = setting.Split('=', 2);
+                    var property = typeof(BalanceTuner).GetProperty(parts[0]) ?? throw new ArgumentException($"No balance tuner setting {parts[0]}");
+                    property.SetValue(null, property.PropertyType.IsEnum
+                        ? Enum.Parse(property.PropertyType, parts[1], true)
+                        : Convert.ChangeType(parts[1], property.PropertyType, System.Globalization.CultureInfo.InvariantCulture));
+                }
+                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};Mode=ReadOnly;").Options;
+                using var spreadContext = new AppContext(options);
+                await BalanceTuner.WorthSpread(spreadContext);
+                return;
+            }
             // dotnet run -c Release -- worthnoise <wwwroot/file.db> [quantile ...]: BalanceTuner.WorthNoise, the worth's noise per
             // score (the acc reweighter's NoisePerScore) at those PlayerAdjustedQuantile values (default 0 and 0.75). Read only.
             if (args.Length > 1 && args[0] == "worthnoise")
