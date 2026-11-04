@@ -23,23 +23,13 @@
     },
     {
       "Name": "Dev Acc",
-      "FileName": "db-20261103145500-9382.db",
+      "FileName": "db-20261104010917-3977.db",
       "Description": "Dev Acc"
     },
     {
       "Name": "Dev Acc Autoreweighted",
-      "FileName": "db-20261103145548-6737.db",
-      "Description": "Dev Acc Autoreweighted"
-    },
-    {
-      "Name": "Dev Acc Acc Pp Bonus",
-      "FileName": "db-20261104010917-3977.db",
-      "Description": "Analyzer tech scaler 6.0, rotation 6.0^1.25; mid star top bonus on acc pp only: x1.05 from predicted acc - 3%, on up to 100% (no pp fade), stars 4.25 -> 6.38 ... 8 -> 10.5; PpMultiplier 1.0128"
-    },
-    {
-      "Name": "Dev Acc Acc Pp Bonus Autoreweighted",
       "FileName": "db-20261104011005-8973.db",
-      "Description": "Dev Acc Acc Pp Bonus, autoreweighted"
+      "Description": "Dev Acc (autoreweighted)"
     }
   ]
 }
