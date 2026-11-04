@@ -20,6 +20,16 @@
                     <option value="techPP" selected="@(Model.SortBy == "techPP")">Total Tech PP</option>
                 </select>
             </div>
+            <div class="col-auto">
+                <label class="form-label d-block" title="Click a style to include it, again to exclude it, again to clear it. Players with any included style (Acc to High Tech), Modifiers when included, and no excluded one">Style:</label>
+                <input type="hidden" name="style" id="style" value="@Model.Style" />
+                @{ var (includedStyles, excludedStyles) = portaBLe.Services.PlayerStyles.ParseKeys(Model.Style); }
+                @foreach (var style in portaBLe.Services.PlayerStyles.All)
+                {
+                    var state = includedStyles.Contains(style.Key) ? "in" : excludedStyles.Contains(style.Key) ? "out" : "";
+                    <button type="button" class="btn btn-sm btn-outline-secondary me-1 style-toggle" data-style="@style.Key" data-state="@state" data-label="@style.Label" title="@style.Tooltip">@style.Label</button>
+                }
+            </div>
             <div class="col-auto" style="flex-grow: 1; max-width: 500px;">
                 <label for="searchString" class="form-label">Search:</label>
                 <div class="input-group">
@@ -32,7 +42,7 @@
                            aria-label="Search players" />
                     @if (!string.IsNullOrEmpty(Model.SearchString))
                     {
-                        <a asp-page="./Ranking" asp-route-sortBy="@Model.SortBy" class="btn btn-secondary">Clear</a>
+                        <a asp-page="./Ranking" asp-route-sortBy="@Model.SortBy" asp-route-style="@Model.Style" asp-route-db="@Model.SelectedDatabase" class="btn btn-secondary">Clear</a>
                     }
                 </div>
             </div>
@@ -51,6 +61,7 @@
         <tr>
             <th>Rank</th>
             <th>Name</th>
+            <th title="From the maps of the front page (top @portaBLe.Services.PlayerStyles.FrontPage scores), by weighted pp">Style</th>
             <th>Country</th>
             <th>Total PP</th>
             <th>Top PP</th>
@@ -67,6 +78,7 @@
             <tr>
                 <td>@player.Rank</td>
                 <td><a asp-page="/Player" asp-route-id="@player.Id">@player.Name</a></td>
+                <td>@portaBLe.Services.PlayerStyles.Badges(Model.GetStyle(player))</td>
                 <td>@player.Country</td>
                 <td>@player.Pp.ToString("F2")</td>
                 <td>@player.TopPp.ToString("F2")</td>
@@ -103,6 +115,7 @@
                        asp-route-currentPage="@i"
                        asp-route-searchString="@Model.SearchString"
                        asp-route-sortBy="@Model.SortBy"
+                       asp-route-style="@Model.Style"
                        asp-route-db="@Model.SelectedDatabase">@i</a>
                 </li>
             }
@@ -133,5 +146,26 @@
 
             searchInput.addEventListener('input', debouncedSubmit);
         }
+
+        // Style toggles: off -> included -> excluded -> off, applied once clicking pauses (back to page 1)
+        const styleInput = document.getElementById('style');
+        function showStyleState(button) {
+            const state = button.dataset.state;
+            button.className = 'btn btn-sm me-1 style-toggle ' + (state === 'in' ? 'btn-success' : state === 'out' ? 'btn-danger' : 'btn-outline-secondary');
+            button.textContent = (state === 'in' ? '+ ' : state === 'out' ? '- ' : '') + button.dataset.label;
+        }
+        const debouncedStyleSubmit = debounce(() => {
+            styleInput.value = [...document.querySelectorAll('.style-toggle')].filter(b => b.dataset.state)
+                .map(b => (b.dataset.state === 'out' ? '-' : '') + b.dataset.style).join(',');
+            styleInput.form.submit();
+        }, 700);
+        document.querySelectorAll('.style-toggle').forEach(button => {
+            showStyleState(button);
+            button.addEventListener('click', () => {
+                button.dataset.state = button.dataset.state === 'in' ? 'out' : button.dataset.state === 'out' ? '' : 'in';
+                showStyleState(button);
+                debouncedStyleSubmit();
+            });
+        });
     </script>
 }

@@ -21,6 +21,12 @@ namespace portaBLe
         [BindProperty(SupportsGet = true)]
         public string SortBy { get; set; } = "rank";
 
+        // Style filter: comma separated PlayerStyles.All keys, excluded ones with a leading "-" (PlayerStyle.Matches). Empty = all players.
+        [BindProperty(SupportsGet = true)]
+        public string Style { get; set; }
+
+        public Dictionary<string, PlayerStyles.PlayerStyle> Styles { get; set; } = new();
+
         public RankingModel(IDynamicDbContextService dbService) : base(dbService)
         {
         }
@@ -51,17 +57,39 @@ namespace portaBLe
                 "rank" or _ => query.OrderBy(p => p.Rank)
             };
 
-            var totalRecords = await query.CountAsync();
-            TotalPages = (int)System.Math.Ceiling(totalRecords / (double)pageSize);
+            Styles = await PlayerStyles.ForDatabaseAsync(SelectedDatabase, () => (Services.DynamicDbContext)GetDbContext());
 
-            Players = await query
-                                    .Skip((currentPage - 1) * pageSize)
-                                    .Take(pageSize)
-                                    .ToListAsync();
+            var (include, exclude) = PlayerStyles.ParseKeys(Style);
+            if (include.Length == 0 && exclude.Length == 0)
+            {
+                Style = null;
+                var totalRecords = await query.CountAsync();
+                TotalPages = (int)System.Math.Ceiling(totalRecords / (double)pageSize);
+
+                Players = await query
+                                        .Skip((currentPage - 1) * pageSize)
+                                        .Take(pageSize)
+                                        .ToListAsync();
+            }
+            else
+            {
+                Style = string.Join(",", include.Concat(exclude.Select(k => "-" + k)));
+                // Styles are computed in memory, so the page is picked from the ordered ids
+                var ids = (await query.Select(p => p.Id).ToListAsync())
+                    .Where(id => Styles.TryGetValue(id, out var style) && style.Matches(include, exclude))
+                    .ToList();
+                TotalPages = (int)System.Math.Ceiling(ids.Count / (double)pageSize);
+
+                var pageIds = ids.Skip((currentPage - 1) * pageSize).Take(pageSize).ToList();
+                var players = await context.Players.Where(p => pageIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id);
+                Players = pageIds.Select(id => players[id]).ToList();
+            }
         }
 
         // Total and top pp always show; sorted by acc, pass or tech pp, that column shows too
         public bool ShowsPartColumn => SortBy is "accPP" or "passPP" or "techPP";
+
+        public PlayerStyles.PlayerStyle GetStyle(Player player) => Styles.GetValueOrDefault(player.Id);
 
         public string GetSortColumnHeader()
         {
