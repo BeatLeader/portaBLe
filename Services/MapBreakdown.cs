@@ -8,11 +8,13 @@ namespace portaBLe.Services
     // each series as bytes, 255 = its max
     public static class MapBreakdown
     {
-        // Effective stars, the Leaderboard chart's scale: a part's raw value (a window's) at the stars of the maps that rank the
+        // Effective stars, the Leaderboard chart's scale: a part's raw value (a window's) at the rating of the maps that rank the
         // same on it. Each part has its own curve, fitted per database on the no modifier breakdowns: the leaderboards' average
-        // raw value at each percentile against the stars at that percentile (10★ speed: as much speed as only the maps that
-        // rank like 10★ ones have). Linear between the percentiles, from 0 at 0, and on with the top 5%'s slope above the
-        // highest map average. The same curves for every modifier, so a speed modifier's lines rise.
+        // raw value at each percentile against that part's rating at that percentile (speed: pass rating, tech: tech rating,
+        // acc: acc rating). Not against stars: those are mostly acc on low star maps (none under ~2), which lifted a low star
+        // map's speed and tech to its acc. Linear between the percentiles, from 0 at 0, and on with the top 5%'s slope above
+        // the highest map average. Raw tech follows the tech rating loosely, so Scaled then sets each line's average to the
+        // shown rating, the curve giving the shape over time.
         public class EffectiveStars
         {
             private const int Percentiles = 100;
@@ -20,11 +22,17 @@ namespace portaBLe.Services
 
             private EffectiveStars((double, double)[][] curves) => _curves = curves;
 
-            public double[] Speed(double[] raw) => Apply(_curves[0], raw);
-            public double[] Tech(double[] raw) => Apply(_curves[1], raw);
-            public double[] Acc(double[] raw) => Apply(_curves[2], raw);
+            public double[] Speed(double[] raw, double rating) => Scaled(_curves[0], raw, rating);
+            public double[] Tech(double[] raw, double rating) => Scaled(_curves[1], raw, rating);
+            public double[] Acc(double[] raw, double rating) => Scaled(_curves[2], raw, rating);
 
-            private static double[] Apply((double Raw, double Stars)[] curve, double[] raw) => raw.Select(v => Math.Round(At(curve, v), 3)).ToArray();
+            // The curve's values, scaled so they average to the rating (the shown modifier's: a speed modifier's lines rise)
+            private static double[] Scaled((double Raw, double Stars)[] curve, double[] raw, double rating)
+            {
+                var stars = raw.Select(v => At(curve, v)).ToArray();
+                double mean = stars.Length > 0 ? stars.Average() : 0;
+                return stars.Select(v => mean > 0 ? Math.Round(v / mean * rating, 3) : 0).ToArray();
+            }
 
             private static double At((double Raw, double Stars)[] curve, double v)
             {
@@ -49,32 +57,33 @@ namespace portaBLe.Services
             private static async Task<EffectiveStars> FitAsync(Func<DynamicDbContext> contextFactory)
             {
                 using var context = contextFactory();
-                var stars = await context.Leaderboards.AsNoTracking().Where(l => l.Stars > 0).ToDictionaryAsync(l => l.Id, l => (double)l.Stars);
+                var ratings = await context.Leaderboards.AsNoTracking().Where(l => l.Stars > 0)
+                    .ToDictionaryAsync(l => l.Id, l => new[] { (double)l.PassRating, l.TechRating, l.AccRating });
                 var means = new List<double>[] { new(), new(), new() };
-                var mapStars = new List<double>();
+                var targets = new List<double>[] { new(), new(), new() };
                 await foreach (var b in context.LeaderboardBreakdowns.AsNoTracking().Where(b => b.Id.EndsWith("/none")).AsAsyncEnumerable())
                 {
-                    if (!stars.TryGetValue(b.Id[..b.Id.LastIndexOf('/')], out double s) || b.Speed.Length == 0) continue;
+                    if (!ratings.TryGetValue(b.Id[..b.Id.LastIndexOf('/')], out var r) || b.Speed.Length == 0) continue;
                     // Average of the stored series: its bytes' average over 255 times its max
                     means[0].Add(b.Speed.Average(x => (double)x) / 255 * b.SpeedMax);
                     means[1].Add(b.Tech.Average(x => (double)x) / 255 * b.TechMax);
                     means[2].Add(b.Acc.Average(x => (double)x) / 255 * b.AccMax);
-                    mapStars.Add(s);
+                    for (int i = 0; i < 3; i++) targets[i].Add(r[i]);
                 }
-                mapStars.Sort();
-                (double, double)[] Curve(List<double> raw)
+                (double, double)[] Curve(List<double> raw, List<double> rating)
                 {
                     raw.Sort();
+                    rating.Sort();
                     var curve = new List<(double, double)>();
                     for (int q = 0; q <= Percentiles && raw.Count > 0; q++)
                     {
-                        double x = raw[q * (raw.Count - 1) / Percentiles], y = mapStars[q * (mapStars.Count - 1) / Percentiles];
+                        double x = raw[q * (raw.Count - 1) / Percentiles], y = rating[q * (rating.Count - 1) / Percentiles];
                         // Rising only: a percentile with the same raw value as the one before is skipped
                         if (x > 0 && (curve.Count == 0 || x > curve[^1].Item1)) curve.Add((x, y));
                     }
                     return curve.ToArray();
                 }
-                return new EffectiveStars(means.Select(Curve).ToArray());
+                return new EffectiveStars(means.Select((raw, i) => Curve(raw, targets[i])).ToArray());
             }
         }
 

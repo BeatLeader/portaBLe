@@ -273,7 +273,7 @@
 
 <div class="curve-section">
     <h4>Breakdown over time (@(Model.Modifier == "none" ? "no modifier" : Model.Modifier))</h4>
-    <div class="modifier-note">Speed, acc and tech over the map (@(RatingAPI.Controllers.RatingBreakdown.Window)-second average). Each line is in effective stars: at a moment's speed, tech or acc, how many stars the maps that rank the same on that part (over the whole database, without modifiers) have. The three lines share that scale, so the highest is the hardest skill at that moment, and they compare across maps and modifiers. The bar splits the lines' averages, the map's style; the legend gives each part's rating and pp at the predicted acc.</div>
+    <div class="modifier-note">Speed, acc and tech over the map (@(RatingAPI.Controllers.RatingBreakdown.Window)-second average). Each line is in effective stars: at a moment's speed, tech or acc, the rating of that part on the maps that rank the same on it (over the whole database, without modifiers), scaled so the line averages to this map's rating of that part. The three lines share the rating triangle's scale, so the highest is the hardest skill at that moment. The bar splits the lines' averages, the map's style; the legend gives each part's rating and pp at the predicted acc.</div>
     <div id="breakdownShare" class="breakdown-share"></div>
     <div class="curve-chart-container">
         <div id="breakdownStatus" class="modifier-note breakdown-status">Loading...</div>

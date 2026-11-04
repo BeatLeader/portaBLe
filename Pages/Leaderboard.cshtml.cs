@@ -211,8 +211,8 @@ namespace portaBLe.Pages
         }
 
         // Speed / acc / tech over time for the breakdown chart (RatingAPI's RatingResult.Breakdown, stored in LeaderboardBreakdowns), fetched
-        // after the page loads. Each line is in effective stars (MapBreakdown.EffectiveStars: the stars of the maps that rank
-        // the same on that part), one scale for the three parts, every map and modifier. The pp of each part at the predicted
+        // after the page loads. Each line is in effective stars (MapBreakdown.EffectiveStars: the rating of the maps that rank
+        // the same on that part), averaging to the shown modifier's rating of that part. The pp of each part at the predicted
         // acc comes along.
         public async Task<IActionResult> OnGetBreakdownAsync(string id, string db = null, string modifier = "none")
         {
@@ -235,9 +235,9 @@ namespace portaBLe.Pages
             {
                 accuracy = Math.Round(accuracy * 100, 2),
                 time = Enumerable.Range(0, series.Speed.Length).Select(i => series.Start + i),
-                speed = effective.Speed(series.Speed),
-                acc = effective.Acc(series.Acc),
-                tech = effective.Tech(series.Tech),
+                speed = effective.Speed(series.Speed, lb.PassRating),
+                acc = effective.Acc(series.Acc, lb.AccRating),
+                tech = effective.Tech(series.Tech, lb.TechRating),
                 pp = new { total = Math.Round(pp, 2), speed = Math.Round(passPp, 2), acc = Math.Round(accPp, 2), tech = Math.Round(techPp, 2) },
                 stars = new { speed = Math.Round(lb.PassRating, 3), acc = Math.Round(lb.AccRating, 3), tech = Math.Round(lb.TechRating, 3) },
             });
