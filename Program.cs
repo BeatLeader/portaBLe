@@ -24,6 +24,7 @@ namespace portaBLe
         public DbSet<Leaderboard> Leaderboards { get; set; }
         public DbSet<ModifiersRating> ModifiersRating { get; set; }
         public DbSet<DB.Stats> Stats { get; set; }
+        public DbSet<LeaderboardBreakdown> LeaderboardBreakdowns { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder) => CurveModelConfig.Apply(modelBuilder);
     }
@@ -39,6 +40,7 @@ namespace portaBLe
         public DbSet<Leaderboard> Leaderboards { get; set; }
         public DbSet<ModifiersRating> ModifiersRating { get; set; }
         public DbSet<DB.Stats> Stats { get; set; }
+        public DbSet<LeaderboardBreakdown> LeaderboardBreakdowns { get; set; }
 
         protected override void OnModelCreating(ModelBuilder modelBuilder) => CurveModelConfig.Apply(modelBuilder);
     }
@@ -939,7 +941,7 @@ namespace portaBLe
                     {
                         var script = dbContext.Database.GenerateCreateScript();
                         var createSql = script
-                            .Split(";\n", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
+                            .Split(";", StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries)
                             .FirstOrDefault(s => s.StartsWith($"CREATE TABLE \"{tableName}\""));
                         if (createSql != null)
                         {

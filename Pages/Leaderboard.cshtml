@@ -272,6 +272,16 @@
 </div>
 
 <div class="curve-section">
+    <h4>Breakdown over time (@(Model.Modifier == "none" ? "no modifier" : Model.Modifier))</h4>
+    <div class="modifier-note">Speed, acc and tech over the map (@(RatingAPI.Controllers.RatingBreakdown.Window)-second average). Each line is in stars, as the rating triangle: it averages to that part's rating (pass for speed) and follows how hard each moment is. The bar splits the three ratings the same way; the legend also gives each one's pp at the predicted acc.</div>
+    <div id="breakdownShare" class="breakdown-share"></div>
+    <div class="curve-chart-container">
+        <div id="breakdownStatus" class="modifier-note breakdown-status">Loading...</div>
+        <canvas id="breakdownChart"></canvas>
+    </div>
+</div>
+
+<div class="curve-section">
     <h4>Acc curve (@(Model.Modifier == "none" ? "no modifier" : Model.Modifier))</h4>
     @if (Model.CurveParams != null)
     {
@@ -486,6 +496,31 @@
 
     .pp-chart-container {
         height: 360px;
+    }
+
+    .breakdown-share {
+        display: flex;
+        height: 1.6em;
+        margin: 0.5em 0;
+        border-radius: 4px;
+        overflow: hidden;
+        font-size: 0.8em;
+    }
+
+    .breakdown-share > div {
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        white-space: nowrap;
+        overflow: hidden;
+        color: white;
+    }
+
+    .breakdown-status {
+        position: absolute;
+        top: 50%;
+        width: 100%;
+        text-align: center;
     }
 
     .lb-header {
@@ -742,6 +777,72 @@
             });
             canvas.ondblclick = () => { ppChart.resetZoom(); fitY(ppChart); };
             fitY(ppChart);
+        }
+
+        // Speed / acc / tech over time (OnGetBreakdownAsync: RatingAPI's, stored by RatingsRefresh.Overwrite) and each one's share of the pp
+        async function drawBreakdownChart() {
+            const status = document.getElementById('breakdownStatus');
+            let data = null;
+            try {
+                const response = await fetch('@Html.Raw(Url.Page("/Leaderboard", "Breakdown", new { id = Model.Leaderboard.Id, db = dbQuery, modifier = Model.Modifier }))');
+                if (response.ok) data = await response.json();
+            } catch { }
+            if (!data) { status.textContent = 'No breakdown stored for this leaderboard in this database.'; return; }
+            status.remove();
+
+            const clock = s => `${Math.floor(s / 60)}:${String(Math.floor(s % 60)).padStart(2, '0')}`;
+            const parts = [
+                { key: 'speed', label: 'Speed', color: 'rgb(54, 162, 235)' },
+                { key: 'acc', label: 'Acc', color: 'rgb(153, 102, 255)' },
+                { key: 'tech', label: 'Tech', color: 'rgb(255, 99, 132)' },
+            ];
+            parts.forEach(p => {
+                const values = data[p.key];
+                p.peak = values.reduce((best, v, i) => v > values[best] ? i : best, 0);
+                p.pp = data.pp[p.key];
+            });
+            // Share of the stars, the graph's scale (each line averages to its rating)
+            const totalStars = parts.reduce((sum, p) => sum + data.stars[p.key], 0);
+            parts.forEach(p => p.share = totalStars > 0 ? data.stars[p.key] / totalStars * 100 : 0);
+
+            document.getElementById('breakdownShare').innerHTML = parts.filter(p => p.share > 0).map(p =>
+                `<div style="width:${p.share}%;background:${p.color}" title="${p.label}: ${formatNumber(data.stars[p.key], 2)}★ (${formatNumber(p.share, 1)}%), ${formatNumber(p.pp, 2)}pp">${p.share >= 8 ? `${p.label} ${formatNumber(p.share, 0)}%` : ''}</div>`
+            ).join('');
+
+            const datasets = parts.map(p => ({
+                label: `${p.label}: ${formatNumber(data.stars[p.key], 2)}★ (${formatNumber(p.share, 0)}%), ${formatNumber(p.pp, 0)}pp, peak ${clock(data.time[p.peak])}`,
+                data: data.time.map((t, i) => ({ x: t, y: data[p.key][i] })),
+                borderColor: p.color,
+                backgroundColor: p.color,
+                borderWidth: 1.5,
+                tension: 0.3,
+                pointRadius: 0,
+            }));
+            new Chart(document.getElementById('breakdownChart').getContext('2d'), {
+                type: 'line',
+                data: { datasets },
+                options: {
+                    maintainAspectRatio: false,
+                    interaction: { mode: 'nearest', axis: 'x', intersect: false },
+                    scales: {
+                        x: { type: 'linear', min: data.time[0], max: data.time[data.time.length - 1], title: { display: true, text: 'Time' }, ticks: { callback: clock } },
+                        y: { min: 0, title: { display: true, text: 'Stars' }, ticks: { callback: v => `${formatNumber(v, 0)}★` } }
+                    },
+                    plugins: {
+                        tooltip: {
+                            callbacks: {
+                                title: items => items.length ? clock(items[0].parsed.x) : '',
+                                // pp rate: the part's pp at the predicted acc times how far this moment is above its rating
+                                label: ctx => {
+                                    const p = parts[ctx.datasetIndex];
+                                    const rate = data.stars[p.key] > 0 ? ctx.parsed.y / data.stars[p.key] * p.pp : 0;
+                                    return `${p.label}: ${formatNumber(ctx.parsed.y, 2)}★ (${formatNumber(rate, 0)}pp rate)`;
+                                }
+                            }
+                        }
+                    }
+                }
+            });
         }
 
         // How many players get pp from it above the weight threshold, the weight read as profiles show it (%, 2 decimals):
@@ -1187,6 +1288,7 @@
         setupChart(leaderboardScores, compareLeaderboardScores);
         drawCurveChart();
         drawPpChart();
+        drawBreakdownChart();
         updateWeightCount();
     </script>
 }

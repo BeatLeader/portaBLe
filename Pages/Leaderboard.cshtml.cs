@@ -200,6 +200,53 @@ namespace portaBLe.Pages
             return scores;
         }
 
+        // (pp, pass pp, acc pp, tech pp) at the predicted acc with the leaderboard's (shown) ratings
+        private static (float, float, float, float) PartsAtPredictedAcc(Leaderboard lb)
+        {
+            float accuracy = lb.PredictedAcc > 0 ? lb.PredictedAcc : 0.96f;
+            var curve = lb.Curve != null && lb.Curve.Count >= 2 ? lb.Curve : null;
+            var (pp, _, passPp, accPp, techPp) = ReplayUtils.PpFromScore(accuracy, "", null, lb.AccRating, lb.PassRating, lb.TechRating, curve, lb.PredictedAcc);
+            float Finite(float v) => float.IsFinite(v) ? v : 0;
+            return (Finite(pp), Finite(passPp), Finite(accPp), Finite(techPp));
+        }
+
+        // Speed / acc / tech over time for the breakdown chart (RatingAPI's RatingResult.Breakdown, stored in LeaderboardBreakdowns), fetched
+        // after the page loads. Each line is the map's moment to moment difficulty (relative to its average) times the shown
+        // modifier's rating of that part, so it averages to the rating: the rating triangle's scale, in stars. The pp of each
+        // part at the predicted acc (the shares) comes along.
+        public async Task<IActionResult> OnGetBreakdownAsync(string id, string db = null, string modifier = "none")
+        {
+            await InitializeDatabaseSelectionAsync(db);
+            using var context = (Services.DynamicDbContext)GetDbContext();
+            var lb = await context.Leaderboards.AsNoTracking().Include(l => l.ModifiersRating).FirstOrDefaultAsync(l => l.Id == id);
+            if (lb == null) return NotFound();
+            modifier = Modifiers.Contains(modifier) ? modifier : "none";
+            ShowModifier(lb, modifier);
+
+            var key = $"{id}/{modifier}";
+            var stored = await context.LeaderboardBreakdowns.AsNoTracking().FirstOrDefaultAsync(b => b.Id == key);
+            if (stored == null) return new JsonResult(null);
+            var series = MapBreakdown.Decode(stored);
+
+            float accuracy = lb.PredictedAcc > 0 ? lb.PredictedAcc : 0.96f;
+            var (pp, passPp, accPp, techPp) = PartsAtPredictedAcc(lb);
+            double[] InStars(double[] values, float rating)
+            {
+                double mean = values.Average();
+                return values.Select(v => mean > 0 ? Math.Round(v / mean * rating, 3) : 0).ToArray();
+            }
+            return new JsonResult(new
+            {
+                accuracy = Math.Round(accuracy * 100, 2),
+                time = Enumerable.Range(0, series.Speed.Length).Select(i => series.Start + i),
+                speed = InStars(series.Speed, lb.PassRating),
+                acc = InStars(series.Acc, lb.AccRating),
+                tech = InStars(series.Tech, lb.TechRating),
+                pp = new { total = Math.Round(pp, 2), speed = Math.Round(passPp, 2), acc = Math.Round(accPp, 2), tech = Math.Round(techPp, 2) },
+                stars = new { speed = Math.Round(lb.PassRating, 3), acc = Math.Round(lb.AccRating, 3), tech = Math.Round(lb.TechRating, 3) },
+            });
+        }
+
         private static int DifficultyOrder(string? difficulty) => difficulty switch
         {
             "Easy" => 0, "Normal" => 1, "Hard" => 2, "Expert" => 3, "ExpertPlus" => 4, _ => 5

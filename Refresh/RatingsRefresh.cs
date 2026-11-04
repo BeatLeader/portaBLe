@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using portaBLe.DB;
+using portaBLe.Services;
 using RatingAPI.Controllers;
 
 namespace portaBLe.Refresh
@@ -20,7 +21,7 @@ namespace portaBLe.Refresh
         }
 
         // The modifiers Overwrite stores (RatingsController.Get also rates BFS / BSF, which aren't kept here)
-        private static readonly string[] StoredModifiers = { "none", "SS", "FS", "SFS" };
+        public static readonly string[] StoredModifiers = { "none", "SS", "FS", "SFS" };
 
         // applyAccReweight: keep each map's acc reweighter multiplier (Leaderboard.AccReweight) on its acc ratings. false: raw
         // acc ratings, and the multipliers are cleared (set to 0 = none), so later steps don't apply them either.
@@ -69,6 +70,8 @@ namespace portaBLe.Refresh
             var lbs = dbContext.Leaderboards.Include(lb => lb.ModifiersRating).ToList();
             Console.WriteLine($"Recalculating from RatingAPI for {lbs.Count} leaderboards");
             
+            // The Leaderboard page's speed / tech / acc over time from the same results (RatingResult.Breakdown)
+            var breakdowns = new System.Collections.Concurrent.ConcurrentBag<LeaderboardBreakdown>();
             int processedCount = 0;
             int totalCount = lbs.Count;
             int errorCount = 0;
@@ -138,6 +141,10 @@ namespace portaBLe.Refresh
 
                     // Stars: what a 96% score is worth, with each one's curve
                     ReplayUtils.SetStars(lb);
+                    foreach (var (modifier, rating) in response)
+                    {
+                        if (rating.Breakdown != null) breakdowns.Add(MapBreakdown.Encode($"{lb.Id}/{modifier}", rating.Breakdown));
+                    }
 
                     lock (lockObj)
                     {
@@ -168,6 +175,10 @@ namespace portaBLe.Refresh
             // The importer and refresh steps can leave automatic change detection off; BulkSaveChanges then saves nothing
             dbContext.ChangeTracker.DetectChanges();
             dbContext.BulkSaveChanges();
+            // Replaced: the rows of leaderboards that failed above go too
+            await dbContext.Database.ExecuteSqlRawAsync("DELETE FROM \"LeaderboardBreakdowns\"");
+            dbContext.LeaderboardBreakdowns.BulkInsertOptimized(breakdowns.ToList());
+            Console.WriteLine($"{breakdowns.Count} breakdowns stored");
             Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
         }
 

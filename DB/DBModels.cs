@@ -118,6 +118,22 @@ namespace portaBLe.DB
         };
     }
 
+    // Speed / tech / acc of a leaderboard over time with a speed modifier (MapBreakdown), for the Leaderboard page's
+    // breakdown chart. One point per second of real time from Start; each series as bytes, 255 = its Max.
+    // RatingAPI's RatingResult.Breakdown, stored by RatingsRefresh.Overwrite.
+    public class LeaderboardBreakdown
+    {
+        // "<leaderboard id>/<modifier>", modifier: none, SS, FS or SFS
+        public string Id { get; set; }
+        public float Start { get; set; }
+        public float SpeedMax { get; set; }
+        public float TechMax { get; set; }
+        public float AccMax { get; set; }
+        public byte[] Speed { get; set; }
+        public byte[] Tech { get; set; }
+        public byte[] Acc { get; set; }
+    }
+
     public class Leaderboard
     {
         [StringLength(25, MinimumLength = 0)]
