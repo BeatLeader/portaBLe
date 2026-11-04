@@ -144,6 +144,30 @@
     </div>
 </details>
 
+<details class="ce-corr" data-switch="useMidStar">
+    <summary>
+        <span class="form-check form-switch d-inline-block mb-0"><input class="form-check-input" type="checkbox" id="useMidStar" onchange="switched(this)" /></span>
+        <b>Mid star top bonus</b> <span class="ce-sum" id="sumMidStar"></span>
+    </summary>
+    <div class="ce-corr-body">
+        <div class="ce-corr-line">
+            <label>&times; 1 + <input type="number" id="midBonus" step="0.005" min="0" oninput="draw()" /></label>
+            <label>from <input type="number" id="midStart" step="0.1" oninput="draw()" /></label>
+            <label>full <input type="number" id="midFull" step="0.1" oninput="draw()" /></label>
+            <label>to <input type="number" id="midFullEnd" step="0.1" oninput="draw()" /></label>
+            <label>out at <input type="number" id="midEnd" step="0.1" oninput="draw()" /> stars</label>
+        </div>
+        <div class="ce-corr-line">
+            <label>from predicted &minus; <input type="number" id="midBelow" step="0.1" min="0" oninput="draw()" />%</label>
+            <label>full at predicted + <input type="number" id="midAbove" step="0.1" min="0" oninput="draw()" />%</label>
+        </div>
+        <div class="ce-hint">acc pp (the curve, after the acc curve power) &times; (1 + bonus &times; stars weight &times; acc ramp): the stars
+            weight eases (smoothstep) from 0 at "from" to 1 at "full", stays 1 to "to" and eases to 0 at "out at"; the acc ramp
+            eases from 0 at the predicted acc &minus; below to 1 at the predicted acc + above, and stays 1 up to 100%
+            (PpFormula.MidStarTopMultiplier). Not in the stars (read at 96% without it).</div>
+    </div>
+</details>
+
 <details class="ce-corr" data-switch="useNotes">
     <summary>
         <span class="form-check form-switch d-inline-block mb-0"><input class="form-check-input" type="checkbox" id="useNotes" onchange="switched(this)" /></span>
@@ -272,6 +296,9 @@
             powHigh: () => corr.accCurvePower, powLow: () => corr.lowStarCurvePower,
             powStart: () => corr.lowStarCurveStart, powEnd: () => corr.lowStarCurveEnd,
             powVeryLow: () => corr.veryLowStarCurvePower, powVeryStart: () => corr.veryLowStarCurveStart, powVeryEnd: () => corr.veryLowStarCurveEnd,
+            midBonus: () => corr.midStarTopBonus, midStart: () => corr.midStarTopStart, midFull: () => corr.midStarTopFull,
+            midFullEnd: () => corr.midStarTopFullEnd, midEnd: () => corr.midStarTopEnd,
+            midBelow: () => corr.midStarTopAccBelow, midAbove: () => corr.midStarTopAccAbove,
             noteCount: () => corr.lowNoteRefNotes, noteStart: () => corr.lowNoteStart, noteRefMult: () => corr.lowNoteRefMultiplier,
             noteRefNotes: () => corr.lowNoteRefNotes, noteMinMult: () => corr.lowNoteMinMultiplier,
             noteSpan: () => corr.shortRefSpan, shortStart: () => corr.shortStart, shortRefMult: () => corr.shortRefMultiplier,
@@ -317,6 +344,21 @@
             return curvePowerAt(stars(), high, low, num('powStart'), num('powEnd'), veryLow, num('powVeryStart'), num('powVeryEnd'));
         }
         function powerOn() { return (checked('usePower') || checked('useVeryLow')) && starsSet(); }
+
+        // PpFormula.MidStarTopMultiplier: its stars weight (MidStarTopBump) and the multiplier at an accuracy x (%) on a map
+        // predicted at p (%)
+        function ease(t) { t = Math.min(Math.max(t, 0), 1); return t * t * (3 - 2 * t); }
+        function midStarBump(s) {
+            const a = num('midStart'), b = num('midFull'), c = num('midFullEnd'), d = num('midEnd');
+            if (!(s > a && s < d)) return 0;
+            return s < b ? ease((s - a) / (b - a)) : s > c ? ease((d - s) / (d - c)) : 1;
+        }
+        function midStarMultiplier(x, p, bump) {
+            const below = num('midBelow'), from = p - below;
+            if (bump === 0 || !(x > from)) return 1;
+            return 1 + num('midBonus') * bump * ease((x - from) / (below + num('midAbove')));
+        }
+        function midStarOn() { return checked('useMidStar') && starsSet(); }
 
         // CurveSettings.LowNoteFactor x ShortFactor (LowNoteMultiplier)
         function noteFactor() {
@@ -368,6 +410,11 @@
                 const pow = power();
                 if (pow !== 1 && at96 > 0) pts = pts.map(([x, y]) => [x, y > 0 ? at96 * Math.pow(y / at96, pow) : y]);
             }
+            if (midStarOn()) {
+                // The mid star top bonus on acc pp, after the acc curve power (PpCalculator.ScorePp)
+                const bump = midStarBump(stars());
+                pts = pts.map(([x, y]) => [x, y * midStarMultiplier(x, p, bump)]);
+            }
             starsField = 'mapStars';
             return pts;
         }
@@ -385,6 +432,10 @@
             set('sumVeryLow', !starsSet() ? noStars : stars() >= num('powVeryEnd')
                 ? `no effect at ${fmt(stars(), 1)} stars (under ${fmt(num('powVeryEnd'), 1)} only)`
                 : `power ${fmt(power(), 3)} at ${fmt(stars(), 1)} stars`);
+            const bump = starsSet() ? midStarBump(stars()) : 0;
+            set('sumMidStar', !starsSet() ? noStars : bump === 0
+                ? `no effect at ${fmt(stars(), 1)} stars (${fmt(num('midStart'), 2)} to ${fmt(num('midEnd'), 2)} only)`
+                : `&times;${fmt(1 + num('midBonus') * bump, 3)} on acc pp at ${fmt(stars(), 1)} stars, from ${fmt(cur.predicted - num('midBelow'), 2)}%, full from ${fmt(cur.predicted + num('midAbove'), 2)}%`);
             set('sumNotes', `&times;${fmt(noteMultiplier(), 3)} (${fmt(num('noteCount'), 0)} notes &times;${fmt(noteFactor(), 3)}, ${fmt(num('noteSpan'), 0)} s &times;${fmt(shortFactor(), 3)})`);
             set('sumTop', `&times;${fmt(num('topSlope'), 2)} above ${fmt(topKnee(cur.predicted), 2)}%`);
             document.querySelectorAll('.ce-corr').forEach(box => box.classList.toggle('ce-on', checked(box.dataset.switch)));

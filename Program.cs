@@ -387,6 +387,55 @@ namespace portaBLe
                 Console.WriteLine(FormattableString.Invariant($"{lb.Name} {lb.DifficultyName} ({lb.Stars:0.00} stars) at {accuracy * 100:0.##}% {modifiers}: {pp:0.0}pp (pass {pass:0.0}, acc {acc:0.0}, tech {tech:0.0}, modifiers {bonus:+0.0;-0.0})"));
                 return;
             }
+            // dotnet run -c Release -- ppshape <wwwroot/file.db> [Pp.Setting=value ...]: every map's nomod pp curve from 90 to
+            // 100% (0.05% steps) with the pp formula as it is and with the mid star top bonus off: where pp's slope drops
+            // (a bump), counted on the maps where the bonus is on. Read only.
+            if (args.Length > 1 && args[0] == "ppshape")
+            {
+                var inv = System.Globalization.CultureInfo.InvariantCulture;
+                foreach (var setting in args.Skip(2))
+                {
+                    var parts = setting.Split('=', 2);
+                    (typeof(RatingAPI.Pp.PpFormula).GetProperty(parts[0][3..]) ?? throw new ArgumentException(parts[0])).SetValue(RatingAPI.Pp.PpFormula.Current, double.Parse(parts[1], inv));
+                }
+                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};Mode=ReadOnly;").Options;
+                using var shapeContext = new AppContext(options);
+                var lbs = await shapeContext.Leaderboards.Include(l => l.ModifiersRating).Where(l => l.Stars > 0).ToListAsync();
+                var formula = RatingAPI.Pp.PpFormula.Current;
+                double bonus = formula.MidStarTopBonus;
+                float[] Curve(Leaderboard lb) => Enumerable.Range(0, 201).Select(i => ReplayUtils.PpFromScore(0.9f + i * 0.0005f, "", null,
+                    lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve, lb.PredictedAcc).Item1).ToArray();
+                // The largest drop of the slope from one step to the next, relative to the slope before it
+                double WorstDrop(float[] pp)
+                {
+                    double worst = 0;
+                    for (int i = 2; i < pp.Length; i++)
+                    {
+                        double before = pp[i - 1] - pp[i - 2], after = pp[i] - pp[i - 1];
+                        if (before > 0.05) worst = Math.Max(worst, (before - after) / before);
+                    }
+                    return worst;
+                }
+                int withBonus = 0, worse = 0, decreasing = 0;
+                var worst = new List<(double drop, double off, string name)>();
+                foreach (var lb in lbs)
+                {
+                    formula.MidStarTopBonus = bonus;
+                    var on = Curve(lb);
+                    formula.MidStarTopBonus = 0;
+                    var off = Curve(lb);
+                    if (on.SequenceEqual(off)) continue;
+                    withBonus++;
+                    for (int i = 1; i < on.Length; i++) if (on[i] < on[i - 1]) { decreasing++; break; }
+                    double dOn = WorstDrop(on), dOff = WorstDrop(off);
+                    if (dOn > dOff + 0.01) worse++;
+                    worst.Add((dOn - dOff, dOff, $"{lb.Name} {lb.DifficultyName} ({lb.Stars:0.00}*, predicted {lb.PredictedAcc * 100:0.00}%): slope drop {dOn * 100:0.0}% (no bonus {dOff * 100:0.0}%), 100% {on[^1]:0} vs {off[^1]:0}pp"));
+                }
+                formula.MidStarTopBonus = bonus;
+                Console.WriteLine($"{withBonus} maps with the bonus: {decreasing} with pp falling somewhere, {worse} with a slope drop over 1 point worse than without it");
+                foreach (var w in worst.OrderByDescending(w => w.drop).Take(10)) Console.WriteLine("  " + w.name);
+                return;
+            }
             // dotnet run -c Release -- mapstats <wwwroot/file.db>: the Analyzer's counts the tags use (inlines, bomb resets, walls,
             // linear %) from the maps folder, then the tags (RatingsRefresh.RefreshMapStatistics), without rating the maps again
             if (args.Length > 1 && args[0] == "mapstats")

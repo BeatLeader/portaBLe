@@ -6,9 +6,9 @@ namespace portaBLe.Pages
 {
     // Per-map acc curve for any predicted acc, computed with the same code CurvesRefresh uses (Curve.GetCurve with
     // RC.CurveSettings.Current). Nothing is read from or written to a database.
-    // The map-dependent corrections (slider tilt, low note nerf, acc curve power, very low star power, acc top
-    // compression) are applied by the page's script with the same formulas (Curve.GetCurve, CurveSettings.
-    // LowNoteMultiplier, PpFormula.AccCurve / CurvePowerAt; the acc top compression is a what-if, no
+    // The map-dependent corrections (slider tilt, low note nerf, acc curve power, very low star power, mid star top bonus,
+    // acc top compression) are applied by the page's script with the same formulas (Curve.GetCurve, CurveSettings.
+    // LowNoteMultiplier, PpFormula.AccCurve / CurvePowerAt / MidStarTopMultiplier; the acc top compression is a what-if, no
     // longer in PpFormula). The curves sent have no note count, so no low note nerf.
     public class CurveExplorerModel : PageModel
     {
@@ -81,6 +81,14 @@ namespace portaBLe.Pages
                     veryLowStarCurvePower = formula.VeryLowStarCurvePower,
                     veryLowStarCurveStart = formula.VeryLowStarCurveStart,
                     veryLowStarCurveEnd = formula.VeryLowStarCurveEnd,
+                    // PpFormula.MidStarTopMultiplier (on acc pp, so on the curve), accs in %
+                    midStarTopBonus = formula.MidStarTopBonus,
+                    midStarTopStart = formula.MidStarTopStart,
+                    midStarTopFull = formula.MidStarTopFull,
+                    midStarTopFullEnd = formula.MidStarTopFullEnd,
+                    midStarTopEnd = formula.MidStarTopEnd,
+                    midStarTopAccBelow = formula.MidStarTopAccBelow * 100,
+                    midStarTopAccAbove = formula.MidStarTopAccAbove * 100,
                     lowNoteStart = settings.LowNoteStart,
                     lowNoteRefNotes = settings.LowNoteRefNotes,
                     lowNoteRefMultiplier = settings.LowNoteRefMultiplier,
