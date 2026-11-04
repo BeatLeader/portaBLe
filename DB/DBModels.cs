@@ -51,6 +51,9 @@ namespace portaBLe.DB
 
         public float TopPp { get; set; }
         public int RankedPlayCount { get; set; }
+        // The Ranking page's style tags (PlayerStyles.Encode), stored by PlayerStyles.StoreAsync
+        [StringLength(40, MinimumLength = 0)]
+        public string? Style { get; set; }
     }
 
     public class Score

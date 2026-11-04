@@ -1,30 +1,30 @@
 using Microsoft.EntityFrameworkCore;
+using portaBLe.DB;
 using portaBLe.Pages;
 
 namespace portaBLe.Services
 {
-    // A player's style, from the maps of their front page (top FrontPage scores), each counted by its weighted pp: Acc at
-    // AccMaxStars or under, Midspeed / Tech up to HighMaxStars and Speed / High Tech above (tech: the map's MapType), at the
-    // score's stars (its speed modifier's). The style is the category with the most pp, and a second one too ("Tech / Midspeed")
+    // A player's style, from the maps of their top TopShare of ranked plays (at least one), each counted by its weighted pp: Acc at AccMaxStars or under, Midspeed / Tech up to HighMaxStars and Speed /
+    // High Tech above (tech: the map's MapType), at the score's stars (its speed modifier's). The style is the category with the most pp, and a second one too ("Tech / Midspeed")
     // when it has at least MixShare of it. Modifiers when at least ModifiersShare of it is on SS / FS / SF.
     public static class PlayerStyles
     {
-        public const int FrontPage = 8;
+        public const double TopShare = 0.25;
         public const float AccMaxStars = 5f;
         public const float HighMaxStars = 9f;
-        public const double MixShare = 0.3;
+        public const double MixShare = 0.2;
         public const double ModifiersShare = 0.5;
 
         public record Style(string Key, string Label, string Css, string Tooltip);
 
         public static readonly Style[] All =
         {
-            new("acc", "Acc", "map-tag-acc", $"Front page pp mostly on maps of {AccMaxStars:0.#} stars or under"),
-            new("midspeed", "Midspeed", "map-tag-midspeed", $"Front page pp mostly on non tech maps over {AccMaxStars:0.#} to {HighMaxStars:0.#} stars"),
-            new("tech", "Tech", "map-tag-tech", $"Front page pp mostly on tech maps over {AccMaxStars:0.#} to {HighMaxStars:0.#} stars"),
-            new("speed", "Speed", "map-tag-speed", $"Front page pp mostly on non tech maps over {HighMaxStars:0.#} stars"),
-            new("hightech", "High Tech", "map-tag-hightech", $"Front page pp mostly on tech maps over {HighMaxStars:0.#} stars"),
-            new("modifiers", "Modifiers", "map-tag-trait", $"At least {ModifiersShare:P0} of the front page pp with a speed modifier (SS, FS, SF)"),
+            new("acc", "Acc", "map-tag-acc", $"Top {TopShare:P0} of plays' weighted pp mostly on maps of {AccMaxStars:0.#} stars or under"),
+            new("midspeed", "Midspeed", "map-tag-midspeed", $"Top {TopShare:P0} of plays' weighted pp mostly on non tech maps over {AccMaxStars:0.#} to {HighMaxStars:0.#} stars"),
+            new("tech", "Tech", "map-tag-tech", $"Top {TopShare:P0} of plays' weighted pp mostly on tech maps over {AccMaxStars:0.#} to {HighMaxStars:0.#} stars"),
+            new("speed", "Speed", "map-tag-speed", $"Top {TopShare:P0} of plays' weighted pp mostly on non tech maps over {HighMaxStars:0.#} stars"),
+            new("hightech", "High Tech", "map-tag-hightech", $"Top {TopShare:P0} of plays' weighted pp mostly on tech maps over {HighMaxStars:0.#} stars"),
+            new("modifiers", "Modifiers", "map-tag-trait", $"At least {ModifiersShare:P0} of the top {TopShare:P0} of plays' weighted pp with a speed modifier (SS, FS, SF)"),
         };
 
         public static Style? Find(string? key) => All.FirstOrDefault(s => s.Key == key);
@@ -68,16 +68,50 @@ namespace portaBLe.Services
             return new Microsoft.AspNetCore.Html.HtmlString(html);
         }
 
+        // As stored in Player.Style: "primary[,secondary][,modifiers]", empty = none
+        public static string Encode(PlayerStyle? style) =>
+            style == null ? "" : string.Join(",", new[] { style.Primary, style.Secondary, style.Modifiers ? "modifiers" : null }.Where(k => k != null));
+
+        public static PlayerStyle? Decode(string? stored)
+        {
+            var keys = (stored ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries);
+            var styles = keys.Where(k => k != "modifiers").ToArray();
+            return styles.Length == 0 ? null : new PlayerStyle(styles[0], styles.ElementAtOrDefault(1), keys.Contains("modifiers"));
+        }
+
+        // Computes every player's style and stores it in Player.Style (RefreshEverything, after the scores' pp, weights and the stars)
+        public static async Task StoreAsync(portaBLe.AppContext dbContext)
+        {
+            Console.WriteLine("Recalculating player styles");
+            var styles = await ComputeAsync(dbContext);
+            var players = (await dbContext.Players.AsNoTracking().Select(p => p.Id).ToListAsync())
+                .Select(id => new Player { Id = id, Style = Encode(styles.GetValueOrDefault(id)) })
+                .ToList();
+            await dbContext.BulkUpdateAsync(players, options => options.ColumnInputExpression = c => new { c.Style });
+            Console.WriteLine($"{styles.Count} player styles stored");
+        }
+
         private static readonly System.Collections.Concurrent.ConcurrentDictionary<string, Lazy<Task<Dictionary<string, PlayerStyle>>>> _byDatabase = new();
 
-        // The database's player styles by player id, computed once (key: its file name)
+        // The database's player styles by player id, read once (key: its file name). Databases built before Player.Style
+        // (none stored) compute them from their scores instead.
         public static Task<Dictionary<string, PlayerStyle>> ForDatabaseAsync(string database, Func<DynamicDbContext> contextFactory) =>
-            _byDatabase.GetOrAdd(database ?? "", _ => new Lazy<Task<Dictionary<string, PlayerStyle>>>(() => ComputeAsync(contextFactory))).Value;
+            _byDatabase.GetOrAdd(database ?? "", _ => new Lazy<Task<Dictionary<string, PlayerStyle>>>(() => LoadAsync(contextFactory))).Value;
 
-        private static async Task<Dictionary<string, PlayerStyle>> ComputeAsync(Func<DynamicDbContext> contextFactory)
+        private static async Task<Dictionary<string, PlayerStyle>> LoadAsync(Func<DynamicDbContext> contextFactory)
         {
             using var context = contextFactory();
-            var maps = await context.Leaderboards.AsNoTracking()
+            var stored = await context.Players.AsNoTracking()
+                .Where(p => p.Style != null && p.Style != "")
+                .Select(p => new { p.Id, p.Style })
+                .ToListAsync();
+            if (stored.Count == 0) return await ComputeAsync(context);
+            return stored.ToDictionary(p => p.Id, p => Decode(p.Style)!);
+        }
+
+        private static async Task<Dictionary<string, PlayerStyle>> ComputeAsync(DbContext context)
+        {
+            var maps = await context.Set<Leaderboard>().AsNoTracking()
                 .Select(l => new
                 {
                     l.Id, l.Stars, l.MapType,
@@ -87,10 +121,8 @@ namespace portaBLe.Services
                 })
                 .ToDictionaryAsync(l => l.Id);
 
-            // The front page's weights are 0.965^0 .. 0.965^(FrontPage - 1) (PlayersRefresh)
-            float minWeight = MathF.Pow(0.965f, FrontPage - 1) - 0.0001f;
-            var scores = await context.Scores.AsNoTracking()
-                .Where(s => s.Weight >= minWeight && s.Pp > 0)
+            var scores = await context.Set<Score>().AsNoTracking()
+                .Where(s => s.Weight > 0 && s.Pp > 0)
                 .Select(s => new { s.PlayerId, s.LeaderboardId, s.Pp, s.Weight, s.Modifiers })
                 .ToListAsync();
 
@@ -99,8 +131,10 @@ namespace portaBLe.Services
             {
                 var pp = new Dictionary<string, double>();
                 double total = 0, modded = 0;
-                foreach (var s in player.OrderByDescending(s => s.Pp).Take(FrontPage))
+                int count = Math.Max(1, (int)Math.Ceiling(TopShare * player.Count()));
+                foreach (var s in player.OrderByDescending(s => s.Pp).Take(count))
                 {
+                    double weighted = s.Pp * s.Weight;
                     if (!maps.TryGetValue(s.LeaderboardId, out var map)) continue;
                     string? speed = ScoreModifierFilter.SpeedModifier(s.Modifiers);
                     double stars = ScoreModifierFilter.Pick(speed, map.Stars, map.SS, map.FS, map.SF);
@@ -108,7 +142,6 @@ namespace portaBLe.Services
                     string key = stars <= AccMaxStars ? "acc"
                         : stars <= HighMaxStars ? (tech ? "tech" : "midspeed")
                         : (tech ? "hightech" : "speed");
-                    double weighted = s.Pp * s.Weight;
                     pp[key] = pp.GetValueOrDefault(key) + weighted;
                     total += weighted;
                     if (speed != null) modded += weighted;

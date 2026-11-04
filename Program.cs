@@ -98,6 +98,7 @@ namespace portaBLe
                 await ScoresRefresh.Refresh(dbContext);
                 await PlayersRefresh.Refresh(dbContext);
                 await LeaderboardsRefresh.Refresh(dbContext);
+                await PlayerStyles.StoreAsync(dbContext);
             }
             Console.WriteLine((Program.Stopwatch.ElapsedMilliseconds / 1000).ToString() + " seconds");
         }
@@ -281,6 +282,16 @@ namespace portaBLe
                     using var context = new AppContext(options);
                     Console.WriteLine(await TopScoresCache.EnsureCurrentAsync(context) ? "Built" : "Already current");
                 }
+                return;
+            }
+            // dotnet run -c Release -- styles <wwwroot/file.db>: PlayerStyles.StoreAsync alone on that database (the Ranking
+            // page's style tags, for databases built before they were stored)
+            if (args.Length > 1 && args[0] == "styles")
+            {
+                await EnsureSchema(args[1], Path.GetFullPath(args[1]));
+                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};").Options;
+                using var stylesContext = new AppContext(options);
+                await PlayerStyles.StoreAsync(stylesContext);
                 return;
             }
             // dotnet run -c Release -- rescore: RefreshEverything alone on wwwroot/Database.db (after a pp formula change)
@@ -499,6 +510,7 @@ namespace portaBLe
                     await ScoresRefresh.Refresh(importContext);
                     await PlayersRefresh.Refresh(importContext);
                     await LeaderboardsRefresh.Refresh(importContext);
+                    await PlayerStyles.StoreAsync(importContext);
                 }
                 else
                 {
@@ -873,6 +885,8 @@ namespace portaBLe
             // await PlayersRefresh.Refresh(dbContext);
             await LeaderboardsRefresh.Refresh(dbContext);
             await LeaderboardsRefresh.RefreshStars(dbContext);
+            // The Ranking page's style tags, from the new pp and stars
+            await PlayerStyles.StoreAsync(dbContext);
 
             await UpdateStats(dbContext);
 
