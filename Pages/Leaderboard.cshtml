@@ -385,6 +385,7 @@
                     <th>PP</th>
                     <th>Accuracy</th>
                     <th>Mods</th>
+                    <th>Date</th>
                 </tr>
             </thead>
             <tbody>
@@ -395,6 +396,7 @@
                         <td>@score.Pp</td>
                         <td>@score.Accuracy</td>
                         <td>@score.Modifiers</td>
+                        <td title="@TimeAgo.Exact(score.Timepost)">@TimeAgo.Format(score.Timepost)</td>
                     </tr>
                 }
             </tbody>
@@ -437,6 +439,7 @@
                         <th>PP</th>
                         <th>Accuracy</th>
                         <th>Mods</th>
+                        <th>Date</th>
                     </tr>
                 </thead>
                 <tbody>
@@ -447,6 +450,7 @@
                             <td>@score.Pp</td>
                             <td>@score.Accuracy</td>
                             <td>@score.Modifiers</td>
+                            <td title="@TimeAgo.Exact(score.Timepost)">@TimeAgo.Format(score.Timepost)</td>
                         </tr>
                     }
                 </tbody>
