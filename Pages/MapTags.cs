@@ -22,6 +22,18 @@ namespace portaBLe.Pages
             new("inline", "Inline", "map-tag-trait", $"At least {LeaderboardsRefresh.InlinesPerMinuteThreshold:0.#} inlines per minute (a note at most 1/4 beat behind another (either color) in the same column and row, hidden by it)"),
         };
 
+        // The map type tags (one per map, from MapType); the others are traits a map can have any number of
+        public static bool IsMapType(string key) => key is "acc" or "tech" or "midspeed" or "speed" or "extreme";
+
+        // The valid tag keys of a comma separated list (the scores graphs' tags parameter), in MapTags.All order: the included
+        // ones, and the excluded ones written with a leading "-" (speed,-linear)
+        public static (string[] Include, string[] Exclude) ParseKeys(string? keys)
+        {
+            var set = (keys ?? "").Split(',', StringSplitOptions.RemoveEmptyEntries | StringSplitOptions.TrimEntries).ToHashSet();
+            return (All.Where(t => set.Contains(t.Key)).Select(t => t.Key).ToArray(),
+                All.Where(t => set.Contains("-" + t.Key)).Select(t => t.Key).ToArray());
+        }
+
         public static IEnumerable<Tag> Of(Leaderboard lb)
         {
             foreach (var tag in All)
@@ -45,7 +57,7 @@ namespace portaBLe.Pages
             "fitbeat" => query.Where(l => l.IsFitbeat),
             "bombreset" => query.Where(l => l.IsBombReset),
             "inline" => query.Where(l => l.IsInline),
-            "acc" or "tech" or "midspeed" or "speed" or "extreme" => query.Where(l => l.MapType == key),
+            _ when key != null && IsMapType(key) => query.Where(l => l.MapType == key),
             _ => query,
         };
 

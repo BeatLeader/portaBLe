@@ -211,9 +211,9 @@ namespace portaBLe.Pages
         }
 
         // Speed / acc / tech over time for the breakdown chart (RatingAPI's RatingResult.Breakdown, stored in LeaderboardBreakdowns), fetched
-        // after the page loads. Each line is the map's moment to moment difficulty (relative to its average) times the shown
-        // modifier's rating of that part, so it averages to the rating: the rating triangle's scale, in stars. The pp of each
-        // part at the predicted acc (the shares) comes along.
+        // after the page loads. Each line is in effective stars (MapBreakdown.EffectiveStars: the stars of the maps that rank
+        // the same on that part), one scale for the three parts, every map and modifier. The pp of each part at the predicted
+        // acc comes along.
         public async Task<IActionResult> OnGetBreakdownAsync(string id, string db = null, string modifier = "none")
         {
             await InitializeDatabaseSelectionAsync(db);
@@ -230,18 +230,14 @@ namespace portaBLe.Pages
 
             float accuracy = lb.PredictedAcc > 0 ? lb.PredictedAcc : 0.96f;
             var (pp, passPp, accPp, techPp) = PartsAtPredictedAcc(lb);
-            double[] InStars(double[] values, float rating)
-            {
-                double mean = values.Average();
-                return values.Select(v => mean > 0 ? Math.Round(v / mean * rating, 3) : 0).ToArray();
-            }
+            var effective = await MapBreakdown.EffectiveStars.ForDatabaseAsync(SelectedDatabase, () => (Services.DynamicDbContext)GetDbContext());
             return new JsonResult(new
             {
                 accuracy = Math.Round(accuracy * 100, 2),
                 time = Enumerable.Range(0, series.Speed.Length).Select(i => series.Start + i),
-                speed = InStars(series.Speed, lb.PassRating),
-                acc = InStars(series.Acc, lb.AccRating),
-                tech = InStars(series.Tech, lb.TechRating),
+                speed = effective.Speed(series.Speed),
+                acc = effective.Acc(series.Acc),
+                tech = effective.Tech(series.Tech),
                 pp = new { total = Math.Round(pp, 2), speed = Math.Round(passPp, 2), acc = Math.Round(accPp, 2), tech = Math.Round(techPp, 2) },
                 stars = new { speed = Math.Round(lb.PassRating, 3), acc = Math.Round(lb.AccRating, 3), tech = Math.Round(lb.TechRating, 3) },
             });

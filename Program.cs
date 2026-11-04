@@ -310,7 +310,7 @@ namespace portaBLe
             if (args.Length > 1 && args[0] == "rerate")
             {
                 // Experiments: ParityPredictor settings (name=value, see paritycheck), pp formula ones (Pp.TechWeight=0.13) and the
-                // low star speed blend's (Speed.LowStarSpeedWidthAbove=0.6, RatingsController's static settings)
+                // low star speed blend's (Speed.LowStarSpeedWidthAbove=0.6, RatingsController's static settings); SustainedJumps (Jumps.MaxGapSeconds=0.25)
                 foreach (var setting in args.Skip(2))
                 {
                     var parts = setting.Split('=');
@@ -318,6 +318,7 @@ namespace portaBLe
                     double value = double.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
                     if (parts[0].StartsWith("Pp.")) (typeof(RatingAPI.Pp.PpFormula).GetProperty(parts[0][3..]) ?? throw new ArgumentException(parts[0])).SetValue(RatingAPI.Pp.PpFormula.Current, value);
                     else if (parts[0].StartsWith("Speed.")) (typeof(RatingAPI.Controllers.RatingsController).GetProperty(parts[0][6..]) ?? throw new ArgumentException(parts[0])).SetValue(null, value);
+                    else if (parts[0].StartsWith("Jumps.")) beatleader_analyzer.BeatmapScanner.Helper.SustainedJumps.Set(parts[0][6..], value);
                     else Analyzer.BeatmapScanner.Algorithm.ParityPredictor.Set(parts[0], value);
                 }
                 await EnsureSchema(args[1], Path.GetFullPath(args[1]));

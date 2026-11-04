@@ -68,6 +68,38 @@
                     <div class="row">
                         <div class="col-md-12">
                             <div class="form-group">
+                                <label>Map tags</label>
+                                <div>
+                                    @{ var (includedTags, excludedTags) = MapTags.ParseKeys(Model.Tags); }
+                                    @foreach (var t in MapTags.All)
+                                    {
+                                        var state = includedTags.Contains(t.Key) ? "in" : excludedTags.Contains(t.Key) ? "out" : "";
+                                        <button type="button" class="btn btn-sm btn-outline-secondary me-1 mb-1 tag-toggle" data-set="main" data-tag="@t.Key" data-state="@state" data-label="@t.Label" title="@t.Tooltip">@t.Label</button>
+                                    }
+                                </div>
+                                <small class="form-text text-muted">Click a tag to include it, again to exclude it, again to clear it. Maps of any included type (Acc to Extreme) with every included trait (Linear to Inline) and no excluded tag; each database's own tags</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="form-group">
+                                <label>Compare tags</label>
+                                <div>
+                                    @{ var (compareIncluded, compareExcluded) = MapTags.ParseKeys(Model.CompareTags); }
+                                    @foreach (var t in MapTags.All)
+                                    {
+                                        var state = compareIncluded.Contains(t.Key) ? "in" : compareExcluded.Contains(t.Key) ? "out" : "";
+                                        <button type="button" class="btn btn-sm btn-outline-secondary me-1 mb-1 tag-toggle" data-set="compare" data-tag="@t.Key" data-state="@state" data-label="@t.Label" title="@t.Tooltip">@t.Label</button>
+                                    }
+                                </div>
+                                <small class="form-text text-muted">Set any to draw these maps against the ones above (in orange, same filters, from this database or the "Compare with" one)</small>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="form-group">
                                 <label>Speed modifiers to include</label>
                                 <div>
                                     <div class="form-check form-check-inline">
@@ -214,6 +246,14 @@
             }
         }
 
+        // The x axis: 0 to 16, or 22 when the loaded scores include a speed modifier (SS / FS / SFS), up to the highest x
+        // drawn (rounded up) when one is above
+        function xRange(speedMods, ...series) {
+            let max = speedMods ? 22 : 16;
+            for (const values of series) for (const v of values || []) if (v > max) max = v;
+            return [0, Math.ceil(max)];
+        }
+
         function readPercent() {
             const v = parseFloat(document.getElementById('rollingPercent').value);
             return isFinite(v) && v > 0 ? Math.min(v, 100) : 1;
@@ -299,7 +339,7 @@
 
         // The comparison database's rolling average against the main one's, at the main one's x: in % for pp, in
         // accuracy points for acc
-        function renderDiff(ra, cra, xField, yField, mainName, compareName) {
+        function renderDiff(ra, cra, xField, yField, mainName, compareName, range) {
             const card = document.getElementById('diffCard');
             if (!cra) {
                 card.style.display = 'none';
@@ -320,7 +360,7 @@
                 { x: xs, y: ys, mode: 'lines', type: 'scatter', line: { color: '#e67e22', width: 2 }, name: 'Difference',
                   hovertemplate: `%{x:.2f}  %{y:+.2f} ${unit}<extra></extra>` },
             ], {
-                xaxis: { title: getAxisLabel(xField) },
+                xaxis: { title: getAxisLabel(xField), range },
                 yaxis: { title: isAcc ? 'Acc points' : '%', zeroline: true, zerolinecolor: '#888', zerolinewidth: 1.5 },
                 margin: { t: 10, b: 50, l: 60, r: 10 },
                 showlegend: false,
@@ -334,7 +374,7 @@
             if (!d || !d.count) {
                 document.getElementById('diffCard').style.display = 'none';
                 Plotly.react('myPlot', [], {
-                    xaxis: { title: getAxisLabel(xField) },
+                    xaxis: { title: getAxisLabel(xField), range: xRange(d && d.speedMods) },
                     yaxis: { title: getAxisLabel(yField) },
                     margin: { t: 10, b: 50, l: 50, r: 10 },
                     annotations: [{
@@ -347,7 +387,7 @@
                 return;
             }
 
-            const mainName = DB_NAMES[MAIN_DB] || MAIN_DB;
+            const mainName = d.name || DB_NAMES[MAIN_DB] || MAIN_DB;
             const tracePoints = {
                 x: d.dots[xField],
                 y: d.dots[yField],
@@ -367,11 +407,13 @@
                 name: cmp ? `Rolling Avg: ${mainName} (${percent}% of scores)` : `Rolling Avg (${percent}% of scores)`
             };
             const traces = [tracePoints, traceAvg];
+            const range = xRange(d.speedMods, d.dots[xField], ra.xs, cmp && cmp.dots[xField], cmp && cmp.bins[xField] && cmp.bins[xField].at);
 
-            // The comparison database: its dots (hidden at first, click the legend to show them) and rolling average
+            // The comparison (another database and / or tag set): its dots (a database's hidden at first, click the legend to
+            // show them; a tag set's shown) and rolling average
             let cra = null;
             if (cmp) {
-                const compareName = DB_NAMES[cmp.db] || cmp.db;
+                const compareName = cmp.name;
                 cra = computeRollingAverage(cmp.bins[xField], yField, percent);
                 traces.splice(1, 0, {
                     x: cmp.dots[xField],
@@ -380,7 +422,7 @@
                     type: 'scattergl',
                     marker: { size: 4, color: '#e67e22', opacity: 0.2 },
                     name: `Points: ${compareName}`,
-                    visible: 'legendonly'
+                    visible: cmp.tagCompare ? true : 'legendonly'
                 });
                 traces.push({
                     x: cra.xs,
@@ -393,13 +435,13 @@
                 document.getElementById('compareMagicRow').style.display = '';
                 document.getElementById('compareMagicLabel').textContent = `${compareName} (0 = perfectly linear):`;
                 document.getElementById('compareMagicValue').textContent = computeMagicValue(cra.xs, cra.ys).toFixed(4);
-                renderDiff(ra, cra, xField, yField, mainName, compareName);
+                renderDiff(ra, cra, xField, yField, mainName, compareName, range);
             } else {
                 renderDiff(ra, null);
             }
 
             const layout = {
-                xaxis: { title: getAxisLabel(xField) },
+                xaxis: { title: getAxisLabel(xField), range },
                 yaxis: { title: getAxisLabel(yField) },
                 hovermode: 'closest',
                 margin: { t: 10, b: cmp ? 90 : 50, l: 50, r: 10 },
@@ -435,6 +477,21 @@
 
         const statusEl = document.getElementById('status');
 
+        // A tag set's toggles as the tags parameter (speed,-linear)
+        function tagsOf(set) {
+            return [...document.querySelectorAll(`.tag-toggle[data-set="${set}"]`)].filter(b => b.dataset.state)
+                .map(b => (b.dataset.state === 'out' ? '-' : '') + b.dataset.tag).join(',');
+        }
+
+        // A tag set's name for the legend: "Speed -Linear", "all maps" when empty
+        function tagsName(tags) {
+            if (!tags) return 'all maps';
+            return tags.split(',').map(key => {
+                const out = key.startsWith('-'), button = document.querySelector(`.tag-toggle[data-tag="${out ? key.slice(1) : key}"]`);
+                return (out ? '-' : '') + (button ? button.dataset.label : key);
+            }).join(' ');
+        }
+
         function filterValues() {
             const v = {
                 minYear: parseInt(document.getElementById('minYear').value) || 0,
@@ -447,6 +504,7 @@
                 modSS: document.getElementById('modSS').checked,
                 modFS: document.getElementById('modFS').checked,
                 modSFS: document.getElementById('modSFS').checked,
+                tags: tagsOf('main'),
             };
             if (WEIGHTED) v.minWeightPercent = parseFloat(document.getElementById('minWeightPercent').value) || 0;
             return v;
@@ -472,17 +530,22 @@
             if (retryTimer) { clearTimeout(retryTimer); retryTimer = null; }
             const filters = filterValues();
             const compareDb = document.getElementById('compareDb').value;
+            const compareTags = tagsOf('compare');
 
             // Update the browser URL with filter parameters so they persist when switching databases
             const pageUrl = new URL(window.location.href);
             for (const [k, v] of Object.entries(filters)) pageUrl.searchParams.set(k, v);
             pageUrl.searchParams.set('rollingPercent', readPercent());
             if (compareDb) pageUrl.searchParams.set('compareDb', compareDb); else pageUrl.searchParams.delete('compareDb');
+            if (compareTags) pageUrl.searchParams.set('compareTags', compareTags); else pageUrl.searchParams.delete('compareTags');
             window.history.replaceState({}, '', pageUrl);
 
             showSpinner(true);
             try {
-                const [json, cjson] = await Promise.all([fetchData(filters, null), compareDb ? fetchData(filters, compareDb) : null]);
+                // The comparison: the "Compare with" database and / or the compare tag set (the other one as the main's)
+                const comparing = compareDb || compareTags;
+                const [json, cjson] = await Promise.all([fetchData(filters, null),
+                    comparing ? fetchData({ ...filters, tags: compareTags || filters.tags }, compareDb || null) : null]);
                 if (json.failed) {
                     statusEl.textContent = `Could not load the data (${json.failed}).`;
                     return;
@@ -495,13 +558,17 @@
                     return;
                 }
                 data = json;
+                const dbName = DB_NAMES[MAIN_DB] || MAIN_DB;
+                data.name = compareTags ? `${compareDb ? dbName + ' ' : ''}${tagsName(filters.tags)}` : dbName;
+                data.speedMods = filters.modSS || filters.modFS || filters.modSFS;
                 const shown = json.dots.pp ? json.dots.pp.length : 0;
                 let status = `${json.count.toLocaleString()} scores (${shown.toLocaleString()} dots shown, the average uses all of them)`
                     + (json.building ? ' · the database changed, its cache is being rebuilt' : '');
 
                 compareData = null;
                 if (cjson) {
-                    const compareName = DB_NAMES[compareDb] || compareDb;
+                    const compareDbName = compareDb ? DB_NAMES[compareDb] || compareDb : '';
+                    const compareName = compareTags ? `${compareDbName ? compareDbName + ' ' : ''}${tagsName(compareTags)}` : compareDbName;
                     if (cjson.failed) status += ` · ${compareName}: could not load the data (${cjson.failed})`;
                     else if (cjson.count === undefined) {
                         if (cjson.error) status += ` · ${compareName}: its scores cache failed to build (${cjson.error})`;
@@ -510,7 +577,7 @@
                             retryTimer = setTimeout(fetchFiltered, 10000);
                         }
                     } else {
-                        compareData = { ...cjson, db: compareDb };
+                        compareData = { ...cjson, db: compareDb, name: compareName, tagCompare: !!compareTags };
                         status += ` · compared with ${compareName}: ${cjson.count.toLocaleString()} scores`;
                     }
                 }
@@ -525,6 +592,20 @@
         }
 
         document.getElementById('applyFilters').addEventListener('click', fetchFiltered);
+
+        // Tag toggles: off -> included -> excluded -> off
+        function showTagState(button) {
+            const state = button.dataset.state;
+            button.className = 'btn btn-sm me-1 mb-1 tag-toggle ' + (state === 'in' ? 'btn-success' : state === 'out' ? 'btn-danger' : 'btn-outline-secondary');
+            button.textContent = (state === 'in' ? '+ ' : state === 'out' ? '- ' : '') + button.dataset.label;
+        }
+        document.querySelectorAll('.tag-toggle').forEach(button => {
+            showTagState(button);
+            button.addEventListener('click', () => {
+                button.dataset.state = button.dataset.state === 'in' ? 'out' : button.dataset.state === 'out' ? '' : 'in';
+                showTagState(button);
+            });
+        });
         // Picking a comparison database loads it straight away when the graph is already shown
         document.getElementById('compareDb').addEventListener('change', function() {
             if (data) fetchFiltered();
@@ -533,7 +614,7 @@
         // Load straight away when the URL has filters
         function shouldAutoLoad() {
             const urlParams = new URLSearchParams(window.location.search);
-            const filterParams = ['minWeightPercent', 'minYear', 'minMonth', 'minDay', 'maxPlayerRank', 'minRankedPlayCount', 'playerId', 'modNone', 'modSS', 'modFS', 'modSFS', 'compareDb'];
+            const filterParams = ['minWeightPercent', 'minYear', 'minMonth', 'minDay', 'maxPlayerRank', 'minRankedPlayCount', 'playerId', 'modNone', 'modSS', 'modFS', 'modSFS', 'tags', 'compareTags', 'compareDb'];
             return filterParams.some(param => urlParams.has(param) && urlParams.get(param) !== '' && urlParams.get(param) !== '0' && urlParams.get(param) !== 'true');
         }
 

@@ -41,6 +41,16 @@ namespace portaBLe.Pages
         [BindProperty(SupportsGet = true)]
         public bool ModSFS { get; set; } = false;
 
+        // Tag filter: comma separated MapTags.All keys (acc, tech, midspeed, speed, extreme, linear, fitbeat, bombreset, inline),
+        // excluded ones with a leading "-": maps of any of the included types that have all the included traits and none of
+        // the excluded tags. Empty = all maps.
+        [BindProperty(SupportsGet = true)]
+        public string Tags { get; set; } = "";
+
+        // A second tag set (same syntax) drawn against the first one, from the same database or the "Compare with" one. Empty = none.
+        [BindProperty(SupportsGet = true)]
+        public string CompareTags { get; set; } = "";
+
         // Rolling average window as a share of the filtered scores (%), kept in the URL so it survives switching databases
         [BindProperty(SupportsGet = true)]
         public double RollingPercent { get; set; } = 1;
@@ -58,7 +68,7 @@ namespace portaBLe.Pages
             await InitializeDatabaseSelectionAsync(db);
         }
 
-        public async Task<IActionResult> OnGetDataAsync(float minWeightPercent = 0, int minYear = 0, int minMonth = 0, int minDay = 0, int maxPlayerRank = 1000, int minRankedPlayCount = 100, string playerId = "", bool modNone = true, bool modSS = false, bool modFS = false, bool modSFS = false, string db = null)
+        public async Task<IActionResult> OnGetDataAsync(float minWeightPercent = 0, int minYear = 0, int minMonth = 0, int minDay = 0, int maxPlayerRank = 1000, int minRankedPlayCount = 100, string playerId = "", bool modNone = true, bool modSS = false, bool modFS = false, bool modSFS = false, string tags = "", string db = null)
         {
             await InitializeDatabaseSelectionAsync(db);
             var result = await TopScoresCache.TryGetAsync(() => GetDbContext());
@@ -73,6 +83,8 @@ namespace portaBLe.Pages
                 MinRankedPlayCount = minRankedPlayCount,
                 PlayerId = playerId ?? "",
                 Speeds = new[] { modNone, modSS, modFS, modSFS },
+                Tags = MapTags.ParseKeys(tags).Include,
+                ExcludedTags = MapTags.ParseKeys(tags).Exclude,
             };
             return new JsonResult(await ScoresGraphData.BuildAsync(result.Data, () => GetDbContext(), filters, result.Building));
         }
