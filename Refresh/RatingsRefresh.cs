@@ -48,6 +48,7 @@ namespace portaBLe.Refresh
                 ("IsInline", "INTEGER"),
                 ("MapType", "TEXT"),
                 ("Inlines", "INTEGER"),
+                ("PeakEbpm", "REAL"),
                 ("Curve", "TEXT"),
             })
             {
@@ -105,6 +106,7 @@ namespace portaBLe.Refresh
                     lb.ParityErrors = (float)response["none"].LackMapCalculation.Statistics.ParityErrors;
                     lb.BombAvoidances = (float)response["none"].LackMapCalculation.Statistics.BombAvoidances;
                     lb.Inlines = response["none"].LackMapCalculation.Statistics.Inlines;
+                    lb.PeakEbpm = (float)response["none"].LackMapCalculation.PeakEbpm;
                     lb.Duration = (float)response["none"].Length;
                     lb.Njs = response["none"].Njs;
                     lb.NoteCount = response["none"].LackMapCalculation.NoteCount;
@@ -183,12 +185,13 @@ namespace portaBLe.Refresh
         }
 
         // The Analyzer's counts (Leaderboard.Inlines, BombAvoidances, DodgeWalls, CrouchWalls and LinearPercent, which the tags
-        // use, and ParityErrors) from the maps folder, without rating the maps again (Overwrite stores them too). Maps missing from the
+        // use, ParityErrors and PeakEbpm) from the maps folder, without rating the maps again (Overwrite stores them too). Maps missing from the
         // folder are left as they are. Then LeaderboardsRefresh.DetermineTags.
         public static async Task RefreshMapStatistics(AppContext dbContext, string mapsDirectory = "maps")
         {
             // Before any bulk operation (see LeaderboardsRefresh.EnsureTagColumns)
             await LeaderboardsRefresh.EnsureTagColumns(dbContext);
+            await DbSchema.AddColumnIfMissing(dbContext, "Leaderboards", "PeakEbpm", "REAL");
             var lbs = await dbContext.Leaderboards.AsNoTracking()
                 .Select(l => new Leaderboard { Id = l.Id, Hash = l.Hash, ModeName = l.ModeName, DifficultyName = l.DifficultyName })
                 .ToListAsync();
@@ -212,12 +215,13 @@ namespace portaBLe.Refresh
                     {
                         Id = lb.Id, Inlines = stats.Inlines, ParityErrors = stats.ParityErrors, BombAvoidances = stats.BombAvoidances,
                         DodgeWalls = stats.DodgeWalls, CrouchWalls = stats.CrouchWalls, LinearPercent = (float)ratings.LinearPercentage,
+                        PeakEbpm = (float)ratings.PeakSustainedEBPM,
                     });
                 }
                 catch { }
             });
             await dbContext.BulkUpdateAsync(updates.ToList(), options => options.ColumnInputExpression = c =>
-                new { c.Inlines, c.ParityErrors, c.BombAvoidances, c.DodgeWalls, c.CrouchWalls, c.LinearPercent });
+                new { c.Inlines, c.ParityErrors, c.BombAvoidances, c.DodgeWalls, c.CrouchWalls, c.LinearPercent, c.PeakEbpm });
             Console.WriteLine($"Map statistics: {updates.Count} of {lbs.Count} leaderboards updated from {mapsDirectory}");
             await LeaderboardsRefresh.DetermineTags(dbContext);
         }

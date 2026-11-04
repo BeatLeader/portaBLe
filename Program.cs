@@ -321,7 +321,7 @@ namespace portaBLe
             if (args.Length > 1 && args[0] == "rerate")
             {
                 // Experiments: ParityPredictor settings (name=value, see paritycheck), pp formula ones (Pp.TechWeight=0.13) and the
-                // low star speed blend's (Speed.LowStarSpeedWidthAbove=0.6, RatingsController's static settings); SustainedJumps (Jumps.MaxGapSeconds=0.25)
+                // low star speed blend's (Speed.LowStarSpeedWidthAbove=0.6, RatingsController's static settings); SustainedJumps (Jumps.MaxGapSeconds=0.25); HighSpeedBuff (HighSpeed.Buff=0.1)
                 foreach (var setting in args.Skip(2))
                 {
                     var parts = setting.Split('=');
@@ -330,6 +330,7 @@ namespace portaBLe
                     if (parts[0].StartsWith("Pp.")) (typeof(RatingAPI.Pp.PpFormula).GetProperty(parts[0][3..]) ?? throw new ArgumentException(parts[0])).SetValue(RatingAPI.Pp.PpFormula.Current, value);
                     else if (parts[0].StartsWith("Speed.")) (typeof(RatingAPI.Controllers.RatingsController).GetProperty(parts[0][6..]) ?? throw new ArgumentException(parts[0])).SetValue(null, value);
                     else if (parts[0].StartsWith("Jumps.")) beatleader_analyzer.BeatmapScanner.Helper.SustainedJumps.Set(parts[0][6..], value);
+                    else if (parts[0].StartsWith("HighSpeed.")) beatleader_analyzer.BeatmapScanner.Helper.HighSpeedBuff.Set(parts[0][10..], value);
                     else Analyzer.BeatmapScanner.Algorithm.ParityPredictor.Set(parts[0], value);
                 }
                 await EnsureSchema(args[1], Path.GetFullPath(args[1]));
@@ -451,7 +452,7 @@ namespace portaBLe
                 return;
             }
             // dotnet run -c Release -- mapstats <wwwroot/file.db>: the Analyzer's counts the tags use (inlines, bomb resets, walls,
-            // linear %) from the maps folder, then the tags (RatingsRefresh.RefreshMapStatistics), without rating the maps again
+            // linear %, peak EBPM) from the maps folder, then the tags (RatingsRefresh.RefreshMapStatistics), without rating the maps again
             if (args.Length > 1 && args[0] == "mapstats")
             {
                 var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};").Options;

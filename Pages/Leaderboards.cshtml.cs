@@ -120,6 +120,7 @@ namespace portaBLe.Pages
                 "TechRating" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.TechRating) : leaderboardQuery.OrderBy(l => l.TechRating),
                 "AccRating" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.AccRating) : leaderboardQuery.OrderBy(l => l.AccRating),
                 "NoteCount" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.NoteCount) : leaderboardQuery.OrderBy(l => l.NoteCount),
+                "PeakEbpm" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.PeakEbpm) : leaderboardQuery.OrderBy(l => l.PeakEbpm),
                 "WorthMean" => SortHelpers.NullsLast(leaderboardQuery, l => l.WorthMean, SortDescending),
                 "WorthMedian" => SortHelpers.NullsLast(leaderboardQuery, l => l.WorthMedian, SortDescending),
                 "WorthP75" => SortHelpers.NullsLast(leaderboardQuery, l => l.WorthP75, SortDescending),
@@ -139,7 +140,7 @@ namespace portaBLe.Pages
 
         // The leaderboards with the modifier's stars, ratings and worth in their own fields (display only, not tracked),
         // so the filters and sorting below apply to them. The modifier's worth goes in WorthP75 too (the P75 column is the main
-        // worth); the other quantiles (WorthMean ...) are nomod only: left empty.
+        // worth); the other quantiles (WorthMean ...) are nomod only: left empty. The peak EBPM is the nomod one times the speed.
         private static IQueryable<Leaderboard> WithModifier(IQueryable<Leaderboard> leaderboards, string? modifier)
         {
             if (modifier == null) return leaderboards;
@@ -151,21 +152,21 @@ namespace portaBLe.Pages
                     Id = l.Id, Name = l.Name, Mapper = l.Mapper, Cover = l.Cover, ModeName = l.ModeName, DifficultyName = l.DifficultyName,
                     Stars = l.ModifiersRating!.SSStars, PassRating = l.ModifiersRating.SSPassRating, AccRating = l.ModifiersRating.SSAccRating,
                     TechRating = l.ModifiersRating.SSTechRating, Worth = l.ModifiersRating.SSWorth, WorthP75 = l.ModifiersRating.SSWorth, NoteCount = l.NoteCount, TopPlayShare = l.TopPlayShare, TopPlayShareRelative = l.TopPlayShareRelative,
-                    IsLinear = l.IsLinear, IsFitbeat = l.IsFitbeat, IsBombReset = l.IsBombReset, IsInline = l.IsInline, MapType = l.MapType, Inlines = l.Inlines,
+                    IsLinear = l.IsLinear, IsFitbeat = l.IsFitbeat, IsBombReset = l.IsBombReset, IsInline = l.IsInline, MapType = l.MapType, Inlines = l.Inlines, PeakEbpm = l.PeakEbpm * 0.85f,
                 }),
                 "FS" => withRatings.Select(l => new Leaderboard
                 {
                     Id = l.Id, Name = l.Name, Mapper = l.Mapper, Cover = l.Cover, ModeName = l.ModeName, DifficultyName = l.DifficultyName,
                     Stars = l.ModifiersRating!.FSStars, PassRating = l.ModifiersRating.FSPassRating, AccRating = l.ModifiersRating.FSAccRating,
                     TechRating = l.ModifiersRating.FSTechRating, Worth = l.ModifiersRating.FSWorth, WorthP75 = l.ModifiersRating.FSWorth, NoteCount = l.NoteCount, TopPlayShare = l.TopPlayShare, TopPlayShareRelative = l.TopPlayShareRelative,
-                    IsLinear = l.IsLinear, IsFitbeat = l.IsFitbeat, IsBombReset = l.IsBombReset, IsInline = l.IsInline, MapType = l.MapType, Inlines = l.Inlines,
+                    IsLinear = l.IsLinear, IsFitbeat = l.IsFitbeat, IsBombReset = l.IsBombReset, IsInline = l.IsInline, MapType = l.MapType, Inlines = l.Inlines, PeakEbpm = l.PeakEbpm * 1.2f,
                 }),
                 _ => withRatings.Select(l => new Leaderboard
                 {
                     Id = l.Id, Name = l.Name, Mapper = l.Mapper, Cover = l.Cover, ModeName = l.ModeName, DifficultyName = l.DifficultyName,
                     Stars = l.ModifiersRating!.SFStars, PassRating = l.ModifiersRating.SFPassRating, AccRating = l.ModifiersRating.SFAccRating,
                     TechRating = l.ModifiersRating.SFTechRating, Worth = l.ModifiersRating.SFWorth, WorthP75 = l.ModifiersRating.SFWorth, NoteCount = l.NoteCount, TopPlayShare = l.TopPlayShare, TopPlayShareRelative = l.TopPlayShareRelative,
-                    IsLinear = l.IsLinear, IsFitbeat = l.IsFitbeat, IsBombReset = l.IsBombReset, IsInline = l.IsInline, MapType = l.MapType, Inlines = l.Inlines,
+                    IsLinear = l.IsLinear, IsFitbeat = l.IsFitbeat, IsBombReset = l.IsBombReset, IsInline = l.IsInline, MapType = l.MapType, Inlines = l.Inlines, PeakEbpm = l.PeakEbpm * 1.5f,
                 }),
             };
         }

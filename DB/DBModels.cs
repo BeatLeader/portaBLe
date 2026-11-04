@@ -197,6 +197,9 @@ namespace portaBLe.DB
         public string? MapType { get; set; }
         // Analyzer Statistics.Inlines. Stored by RatingsRefresh.Overwrite and RefreshMapStatistics.
         public int Inlines { get; set; }
+        // Analyzer Ratings.PeakSustainedEBPM (no speed modifier): the fastest 4 swings in a row of a hand, on average, in EBPM.
+        // 0 = not filled yet: RatingsRefresh.Overwrite and RefreshMapStatistics store it.
+        public float PeakEbpm { get; set; }
 
         public int Count { get; set; }
         public int Count80 { get; set; }
