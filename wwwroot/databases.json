@@ -23,12 +23,12 @@
     },
     {
       "Name": "Dev Acc High Speed Buff",
-      "FileName": "db-20261104232858-5920.db",
-      "Description": "Dev Acc + pass x1.15 for swings sustained at 390+ EBPM (from 350)"
+      "FileName": "db-20261105000116-1717.db",
+      "Description": "Dev Acc + pass x1.1 for swings sustained at 500+ EBPM (from 350)"
     },
     {
       "Name": "Dev Acc High Speed Buff Autoreweighted",
-      "FileName": "db-20261104232938-3922.db",
+      "FileName": "db-20261105000930-5554.db",
       "Description": "Dev Acc High Speed Buff (autoreweighted)"
     }
   ]
