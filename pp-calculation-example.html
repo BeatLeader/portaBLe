@@ -135,7 +135,7 @@ tech = 20.611 × (average swing tech × (1 − 1.25408^−pass))^0.8015</pre>
     <p>Every map gets its own acc curve, built from the base curve (1.094 at 96%, 2.700 at 99%, 7.424 at 100%):</p>
     <ol>
       <li><b>Shape by predicted accuracy:</b> a table (<code>CurveSettings.Table</code>) picks the curve parameters from the predicted accuracy. The curve is base × modified / default, and never goes above the base curve.</li>
-      <li><b>Slider tilt:</b> the curve is multiplied by e<sup>0.2 × slider share × (acc − predicted acc) in %</sup>, within ±1.5% of the predicted accuracy. Slider-heavy maps get a steeper curve around their prediction: higher above it, lower under it.</li>
+      <li><b>Slider tilt:</b> the curve is multiplied by e<sup>0.3 × slider share × (acc − predicted acc) in %</sup>, within ±1.5% of the predicted accuracy. Slider-heavy maps get a steeper curve around their prediction: higher above it, lower under it.</li>
       <li>The curve is stored as sampled points (<code>Leaderboard.Curve</code>), which the pp formula interpolates.</li>
     </ol>
     <div class="example"><span class="label">Example</span><p>The map's curve is 1.074 at 96% (base 1.094) and 2.511 at 99% (base 2.700).</p></div>

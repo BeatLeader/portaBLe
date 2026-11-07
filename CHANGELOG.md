@@ -6,6 +6,19 @@ model comes from `beatsaber-replays-ai-2`.
 The goal is ratings that never need scores at rating time. Scores, replays and fail attempts are used offline, to fit and
 validate constants. The one exception is the acc reweighter (below), the only tool that changes ratings from scores.
 
+## Slider tilt 0.2 -> 0.3
+
+- Revalidated with a rerate without it (`exp-notilt.db` / `exp-notilt-ar.db`, control `exp-tiltbase.db`): still
+  needed. Same-player pay on 20-40% slider maps (AR) +2.6% without it, +1.0% at 0.2; worth P75 +0.029 / +0.010; P75
+  worth RMS 0.0219 / 0.0196, and without it the reweighter lowers those maps' top (top 5 vs stars +0.6%, +2.8% at 0.2).
+- Its first reason is gone (slider-heavy maps' top 5 sit at the prediction like others': -0.17 vs -0.15 points); what
+  it cancels is that most players beat their usual acc vs the prediction by 0.3-0.6 points on them.
+- **`SliderTilt` 0.3** (`exp-tilt3.db` / `exp-tilt3-ar.db`): same-player pay on 10-20% / 20-40% slider maps +0.7 /
+  +1.0% -> +0.2 / +0.0% (AR; plain +1.1 / +1.9 -> +0.2 / +0.2), worth flat, top 5 vs stars +2.8 -> +3.7%, P75 worth RMS
+  0.0195, median player 593 -> 591, top end 801, 700pp+ 1159 -> 1168. Cost: a play better than the player's usual
+  pays 2.8-3.5% less on a slider-heavy map than on one without sliders (2.2-2.9% at 0.2).
+- `rerate` takes curve settings (`Curve.SliderTilt=0`).
+
 ## Cleanup
 
 - Removed what today's attempts left unused: `TopShapeFitter` and its `topshape` command, the ceiling raise v1's target

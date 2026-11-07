@@ -320,7 +320,8 @@ namespace portaBLe
             // constant change)
             if (args.Length > 1 && args[0] == "rerate")
             {
-                // Experiments: ParityPredictor settings (name=value, see paritycheck), pp formula ones (Pp.TechWeight=0.13) and the
+                // Experiments: ParityPredictor settings (name=value, see paritycheck), pp formula ones (Pp.TechWeight=0.13), curve
+                // ones (Curve.SliderTilt=0) and the
                 // low star speed blend's (Speed.LowStarSpeedWidthAbove=0.6, RatingsController's static settings); SustainedJumps (Jumps.MaxGapSeconds=0.25)
                 foreach (var setting in args.Skip(2))
                 {
@@ -328,6 +329,8 @@ namespace portaBLe
                     if (ParitySetting(parts[0], parts[1])) continue;
                     double value = double.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
                     if (parts[0].StartsWith("Pp.")) (typeof(RatingAPI.Pp.PpFormula).GetProperty(parts[0][3..]) ?? throw new ArgumentException(parts[0])).SetValue(RatingAPI.Pp.PpFormula.Current, value);
+                    // Per-map curve settings (Curve.SliderTilt=0): the stored curves and the stars use them
+                    else if (parts[0].StartsWith("Curve.")) (typeof(RatingAPI.Controllers.CurveSettings).GetProperty(parts[0][6..]) ?? throw new ArgumentException(parts[0])).SetValue(RatingAPI.Controllers.CurveSettings.Current, value);
                     else if (parts[0].StartsWith("Speed.")) (typeof(RatingAPI.Controllers.RatingsController).GetProperty(parts[0][6..]) ?? throw new ArgumentException(parts[0])).SetValue(null, value);
                     else if (parts[0].StartsWith("Jumps.")) beatleader_analyzer.BeatmapScanner.Helper.SustainedJumps.Set(parts[0][6..], value);
                     else Analyzer.BeatmapScanner.Algorithm.ParityPredictor.Set(parts[0], value);

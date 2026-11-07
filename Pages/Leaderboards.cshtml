@@ -99,7 +99,7 @@
                     @SortHeader("TopPlayShare", "Top play share", TopPlayShareTitle)
                     @SortHeader("TopPlayPp", "Top play", "The map's best nomod play")
                     @SortHeader("EmulatedTopPp", "Emulated top", EmulatedTopTitle)
-                    @SortHeader("SpecialistTopPp", "Specialist top", SpecialistTopTitle)
+                    @SortHeader("SpecialistTopPp", "Specialist top", SpecialistTopTitle + " Both in red when the best play beat them.")
                     break;
                 case "map":
                     @SortHeader("NoteCount", "Notes", "Color notes in the difficulty")
@@ -115,7 +115,7 @@
                     @SortHeader("Top20Share", "Top 20", Top20Title + " Under it: the players' rank against maps of its stars.")
                     @SortHeader("Top5Relative", "Top 5 vs ★", Top5Title)
                     @SortHeader("TopPlayShare", "Top play share", TopPlayShareTitle)
-                    <th class="lb-num" title="@(EmulatedTopTitle + " " + SpecialistTopTitle + " Under them: the map's best play so far.")">Emulated top: @SortLink("EmulatedTopPp", "typical") / @SortLink("SpecialistTopPp", "specialist")</th>
+                    <th class="lb-num" title="@(EmulatedTopTitle + " " + SpecialistTopTitle + " Under them: the map's best play so far; in red when it beat them.")">Emulated top: @SortLink("EmulatedTopPp", "typical") / @SortLink("SpecialistTopPp", "specialist")</th>
                     break;
             }
         </tr>
@@ -163,8 +163,8 @@
                         <td class="lb-num"><span class="lb-worth @Top5Class(leaderboard.Top5Relative)">@WorthText(leaderboard.Top5Relative)</span></td>
                         <td class="lb-num"><span class="lb-worth @TopShareClass(leaderboard.TopPlayShareRelative)">@TopShareText(leaderboard.TopPlayShare, leaderboard.TopPlayShareRelative)</span></td>
                         <td class="lb-num">@PpText(leaderboard.TopPlayPp)</td>
-                        <td class="lb-num" title="@EmulatedTopCellTitle(leaderboard)">@PpText(leaderboard.EmulatedTopPp)</td>
-                        <td class="lb-num" title="@SpecialistTopCellTitle(leaderboard)">@PpText(leaderboard.SpecialistTopPp)</td>
+                        <td class="lb-num" title="@EmulatedTopCellTitle(leaderboard)">@EmulatedTopText(leaderboard.EmulatedTopPp, leaderboard.TopPlayPp)</td>
+                        <td class="lb-num" title="@SpecialistTopCellTitle(leaderboard)">@EmulatedTopText(leaderboard.SpecialistTopPp, leaderboard.TopPlayPp)</td>
                         break;
                     case "map":
                         <td class="lb-num">@(leaderboard.NoteCount > 0 ? leaderboard.NoteCount.ToString() : "—")</td>
@@ -187,7 +187,7 @@
                         <td class="lb-num"><span class="lb-worth @Top5Class(leaderboard.Top5Relative)">@WorthText(leaderboard.Top5Relative)</span></td>
                         <td class="lb-num"><span class="lb-worth @TopShareClass(leaderboard.TopPlayShareRelative)">@TopShareText(leaderboard.TopPlayShare, leaderboard.TopPlayShareRelative)</span></td>
                         <td class="lb-num" title="@(EmulatedTopCellTitle(leaderboard) + "; " + SpecialistTopCellTitle(leaderboard))">
-                            @PpText(leaderboard.EmulatedTopPp) / @PpText(leaderboard.SpecialistTopPp)
+                            @EmulatedTopText(leaderboard.EmulatedTopPp, leaderboard.TopPlayPp) / @EmulatedTopText(leaderboard.SpecialistTopPp, leaderboard.TopPlayPp)
                             @if (leaderboard.TopPlayPp is float best)
                             {
                                 <div class="lb-sub worth-even">best @best.ToString("0")</div>
@@ -254,6 +254,10 @@
     static string StarsGapText(portaBLe.DB.Leaderboard l) => l.EmpiricalStars is float e ? (l.Stars - e).ToString("+0.00;-0.00;0.00") : "—";
     static string StarsGapClass(portaBLe.DB.Leaderboard l) => l.EmpiricalStars is float e ? (l.Stars - e >= 0.5f ? "worth-high" : l.Stars - e <= -0.5f ? "worth-low" : "worth-even") : "worth-none";
     static string PpText(float? pp) => pp is float v ? v.ToString("0") + "pp" : "—";
+    // An emulated top (typical or specialist), in red when the map's best play already beat it
+    static Microsoft.AspNetCore.Html.IHtmlContent EmulatedTopText(float? pp, float? best) => pp is float v && best is float b && b > v
+        ? new Microsoft.AspNetCore.Html.HtmlString($"<span class=\"lb-worth worth-high\" title=\"The best play ({b:0}pp) beat it\">{v:0}pp</span>")
+        : new Microsoft.AspNetCore.Html.HtmlString(PpText(pp));
     static string EmulatedTopCellTitle(portaBLe.DB.Leaderboard l) => l.EmulatedTopAcc is float a
         ? FormattableString.Invariant($"At {a * 100:0.00}% (predicted {l.PredictedAcc * 100:0.00}%); the best play so far {(l.TopPlayPp is float b ? b.ToString("0") + "pp" : "none")}")
         : "";

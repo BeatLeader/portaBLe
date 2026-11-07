@@ -11,6 +11,7 @@
             <th>Map</th>
             <th>PP</th>
             <th>Accuracy</th>
+            <th title="Stars of the version played (with a speed modifier, its stars)">Stars</th>
             <th>Mods</th>
             <th>Date</th>
         </tr>
@@ -22,6 +23,7 @@
                 <td><a asp-page="/Leaderboard" asp-route-id="@score.Leaderboard.Id">@score.Leaderboard.Name - @score.Leaderboard.DifficultyName</a></td>
                 <td>@score.Pp</td>
                 <td>@score.Accuracy</td>
+                <td>@PlayerModel.Stars(score).ToString("0.00")★</td>
                 <td>@score.Modifiers</td>
                 <td title="@TimeAgo.Exact(score.Timepost)">@TimeAgo.Format(score.Timepost)</td>
             </tr>
