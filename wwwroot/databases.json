@@ -13,13 +13,13 @@
     },
     {
       "Name": "Dev Acc",
-      "FileName": "db-20261107025450-8080.db",
-      "Description": "OneSaber acc buff, low note nerf off, tech top bonus (x1.04), pass light bonus (x1.07 +0.03, tech 5-8 fade, 4-5.5 stars), PpMultiplier 1.0055, slider tilt 0.3"
+      "FileName": "db-20261107144145-9127.db",
+      "Description": "OneSaber acc buff, low note nerf off, tech top bonus (x1.04), pass light bonus (x1.07 +0.03, tech 5-8 fade, 4-5.5 stars), slider tilt 0.3, hit distance correction halved (0.015, no easy share), PpMultiplier 1.0101"
     },
     {
       "Name": "Dev Acc Autoreweighted",
-      "FileName": "db-20261107025540-4491.db",
-      "Description": "Dev Acc (autoreweighted) + ceiling raise (maps under their peers' median - 3%, 4.5-5.5 stars fade), slider tilt 0.3"
+      "FileName": "db-20261107144225-8934.db",
+      "Description": "Dev Acc (autoreweighted) + ceiling raise (maps under their peers' median - 3%, 4.5-5.5 stars fade), slider tilt 0.3, hit distance correction halved"
     }
   ]
 }

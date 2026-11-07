@@ -6,6 +6,19 @@ model comes from `beatsaber-replays-ai-2`.
 The goal is ratings that never need scores at rating time. Scores, replays and fail attempts are used offline, to fit and
 validate constants. The one exception is the acc reweighter (below), the only tool that changes ratings from scores.
 
+## Hit distance correction halved
+
+- Revalidated with reacc runs on Dev Acc (correction as it was / off / half): still needed, but it overshot. On the P75
+  worth, 0.7 m+ maps were +0.8..+1.2% over others of their stars at every predicted acc (even 97.5%+, where only the
+  0.2 easy share applies); without it, hard maps flip under (0.7-0.8 m -0.8%, 0.8 m+ -1.6%). Prompted by The Purple
+  Dimension E+ (15.0 stars, 13.4 empirical), though hit distance is only ~0.2 stars of its gap (the rest: tech 7.8 on
+  top of a low predicted acc).
+- **`HIT_DISTANCE_SLOPE` 0.015** (was 0.030), **`HIT_DISTANCE_EASY_SHARE` 0** (was 0.2): every hit distance band
+  within 0.3% (plain). `PpMultiplier` 1.0101 (was 1.0055): the median player kept (596.4).
+- `exp-hdhalf.db` / `exp-hdhalf-ar.db` against Dev Acc / Dev Acc AR: AR P75 worth RMS 0.0195 -> 0.0185 (5-8* 0.0134 ->
+  0.0120, 8-11* 0.0135 -> 0.0115, 11*+ 0.0145 -> 0.0120); 0.7 m+ bins +0.7..+1.1% -> -0.1..+0.5%; median player 591;
+  top end 801 -> 806; 700pp+ 1168 -> 1192.
+
 ## Slider tilt 0.2 -> 0.3
 
 - Revalidated with a rerate without it (`exp-notilt.db` / `exp-notilt-ar.db`, control `exp-tiltbase.db`): still
