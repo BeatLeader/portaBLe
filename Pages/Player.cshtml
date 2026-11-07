@@ -8,6 +8,7 @@
 <table class="table">
     <thead>
         <tr>
+            <th title="Rank of the score on the map's leaderboard">Rank</th>
             <th>Map</th>
             <th>PP</th>
             <th>Accuracy</th>
@@ -20,6 +21,7 @@
         @foreach (var score in Model.Scores)
         {
             <tr>
+                <td>#@score.Rank</td>
                 <td><a asp-page="/Leaderboard" asp-route-id="@score.Leaderboard.Id">@score.Leaderboard.Name - @score.Leaderboard.DifficultyName</a></td>
                 <td>@score.Pp</td>
                 <td>@score.Accuracy</td>
