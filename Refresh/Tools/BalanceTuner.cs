@@ -8,8 +8,10 @@ namespace portaBLe.Refresh
     // Rating constants the balance tuner can change without re-analysing any map; each is a simple transform of the stored
     // ratings:
     // - PassCalibration (AnalyzeMap.PASS_CALIBRATION_FACTOR): pass rating is proportional to it.
-    // - OneSaberNerf (AnalyzeMap.ONE_SABER_NERF): pass *= 1 - (1 - handsRatio) * nerf. handsRatio isn't stored, so only
-    //   OneSaber maps (handsRatio 0) are transformed, although one-handed Standard maps are affected too in reality.
+    // - OneSaberNerf (AnalyzeMap, each hand half of the pass: 0.5, was ONE_SABER_NERF): pass *= 1 - (1 - handsRatio) * nerf.
+    //   handsRatio isn't stored, so only OneSaber maps (handsRatio 0) are transformed, although one-handed Standard maps are
+    //   affected too in reality. Not tuned any more (OneSaber maps are balanced by PpFormula.OneSaberMultiplier); records what
+    //   the database was rated with (0.343 before 2026-11-06).
     // - TechScaler (AnalyzeMap.BALANCED_TECH_SCALER): tech = swing tech * Ratings.TechPassFactor(pass) * scaler, so tech
     //   follows the new pass rating. Not tuned; records what the database was rated with.
     // - TechWeight (PpFormula.TechWeight): scales tech pp like TechScaler would, without changing the tech ratings, so this is
@@ -20,7 +22,7 @@ namespace portaBLe.Refresh
     public class RatingConstants
     {
         public double PassCalibration { get; set; } = 0.6917;
-        public double OneSaberNerf { get; set; } = 0.343;
+        public double OneSaberNerf { get; set; } = 0.5;
         public double TechScaler { get; set; } = 6.2457;
         // Follows the PpFormula default, since the tuner re-scores with the formula in code
         public double TechWeight { get; set; } = new PpFormula().TechWeight;
@@ -42,7 +44,6 @@ namespace portaBLe.Refresh
     // average, +0.2 = 20% more valuable). Each constant is moved until worth no longer depends on what it controls:
     //   PassCalibration -> share of pass pp at the predicted acc
     //   TechWeight      -> share of tech pp at the predicted acc
-    //   OneSaberNerf    -> OneSaber maps vs Standard maps of the same stars
     //   AccOffset       -> the 20% of maps with the highest predicted acc vs the 20% with the lowest
     // AccScale is the reference and isn't tuned: pass, acc and tech shares add up to 100%, so only two of the three can be
     // balanced against each other, and scaling all three together only changes the pp level.
@@ -97,7 +98,7 @@ namespace portaBLe.Refresh
             return 0;
         }
 
-        internal static bool IsOneSaber(Leaderboard lb) => string.Equals(lb.ModeName, "OneSaber", StringComparison.OrdinalIgnoreCase);
+        internal static bool IsOneSaber(Leaderboard lb) => ReplayUtils.IsOneSaber(lb.ModeName);
         private static bool IsStandard(Leaderboard lb) => string.Equals(lb.ModeName, "Standard", StringComparison.OrdinalIgnoreCase);
 
         // ------------------------------------------------------------------
@@ -252,8 +253,6 @@ namespace portaBLe.Refresh
             {
                 foreach (var knob in Knobs)
                 {
-                    if (knob.Name == nameof(RatingConstants.OneSaberNerf) && result.OneSaberMaps < MinOneSaberMaps) continue;
-
                     var sweep = new KnobSweep { Knob = knob.Name, Target = knob.TargetLabel, Round = round };
                     foreach (var value in knob.Grid(knob.Get(best), round))
                     {
@@ -473,14 +472,6 @@ namespace portaBLe.Refresh
             },
             new Knob
             {
-                Name = nameof(RatingConstants.OneSaberNerf),
-                TargetLabel = "OneSaber maps' worth minus Standard maps' of the same stars",
-                Get = c => c.OneSaberNerf, Set = (c, v) => c.OneSaberNerf = v,
-                Target = b => b.OneSaberGap,
-                Grid = (center, round) => Enumerable.Range(-3, 7).Select(i => Math.Clamp(center + i * 0.1 / round, 0, 0.95)).Distinct().ToArray(),
-            },
-            new Knob
-            {
                 Name = nameof(RatingConstants.AccOffset),
                 TargetLabel = "Worth of the 20% easiest-acc maps minus the 20% hardest",
                 Get = c => c.AccOffset, Set = (c, v) => c.AccOffset = v,
@@ -556,6 +547,7 @@ namespace portaBLe.Refresh
                     Curve = lb.Curve,
                     HitDistance = lb.HitDistance,
                     HardSwingRatio = lb.HardSwingRatio,
+                    TopTilt = lb.TopTilt, TopTiltAnchor = lb.TopTiltAnchor,
                     PassRating = pass,
                     TechRating = tech,
                     AccRating = acc,
@@ -657,11 +649,11 @@ namespace portaBLe.Refresh
             Parallel.For(0, data.Maps.Length, m =>
             {
                 var lb = data.Maps[m].Leaderboard;
-                prepared[m * speedCount] = global::RatingAPI.Pp.PpCalculator.Prepare(new global::RatingAPI.Pp.MapRatings(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve, lb.PredictedAcc));
+                prepared[m * speedCount] = global::RatingAPI.Pp.PpCalculator.Prepare(new global::RatingAPI.Pp.MapRatings(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve, lb.PredictedAcc, IsOneSaber(lb), lb.TopTilt ?? 0, lb.TopTiltAnchor ?? 0));
                 if (lb.ModifiersRating == null) return;
                 for (int k = 1; k < speedCount; k++)
                 {
-                    prepared[m * speedCount + k] = global::RatingAPI.Pp.PpCalculator.Prepare(ReplayUtils.SpeedRatings(lb.ModifiersRating, WorthSpeeds[k], lb.Curve)!.Value);
+                    prepared[m * speedCount + k] = global::RatingAPI.Pp.PpCalculator.Prepare(ReplayUtils.SpeedRatings(lb.ModifiersRating, WorthSpeeds[k], lb.Curve, IsOneSaber(lb))!.Value);
                 }
             });
 
@@ -1172,10 +1164,41 @@ namespace portaBLe.Refresh
                 foreach (var v in values) sum += v;
                 return sum / values.Length;
             }
-            values.Sort();
             double position = Math.Min(PlayerAdjustedQuantile, 1) * (values.Length - 1);
             int below = (int)position;
-            return below + 1 < values.Length ? values[below] + (position - below) * (values[below + 1] - values[below]) : values[below];
+            // The below-th smallest by selection (linear, unlike a sort: the fit's hot loop), then the next one, the smallest
+            // of what's left above it: the same values a sort gives
+            double low = Select(values, below);
+            if (below + 1 >= values.Length) return low;
+            double next = double.MaxValue;
+            for (int i = below + 1; i < values.Length; i++) if (values[i] < next) next = values[i];
+            return low + (position - below) * (next - low);
+        }
+
+        // The k-th smallest of values (0-based); afterwards everything before k is <= it and everything after is >= it
+        private static double Select(Span<double> values, int k)
+        {
+            int left = 0, right = values.Length - 1;
+            while (right > left)
+            {
+                // Median of three as the pivot, then a Hoare partition
+                int mid = left + (right - left) / 2;
+                if (values[mid] < values[left]) (values[mid], values[left]) = (values[left], values[mid]);
+                if (values[right] < values[left]) (values[right], values[left]) = (values[left], values[right]);
+                if (values[right] < values[mid]) (values[right], values[mid]) = (values[mid], values[right]);
+                double pivot = values[mid];
+                int i = left, j = right;
+                while (i <= j)
+                {
+                    while (values[i] < pivot) i++;
+                    while (values[j] > pivot) j--;
+                    if (i <= j) { (values[i], values[j]) = (values[j], values[i]); i++; j--; }
+                }
+                if (k <= j) right = j;
+                else if (k >= i) left = i;
+                else return values[k];
+            }
+            return values[k];
         }
 
         // Indices of key's entries grouped by key (counting sort, each key's in their order): Order[Start[k]..Start[k + 1]]
@@ -1331,7 +1354,7 @@ namespace portaBLe.Refresh
             {
                 var lb = (kinds ?? data).Maps[m].Leaderboard;
                 if (lb.PredictedAcc <= 0 || lb.PredictedAcc >= 1) return;
-                var (_, _, passPp, accPp, techPp) = ReplayUtils.PpFromScore(lb.PredictedAcc, "", null, lb.AccRating, lb.PassRating, lb.TechRating, null, lb.PredictedAcc);
+                var (_, _, passPp, accPp, techPp) = ReplayUtils.PpFromScore(lb.PredictedAcc, "", null, lb.AccRating, lb.PassRating, lb.TechRating, null, lb.PredictedAcc, IsOneSaber(lb));
                 double total = passPp + accPp + techPp;
                 if (total <= 0) return;
                 passShare[m] = passPp / total;
@@ -1450,7 +1473,7 @@ namespace portaBLe.Refresh
                 var atPredicted = maps
                     .Select(m => data.Maps[m].Leaderboard)
                     .Where(lb => lb.PredictedAcc > 0 && lb.PredictedAcc < 1)
-                    .Select(lb => (double)ReplayUtils.PpFromScore(lb.PredictedAcc, "", null, lb.AccRating, lb.PassRating, lb.TechRating, null, lb.PredictedAcc).Item1)
+                    .Select(lb => (double)ReplayUtils.PpFromScore(lb.PredictedAcc, "", null, lb.AccRating, lb.PassRating, lb.TechRating, null, lb.PredictedAcc, IsOneSaber(lb)).Item1)
                     .ToList();
                 var best = maps.Where(m => data.Maps[m].Scores.Length > 0).Select(m => (double)data.Maps[m].Scores.Max(s => e.Pp[s])).ToList();
                 bands.Add(new BandPoint

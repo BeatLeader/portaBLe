@@ -31,13 +31,13 @@
     the map pays the same players than their other maps at their level), relative to what maps of its stars average: 0 = average,
     +0.10 = 10% more valuable. Each constant is moved until the
     worth no longer depends on what it controls: the pass calibration against the share of pass pp at the predicted acc, the tech pp
-    weight against the share of tech pp (the tech scaler stays as it is, so tech ratings keep their usual scale), the one saber nerf against OneSaber vs Standard maps of the same stars, and the acc offset against the
+    weight against the share of tech pp (the tech scaler stays as it is, so tech ratings keep their usual scale), and the acc offset against the
     20% easiest-acc maps vs the 20% hardest. The acc scale is the reference and isn't tuned (the three shares add up to 100%, and scaling
     everything only changes the pp level).
     <div class="mt-1 text-muted">
         Generated @r.GeneratedAt.ToString("yyyy-MM-dd HH:mm") UTC. Database rated with @r.RatedWith
         (<code>BalanceTuner.RatedWith</code>; update it when you change the code and re-rate).
-        The one saber nerf is only applied to OneSaber maps (@r.OneSaberMaps), since the hands ratio of other maps isn't stored.
+        OneSaber maps (@r.OneSaberMaps) aren't tuned here: their pass is half per hand in the Analyzer, and PpFormula.OneSaberMultiplier balances their acc pp.
     </div>
 </div>
 

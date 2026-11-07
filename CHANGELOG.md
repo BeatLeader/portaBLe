@@ -6,6 +6,211 @@ model comes from `beatsaber-replays-ai-2`.
 The goal is ratings that never need scores at rating time. Scores, replays and fail attempts are used offline, to fit and
 validate constants. The one exception is the acc reweighter (below), the only tool that changes ratings from scores.
 
+## Cleanup
+
+- Removed what today's attempts left unused: `TopShapeFitter` and its `topshape` command, the ceiling raise v1's target
+  knots / scale / `TargetAt`, and `PpFormula.OneSaberNerf` (the OneSaber nerf below the reference, 0 since its fit).
+  Pp unchanged. The acc predictor / AI correction (a map-data correction of the Acc AI's predicted acc) was tried in
+  analysis only (held-out: worse under 6 stars, per map often wrong at 8+) and dropped; it never had code here.
+
+## Pass light bonus: tech fade (on)
+
+- The pass light bonus fades out as tech rating rises from 5 to 8 (the tech top bonus's range), so pass-light acc maps get
+  it and tech maps get the tech top bonus instead, with no double counting; stronger for the rest: x1.07 (+0.03 near the
+  predicted acc), was x1.04 (+0.02). `PpMultiplier` 1.0045 (was 1.0064): the median player kept (593).
+- `exp-tech2-ar.db` -> `exp-passlight2-ar.db`: tech 6.5+ minus tech < 5 maps' same-player pay at 7-12 stars about even
+  (was +0.9..+1.2%); pass-heavy minus pass-light +2.1 / +2.1 / +0.6 / +1.0 -> +2.2 / +2.5 / +0.3 / +0.1 (top 100 /
+  101-1000 / 1001-10000 / 10000+); pass-light 4-6 star maps -1.9 -> -0.8% (top 1000 -3.9 -> -2.6%), 10-12 stars -0.1 ->
+  -0.7%; top end 804 -> 810 (800+ 2 -> 1); top 10 -0.04%, #1000 -0.4%; #1-play outliers 10 -> 12.
+- Left: tech 6.5+ maps' Top 5 vs stars back to -1.6 to -4.4% (the pass light bonus had been closing it); changes Hard
+  (4.94 stars, pass share 0.06) 786 -> 810, the top play, and 700+ plays under 5 stars 19 -> 21.
+- Then (`exp-passlight3-ar.db`): `TechTopBonus` back to 0.04 (the overpay had been the pass light bonus's) and the pass
+  light bonus faded in from 4 to 5.5 stars (was 3 -> 4); `PpMultiplier` 1.0055 (median player 593). Tech 6.5+ maps' Top
+  5 vs stars -4.4 / -2.2 / -1.6 / -2.2 / -1.8 / -1.6 -> -3.1 / -1.5 / -0.8 / -1.9 / -0.7 / -1.1% (7-8 ... 12+ stars),
+  their same-player pay still even; changes Hard 810 -> 790, 700+ plays under 5 stars 21 -> 15; top end 801 (800+ 2:
+  Let Mom Sleep Hard SF, Dream of Winds E+); pass-light 4-6 star maps back to -1.7% (top 1000 -4.0%), the cost of the
+  fade-in; pass-heavy minus pass-light +2.4 / +2.6 / +0.4 / +0.4; #1-play outliers 11; no new slope drop.
+
+## Pass light bonus (on)
+
+- Pass-light maps (less pass than typical for their stars) get up to x1.04 acc pp at every acc, plus up to +0.02 more
+  near and above the predicted acc, faded in from 3 to 4 stars and out from 11 to 13: it cancels the Acc AI's wrong
+  prediction on those maps, from map data only and outside stars (`PpFormula.PassLightMultiplier`, nomod speed only, not
+  OneSaber; lightness against `PassShareByStars`, the typical pass share and its spread by stars).
+- Why: same-player pay, pass share fifths per star band, pass-heavy minus pass-light +5.1 / +4.9 / +2.6 / +2.7 points for
+  the top 100 / 101-1000 / 1001-10000 / 10000+. Every group has the same predicted acc (98.0%) and so the same curve, but
+  players land 0.75% further under it on pass-light maps (top 1000 -2.27 vs -1.52%). Not the base curve, not the acc
+  relative pass pp (flat pass pp, `exp-passflat-ar.db`: +4.2 / +4.7 / +3.5 / +3.8). A pass rating change can't fix both
+  ends: a low acc play has more pass share than stars at 96%, a top play less.
+- `PpMultiplier` 1.0064 (was 1.0128): the median player's pp kept (593).
+- On `exp-lownote.db`, acc reweighter + ceiling raise + rescore (`exp-techtop-ar.db` -> `exp-passlight-ar.db`): heavy -
+  light +1.6 / +2.1 / +0.6 / +1.0; pass-light alone -2.8 / -2.8 / -1.7 / -1.6 -> -0.6 / -0.9 / -0.3 / -0.6%; speed maps vs
+  mid +1.1 / +1.2 / +0.3 / +0.8 -> +0.2 / +0.7 / -0.2 / +0.1; 4-6 stars still -1.9% (top 1000 -4.0%) on pass-light maps;
+  top end 819 -> 813 (800+ 4 -> 2); top 10 -0.4%, #1000 -0.2%; #1-play outliers 10 -> 12; under 5 stars 700+ plays 19 ->
+  19 (changes Hard, 4.94 stars, pass share 0.06, 753 -> 786); no new slope drop.
+- Overlap: pass-light maps at 8+ stars are mostly tech maps, which also get the tech top bonus: tech 6.5+ maps went from
+  even to slightly over (same-player pay +0.5..+0.7%, top 1000 +0.8..+1.3% at 8-12 stars; Top 5 vs stars about 0); the
+  reweighter's tech share slope +0.0069 -> +0.0138, its pass share slope +0.0023 -> -0.0047.
+- TechTopBonus then lowered 0.04 -> 0.02 (`exp-tech2-ar.db`): tech 6.5+ maps' same-player pay unchanged (+0.4..+0.7%,
+  so that part comes from the pass light bonus), top 1000 +0.6..+1.1% (was +0.8..+1.3), Top 5 vs stars back to -0.5 to
+  -2.0% (tech < 5 maps +0.5..+1.0); top end 804 (800+ 2), the median player 593 without a PpMultiplier change.
+
+## Tech top bonus (on, 0.04)
+
+- The Acc AI predicts too much acc on tech maps: players land 0.07 / 0.19 / 0.43% further under it than on their other
+  maps of those stars at tech 5-6 / 6-7 / 7-9 (about linear from tech 5), where the curve is steepest, so the world's best
+  plays (#1 to #10 alike) paid 2-5% under same-star maps (Top 5 vs stars, tech 6.5+ maps: -4.2 / -2.9 / -2.2 / -2.5 /
+  -1.8 / -1.1% at 7-8 / 8-9 / 9-10 / 10-11 / 11-12 / 12+ stars, tech < 5 maps +0.6 to +2.4%), while players' pay against
+  their own plays stayed about even.
+- `PpFormula.TechTopMultiplier`: acc pp x (1 + 0.04 x ease(tech 5 -> 8) x fade(stars 11 -> 13) x ease(acc from predicted
+  - 3% to predicted)), the mid star top bonus's shape (on up to 100%). Not in stars. A pure power of the curve (the top
+  tilt's) was tried first: it closed a third as much for x1.08 at 100%, the top plays sitting just under the predicted acc.
+- On `exp-lownote.db`, acc reweighter + ceiling raise + rescore, without / with it (`exp-techbase-ar.db` /
+  `exp-techtop-ar.db`): tech 6.5+ maps' Top 5 vs stars -4.2 -> -2.5 (7-8), -2.9 -> -1.4, -2.2 -> -1.1, -2.5 -> -1.1,
+  -1.8 -> -0.4, -1.1 -> -0.9 (12+), the gap to tech < 5 maps about halved; same-player pay and worth unchanged; maps'
+  best play spread within their stars -0.2 to -0.4 points at 7-12 stars; the median player 593 unchanged, top 10 +0.3%,
+  #100 +0.2%; plays 700+ 1198 -> 1295, 800+ 2 -> 4 (the top end 805 -> 819: Let Mom Sleep Hard, 6.53 stars, tech 6.7,
+  790 -> 819; Come to Life Expert 8.28 stars 802); #1-play outliers (x3+) 12 -> 10; no new slope drop on the 1148 maps
+  it touches. The ceiling raise raises fewer maps with it (1005 -> 958).
+- `ceiling <db> [Setting=value ...]` takes the ceiling raise's settings (PeerMargin=0) and pp formula ones. PeerMargin 0
+  (raising to the peers' median) didn't move tech maps' Top 5 vs stars: their peers rise with them.
+
+## Ceiling raise v2: maps under their peers (on)
+
+- `CeilingRaise.Run` (`ceiling <db>`; in the acc reweighter's step: `accreweight ... rescore`, the autoreweighted
+  FullPipeline; no longer in `rerate` or the plain pipeline, since it reads scores): each Standard map's amazing-play acc
+  is its best top-1000 nomod acc (corrected to the median map's number of contenders) blended with the map-data model's
+  prediction (weight n / (n + 10)). Maps whose ceiling (pp there) is under their peers' (Standard maps within 0.5 stars,
+  30+) median - 3% get a pure power of their acc curve from predicted acc - 2% up (no change under it), reaching the
+  target at the ceiling's acc, a 100% play at most x1.2. Faded in by stars from 4.5 (none) to 5.5 (full): maps under ~5
+  stars stay under ~700. Every other map is unchanged: it raises maps that are under, not a global buff.
+- `TopTiltCap` 3: loose enough that the tanh bound stays a plain power (the raise only grows with acc, no slope drop).
+- On `exp-lownote-ar.db` -> `exp-ceiling2-ar.db`: 1002 maps raised (acc pp at their ceiling x1.022 median, x1.088 at
+  most); maps' best play spread within their stars 10.5 -> 9.8% (5-6), 9.7 -> 8.9% (6-7), 8.4 -> 7.7% (7-8), 7.1 ->
+  6.4% (8-9) with the median +5 and the 90th percentile and max unchanged; maps with a 700+ best play 657 -> 677; the top
+  end 802 -> 805 (800+ plays 1 -> 2); the median player 593 unchanged, top 10 +0.07%; under 5 stars 700+ plays 18 -> 19;
+  #1-play outliers 12 -> 12; no new slope drop on the pp grids.
+- Without the star fade, plays at 700+ under 5 stars went 18 -> 48 (Easy maps in the top 100's top 20 4.2 -> 7.5%).
+
+## Empirical stars (Leaderboards page, Ratings view)
+
+- `Leaderboard.EmpiricalDifficulty` / `EmpiricalStars` (`LeaderboardsRefresh.RefreshEmpiricalStars`, in Refresh and
+  `balancemetrics`): a star-free yardstick from scores, a diagnostic. logit(acc) = skill - difficulty fitted at the 75th
+  percentile (nomod, players with 50+ plays among the top 20000); empirical stars: the median stars of the 81 maps of
+  most similar difficulty. Split-half reliability 0.998, correlation with stars 0.988.
+- Ratings view: "Empirical ★" and "★ - empirical" (highlighted from +-0.5). Speed maps read +0.4 stars over (pass
+  difficulty isn't in it, by design), low note maps -0.36. The maps under their peers by stars are the same by empirical
+  stars (97% overlap): the ceiling raise's targets aren't from mis-starred maps.
+
+## Ceiling raise from map data (v1, replaced by v2; its target knots and scale removed)
+
+- `Refresh/Tools/CeilingRaise.cs` (generated from `balance-analysis/goals/ceiling_fit.py`), `ceilingfeatures` / `ceiling`
+  commands: a ceiling model predicts from map data alone where an amazing play lands against the predicted acc (held-out
+  R^2 0.48, stars only 0.16); maps whose ceiling (pp there, x1.10 to the specialists' level) is under a target by stars
+  (at most 690 up to 4.5 stars, then 800 minus the model's uncertainty: 737 at 5.5, 758 at 7.5, 779 at 9.5, 788 from
+  11.5) get a raise-only top tilt (the top tilt's machinery), replacing the mid star top bonus.
+- **Was off** (`TopTiltCap` 0, mid star top bonus kept): on a real run the top end went 802 -> 985pp (2287 plays 800+), maps'
+  top plays vs their stars spread 8.6 -> 14.9%, the top 10 +21% pp (the median player unchanged). The ceiling acc sat
+  under real top plays (the x1.10 was applied in pp, not in acc), which got the tilt's x1.3 bound instead of the target,
+  and the bound's saturation lowers the curve's slope there (a bump) on 2959 maps.
+
+## Top tilt from specialists (tried, removed)
+
+- `Refresh/Tools/TopShapeFitter.cs`, `PpFormula.TopTiltMultiplier`, `Leaderboard.TopTilt` / `TopTiltAnchor`, `topshape <db>`:
+  per map, a smooth tilt of the acc curve's top (no change under the map's other players' median acc, a power of the
+  curve over it, every play's change bounded by `TopTiltCap`), fitted on each kind of map's 40 best specialists so the map
+  pays its best players like their other maps. Runs after the acc reweighter (`accreweight ... rescore`, FullPipeline).
+- **Off** (`TopTiltCap` 0): on a real run the top 100's pay spread across maps went 5.47 -> 5.58%, maps' top plays vs
+  their stars 8.58 -> 8.61%, the nomod top end 786 -> 817pp, and the specialists lost 150-226pp. The emulation's 36% of
+  the held-out gap removed was mostly a bias (the panel's better plays sit over the other players on every map), and
+  the per-map part reads a specialist's lucky plays as overpaying maps.
+- `pp`, `ppshape` and `ppat` check the database schema first (they failed on databases without the newer columns).
+- Removed 2026-11-06 (`TopShapeFitter.cs`, `topshape`): the tilt machinery (`TopTiltMultiplier`, `TopTilt` /
+  `TopTiltAnchor`) stays for the ceiling raise, whose `CeilingRaise.Clear` now clears the tilts before the reweighter.
+
+## Low note nerf off (Quiet Water Easy 100% = 600pp)
+
+- **`CurveSettings.LowNoteRefMultiplier` / `LowNoteMinMultiplier` 0.8031 -> 1** (the length nerf and the low note speed
+  blend stay). Nothing short of 1 reaches 600: the nerf scales the whole curve, so stars move with it (Quiet Water Easy
+  2.08 -> 2.51) and the low star bonus falls. For the same reason it never changed what low note maps pay against maps of
+  their stars (-8.6% for the same players, left as is: buffing it creates outliers where top players haven't played).
+  - Checked for maps a top player hasn't played yet (`ppat`: every version's pp at given accs): at the predicted acc
+    + 0.15 points (above 97% of the top 100's low note plays, whose median is -0.49) no low note version passes the best
+    existing play of normal maps of its stars (max 642 -> 670pp); at + 0.30, 6 -> 29 do (mostly SS on 3-star Easy maps at
+    99.7-99.9%, by ~10pp), 7 over 700pp.
+  - Real recurve + acc reweighter: Quiet Water Easy 100% 497 -> 600pp, low note maps' best play 678 -> 693pp, their 600+
+    plays 22 -> 56; RTX 20000 Easy (20 notes, 616-626pp at 99.6-100%) became the best play of 1.6-2.2% of its players
+    (mostly ranked ~150-1000); the top 1000's average pp and the 700+ / 800+ counts unchanged.
+
+## Acc reweighter 2.2x faster, same results
+
+- The player-adjusted worth fit (`BalanceTuner.PlayerAdjustedItemValues`), ~93% of the reweighter's time, took each
+  group's, map's and distance bin's 75th percentile by sorting its residuals on every one of its 30 iterations; it now
+  selects the two values it needs (quickselect, linear). Same values: every reweight multiplier identical. Full
+  reweighter 6:41 -> 2:58 (the re-score after it unchanged, ~1 min).
+- Not done (would change results slightly): the fit hasn't converged at 30 iterations (the largest map term still moves
+  ~0.025% per iteration), so stopping early or starting from the previous candidate's fit isn't free.
+
+## Leaderboards page: column views and balance metrics
+
+- **Views** (Overview / Ratings / Worth / Balance / Map) swap the metric columns after the map, difficulty, tags and stars,
+  kept in the URL with the sort and filters. Overview has pass / acc / tech in one cell (each sortable); Worth draws Mean,
+  Median, P75 and P90 on a -15% ... +15% strip next to the spread.
+- **Emulated top play** (`EmulatedTopPp` / `EmulatedTopAcc`, with the map's best nomod play `TopPlayPp`; Overview and
+  Balance views, and on each map's page): the pp a play at the predicted acc + how far above it the world's best land on
+  maps of its stars would get (median of best acc - predicted acc over maps with 10+ top 100 plays, per star: +0.12-0.20
+  points at 2.5-4.5 stars, +0.41-0.47 at 9.5-12.5, -0.10 at 14.5), at most 100%, no modifier. For maps nobody strong has
+  played: median 654pp, highest 795 (The Purple Dimension), above the actual best on 68% of maps (+32-38pp at 4-8 stars,
+  +4-15 at 12+); OneSaber maps have the most room (Ashed Wings E+ best 653, emulated 792).
+  - **Best specialist top play** (`SpecialistTopPp` / `SpecialistTopAcc`, next to it): at the acc the best specialists of
+    the map's kind reach (1-star band x pass / tech share terciles; of its 3 best players by their 5 best plays there, the
+    highest median best acc - predicted acc over their 10 best plays, at least the typical offset). The typical one is a
+    median: Bizzy825 beat it on 36% of their plays (up to +18.8%), Bytesy 21%; the specialist one 9% (at most +11.2%) and
+    3% (+4.6%), oermergeesh never. Median 696pp, highest 853 (-Totsuka no Tsurugi- E+ and Godspeed Expert, whose best
+    plays are 683 / 678: the Acc AI's wrong prediction there).
+- **Balance metrics** (`LeaderboardsRefresh.RefreshBalanceMetrics`, in every refresh; `balancemetrics <db>` fills older
+  databases in ~11 s), nomod, players with 50+ ranked plays, maps with 30+ of them: `Top20Share` / `Top50Share` (share of
+  its players with it in their top 20 / 50), `Top5Relative` (its 5 best plays vs maps within 0.5 star with half to twice
+  its plays), `PlayersRankRelative` (its players' median rank vs maps of its stars: top 20 shares and top 5 depend on who
+  plays a map) and `AccVsPredicted` (each player's acc - predicted acc there minus on their other maps of those stars).
+
+## OneSaber: half the pass per hand, acc pp buff instead of the one saber nerf
+
+- **`ONE_SABER_NERF` removed** (Analyzer, was 0.343: OneSaber pass x0.657): each hand is half of the pass, pass x (1 +
+  hands ratio) / 2, so OneSaber pass x0.5. Standard maps with one-handed parts move with it.
+- **`PpFormula.OneSaberMultiplier`** (RatingAPI, not in stars): OneSaber acc pp x1.08 above a reference of predicted acc
+  minus 2 x (1 - predicted acc) (eased over +-2%), faded in from 6 to 8 stars (`OneSaberBuff` / `ErrorOffset` / `Width` /
+  `BuffStart` / `BuffFull`; `OneSaberNerf`, below the reference, is 0).
+  - Measured per score against the player's own Standard plays at the same stars. With the old nerf, OneSaber paid
+    ranks 1-100 / 101-500 / 501-2000 / 2001-5000 / 5001-15000 / 15001+ -4.0 / -4.6 / -1.1 / -0.1 / +1.3 / +3.1%; at 50%
+    per hand -5.2 / -6.0 / -2.6 / -1.8 / -1.0 / 0.0%. The Acc AI overestimates OneSaber acc more on harder maps (players'
+    median 1-2% under it on 3-4 star maps, 8-13% on 9-12 stars), so a nerf below the predicted acc itself hit the hard
+    maps everyone plays far under it (0-5 / 10+ stars +7.6 / -9.3%). With the lowered reference, a buff above it alone
+    evens the ranks out; the fit wanted no nerf below it. The fade keeps easy OneSaber maps (already +5%) from new top
+    plays (Wheels on the Bus Easy 660 -> 699pp without it).
+  - Emulated: ranks -0.7 / -2.0 / +0.7 / -0.4 / -0.7 / 0.0%, all OneSaber -1.7 -> -0.3%; top OneSaber plays per star
+    band under Standard's 99.99th percentile (7-9 / 9-11 / 11+ stars 633 / 637 / 648 vs 708 / 723 / 757pp). Left: by
+    map (0-5 stars +5%, 10+ -5%), for the acc reweighter.
+  - Balance tuner: the one saber knob is gone; `RatingConstants.OneSaberNerf` 0.5 records what a database was rated with.
+- **`OneSaberTopBuff` 0.1** (tried 0.3 first, below): OneSaber acc pp also x1.3 above the predicted acc itself (eased over +-2%), faded in from
+  4 to 6 stars (`OneSaberTopStart` / `Full`). Judged on the project's goals instead of "pays like Standard of the same
+  stars": OneSaber maps were in as many of their players' top 20 as Standard maps of their stars, but their top 5
+  plays were 6.7% under (only 4 of the 63 top 100 players with a OneSaber play had one in their top 20; best one median
+  590pp vs their #20 655). From a lower reference (predicted - 0.5 x its error) a OneSaber map became the best play of
+  10-23% of its players (Standard's 99th percentile 2.8%). Without the fade, Wheels on the Bus Easy / Higher Ground
+  Easy made 772 / 728pp.
+  - Real rerate + acc reweighter, against Prod Autoreweighted: top 5 plays -6.7% -> -1.1% of Standard maps of the same
+    stars (under 6 stars still -9.6%), top 20 shares the same (+0.4 points), no map worth nothing, best play shares at
+    most 4.7% (unchanged), every star band's top OneSaber play under Standard's 99.99th, OneSaber 700+ plays 0 -> 1, no
+    800. Top 100 players with their best OneSaber play in their top 20: 4 -> 9 (101-500: 27 -> 30), its median 590 ->
+    602pp. Players with a OneSaber play: ranks 1-100 / 101-500 / 501-2000 +13.6 / +13.2 / +7.3pp on average, 2001-10000
+    / 10001+ -3.9 / -9.7pp (their OneSaber plays were overpaid by the old nerf).
+  - 0.3 overshot: top 5 and top 20 shares depend on who plays a map, and each top 100 player got 2.8% more from a
+    OneSaber play than from their own Standard plays at those stars (5.3% near the predicted acc). 0.1, real rerate +
+    acc reweighter: per player ranks 1-100 / 101-500 / 501-2000 / 2001-5000 / 5001-15000 / 15001+ +1.0 / -1.0 / +1.1 /
+    -0.6 / -0.9 / -0.4% (Prod -4.3 / -3.9 / -0.2 / +0.7 / +1.3 / +2.4%), top 5 -6.7% -> -4.5%, top OneSaber play 690pp,
+    no 700+. OneSaber maps are played by stronger players than Standard ones of their stars, so their low top 5 is real.
+
 ## Acc reweighter: low star maps reweighted too
 
 - **`AccReweighter.MinStars` removed** (was 4.326: maps under it kept ×1), and with it the low-star top play nerfs

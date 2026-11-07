@@ -26,6 +26,8 @@ namespace portaBLe.Refresh
         {
             public string Id;
             public float AccRating, PassRating, TechRating, PredictedAcc;
+            public bool OneSaber;
+            public float TopTilt, TopTiltAnchor;
             public List<System.Numerics.Vector2>? Curve;
             public ModifiersRating? ModifiersRating;
         }
@@ -37,7 +39,7 @@ namespace portaBLe.Refresh
             dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
 
             var leaderboards = await dbContext.Leaderboards.AsNoTracking()
-                .Select(lb => new LeaderboardRatings { Id = lb.Id, AccRating = lb.AccRating, PassRating = lb.PassRating, TechRating = lb.TechRating, PredictedAcc = lb.PredictedAcc, Curve = lb.Curve, ModifiersRating = lb.ModifiersRating })
+                .Select(lb => new LeaderboardRatings { Id = lb.Id, AccRating = lb.AccRating, PassRating = lb.PassRating, TechRating = lb.TechRating, PredictedAcc = lb.PredictedAcc, OneSaber = lb.ModeName == "OneSaber", TopTilt = lb.TopTilt ?? 0, TopTiltAnchor = lb.TopTiltAnchor ?? 0, Curve = lb.Curve, ModifiersRating = lb.ModifiersRating })
                 .ToListAsync();
             var lbIndex = new Dictionary<string, int>(leaderboards.Count);
             for (int i = 0; i < leaderboards.Count; i++) lbIndex[leaderboards[i].Id] = i;
@@ -67,7 +69,7 @@ namespace portaBLe.Refresh
                 ref var r = ref rows[i];
                 var lb = leaderboards[r.Lb];
                 (float pp, float bonus, float pass, float acc, float tech) = ReplayUtils.PpFromScore(
-                    r.Accuracy, r.Modifiers, lb.ModifiersRating, lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve, lb.PredictedAcc);
+                    r.Accuracy, r.Modifiers, lb.ModifiersRating, lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve, lb.PredictedAcc, lb.OneSaber, lb.TopTilt, lb.TopTiltAnchor);
                 r.Pp = float.IsNaN(pp) ? 0 : pp;
                 r.BonusPp = bonus;
                 r.PassPp = pass;

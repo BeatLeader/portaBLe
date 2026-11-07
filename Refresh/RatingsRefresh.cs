@@ -118,7 +118,7 @@ namespace portaBLe.Refresh
                     lb.TechRating = (float)response["none"].LackMapCalculation.TechRating;
                     lb.PredictedAcc = (float)response["none"].PredictedAcc;
                     // The acc reweighter's multiplier (from the last AccReweighter run), unless raw acc ratings are asked for
-                    if (!applyAccReweight) lb.AccReweight = 0;
+                    if (!applyAccReweight) { lb.AccReweight = 0; lb.TopTilt = null; lb.TopTiltAnchor = null; }
                     double reweight = ReplayUtils.AccReweightOf(lb);
                     lb.AccRating = ReplayUtils.Reweighted((float)response["none"].AccRating, reweight);
                     lb.Curve = ReplayUtils.ToCurve(response["none"].PointList);
@@ -320,7 +320,7 @@ namespace portaBLe.Refresh
                 {
                     var mod = lb.ModifiersRating;
 
-                    if (!applyAccReweight) lb.AccReweight = 0;
+                    if (!applyAccReweight) { lb.AccReweight = 0; lb.TopTilt = null; lb.TopTiltAnchor = null; }
                     double reweight = ReplayUtils.AccReweightOf(lb);
                     lb.AccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(lb.PredictedAcc, lb.PassRating, lb.TechRating, lb.HitDistance, lb.HardSwingRatio), reweight);
 

@@ -244,7 +244,7 @@ namespace portaBLe
         public static int CoreCount = Environment.ProcessorCount;
 
         // The prod database ModelComparisonExport compares with (wwwroot, listed in databases.json)
-        private const string ProdDatabase = "db-20261012191847-9271.db";
+        private const string ProdDatabase = "db-20261104211238-4608.db";
 
         // beatsaber-replays-ai-2 next to this repository (parity replays, Acc AI training)
         private static string ReplaysRepo(IWebHostEnvironment env) =>
@@ -392,13 +392,81 @@ namespace portaBLe
             // leaderboard with its stored ratings and curves (accuracy 1 and nomod by default), read only
             if (args.Length > 2 && args[0] == "pp")
             {
+                // Older databases may lack newer columns (e.g. TopTilt): the model reads them all
+                await EnsureSchema(args[1], Path.GetFullPath(args[1]));
                 var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};Mode=ReadOnly;").Options;
                 using var ppContext = new AppContext(options);
                 var lb = await ppContext.Leaderboards.Include(l => l.ModifiersRating).FirstAsync(l => l.Id == args[2]);
                 float accuracy = args.Length > 3 ? float.Parse(args[3], System.Globalization.CultureInfo.InvariantCulture) : 1f;
                 string modifiers = args.Length > 4 ? args[4] : "";
-                var (pp, bonus, pass, acc, tech) = ReplayUtils.PpFromScore(accuracy, modifiers, lb.ModifiersRating, lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve, lb.PredictedAcc);
+                var (pp, bonus, pass, acc, tech) = ReplayUtils.PpFromScore(accuracy, modifiers, lb);
                 Console.WriteLine(FormattableString.Invariant($"{lb.Name} {lb.DifficultyName} ({lb.Stars:0.00} stars) at {accuracy * 100:0.##}% {modifiers}: {pp:0.0}pp (pass {pass:0.0}, acc {acc:0.0}, tech {tech:0.0}, modifiers {bonus:+0.0;-0.0})"));
+                return;
+            }
+            // dotnet run -c Release -- ceilingfeatures <wwwroot/file.db> <out.csv>: every leaderboard's map-data features for the
+            // ceiling model (its ratings, its pass / acc / tech pp at the predicted acc with the mid star top bonus off, its
+            // curve's steepness there, the Analyzer's map statistics). Read only.
+            if (args.Length > 2 && args[0] == "ceilingfeatures")
+            {
+                await EnsureSchema(args[1], Path.GetFullPath(args[1]));
+                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};Mode=ReadOnly;").Options;
+                using var featureContext = new AppContext(options);
+                var lbs = await featureContext.Leaderboards.AsNoTracking().Where(l => l.Stars > 0 && l.PredictedAcc > 0).ToListAsync();
+                var formula = RatingAPI.Pp.PpFormula.Current;
+                double bonus = formula.MidStarTopBonus;
+                formula.MidStarTopBonus = 0;
+                var inv = System.Globalization.CultureInfo.InvariantCulture;
+                var lines = new List<string> { "id,mode,stars,pass,tech,acc,pred,passPp,accPp,techPp,steep,njs,duration,notes,peakEbpm,linear,multi,hitDistance,hardSwing,inlines,bombs,dodgeWalls,crouchWalls" };
+                foreach (var lb in lbs)
+                {
+                    var (_, _, passPp, accPp, techPp) = ReplayUtils.PpFromScore(lb.PredictedAcc, "", lb);
+                    var curve = lb.Curve != null && lb.Curve.Count >= 2 ? lb.Curve : null;
+                    double steep = Math.Log(RatingAPI.Pp.PpCalculator.CurveValue(Math.Min(lb.PredictedAcc + 0.005f, 1f), curve) / Math.Max(RatingAPI.Pp.PpCalculator.CurveValue(lb.PredictedAcc, curve), 1e-6f));
+                    lines.Add(string.Join(",", new object[] { lb.Id, lb.ModeName, lb.Stars, lb.PassRating, lb.TechRating, lb.AccRating, lb.PredictedAcc, passPp, accPp, techPp, steep,
+                        lb.Njs, lb.Duration, lb.NoteCount, lb.PeakEbpm, lb.LinearPercent, lb.MultiPercentage, lb.HitDistance, lb.HardSwingRatio, lb.Inlines, lb.BombAvoidances, lb.DodgeWalls, lb.CrouchWalls }
+                        .Select(v => Convert.ToString(v, inv))));
+                }
+                formula.MidStarTopBonus = bonus;
+                await File.WriteAllLinesAsync(args[2], lines);
+                Console.WriteLine($"{lines.Count - 1} rows written to {args[2]}");
+                return;
+            }
+            // dotnet run -c Release -- ppat <wwwroot/file.db> <out.csv> [accuracy ...]: every leaderboard's pp at those accuracies
+            // (default 1, 0.995, 0.99) nomod and with SS / FS / SF (their own ratings and curves), with its notes and stars:
+            // what a score there would pay, played or not. Read only.
+            if (args.Length > 2 && args[0] == "ppat")
+            {
+                var inv = System.Globalization.CultureInfo.InvariantCulture;
+                // After the file: accuracies, pp formula settings (Pp.MidStarTopBonus=0) and "parts" (acc pp too, nomod only)
+                var extra = args.Skip(3).ToList();
+                bool parts = extra.Remove("parts");
+                foreach (var setting in extra.Where(a => a.Contains('=')).ToList())
+                {
+                    var kv = setting.Split('=', 2);
+                    (typeof(RatingAPI.Pp.PpFormula).GetProperty(kv[0][3..]) ?? throw new ArgumentException(kv[0])).SetValue(RatingAPI.Pp.PpFormula.Current, double.Parse(kv[1], inv));
+                    extra.Remove(setting);
+                }
+                var accs = extra.Count > 0 ? extra.Select(a => float.Parse(a, inv)).ToArray() : new[] { 1f, 0.995f, 0.99f };
+                // Older databases may lack newer columns (e.g. TopTilt): the model reads them all
+                await EnsureSchema(args[1], Path.GetFullPath(args[1]));
+                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};Mode=ReadOnly;").Options;
+                using var ppatContext = new AppContext(options);
+                var lbs = await ppatContext.Leaderboards.Include(l => l.ModifiersRating).Where(l => l.Stars > 0).ToListAsync();
+                var lines = new List<string> { "id,name,mode,notes,modifier,stars," + string.Join(",", accs.Select(a => FormattableString.Invariant($"pp{a * 100:0.##}")))
+                    + (parts ? "," + string.Join(",", accs.Select(a => FormattableString.Invariant($"acc{a * 100:0.##}"))) : "") };
+                foreach (var lb in lbs)
+                {
+                    foreach (var modifier in new[] { "", "SS", "FS", "SF" })
+                    {
+                        if (modifier.Length > 0 && (lb.ModifiersRating == null || parts)) continue;
+                        float stars = modifier switch { "SS" => lb.ModifiersRating!.SSStars, "FS" => lb.ModifiersRating!.FSStars, "SF" => lb.ModifiersRating!.SFStars, _ => lb.Stars };
+                        var results = accs.Select(a => ReplayUtils.PpFromScore(a, modifier, lb)).ToList();
+                        lines.Add(FormattableString.Invariant($"{lb.Id},\"{lb.Name.Replace("\"", "'")} {lb.DifficultyName}\",{lb.ModeName},{lb.NoteCount},{(modifier.Length > 0 ? modifier : "none")},{stars:0.###},") + string.Join(",", results.Select(r => r.Item1.ToString("0.##", inv)))
+                            + (parts ? "," + string.Join(",", results.Select(r => r.Item4.ToString("0.##", inv))) : ""));
+                    }
+                }
+                await File.WriteAllLinesAsync(args[2], lines);
+                Console.WriteLine($"{lines.Count - 1} rows written to {args[2]}");
                 return;
             }
             // dotnet run -c Release -- ppshape <wwwroot/file.db> [Pp.Setting=value ...]: every map's nomod pp curve from 90 to
@@ -412,13 +480,15 @@ namespace portaBLe
                     var parts = setting.Split('=', 2);
                     (typeof(RatingAPI.Pp.PpFormula).GetProperty(parts[0][3..]) ?? throw new ArgumentException(parts[0])).SetValue(RatingAPI.Pp.PpFormula.Current, double.Parse(parts[1], inv));
                 }
+                // Older databases may lack newer columns (e.g. TopTilt): the model reads them all
+                await EnsureSchema(args[1], Path.GetFullPath(args[1]));
                 var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};Mode=ReadOnly;").Options;
                 using var shapeContext = new AppContext(options);
                 var lbs = await shapeContext.Leaderboards.Include(l => l.ModifiersRating).Where(l => l.Stars > 0).ToListAsync();
                 var formula = RatingAPI.Pp.PpFormula.Current;
                 double bonus = formula.MidStarTopBonus;
                 float[] Curve(Leaderboard lb) => Enumerable.Range(0, 201).Select(i => ReplayUtils.PpFromScore(0.9f + i * 0.0005f, "", null,
-                    lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve, lb.PredictedAcc).Item1).ToArray();
+                    lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve, lb.PredictedAcc, ReplayUtils.IsOneSaber(lb.ModeName)).Item1).ToArray();
                 // The largest drop of the slope from one step to the next, relative to the slope before it
                 double WorstDrop(float[] pp)
                 {
@@ -526,6 +596,41 @@ namespace portaBLe
             // dotnet run -c Release -- worth [Setting=value ...] <wwwroot/file.db>: LeaderboardsRefresh.RefreshWorth alone on that
             // database (the stored worth, no re-score), with any of the balance tuner's settings (e.g. PlayerAdjustedQuantile=0.9).
             // Also fills the worth by quantile columns (WorthMean, WorthMedian, WorthP75, WorthP90) of older databases.
+            // dotnet run -c Release -- ceiling <wwwroot/file.db>: the ceiling raise alone (CeilingRaise: maps under their peers,
+            // from map data and the top 1000's best accs) then RefreshEverything. [Setting=value ...]: its settings
+            // (PeerMargin=0) or pp formula ones (Pp.TopTiltCap=3)
+            if (args.Length > 1 && args[0] == "ceiling")
+            {
+                foreach (var setting in args.Skip(2))
+                {
+                    var parts = setting.Split('=', 2);
+                    double value = double.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
+                    if (parts[0].StartsWith("Pp.")) (typeof(RatingAPI.Pp.PpFormula).GetProperty(parts[0][3..]) ?? throw new ArgumentException(parts[0])).SetValue(RatingAPI.Pp.PpFormula.Current, value);
+                    else
+                    {
+                        var property = typeof(CeilingRaise).GetProperty(parts[0]) ?? throw new ArgumentException(parts[0]);
+                        property.SetValue(null, Convert.ChangeType(value, property.PropertyType));
+                    }
+                }
+                await EnsureSchema(args[1], Path.GetFullPath(args[1]));
+                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};").Options;
+                using var ceilingContext = new AppContext(options);
+                await CeilingRaise.Run(ceilingContext);
+                await RefreshEverything(ceilingContext);
+                return;
+            }
+            // dotnet run -c Release -- balancemetrics <wwwroot/file.db>: LeaderboardsRefresh.RefreshBalanceMetrics alone on that
+            // database (the Leaderboards page's Balance view: top 20 / 50 shares, top 5 vs same stars, players' rank, acc vs
+            // predicted), for databases built before them. No re-score.
+            if (args.Length > 1 && args[0] == "balancemetrics")
+            {
+                await EnsureSchema(args[1], Path.GetFullPath(args[1]));
+                var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};").Options;
+                using var balanceContext = new AppContext(options);
+                await LeaderboardsRefresh.RefreshBalanceMetrics(balanceContext);
+                await LeaderboardsRefresh.RefreshEmpiricalStars(balanceContext);
+                return;
+            }
             if (args.Length > 1 && args[0] == "worth")
             {
                 var file = args.Skip(1).First(a => a.EndsWith(".db", StringComparison.OrdinalIgnoreCase));
@@ -674,7 +779,10 @@ namespace portaBLe
                 await EnsureSchema(reweightPath, reweightPath);
                 var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={reweightPath};").Options;
                 using var reweightContext = new AppContext(options);
+                // The reweighter fits the levels without the ceiling raise's tilts (cleared first); the raise is set after it
+                await CeilingRaise.Clear(reweightContext);
                 await AccReweighter.Run(reweightContext, webRoot);
+                await CeilingRaise.Run(reweightContext);
                 if (rescore) await RefreshEverything(reweightContext);
                 return;
             }
@@ -869,6 +977,7 @@ namespace portaBLe
             if (autoreweight)
             {
                 await AccReweighter.Run(dbContext, webRootPath);
+                await CeilingRaise.Run(dbContext);
                 await RefreshEverything(dbContext);
             }
             if (balancer)

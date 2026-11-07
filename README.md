@@ -130,13 +130,13 @@ tech share, predicted acc, OneSaber, star range), and its acc rating is moved to
 
 | | |
 |---|---|
-| Pass / one saber / tech scaling, pass windows | `RatingAPI/Analyzer/.../Algorithm/AnalyzeMap.cs` (`PASS_CALIBRATION_FACTOR`, `ONE_SABER_NERF`, `BALANCED_TECH_SCALER`, `WindowSeconds`, `DENSITY_*`, linear map pass buff `LINEAR_PASS_*`) |
+| Pass / one saber / tech scaling, pass windows | `RatingAPI/Analyzer/.../Algorithm/AnalyzeMap.cs` (`PASS_CALIBRATION_FACTOR`, each hand half of the pass, `BALANCED_TECH_SCALER`, `WindowSeconds`, `DENSITY_*`, linear map pass buff `LINEAR_PASS_*`) |
 | Pass formula (fitted on fail data) | `RatingAPI/Analyzer/.../Algorithm/Difficulty.cs` (falloffs, stress weights, `DENSITY_CAP`, wall buffs) |
 | Arrow directions (fitted on replays) | `RatingAPI/Analyzer/.../Helper/EntryExit.cs` (`SAME_ROW_ADJUST_SCALE`, `ROW_CHANGE_ADJUST_*`), dots in `Helper/DotDirections.cs` |
 | Parity | `RatingAPI/Analyzer/.../Algorithm/ParityPredictor.cs` (comfort / rotation / reset costs, `UsePairResets`) |
 | Tech shape | `RatingAPI/Analyzer/.../Data/Ratings.cs` (`TechExponent`, `TechPassBase`) |
 | Acc rating | `RatingAPI/Controllers/AccRating.cs` (`ACC_SCALE`, `ACC_OFFSET`, hard map correction `HARD_MAP_*`, `ACC_EXPONENT`, movement and high pass corrections `HIT_DISTANCE_*` / `HIGH_PASS_*`, hard swing correction `HARD_SWING_*` from the Analyzer's `Ratings.HardSwingRatio`) |
-| pp formula | `RatingAPI/Pp/PpFormula.cs` (pass / acc / tech pp and their rating powers, pass top compression `PassTopKnee` / `PassTopSlope`, tech top compression `TechTopKnee` / `TechTopSlope`, acc curve power `AccCurvePower` / `LowStarCurve*` / `VeryLowStarCurve*`, stars `StarDivisor` / `StarScale` / `StarExponent`, `PpMultiplier`, low star bonus `LowStarBonus*`) |
+| pp formula | `RatingAPI/Pp/PpFormula.cs` (pass / acc / tech pp and their rating powers, pass top compression `PassTopKnee` / `PassTopSlope`, tech top compression `TechTopKnee` / `TechTopSlope`, acc curve power `AccCurvePower` / `LowStarCurve*` / `VeryLowStarCurve*`, stars `StarDivisor` / `StarScale` / `StarExponent`, `PpMultiplier`, low star bonus `LowStarBonus*`, OneSaber acc pp `OneSaber*`) |
 | Acc curves | `RatingAPI/Controllers/Curve.cs` (`CurveSettings`: the table by predicted acc, `SliderTilt`, low note nerf `LowNote*`: gain cut, grind time span factor and length bonus, speed modifier blend) |
 | Acc reweighter | `Refresh/Tools/AccReweighter.cs` (`Passes`, `Strengths`, `TargetMetric`, `StarResponse`, `NoiseDeadZone`, `MaxChange`, `LargeGapMaxChange`, `Applied`, guard tolerances, `HeldOutSplits`, `FitAtBaseStars`, `WorthLimit`, top play limiter `TopPlay*`, low note maps `MinNotes`, `FallbackStrengths`, `GuardMarginWarning`) |
 | Map tags | `Refresh/LeaderboardsRefresh.cs` (`LinearPercentThreshold`, `Fitbeat*`, `BombResetsPerMinuteThreshold`, `InlinesPerMinuteThreshold`; the map type from RatingAPI's `InferPublish.Tag`) |

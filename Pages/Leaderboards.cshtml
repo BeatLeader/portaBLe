@@ -13,6 +13,7 @@
     }
     <input type="hidden" name="SortBy" value="@Model.SortBy" />
     <input type="hidden" name="SortDescending" value="@(Model.SortDescending ? "true" : "false")" />
+    <input type="hidden" name="View" value="@Model.CurrentView" />
     <input type="search" name="SearchString" id="searchString" class="form-control form-control-sm lb-search" value="@Model.SearchString" placeholder="Song or mapper..." />
     <select name="ModeName" id="modeName" class="form-select form-select-sm lb-mode" onchange="this.form.submit()">
         <option value="">All characteristics</option>
@@ -49,9 +50,20 @@
     </div>
     @if (!string.IsNullOrEmpty(Model.SearchString) || !string.IsNullOrEmpty(Model.ModeName) || Model.HasRange || Model.Tag != null)
     {
-        <a asp-page="./Leaderboards" asp-route-sortBy="@Model.SortBy" asp-route-sortDescending="@Model.SortDescending" asp-route-modifier="@Model.Modifier" asp-route-db="@Model.SelectedDatabase" class="btn btn-sm btn-outline-secondary">Clear</a>
+        <a asp-page="./Leaderboards" asp-route-sortBy="@Model.SortBy" asp-route-sortDescending="@Model.SortDescending" asp-route-modifier="@Model.Modifier" asp-route-view="@Model.CurrentView" asp-route-db="@Model.SelectedDatabase" class="btn btn-sm btn-outline-secondary">Clear</a>
     }
 </form>
+
+<nav class="lb-views" aria-label="Column views">
+    @foreach (var v in LeaderboardsModel.Views)
+    {
+        <a class="lb-view@(Model.CurrentView == v.Key ? " active" : "")" title="@v.Title" href="@ViewUrl(v.Key)">@v.Label</a>
+    }
+    @if (Model.Modifier != null && Model.CurrentView is "balance" or "worth")
+    {
+        <span class="text-muted small ms-2">Nomod only: with @Model.Modifier, only P75 is filled.</span>
+    }
+</nav>
 
 <table class="table table-sm table-hover align-middle lb-table">
     <thead>
@@ -61,17 +73,51 @@
             <th>Difficulty</th>
             <th>Tags</th>
             @SortHeader("Stars", "Stars", "Star rating")
-            @SortHeader("PassRating", "Pass", "Pass rating")
-            @SortHeader("AccRating", "Acc", "Acc rating")
-            @SortHeader("TechRating", "Tech", "Tech rating")
-            @SortHeader("NoteCount", "Notes", "Color notes in the difficulty")
-            @SortHeader("PeakEbpm", "Peak EBPM", "Peak sustained EBPM (Analyzer): the fastest 4 swings in a row of a hand, on average. With a speed modifier, at its speed. Blank when not filled yet (mapstats fills it).")
-            @SortHeader("WorthMean", "Mean", WorthQuantileTitle("the mean of"))
-            @SortHeader("WorthMedian", "Median", WorthQuantileTitle("the median of"))
-            @SortHeader("WorthP75", Model.Modifier == null ? "P75" : $"P75 ({Model.Modifier})", "Worth, the main measure: how much the map pays its players compared with maps of the same stars: for the same players, how much more or less they get here than on their other maps at their level (+4% = 4% more), with each player's level, map's pay and distance term fitted to the 75th percentile of the scores' residuals (each player's better efforts). The balance tuner and the acc reweighter use this measure. Blank with too few scores. With a speed modifier, that of the scores with it.", "lb-main-col")
-            @SortHeader("WorthP90", "P90", WorthQuantileTitle("the 90th percentile of"))
-            @SortHeader("WorthSpread", "Spread", "How much Mean, Median, P75 and P90 disagree: the highest minus the lowest, in points (5.0 = 5 points apart). Highlighted from 5 points (about the top 5% of maps). Blank when any of them is.")
-            @SortHeader("TopPlayShare", "Top play share", FormattableString.Invariant($"Of the map's players with {portaBLe.Refresh.AccReweighter.TopPlayShareMinScores}+ ranked plays, those whose best play it is by {portaBLe.Refresh.AccReweighter.TopPlayMarginPp:0.#}pp or more over their second best (any modifier), and that share over the median of the maps within {portaBLe.Refresh.AccReweighter.TopPlayShareBandwidth:0.#} star (sorted by it). The acc reweighter cuts maps past x{portaBLe.Refresh.AccReweighter.TopPlayShareRatio:0.#}. Blank with fewer than {portaBLe.Refresh.AccReweighter.TopPlayShareMinPlayers} such players."))
+            @switch (Model.CurrentView)
+            {
+                case "ratings":
+                    @SortHeader("PassRating", "Pass", "Pass rating")
+                    @SortHeader("AccRating", "Acc", "Acc rating")
+                    @SortHeader("TechRating", "Tech", "Tech rating")
+                    @SortHeader("PredictedAcc", "Predicted", "The Acc AI's predicted acc (with a speed modifier, its own)")
+                    @SortHeader("AccVsPredicted", "Acc vs pred", AccVsPredictedTitle)
+                    @SortHeader("EmpiricalStars", "Empirical ★", EmpiricalTitle)
+                    @SortHeader("StarsVsEmpirical", "★ - empirical", EmpiricalTitle + " Positive: rated harder than players find it to acc; highlighted from +-0.5.")
+                    break;
+                case "worth":
+                    @SortHeader("WorthP75", Model.Modifier == null ? "P75" : $"P75 ({Model.Modifier})", P75Title, "lb-main-col")
+                    @SortHeader("WorthMean", "Mean", WorthQuantileTitle("the mean of"))
+                    @SortHeader("WorthMedian", "Median", WorthQuantileTitle("the median of"))
+                    @SortHeader("WorthP90", "P90", WorthQuantileTitle("the 90th percentile of"))
+                    @SortHeader("WorthSpread", "Spread", "How much Mean, Median, P75 and P90 disagree: the highest minus the lowest, in points (5.0 = 5 points apart), and where each falls on -15% ... +15% (P75 in blue). Highlighted from 5 points (about the top 5% of maps). Blank when any of them is.")
+                    break;
+                case "balance":
+                    @SortHeader("Top20Share", "Top 20", Top20Title)
+                    @SortHeader("Top50Share", "Top 50", "As Top 20, with each player's top 50 plays.")
+                    @SortHeader("PlayersRankRelative", "Players", PlayersTitle)
+                    @SortHeader("Top5Relative", "Top 5 vs ★", Top5Title)
+                    @SortHeader("TopPlayShare", "Top play share", TopPlayShareTitle)
+                    @SortHeader("TopPlayPp", "Top play", "The map's best nomod play")
+                    @SortHeader("EmulatedTopPp", "Emulated top", EmulatedTopTitle)
+                    @SortHeader("SpecialistTopPp", "Specialist top", SpecialistTopTitle)
+                    break;
+                case "map":
+                    @SortHeader("NoteCount", "Notes", "Color notes in the difficulty")
+                    @SortHeader("Duration", "Length", "Song length (with a speed modifier, in real time)")
+                    @SortHeader("Njs", "NJS", "Note jump speed (no speed modifier)")
+                    @SortHeader("PeakEbpm", "Peak EBPM", "Peak sustained EBPM (Analyzer): the fastest 4 swings in a row of a hand, on average. With a speed modifier, at its speed. Blank when not filled yet (mapstats fills it).")
+                    @SortHeader("LinearPercent", "Linear", "Share of the swings that are linear (Analyzer)")
+                    @SortHeader("Count", "Scores", "Ranked scores on the map")
+                    break;
+                default:
+                    <th class="lb-num" title="Pass, acc and tech ratings (click one to sort)">@SortLink("PassRating", "Pass") / @SortLink("AccRating", "Acc") / @SortLink("TechRating", "Tech")</th>
+                    @SortHeader("WorthP75", Model.Modifier == null ? "P75" : $"P75 ({Model.Modifier})", P75Title, "lb-main-col")
+                    @SortHeader("Top20Share", "Top 20", Top20Title + " Under it: the players' rank against maps of its stars.")
+                    @SortHeader("Top5Relative", "Top 5 vs ★", Top5Title)
+                    @SortHeader("TopPlayShare", "Top play share", TopPlayShareTitle)
+                    <th class="lb-num" title="@(EmulatedTopTitle + " " + SpecialistTopTitle + " Under them: the map's best play so far.")">Emulated top: @SortLink("EmulatedTopPp", "typical") / @SortLink("SpecialistTopPp", "specialist")</th>
+                    break;
+            }
         </tr>
     </thead>
     <tbody>
@@ -92,22 +138,68 @@
                 </td>
                 <td class="lb-tags">@MapTags.Badges(leaderboard)</td>
                 <td class="lb-num lb-stars">@leaderboard.Stars.ToString("0.00") ★</td>
-                <td class="lb-num">@leaderboard.PassRating.ToString("0.00")</td>
-                <td class="lb-num">@leaderboard.AccRating.ToString("0.00")</td>
-                <td class="lb-num">@leaderboard.TechRating.ToString("0.00")</td>
-                <td class="lb-num">@(leaderboard.NoteCount > 0 ? leaderboard.NoteCount.ToString() : "—")</td>
-                <td class="lb-num">@(leaderboard.PeakEbpm > 0 ? leaderboard.PeakEbpm.ToString("0") : "—")</td>
-                <td class="lb-num"><span class="lb-worth @WorthClass(leaderboard.WorthMean)">@WorthText(leaderboard.WorthMean)</span></td>
-                <td class="lb-num"><span class="lb-worth @WorthClass(leaderboard.WorthMedian)">@WorthText(leaderboard.WorthMedian)</span></td>
-                <td class="lb-num"><span class="lb-worth @WorthClass(leaderboard.WorthP75)">@WorthText(leaderboard.WorthP75)</span></td>
-                <td class="lb-num"><span class="lb-worth @WorthClass(leaderboard.WorthP90)">@WorthText(leaderboard.WorthP90)</span></td>
-                <td class="lb-num"><span class="lb-worth @SpreadClass(leaderboard.WorthSpread)">@SpreadText(leaderboard.WorthSpread)</span></td>
-                <td class="lb-num"><span class="lb-worth @TopShareClass(leaderboard.TopPlayShareRelative)">@TopShareText(leaderboard.TopPlayShare, leaderboard.TopPlayShareRelative)</span></td>
+                @switch (Model.CurrentView)
+                {
+                    case "ratings":
+                        <td class="lb-num">@leaderboard.PassRating.ToString("0.00")</td>
+                        <td class="lb-num">@leaderboard.AccRating.ToString("0.00")</td>
+                        <td class="lb-num">@leaderboard.TechRating.ToString("0.00")</td>
+                        <td class="lb-num">@(leaderboard.PredictedAcc > 0 ? (leaderboard.PredictedAcc * 100).ToString("0.00") + "%" : "—")</td>
+                        <td class="lb-num"><span class="lb-worth @AccGapClass(leaderboard.AccVsPredicted)">@AccGapText(leaderboard.AccVsPredicted)</span></td>
+                        <td class="lb-num">@(leaderboard.EmpiricalStars is float es ? es.ToString("0.00") + " ★" : "—")</td>
+                        <td class="lb-num"><span class="lb-worth @StarsGapClass(leaderboard)">@StarsGapText(leaderboard)</span></td>
+                        break;
+                    case "worth":
+                        <td class="lb-num"><span class="lb-worth @WorthClass(leaderboard.WorthP75)">@WorthText(leaderboard.WorthP75)</span></td>
+                        <td class="lb-num"><span class="lb-worth @WorthClass(leaderboard.WorthMean)">@WorthText(leaderboard.WorthMean)</span></td>
+                        <td class="lb-num"><span class="lb-worth @WorthClass(leaderboard.WorthMedian)">@WorthText(leaderboard.WorthMedian)</span></td>
+                        <td class="lb-num"><span class="lb-worth @WorthClass(leaderboard.WorthP90)">@WorthText(leaderboard.WorthP90)</span></td>
+                        <td class="lb-num lb-range-cell">@WorthRange(leaderboard)<span class="lb-worth @SpreadClass(leaderboard.WorthSpread)">@SpreadText(leaderboard.WorthSpread)</span></td>
+                        break;
+                    case "balance":
+                        <td class="lb-num">@ShareText(leaderboard.Top20Share)</td>
+                        <td class="lb-num">@ShareText(leaderboard.Top50Share)</td>
+                        <td class="lb-num"><span class="lb-worth @RankClass(leaderboard.PlayersRankRelative)">@RankText(leaderboard.PlayersRankRelative)</span></td>
+                        <td class="lb-num"><span class="lb-worth @Top5Class(leaderboard.Top5Relative)">@WorthText(leaderboard.Top5Relative)</span></td>
+                        <td class="lb-num"><span class="lb-worth @TopShareClass(leaderboard.TopPlayShareRelative)">@TopShareText(leaderboard.TopPlayShare, leaderboard.TopPlayShareRelative)</span></td>
+                        <td class="lb-num">@PpText(leaderboard.TopPlayPp)</td>
+                        <td class="lb-num" title="@EmulatedTopCellTitle(leaderboard)">@PpText(leaderboard.EmulatedTopPp)</td>
+                        <td class="lb-num" title="@SpecialistTopCellTitle(leaderboard)">@PpText(leaderboard.SpecialistTopPp)</td>
+                        break;
+                    case "map":
+                        <td class="lb-num">@(leaderboard.NoteCount > 0 ? leaderboard.NoteCount.ToString() : "—")</td>
+                        <td class="lb-num">@LengthText(leaderboard.Duration)</td>
+                        <td class="lb-num">@(leaderboard.Njs > 0 ? leaderboard.Njs.ToString("0.#") : "—")</td>
+                        <td class="lb-num">@(leaderboard.PeakEbpm > 0 ? leaderboard.PeakEbpm.ToString("0") : "—")</td>
+                        <td class="lb-num">@((leaderboard.LinearPercent * 100).ToString("0"))%</td>
+                        <td class="lb-num">@leaderboard.Count</td>
+                        break;
+                    default:
+                        <td class="lb-num lb-ratings"><span>@leaderboard.PassRating.ToString("0.00")</span> / <span>@leaderboard.AccRating.ToString("0.00")</span> / <span>@leaderboard.TechRating.ToString("0.00")</span></td>
+                        <td class="lb-num"><span class="lb-worth @WorthClass(leaderboard.WorthP75)">@WorthText(leaderboard.WorthP75)</span></td>
+                        <td class="lb-num">
+                            @ShareText(leaderboard.Top20Share)
+                            @if (leaderboard.PlayersRankRelative is float rank)
+                            {
+                                <div class="lb-sub @RankClass(rank)">players @RankText(rank)</div>
+                            }
+                        </td>
+                        <td class="lb-num"><span class="lb-worth @Top5Class(leaderboard.Top5Relative)">@WorthText(leaderboard.Top5Relative)</span></td>
+                        <td class="lb-num"><span class="lb-worth @TopShareClass(leaderboard.TopPlayShareRelative)">@TopShareText(leaderboard.TopPlayShare, leaderboard.TopPlayShareRelative)</span></td>
+                        <td class="lb-num" title="@(EmulatedTopCellTitle(leaderboard) + "; " + SpecialistTopCellTitle(leaderboard))">
+                            @PpText(leaderboard.EmulatedTopPp) / @PpText(leaderboard.SpecialistTopPp)
+                            @if (leaderboard.TopPlayPp is float best)
+                            {
+                                <div class="lb-sub worth-even">best @best.ToString("0")</div>
+                            }
+                        </td>
+                        break;
+                }
             </tr>
         }
         @if (Model.Leaderboards.Count == 0)
         {
-            <tr><td colspan="16" class="text-center text-muted py-4">No maps found</td></tr>
+            <tr><td colspan="12" class="text-center text-muted py-4">No maps found</td></tr>
         }
     </tbody>
 </table>
@@ -148,6 +240,42 @@
     static string TopShareText(float? share, float? relative) => share is float s && relative is float r ? FormattableString.Invariant($"{s * 100:0.0}% (x{r:0.0})") : "—";
     static string TopShareClass(float? relative) => relative is float r ? (r > portaBLe.Refresh.AccReweighter.TopPlayShareRatio ? "worth-high" : "worth-even") : "worth-none";
 
+    static readonly string P75Title = "Worth, the main measure: how much the map pays its players compared with maps of the same stars: for the same players, how much more or less they get here than on their other maps at their level (+4% = 4% more), with each player's level, map's pay and distance term fitted to the 75th percentile of the scores' residuals (each player's better efforts). The balance tuner and the acc reweighter use this measure. Blank with too few scores. With a speed modifier, that of the scores with it.";
+    static readonly string TopPlayShareTitle = FormattableString.Invariant($"Of the map's players with {portaBLe.Refresh.AccReweighter.TopPlayShareMinScores}+ ranked plays, those whose best play it is by {portaBLe.Refresh.AccReweighter.TopPlayMarginPp:0.#}pp or more over their second best (any modifier), and that share over the median of the maps within {portaBLe.Refresh.AccReweighter.TopPlayShareBandwidth:0.#} star (sorted by it). The acc reweighter cuts maps past x{portaBLe.Refresh.AccReweighter.TopPlayShareRatio:0.#}. Blank with fewer than {portaBLe.Refresh.AccReweighter.TopPlayShareMinPlayers} such players.");
+    static readonly string Top20Title = FormattableString.Invariant($"Of the map's nomod players with {portaBLe.Refresh.LeaderboardsRefresh.BalanceMinPlays}+ ranked plays, the share for whom it's in their top 20 plays. Depends on who plays it as much as on its pay: maps played by stronger players than usual for their stars (Players under x1) show up in fewer top 20s. Blank with fewer than {portaBLe.Refresh.LeaderboardsRefresh.BalanceMinPlayers} such players or with a speed modifier.");
+    static readonly string PlayersTitle = FormattableString.Invariant($"Median rank of the map's nomod players over that of the maps within {portaBLe.Refresh.LeaderboardsRefresh.BalanceStarWindow:0.#} star: x0.7 = played by stronger players than usual for its stars (blue), x1.4 = weaker (red). Explains Top 20 / 50 and Top 5 when they're off.");
+    static readonly string Top5Title = FormattableString.Invariant($"Mean pp of the map's 5 best nomod plays over the median of the maps within {portaBLe.Refresh.LeaderboardsRefresh.BalanceStarWindow:0.#} star with half to twice its nomod plays (+5% = its top plays pay 5% more): how high the best players can go on it. Highlighted from +-15%.");
+    static readonly string AccVsPredictedTitle = FormattableString.Invariant($"Each player's acc - predicted acc here minus their median on their other nomod maps within {portaBLe.Refresh.LeaderboardsRefresh.BalanceStarWindow:0.#} star, median over the map's players, in points of acc (-0.30 = players fall 0.3 points further under the Acc AI's prediction here: harder to acc than predicted). Highlighted from +-0.5. Nomod only.");
+
+    static readonly string EmulatedTopTitle = FormattableString.Invariant($"What a top play would get if achieved (no modifier): the pp at the predicted acc plus how far above it the world's best typically land on maps of its stars (median of best acc - predicted acc over maps with {portaBLe.Refresh.LeaderboardsRefresh.EmulatedTopMinTopPlays}+ top 100 plays, per star), at most 100%. Useful for maps nobody strong has played yet.");
+    static readonly string SpecialistTopTitle = "Specialist top: the same at the acc the best specialists of this kind of map reach (star band x pass and tech share; of its 3 best players, the highest median best acc - predicted acc over their 10 best plays there).";
+    static string SpecialistTopCellTitle(portaBLe.DB.Leaderboard l) => l.SpecialistTopAcc is float a ? FormattableString.Invariant($"specialist at {a * 100:0.00}%") : "";
+    static readonly string EmpiricalTitle = "Empirical stars: how hard players actually find the map to acc, on the star scale, from scores (each player's skill and each map's difficulty fitted together on nomod plays, then the median stars of the maps of most similar difficulty). A diagnostic: pass difficulty (stamina, failing) isn't in it, so speed maps read lower than their stars by design. Nomod only.";
+    static string StarsGapText(portaBLe.DB.Leaderboard l) => l.EmpiricalStars is float e ? (l.Stars - e).ToString("+0.00;-0.00;0.00") : "—";
+    static string StarsGapClass(portaBLe.DB.Leaderboard l) => l.EmpiricalStars is float e ? (l.Stars - e >= 0.5f ? "worth-high" : l.Stars - e <= -0.5f ? "worth-low" : "worth-even") : "worth-none";
+    static string PpText(float? pp) => pp is float v ? v.ToString("0") + "pp" : "—";
+    static string EmulatedTopCellTitle(portaBLe.DB.Leaderboard l) => l.EmulatedTopAcc is float a
+        ? FormattableString.Invariant($"At {a * 100:0.00}% (predicted {l.PredictedAcc * 100:0.00}%); the best play so far {(l.TopPlayPp is float b ? b.ToString("0") + "pp" : "none")}")
+        : "";
+    static string ShareText(float? share) => share is float s ? (s * 100).ToString("0.0", System.Globalization.CultureInfo.InvariantCulture) + "%" : "—";
+    static string RankText(float? relative) => relative is float r ? "x" + r.ToString("0.00", System.Globalization.CultureInfo.InvariantCulture) : "—";
+    static string RankClass(float? relative) => relative is float r ? (r <= 0.7f ? "worth-low" : r >= 1.4f ? "worth-high" : "worth-even") : "worth-none";
+    static string Top5Class(float? relative) => relative is float r ? (r >= 0.15f ? "worth-high" : r <= -0.15f ? "worth-low" : "worth-even") : "worth-none";
+    static string AccGapText(float? gap) => gap is float g ? (g * 100).ToString("+0.00;-0.00;0.00", System.Globalization.CultureInfo.InvariantCulture) : "—";
+    static string AccGapClass(float? gap) => gap is float g ? (g >= 0.005f ? "worth-high" : g <= -0.005f ? "worth-low" : "worth-even") : "worth-none";
+    static string LengthText(float seconds) => seconds > 0 ? $"{(int)seconds / 60}:{(int)seconds % 60:00}" : "—";
+
+    // Mean, median, P75 and P90 on a -15% ... +15% strip (P75 in blue), next to the spread
+    static Microsoft.AspNetCore.Html.IHtmlContent WorthRange(portaBLe.DB.Leaderboard l)
+    {
+        if (l.WorthSpread == null) return Microsoft.AspNetCore.Html.HtmlString.Empty;
+        string Mark(float? w, string css, string name) => w is float v
+            ? FormattableString.Invariant($"<i class=\"{css}\" style=\"left:{Math.Clamp((v + 0.15f) / 0.30f, 0f, 1f) * 100:0.#}%\" title=\"{name} {v * 100:+0.0;-0.0}%\"></i>")
+            : "";
+        return new Microsoft.AspNetCore.Html.HtmlString("<span class=\"lb-range-strip\"><b></b>" + Mark(l.WorthMean, "", "Mean")
+            + Mark(l.WorthMedian, "", "Median") + Mark(l.WorthP90, "", "P90") + Mark(l.WorthP75, "main", "P75") + "</span>");
+    }
+
     // Invariant so the number input and the query string read it back the same in any culture; null when empty
     static string? RangeValue(float? value) => value?.ToString("0.##", System.Globalization.CultureInfo.InvariantCulture);
 
@@ -157,19 +285,26 @@
     static string DifficultyLabel(string? difficulty) => difficulty == "ExpertPlus" ? "Expert+" : difficulty ?? "";
 
     // Clicking the current sort column flips the order; another column starts descending
-    private Microsoft.AspNetCore.Html.IHtmlContent SortHeader(string sortBy, string label, string title, string thClass = "")
+    private string SortUrl(string sortBy, bool descending) => Url.Page("./Leaderboards", new { sortBy, sortDescending = descending, searchString = Model.SearchString, modeName = Model.ModeName, rangeBy = RangeByRoute(), rangeMin = RangeValue(Model.RangeMin), rangeMax = RangeValue(Model.RangeMax), modifier = Model.Modifier, tag = Model.Tag, view = Model.CurrentView, db = Model.SelectedDatabase })!;
+
+    private Microsoft.AspNetCore.Html.IHtmlContent SortLink(string sortBy, string label)
     {
         bool active = (Model.SortBy ?? "Stars") == sortBy;
         bool descending = active ? !Model.SortDescending : true;
         string arrow = active ? (Model.SortDescending ? " ▼" : " ▲") : "";
-        string url = Url.Page("./Leaderboards", new { sortBy, sortDescending = descending, searchString = Model.SearchString, modeName = Model.ModeName, rangeBy = RangeByRoute(), rangeMin = RangeValue(Model.RangeMin), rangeMax = RangeValue(Model.RangeMax), modifier = Model.Modifier, tag = Model.Tag, db = Model.SelectedDatabase })!;
-        return new Microsoft.AspNetCore.Html.HtmlString(
-            $"<th class=\"lb-num{(thClass.Length > 0 ? " " + thClass : "")}\" title=\"{System.Net.WebUtility.HtmlEncode(title)}\"><a class=\"lb-sort{(active ? " active" : "")}\" href=\"{url}\">{label}{arrow}</a></th>");
+        return new Microsoft.AspNetCore.Html.HtmlString($"<a class=\"lb-sort{(active ? " active" : "")}\" href=\"{SortUrl(sortBy, descending)}\">{label}{arrow}</a>");
     }
+
+    private Microsoft.AspNetCore.Html.IHtmlContent SortHeader(string sortBy, string label, string title, string thClass = "") =>
+        new Microsoft.AspNetCore.Html.HtmlString(
+            $"<th class=\"lb-num{(thClass.Length > 0 ? " " + thClass : "")}\" title=\"{System.Net.WebUtility.HtmlEncode(title)}\">{SortLink(sortBy, label)}</th>");
+
+    // The same list in another view, back to page 1
+    private string ViewUrl(string view) => Url.Page("./Leaderboards", new { sortBy = Model.SortBy, sortDescending = Model.SortDescending, searchString = Model.SearchString, modeName = Model.ModeName, rangeBy = RangeByRoute(), rangeMin = RangeValue(Model.RangeMin), rangeMax = RangeValue(Model.RangeMax), modifier = Model.Modifier, tag = Model.Tag, view, db = Model.SelectedDatabase })!;
 
     private Microsoft.AspNetCore.Html.IHtmlContent PageLink(int page, string label)
     {
-        string url = Url.Page("./Leaderboards", new { currentPage = page, sortBy = Model.SortBy, sortDescending = Model.SortDescending, searchString = Model.SearchString, modeName = Model.ModeName, rangeBy = RangeByRoute(), rangeMin = RangeValue(Model.RangeMin), rangeMax = RangeValue(Model.RangeMax), modifier = Model.Modifier, tag = Model.Tag, db = Model.SelectedDatabase })!;
+        string url = Url.Page("./Leaderboards", new { currentPage = page, sortBy = Model.SortBy, sortDescending = Model.SortDescending, searchString = Model.SearchString, modeName = Model.ModeName, rangeBy = RangeByRoute(), rangeMin = RangeValue(Model.RangeMin), rangeMax = RangeValue(Model.RangeMax), modifier = Model.Modifier, tag = Model.Tag, view = Model.CurrentView, db = Model.SelectedDatabase })!;
         return new Microsoft.AspNetCore.Html.HtmlString($"<a class=\"page-link\" href=\"{url}\">{label}</a>");
     }
 }
@@ -313,6 +448,71 @@
     .worth-low { background: #dde9f8; color: #1f5fa8; }
     .worth-even { color: #555; }
     .worth-none { color: #aaa; }
+
+    .lb-views {
+        display: flex;
+        gap: 0.25rem;
+        align-items: center;
+        margin: -0.25rem 0 0.5rem;
+        border-bottom: 1px solid #dee2e6;
+    }
+
+    .lb-view {
+        padding: 0.3rem 0.75rem;
+        font-size: 0.85rem;
+        color: #555;
+        text-decoration: none;
+        border-bottom: 2px solid transparent;
+        margin-bottom: -1px;
+    }
+
+    .lb-view:hover { color: #0d6efd; }
+    .lb-view.active { color: #0d6efd; font-weight: 600; border-bottom-color: #0d6efd; }
+
+    .lb-ratings span { display: inline-block; min-width: 2.4rem; }
+
+    .lb-sub {
+        font-size: 0.72rem;
+        background: none !important;
+    }
+
+    .lb-range-cell { white-space: nowrap; }
+
+    /* Worth quantiles on -15% ... +15%: a line with 0 marked, a tick per quantile, P75 in blue */
+    .lb-range-strip {
+        position: relative;
+        display: inline-block;
+        width: 5rem;
+        height: 0.9rem;
+        margin-right: 0.4rem;
+        vertical-align: middle;
+    }
+
+    .lb-range-strip b {
+        position: absolute;
+        left: 0; right: 0; top: 50%;
+        border-top: 1px solid #ccc;
+    }
+
+    .lb-range-strip b::after {
+        content: "";
+        position: absolute;
+        left: 50%; top: -4px;
+        height: 7px;
+        border-left: 1px solid #aaa;
+    }
+
+    .lb-range-strip i {
+        position: absolute;
+        top: 15%;
+        width: 3px;
+        height: 70%;
+        margin-left: -1px;
+        background: #999;
+        border-radius: 1px;
+    }
+
+    .lb-range-strip i.main { background: #0d6efd; width: 4px; }
 </style>
 
 @section Scripts {

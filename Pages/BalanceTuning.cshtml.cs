@@ -22,7 +22,7 @@ namespace portaBLe.Pages
         public static readonly Dictionary<string, string> Locations = new()
         {
             [nameof(RatingConstants.PassCalibration)] = "PASS_CALIBRATION_FACTOR in Analyzer AnalyzeMap.cs",
-            [nameof(RatingConstants.OneSaberNerf)] = "ONE_SABER_NERF in Analyzer AnalyzeMap.cs",
+            [nameof(RatingConstants.OneSaberNerf)] = "Analyzer AnalyzeMap.cs, each hand half of the pass (not tuned: OneSaber maps are balanced by OneSaberMultiplier in RatingAPI Pp/PpFormula.cs)",
             [nameof(RatingConstants.TechScaler)] = "BALANCED_TECH_SCALER in Analyzer AnalyzeMap.cs (not tuned: keeps tech ratings on their usual scale)",
             [nameof(RatingConstants.TechWeight)] = "TechWeight in RatingAPI Pp/PpFormula.cs (tech pp per tech rating)",
             [nameof(RatingConstants.AccScale)] = "ACC_SCALE in RatingAPI AccRating.cs (reference, not tuned)",

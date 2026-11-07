@@ -205,7 +205,7 @@ namespace portaBLe.Pages
         {
             float accuracy = lb.PredictedAcc > 0 ? lb.PredictedAcc : 0.96f;
             var curve = lb.Curve != null && lb.Curve.Count >= 2 ? lb.Curve : null;
-            var (pp, _, passPp, accPp, techPp) = ReplayUtils.PpFromScore(accuracy, "", null, lb.AccRating, lb.PassRating, lb.TechRating, curve, lb.PredictedAcc);
+            var (pp, _, passPp, accPp, techPp) = ReplayUtils.PpFromScore(accuracy, "", lb, curve);
             float Finite(float v) => float.IsFinite(v) ? v : 0;
             return (Finite(pp), Finite(passPp), Finite(accPp), Finite(techPp));
         }
@@ -259,7 +259,7 @@ namespace portaBLe.Pages
             var points = new List<double[]>(accuracies.Count);
             foreach (var acc in accuracies)
             {
-                var (pp, _, passPp, accPp, techPp) = ReplayUtils.PpFromScore((float)(acc / 100), "", null, lb.AccRating, lb.PassRating, lb.TechRating, curve, lb.PredictedAcc);
+                var (pp, _, passPp, accPp, techPp) = ReplayUtils.PpFromScore((float)(acc / 100), "", lb, curve);
                 double Finite(float v) => float.IsFinite(v) ? Math.Round(v, 2) : 0;
                 points.Add(parts
                     ? new[] { Math.Round(acc, 2), Finite(pp), Finite(passPp), Finite(accPp), Finite(techPp) }

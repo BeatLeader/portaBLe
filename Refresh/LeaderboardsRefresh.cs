@@ -290,7 +290,251 @@ namespace portaBLe.Refresh
             await RefreshWorthByRank(dbContext);
             await RefreshWorthQuantiles(dbContext);
             await RefreshTopPlayShares(dbContext);
+            await RefreshBalanceMetrics(dbContext);
+            await RefreshEmpiricalStars(dbContext);
             await DetermineTags(dbContext);
+        }
+
+        // Balance metrics (Leaderboard.Top20Share ... AccVsPredicted): players with at least BalanceMinPlays ranked plays,
+        // maps with at least BalanceMinPlayers of them, compared with the maps within BalanceStarWindow stars
+        public const int BalanceMinPlays = 50;
+        public const int BalanceMinPlayers = 30;
+        public const double BalanceStarWindow = 0.5;
+        private const int BalanceMinNeighbours = 8;
+        private const int BalanceMinOwnMaps = 5;   // a player's other nomod maps within the window, for AccVsPredicted
+        // Emulated top play: the star bands' typical best acc above the predicted acc, from maps with this many top 100 plays
+        public const int EmulatedTopMinTopPlays = 10;
+        private const int EmulatedTopMinMaps = 5;   // per 1-star band
+        // Best specialist top play: the 3 best players (top 3000) of each kind of map, each with 5+ plays on it
+        private const int SpecialistPanel = 3, SpecialistMinPlays = 5, SpecialistBestPlays = 10, SpecialistMaxRank = 3000;
+        private const int KindMinMaps = 15;   // smaller kinds are merged within their star band
+
+        // Recomputes Leaderboard.Top20Share / Top50Share / Top5Relative / PlayersRankRelative / AccVsPredicted and TopPlayPp /
+        // EmulatedTopAcc / EmulatedTopPp alone (Refresh runs it too)
+        public static async Task RefreshBalanceMetrics(AppContext dbContext)
+        {
+            Console.WriteLine("Recalculating balance metrics");
+            dbContext.ChangeTracker.AutoDetectChangesEnabled = false;
+            foreach (var column in new[] { "Top20Share", "Top50Share", "Top5Relative", "PlayersRankRelative", "AccVsPredicted", "TopPlayPp", "EmulatedTopAcc", "EmulatedTopPp", "SpecialistTopAcc", "SpecialistTopPp" })
+                await DbSchema.AddColumnIfMissing(dbContext, "Leaderboards", column, "REAL");
+
+            var maps = await dbContext.Leaderboards.AsNoTracking().Where(l => l.Stars > 0)
+                .Select(l => new { l.Id, l.Stars, l.PredictedAcc, l.AccRating, l.PassRating, l.TechRating, l.Curve, l.ModeName, l.TopTilt, l.TopTiltAnchor }).ToListAsync();
+            var mapIndex = new Dictionary<string, int>(maps.Count);
+            for (int i = 0; i < maps.Count; i++) mapIndex[maps[i].Id] = i;
+            var rankOf = (await dbContext.Players.AsNoTracking().OrderByDescending(p => p.Pp).Select(p => p.Id).ToListAsync())
+                .Select((id, rank) => (id, rank)).ToDictionary(p => p.id, p => p.rank);
+            var scores = await dbContext.Scores.AsNoTracking().Where(s => s.Pp > 0)
+                .Select(s => new { s.PlayerId, s.LeaderboardId, s.Pp, s.Accuracy, s.Modifiers, s.PassPP, s.TechPP }).ToListAsync();
+
+            // Kinds of map (MapKinds): from each map's median pass and tech pp shares over its nomod scores
+            static bool IsNomod(string? modifiers) => string.IsNullOrEmpty(modifiers) || !modifiers.ToUpperInvariant().Split(',')
+                .Any(m => m is "SS" or "FS" or "SF" or "NF");
+            var shares = new List<(double Pass, double Tech)>?[maps.Count];
+            foreach (var s in scores)
+            {
+                if (s.LeaderboardId == null || !mapIndex.TryGetValue(s.LeaderboardId, out int mi) || !IsNomod(s.Modifiers)) continue;
+                (shares[mi] ??= new()).Add((s.PassPP / s.Pp, s.TechPP / s.Pp));
+            }
+            var kindOf = MapKinds(maps.Select(m => (double)m.Stars).ToArray(),
+                shares.Select(l => l == null || l.Count < 10 ? ((double, double)?)null : (Median(l.Select(x => x.Pass).ToList()), Median(l.Select(x => x.Tech).ToList()))).ToArray());
+            // Each top SpecialistMaxRank player's nomod plays per kind: (pp, acc - predicted acc)
+            var kindPlays = new Dictionary<int, List<List<(float Pp, double Gap)>>>();
+
+            // Each player's plays (any modifier) for their top 20 / 50 thresholds; their nomod plays for the metrics
+            var players = scores.Where(s => s.PlayerId != null && rankOf.ContainsKey(s.PlayerId)).GroupBy(s => s.PlayerId!);
+            var n = new int[maps.Count]; var in20 = new int[maps.Count]; var in50 = new int[maps.Count];
+            var ranks = Enumerable.Range(0, maps.Count).Select(_ => new List<int>()).ToArray();
+            var accGaps = Enumerable.Range(0, maps.Count).Select(_ => new List<double>()).ToArray();
+            var nomodPp = Enumerable.Range(0, maps.Count).Select(_ => new List<float>()).ToArray();
+            var bestAcc = new float[maps.Count]; var topPlays = new int[maps.Count];
+            static bool Nomod(string? modifiers) => string.IsNullOrEmpty(modifiers) || !modifiers.ToUpperInvariant().Split(',')
+                .Any(m => m is "SS" or "FS" or "SF" or "NF");
+            foreach (var player in players)
+            {
+                var nomod = player.Where(s => s.LeaderboardId != null && mapIndex.ContainsKey(s.LeaderboardId) && Nomod(s.Modifiers))
+                    .Select(s => (Map: mapIndex[s.LeaderboardId!], s.Pp, s.Accuracy)).ToList();
+                if (rankOf[player.Key] < SpecialistMaxRank)
+                {
+                    foreach (var g in nomod.Where(s => kindOf[s.Map] >= 0 && maps[s.Map].PredictedAcc > 0).GroupBy(s => kindOf[s.Map]))
+                    {
+                        if (!kindPlays.TryGetValue(g.Key, out var list)) kindPlays[g.Key] = list = new();
+                        list.Add(g.Select(s => (s.Pp, (double)(s.Accuracy - maps[s.Map].PredictedAcc))).ToList());
+                    }
+                }
+                foreach (var s in nomod)
+                {
+                    nomodPp[s.Map].Add(s.Pp);
+                    if (s.Accuracy > bestAcc[s.Map]) bestAcc[s.Map] = s.Accuracy;
+                    if (rankOf[player.Key] < 100) topPlays[s.Map]++;
+                }
+                int count = player.Count();
+                if (count < BalanceMinPlays) continue;
+                var top = player.Select(s => s.Pp).OrderByDescending(p => p).ToList();
+                float t20 = top[19], t50 = top[49];
+                int rank = rankOf[player.Key];
+                // acc - predicted, by stars, for the player's own reference
+                var own = nomod.Where(s => maps[s.Map].PredictedAcc > 0)
+                    .Select(s => (Stars: maps[s.Map].Stars, Gap: (double)(s.Accuracy - maps[s.Map].PredictedAcc), s.Map))
+                    .OrderBy(s => s.Stars).ToList();
+                int lo = 0, hi = 0;
+                var others = new List<double>();
+                for (int k = 0; k < own.Count; k++)
+                {
+                    while (own[lo].Stars < own[k].Stars - BalanceStarWindow) lo++;
+                    while (hi < own.Count && own[hi].Stars <= own[k].Stars + BalanceStarWindow) hi++;
+                    if (hi - lo - 1 < BalanceMinOwnMaps) continue;
+                    others.Clear();
+                    for (int j = lo; j < hi; j++) if (j != k) others.Add(own[j].Gap);
+                    accGaps[own[k].Map].Add(own[k].Gap - Median(others));
+                }
+                foreach (var s in nomod)
+                {
+                    n[s.Map]++;
+                    if (s.Pp >= t20) in20[s.Map]++;
+                    if (s.Pp >= t50) in50[s.Map]++;
+                    ranks[s.Map].Add(rank);
+                }
+            }
+
+            // Per map, then against the maps within the star window
+            var top5 = nomodPp.Select(l => l.Count == 0 ? double.NaN : l.OrderByDescending(p => p).Take(5).Average(p => (double)p)).ToArray();
+            var medianRank = ranks.Select(l => l.Count == 0 ? double.NaN : Median(l.Select(r => (double)r).ToList())).ToArray();
+            var valid = Enumerable.Range(0, maps.Count).Where(i => n[i] >= BalanceMinPlayers).ToList();
+
+            // How far above the predicted acc the world's best land, per 1-star band (median over the maps the top 100 played
+            // most), interpolated between the bands' middles and flat past the first and last
+            var bands = Enumerable.Range(0, maps.Count).Where(i => topPlays[i] >= EmulatedTopMinTopPlays && maps[i].PredictedAcc > 0)
+                .GroupBy(i => (int)Math.Floor(maps[i].Stars)).Where(g => g.Count() >= EmulatedTopMinMaps)
+                .Select(g => (Stars: g.Key + 0.5, Offset: Median(g.Select(i => (double)(bestAcc[i] - maps[i].PredictedAcc)).ToList())))
+                .OrderBy(b => b.Stars).ToList();
+            double TopOffset(double stars)
+            {
+                if (bands.Count == 0) return 0;
+                if (stars <= bands[0].Stars) return bands[0].Offset;
+                if (stars >= bands[^1].Stars) return bands[^1].Offset;
+                int k = bands.FindIndex(b => b.Stars > stars);
+                var (a, b) = (bands[k - 1], bands[k]);
+                return a.Offset + (b.Offset - a.Offset) * (stars - a.Stars) / (b.Stars - a.Stars);
+            }
+            // Each kind's best specialist offset: of its SpecialistPanel best players (by their 5 best plays there, with
+            // SpecialistMinPlays+ plays), the highest median acc - predicted acc over their SpecialistBestPlays best plays
+            var kindOffset = new Dictionary<int, double>();
+            foreach (var (kind, kindPlayers) in kindPlays)
+            {
+                var panel = kindPlayers.Where(p => p.Count >= SpecialistMinPlays)
+                    .OrderByDescending(p => p.OrderByDescending(x => x.Pp).Take(5).Average(x => x.Pp)).Take(SpecialistPanel).ToList();
+                if (panel.Count > 0) kindOffset[kind] = panel.Max(p => Median(p.OrderByDescending(x => x.Pp).Take(SpecialistBestPlays).Select(x => x.Gap).ToList()));
+            }
+            if (kindOffset.Count > 0) Console.WriteLine($"Best specialist offsets: {kindOffset.Count} kinds of map, " + FormattableString.Invariant($"median {Median(kindOffset.Values.ToList()) * 100:+0.00;-0.00} points, {kindOffset.Values.Min() * 100:+0.00;-0.00} to {kindOffset.Values.Max() * 100:+0.00;-0.00}"));
+            Console.WriteLine("Emulated top play, best acc - predicted by stars: " + string.Join(", ", bands.Select(b => FormattableString.Invariant($"{b.Stars:0.#}* {b.Offset * 100:+0.00;-0.00}"))));
+
+            var updates = maps.Select((m, i) =>
+            {
+                float? topPlay = nomodPp[i].Count > 0 ? nomodPp[i].Max() : null;
+                float? emulatedAcc = null, emulatedPp = null, specialistAcc = null, specialistPp = null;
+                float PpAt(float acc) => ReplayUtils.PpFromScore(acc, "", null, m.AccRating, m.PassRating, m.TechRating,
+                    m.Curve != null && m.Curve.Count >= 2 ? m.Curve : null, m.PredictedAcc, ReplayUtils.IsOneSaber(m.ModeName), m.TopTilt ?? 0, m.TopTiltAnchor ?? 0).Item1;
+                if (m.PredictedAcc > 0)
+                {
+                    emulatedAcc = (float)Math.Min(m.PredictedAcc + TopOffset(m.Stars), 1.0);
+                    emulatedPp = PpAt(emulatedAcc.Value);
+                    // never under the typical one (some kinds' specialists stay under the predicted acc, e.g. 13+ stars)
+                    specialistAcc = kindOf[i] >= 0 && kindOffset.TryGetValue(kindOf[i], out double offset) ? (float)Math.Min(m.PredictedAcc + Math.Max(offset, TopOffset(m.Stars)), 1.0) : emulatedAcc;
+                    specialistPp = PpAt(specialistAcc.Value);
+                }
+                if (n[i] < BalanceMinPlayers) return new Leaderboard { Id = m.Id, TopPlayPp = topPlay, EmulatedTopAcc = emulatedAcc, EmulatedTopPp = emulatedPp, SpecialistTopAcc = specialistAcc, SpecialistTopPp = specialistPp };
+                var near = valid.Where(j => Math.Abs(maps[j].Stars - m.Stars) <= BalanceStarWindow).ToList();
+                var nearCount = near.Where(j => nomodPp[j].Count * 2 >= nomodPp[i].Count && nomodPp[j].Count <= nomodPp[i].Count * 2).ToList();
+                return new Leaderboard
+                {
+                    Id = m.Id,
+                    Top20Share = (float)in20[i] / n[i],
+                    Top50Share = (float)in50[i] / n[i],
+                    Top5Relative = nearCount.Count >= BalanceMinNeighbours ? (float)(top5[i] / Median(nearCount.Select(j => top5[j]).ToList()) - 1) : null,
+                    PlayersRankRelative = near.Count >= BalanceMinNeighbours ? (float)((medianRank[i] + 1) / (Median(near.Select(j => medianRank[j]).ToList()) + 1)) : null,
+                    AccVsPredicted = accGaps[i].Count >= BalanceMinPlayers ? (float)Median(accGaps[i]) : null,
+                    TopPlayPp = topPlay, EmulatedTopAcc = emulatedAcc, EmulatedTopPp = emulatedPp, SpecialistTopAcc = specialistAcc, SpecialistTopPp = specialistPp,
+                };
+            }).ToList();
+            await dbContext.BulkUpdateAsync(updates, options => options.ColumnInputExpression = c => new { c.Top20Share, c.Top50Share, c.Top5Relative, c.PlayersRankRelative, c.AccVsPredicted, c.TopPlayPp, c.EmulatedTopAcc, c.EmulatedTopPp, c.SpecialistTopAcc, c.SpecialistTopPp });
+
+            dbContext.ChangeTracker.AutoDetectChangesEnabled = true;
+            Console.WriteLine($"Balance metrics: {valid.Count} maps ({Program.Stopwatch.ElapsedMilliseconds / 1000} seconds)");
+        }
+
+        // Kinds of map for the best specialist offset: 1-star band (13+ together) x pass share tercile x tech share tercile
+        // (over the maps with shares); kinds with fewer than KindMinMaps maps merged within their band. -1: no shares.
+        public static int[] MapKinds(double[] stars, (double Pass, double Tech)?[] shares)
+        {
+            var known = shares.Where(x => x != null).Select(x => x!.Value).ToList();
+            if (known.Count == 0) return stars.Select(_ => -1).ToArray();
+            static double Tercile(IEnumerable<double> v, double q) { var l = v.OrderBy(x => x).ToList(); return l[(int)(q * (l.Count - 1))]; }
+            double p1 = Tercile(known.Select(x => x.Pass), 1 / 3.0), p2 = Tercile(known.Select(x => x.Pass), 2 / 3.0);
+            double t1 = Tercile(known.Select(x => x.Tech), 1 / 3.0), t2 = Tercile(known.Select(x => x.Tech), 2 / 3.0);
+            var kinds = stars.Select((s, i) => shares[i] is (double, double) sh
+                ? Math.Min((int)s, 13) * 9 + (sh.Pass < p1 ? 0 : sh.Pass < p2 ? 1 : 2) * 3 + (sh.Tech < t1 ? 0 : sh.Tech < t2 ? 1 : 2)
+                : -1).ToArray();
+            var counts = kinds.Where(k => k >= 0).GroupBy(k => k).ToDictionary(g => g.Key, g => g.Count());
+            for (int i = 0; i < kinds.Length; i++)
+                if (kinds[i] >= 0 && counts[kinds[i]] < KindMinMaps) kinds[i] = 1000 + kinds[i] / 9;   // its band's merged kind
+            return kinds;
+        }
+
+        // Empirical difficulty: players with EmpiricalMinPlays+ nomod plays among the top EmpiricalPlayers, maps with
+        // EmpiricalMinMapPlays+ of their plays; EmpiricalWindow maps each side for the empirical stars
+        private const int EmpiricalPlayers = 20000, EmpiricalMinPlays = 50, EmpiricalMinMapPlays = 30, EmpiricalIterations = 25, EmpiricalWindow = 40;
+        private const double EmpiricalQuantile = 0.75;
+
+        // Recomputes Leaderboard.EmpiricalDifficulty / EmpiricalStars alone (Refresh runs it too). Split-half reliability
+        // 0.998, correlation with stars 0.988 (2026-11-06).
+        public static async Task RefreshEmpiricalStars(AppContext dbContext)
+        {
+            Console.WriteLine("Recalculating empirical stars");
+            await DbSchema.AddColumnIfMissing(dbContext, "Leaderboards", "EmpiricalDifficulty", "REAL");
+            await DbSchema.AddColumnIfMissing(dbContext, "Leaderboards", "EmpiricalStars", "REAL");
+            var maps = await dbContext.Leaderboards.AsNoTracking().Where(l => l.Stars > 0).Select(l => new { l.Id, l.Stars }).ToListAsync();
+            var mapIndex = new Dictionary<string, int>(maps.Count);
+            for (int i = 0; i < maps.Count; i++) mapIndex[maps[i].Id] = i;
+            var rankOf = (await dbContext.Players.AsNoTracking().OrderByDescending(p => p.Pp).Select(p => p.Id).Take(EmpiricalPlayers).ToListAsync())
+                .Select((id, r) => (id, r)).ToDictionary(p => p.id, p => p.r);
+            var raw = (await dbContext.Scores.AsNoTracking().Where(s => s.Pp > 0 && s.Accuracy > 0.5f && s.Accuracy < 1f)
+                .Select(s => new { s.PlayerId, s.LeaderboardId, s.Accuracy, s.Modifiers }).ToListAsync())
+                .Where(s => string.IsNullOrEmpty(s.Modifiers) && s.PlayerId != null && rankOf.ContainsKey(s.PlayerId) && s.LeaderboardId != null && mapIndex.ContainsKey(s.LeaderboardId))
+                .Select(s => (Player: rankOf[s.PlayerId!], Map: mapIndex[s.LeaderboardId!], Y: Math.Log(s.Accuracy / (1.0 - s.Accuracy)))).ToList();
+            var playerCount = new int[rankOf.Count]; var mapCount = new int[maps.Count];
+            foreach (var s in raw) { playerCount[s.Player]++; mapCount[s.Map]++; }
+            var plays = raw.Where(s => playerCount[s.Player] >= EmpiricalMinPlays && mapCount[s.Map] >= EmpiricalMinMapPlays).ToArray();
+            var byPlayer = plays.Select((s, i) => (s.Player, i)).GroupBy(x => x.Player).ToDictionary(g => g.Key, g => g.Select(x => x.i).ToArray());
+            var byMap = plays.Select((s, i) => (s.Map, i)).GroupBy(x => x.Map).ToDictionary(g => g.Key, g => g.Select(x => x.i).ToArray());
+            var skill = new double[rankOf.Count]; var diff = new double[maps.Count];
+            static double Quantile(double[] v, double q) { Array.Sort(v); return v[(int)((v.Length - 1) * q)]; }
+            for (int it = 0; it < EmpiricalIterations; it++)
+            {
+                Parallel.ForEach(byPlayer, g => skill[g.Key] = Quantile(g.Value.Select(i => plays[i].Y + diff[plays[i].Map]).ToArray(), EmpiricalQuantile));
+                Parallel.ForEach(byMap, g => diff[g.Key] = Quantile(g.Value.Select(i => skill[plays[i].Player] - plays[i].Y).ToArray(), 1 - EmpiricalQuantile));
+                double center = Median(byMap.Keys.Select(k => diff[k]).ToList());
+                foreach (var k in byMap.Keys) diff[k] -= center;
+            }
+            // Empirical stars: the median stars of the maps of most similar difficulty
+            var ordered = byMap.Keys.OrderBy(k => diff[k]).ToArray();
+            var updates = maps.Select(m => new Leaderboard { Id = m.Id }).ToList();
+            for (int r = 0; r < ordered.Length; r++)
+            {
+                int lo = Math.Max(0, r - EmpiricalWindow), hi = Math.Min(ordered.Length, r + EmpiricalWindow + 1);
+                int k = ordered[r];
+                updates[k].EmpiricalDifficulty = (float)diff[k];
+                updates[k].EmpiricalStars = (float)Median(ordered[lo..hi].Select(j => (double)maps[j].Stars).ToList());
+            }
+            await dbContext.BulkUpdateAsync(updates, options => options.ColumnInputExpression = c => new { c.EmpiricalDifficulty, c.EmpiricalStars });
+            Console.WriteLine($"Empirical stars: {ordered.Length} maps from {plays.Length} plays");
+        }
+
+        private static double Median(List<double> values)
+        {
+            values.Sort();
+            int c = values.Count;
+            return c == 0 ? double.NaN : c % 2 == 1 ? values[c / 2] : (values[c / 2 - 1] + values[c / 2]) / 2;
         }
 
         // Recomputes Leaderboard.Worth and ModifiersRating.SSWorth / FSWorth / SFWorth from the stored scores (Refresh does

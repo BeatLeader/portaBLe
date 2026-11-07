@@ -22,6 +22,14 @@ namespace portaBLe.Refresh
         public static float AccRating(float? predictedAcc, float? passRating, float? techRating, float hitDistance = 0, float hardSwingRatio = 0, float? highPassRating = null) =>
             (float)new global::RatingAPI.Controllers.AccRating().GetRating(predictedAcc, passRating, techRating, hitDistance, hardSwingRatio, highPassRating);
 
+        // A OneSaber leaderboard (its scores' acc pp: PpFormula.OneSaberMultiplier)
+        public static bool IsOneSaber(string? modeName) => string.Equals(modeName, "OneSaber", StringComparison.OrdinalIgnoreCase);
+
+        // PpFromScore with a leaderboard's own ratings, curve (null: its stored one) and top tilt
+        public static (float, float, float, float, float) PpFromScore(float accuracy, string modifiers, Leaderboard lb, IReadOnlyList<Vector2>? curve = null) =>
+            PpFromScore(accuracy, modifiers, lb.ModifiersRating, lb.AccRating, lb.PassRating, lb.TechRating, curve ?? lb.Curve, lb.PredictedAcc,
+                IsOneSaber(lb.ModeName), lb.TopTilt ?? 0, lb.TopTiltAnchor ?? 0);
+
         // The acc reweighter's multiplier of a leaderboard (Leaderboard.AccReweight, 0 = none)
         public static double AccReweightOf(Leaderboard lb) => lb.AccReweight > 0 ? lb.AccReweight : 1;
 
@@ -45,15 +53,16 @@ namespace portaBLe.Refresh
         }
 
         // A speed modifier's ratings and curve (the leaderboard's curve when the modifier has none). Null: not a speed modifier.
-        public static MapRatings? SpeedRatings(ModifiersRating mod, string modifier, IReadOnlyList<Vector2>? curve)
+        // oneSaber: a OneSaber leaderboard (PpFormula.OneSaberMultiplier)
+        public static MapRatings? SpeedRatings(ModifiersRating mod, string modifier, IReadOnlyList<Vector2>? curve, bool oneSaber = false)
         {
             var own = mod.GetCurve(modifier);
             var used = own != null && own.Count >= 2 ? own : curve;
             return modifier switch
             {
-                "SS" => new MapRatings(mod.SSAccRating, mod.SSPassRating, mod.SSTechRating, used, mod.SSPredictedAcc),
-                "FS" => new MapRatings(mod.FSAccRating, mod.FSPassRating, mod.FSTechRating, used, mod.FSPredictedAcc),
-                "SF" => new MapRatings(mod.SFAccRating, mod.SFPassRating, mod.SFTechRating, used, mod.SFPredictedAcc),
+                "SS" => new MapRatings(mod.SSAccRating, mod.SSPassRating, mod.SSTechRating, used, mod.SSPredictedAcc, oneSaber),
+                "FS" => new MapRatings(mod.FSAccRating, mod.FSPassRating, mod.FSTechRating, used, mod.FSPredictedAcc, oneSaber),
+                "SF" => new MapRatings(mod.SFAccRating, mod.SFPassRating, mod.SFTechRating, used, mod.SFPredictedAcc, oneSaber),
                 _ => null
             };
         }
@@ -67,18 +76,21 @@ namespace portaBLe.Refresh
             float passRating,
             float techRating,
             IReadOnlyList<Vector2>? curve = null,   // the leaderboard's acc curve (null: the base curve)
-            float predictedAcc = 0)                 // the leaderboard's predicted acc (PpFormula's acc relative pass / tech pp)
+            float predictedAcc = 0,                 // the leaderboard's predicted acc (PpFormula's acc relative pass / tech pp)
+            bool oneSaber = false,                  // a OneSaber leaderboard (PpFormula.OneSaberMultiplier, IsOneSaber)
+            float topTilt = 0,                      // the leaderboard's top tilt and its anchor (Leaderboard.TopTilt / TopTiltAnchor)
+            float topTiltAnchor = 0)
         {
             MapRatings? speedRatings = null;
             // Only scores with modifiers can use the modifier ratings: the first speed modifier
             if (modifiersRating != null && !string.IsNullOrEmpty(modifiers)) {
                 foreach (var modifier in modifiers.ToUpper().Split(","))
                 {
-                    speedRatings = SpeedRatings(modifiersRating, modifier, curve);
+                    speedRatings = SpeedRatings(modifiersRating, modifier, curve, oneSaber);
                     if (speedRatings != null) break;
                 }
             }
-            return PpCalculator.ScorePp(accuracy, modifiers, new MapRatings(accRating, passRating, techRating, curve, predictedAcc), speedRatings, modifiersRating != null);
+            return PpCalculator.ScorePp(accuracy, modifiers, new MapRatings(accRating, passRating, techRating, curve, predictedAcc, oneSaber, topTilt, topTiltAnchor), speedRatings, modifiersRating != null);
         }
 
         public static int MaxScoreForNote(int count) {

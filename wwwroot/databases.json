@@ -2,24 +2,24 @@
   "MainDB": -1,
   "Databases": [
     {
-      "Name": "New Prod",
-      "FileName": "db-20261104211103-7783.db",
-      "Description": "Dev"
+      "Name": "Prod",
+      "FileName": "db-20261104211238-4608.db",
+      "Description": "Current production"
     },
     {
-      "Name": "New Prod Autoreweighted",
-      "FileName": "db-20261104211153-8873.db",
-      "Description": "Dev (autoreweighted)"
+      "Name": "Prod Autoreweighted",
+      "FileName": "db-20261104211323-3944.db",
+      "Description": "Current production (autoreweighted)"
     },
     {
       "Name": "Dev Acc",
-      "FileName": "db-20261104211238-4608.db",
-      "Description": "Dev"
+      "FileName": "db-20261107014526-2418.db",
+      "Description": "OneSaber acc buff, low note nerf off, tech top bonus (x1.04), pass light bonus (x1.07 +0.03, tech 5-8 fade, 4-5.5 stars), PpMultiplier 1.0055"
     },
     {
       "Name": "Dev Acc Autoreweighted",
-      "FileName": "db-20261104211323-3944.db",
-      "Description": "Dev (autoreweighted)"
+      "FileName": "db-20261107014607-8042.db",
+      "Description": "Dev Acc (autoreweighted) + ceiling raise (maps under their peers' median - 3%, 4.5-5.5 stars fade)"
     }
   ]
 }

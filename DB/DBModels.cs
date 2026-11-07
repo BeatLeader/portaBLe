@@ -246,6 +246,43 @@ namespace portaBLe.DB
         // cuts maps past AccReweighter.TopPlayShareRatio.
         public float? TopPlayShare { get; set; }
         public float? TopPlayShareRelative { get; set; }
+        // Balance metrics (LeaderboardsRefresh.RefreshBalanceMetrics), nomod scores, players with
+        // LeaderboardsRefresh.BalanceMinPlays+ ranked plays; null with fewer than BalanceMinPlayers of them on the map.
+        // Top20Share / Top50Share: the share of them for whom it's in their top 20 / 50 plays (0.12 = 12%). Depends on who plays
+        // the map as much as on its pay: read it with PlayersRankRelative.
+        public float? Top20Share { get; set; }
+        public float? Top50Share { get; set; }
+        // Mean pp of the map's 5 best nomod plays over the median of the maps within BalanceStarWindow stars that have
+        // between half and twice its nomod play count (more players, higher top 5), - 1. +0.05 = its top 5 pays 5% more.
+        public float? Top5Relative { get; set; }
+        // Median rank of its players over that of the maps within BalanceStarWindow stars (x0.8 = stronger players than usual
+        // for its stars, so it shows up in fewer top 20s).
+        public float? PlayersRankRelative { get; set; }
+        // Each player's acc - predicted acc on the map minus their median on their other nomod maps within BalanceStarWindow
+        // stars, median over its players (-0.003 = players fall 0.3 points further under the Acc AI's prediction here).
+        public float? AccVsPredicted { get; set; }
+        // The map's best nomod play (pp), and an emulated top play: what a play at EmulatedTopAcc would get with the map's
+        // ratings and curve (no modifier), EmulatedTopAcc = predicted acc + how far the world's best typically land above it
+        // on maps of its stars (median of best acc - predicted acc over maps with LeaderboardsRefresh.EmulatedTopMinTopPlays+
+        // top 100 plays, per star, interpolated), at most 100%. For maps nobody strong has played yet.
+        public float? TopPlayPp { get; set; }
+        public float? EmulatedTopAcc { get; set; }
+        public float? EmulatedTopPp { get; set; }
+        // The same at the best specialist's acc: SpecialistTopAcc = predicted acc + the highest, among the 3 best players at
+        // maps of its kind (LeaderboardsRefresh.MapKinds: 1-star band x pass / tech share terciles; ranked by their 5 best plays
+        // there), of their median best acc - predicted acc (their 10 best plays there, 5+ of them), at least EmulatedTopAcc's
+        public float? SpecialistTopAcc { get; set; }
+        public float? SpecialistTopPp { get; set; }
+        // The ceiling raise's top tilt of the curve (CeilingRaise; PpFormula.TopTiltMultiplier), nomod: the tilt and the
+        // anchor acc it starts from. Null: none. Cleared with the reweighter's multipliers (raw rerates) and before it runs.
+        // Empirical difficulty (LeaderboardsRefresh.RefreshEmpiricalStars): a star-free yardstick from scores, a diagnostic.
+        // logit(acc) of player p on map m = skill_p - EmpiricalDifficulty_m, fitted at the 75th percentile (nomod, players with
+        // 50+ plays among the top 20000); EmpiricalStars: the median stars of the maps of most similar difficulty. Stars -
+        // EmpiricalStars > 0: rated harder than players find it to acc (pass difficulty, e.g. stamina, isn't in it).
+        public float? EmpiricalDifficulty { get; set; }
+        public float? EmpiricalStars { get; set; }
+        public float? TopTilt { get; set; }
+        public float? TopTiltAnchor { get; set; }
         // Worth by player rank (LeaderboardsRefresh.RefreshWorthByRank): each score's pp / the player's top pp, averaged over
         // the map's scores by the players ranked in that range (#1-20, #21-100, #101-1000, #1001-3000, #3001-10000; more than
         // 75 ranked plays, as Megametric75), divided by what maps of its stars average (BalanceTuner.WorthReference) - 1.

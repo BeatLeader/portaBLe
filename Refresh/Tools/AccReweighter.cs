@@ -1273,7 +1273,7 @@ namespace portaBLe.Refresh
             {
                 var lb = data.Maps[m].Leaderboard;
                 if (lb.PredictedAcc <= 0 || lb.PredictedAcc >= 1) { shares[m] = 1; return; }
-                var (_, _, passPp, accPp, techPp) = ReplayUtils.PpFromScore(lb.PredictedAcc, "", null, lb.AccRating, lb.PassRating, lb.TechRating, null, lb.PredictedAcc);
+                var (_, _, passPp, accPp, techPp) = ReplayUtils.PpFromScore(lb.PredictedAcc, "", null, lb.AccRating, lb.PassRating, lb.TechRating, null, lb.PredictedAcc, BalanceTuner.IsOneSaber(lb));
                 double total = passPp + accPp + techPp;
                 shares[m] = total > 0 ? accPp / total : 1;
             });
@@ -1289,7 +1289,7 @@ namespace portaBLe.Refresh
             {
                 var lb = data.Maps[m].Leaderboard;
                 if (lb.PredictedAcc <= 0 || lb.PredictedAcc >= 1) return;
-                var (_, _, passPp, accPp, techPp) = ReplayUtils.PpFromScore(lb.PredictedAcc, "", null, lb.AccRating, lb.PassRating, lb.TechRating, null, lb.PredictedAcc);
+                var (_, _, passPp, accPp, techPp) = ReplayUtils.PpFromScore(lb.PredictedAcc, "", null, lb.AccRating, lb.PassRating, lb.TechRating, null, lb.PredictedAcc, BalanceTuner.IsOneSaber(lb));
                 double total = passPp + accPp + techPp;
                 if (total > 0) { pass[m] = passPp / total; tech[m] = techPp / total; }
             });
@@ -1316,7 +1316,7 @@ namespace portaBLe.Refresh
                 double pass = 0, tech = 0;
                 if (lb.PredictedAcc > 0 && lb.PredictedAcc < 1)
                 {
-                    var (_, _, passPp, accPp, techPp) = ReplayUtils.PpFromScore(lb.PredictedAcc, "", null, lb.AccRating, lb.PassRating, lb.TechRating, null, lb.PredictedAcc);
+                    var (_, _, passPp, accPp, techPp) = ReplayUtils.PpFromScore(lb.PredictedAcc, "", null, lb.AccRating, lb.PassRating, lb.TechRating, null, lb.PredictedAcc, BalanceTuner.IsOneSaber(lb));
                     double total = passPp + accPp + techPp;
                     if (total > 0) { pass = passPp / total; tech = techPp / total; }
                 }

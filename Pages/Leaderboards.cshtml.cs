@@ -52,6 +52,21 @@ namespace portaBLe.Pages
 
         public static readonly string[] Modifiers = { "SS", "FS", "SF" };
 
+        // Which group of metric columns is shown after the map's identity and stars
+        [BindProperty(SupportsGet = true)]
+        public string? View { get; set; }
+
+        public static readonly (string Key, string Label, string Title)[] Views =
+        {
+            ("overview", "Overview", "Ratings, the main worth and the balance metrics at a glance"),
+            ("ratings", "Ratings", "Pass, acc and tech ratings, predicted acc and how players do against it"),
+            ("worth", "Worth", "Worth by quantile (P75 is the main measure) and how much they disagree"),
+            ("balance", "Balance", "Is the map worth it for its players: top 20 / 50 shares, top 5 vs same stars, who plays it, top play share, its top play and an emulated one"),
+            ("map", "Map", "Notes, length, NJS, peak EBPM, linear swings and players"),
+        };
+
+        public string CurrentView => Views.Any(v => v.Key == View) ? View! : "overview";
+
         // The Leaderboard page's name of the modifier (SF is SFS there)
         public string? LeaderboardPageModifier => Modifier == "SF" ? "SFS" : Modifier;
 
@@ -127,6 +142,21 @@ namespace portaBLe.Pages
                 "WorthP90" => SortHelpers.NullsLast(leaderboardQuery, l => l.WorthP90, SortDescending),
                 "WorthSpread" => SortHelpers.NullsLast(leaderboardQuery, l => l.WorthSpread, SortDescending),
                 "TopPlayShare" => SortHelpers.NullsLast(leaderboardQuery, l => l.TopPlayShareRelative, SortDescending),
+                "Top20Share" => SortHelpers.NullsLast(leaderboardQuery, l => l.Top20Share, SortDescending),
+                "Top50Share" => SortHelpers.NullsLast(leaderboardQuery, l => l.Top50Share, SortDescending),
+                "Top5Relative" => SortHelpers.NullsLast(leaderboardQuery, l => l.Top5Relative, SortDescending),
+                "PlayersRankRelative" => SortHelpers.NullsLast(leaderboardQuery, l => l.PlayersRankRelative, SortDescending),
+                "AccVsPredicted" => SortHelpers.NullsLast(leaderboardQuery, l => l.AccVsPredicted, SortDescending),
+                "TopPlayPp" => SortHelpers.NullsLast(leaderboardQuery, l => l.TopPlayPp, SortDescending),
+                "EmulatedTopPp" => SortHelpers.NullsLast(leaderboardQuery, l => l.EmulatedTopPp, SortDescending),
+                "SpecialistTopPp" => SortHelpers.NullsLast(leaderboardQuery, l => l.SpecialistTopPp, SortDescending),
+                "EmpiricalStars" => SortHelpers.NullsLast(leaderboardQuery, l => l.EmpiricalStars, SortDescending),
+                "StarsVsEmpirical" => SortHelpers.NullsLast(leaderboardQuery, l => l.EmpiricalStars == null ? null : (float?)(l.Stars - l.EmpiricalStars), SortDescending),
+                "PredictedAcc" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.PredictedAcc) : leaderboardQuery.OrderBy(l => l.PredictedAcc),
+                "Duration" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.Duration) : leaderboardQuery.OrderBy(l => l.Duration),
+                "Njs" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.Njs) : leaderboardQuery.OrderBy(l => l.Njs),
+                "LinearPercent" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.LinearPercent) : leaderboardQuery.OrderBy(l => l.LinearPercent),
+                "Count" => SortDescending ? leaderboardQuery.OrderByDescending(l => l.Count) : leaderboardQuery.OrderBy(l => l.Count),
                 _ => SortDescending ? leaderboardQuery.OrderByDescending(l => l.Stars) : leaderboardQuery.OrderBy(l => l.Stars),
             };
 
@@ -140,7 +170,8 @@ namespace portaBLe.Pages
 
         // The leaderboards with the modifier's stars, ratings and worth in their own fields (display only, not tracked),
         // so the filters and sorting below apply to them. The modifier's worth goes in WorthP75 too (the P75 column is the main
-        // worth); the other quantiles (WorthMean ...) are nomod only: left empty. The peak EBPM is the nomod one times the speed.
+        // worth); the other quantiles (WorthMean ...) and the balance metrics (Top20Share ...) are nomod only: left empty. The
+        // peak EBPM is the nomod one times the speed, the length the nomod one over it; NJS, linear % and players are the map's.
         private static IQueryable<Leaderboard> WithModifier(IQueryable<Leaderboard> leaderboards, string? modifier)
         {
             if (modifier == null) return leaderboards;
@@ -153,6 +184,7 @@ namespace portaBLe.Pages
                     Stars = l.ModifiersRating!.SSStars, PassRating = l.ModifiersRating.SSPassRating, AccRating = l.ModifiersRating.SSAccRating,
                     TechRating = l.ModifiersRating.SSTechRating, Worth = l.ModifiersRating.SSWorth, WorthP75 = l.ModifiersRating.SSWorth, NoteCount = l.NoteCount, TopPlayShare = l.TopPlayShare, TopPlayShareRelative = l.TopPlayShareRelative,
                     IsLinear = l.IsLinear, IsFitbeat = l.IsFitbeat, IsBombReset = l.IsBombReset, IsInline = l.IsInline, MapType = l.MapType, Inlines = l.Inlines, PeakEbpm = l.PeakEbpm * 0.85f,
+                    PredictedAcc = l.ModifiersRating.SSPredictedAcc, Duration = l.Duration / 0.85f, Njs = l.Njs, LinearPercent = l.LinearPercent, Count = l.Count,
                 }),
                 "FS" => withRatings.Select(l => new Leaderboard
                 {
@@ -160,6 +192,7 @@ namespace portaBLe.Pages
                     Stars = l.ModifiersRating!.FSStars, PassRating = l.ModifiersRating.FSPassRating, AccRating = l.ModifiersRating.FSAccRating,
                     TechRating = l.ModifiersRating.FSTechRating, Worth = l.ModifiersRating.FSWorth, WorthP75 = l.ModifiersRating.FSWorth, NoteCount = l.NoteCount, TopPlayShare = l.TopPlayShare, TopPlayShareRelative = l.TopPlayShareRelative,
                     IsLinear = l.IsLinear, IsFitbeat = l.IsFitbeat, IsBombReset = l.IsBombReset, IsInline = l.IsInline, MapType = l.MapType, Inlines = l.Inlines, PeakEbpm = l.PeakEbpm * 1.2f,
+                    PredictedAcc = l.ModifiersRating.FSPredictedAcc, Duration = l.Duration / 1.2f, Njs = l.Njs, LinearPercent = l.LinearPercent, Count = l.Count,
                 }),
                 _ => withRatings.Select(l => new Leaderboard
                 {
@@ -167,6 +200,7 @@ namespace portaBLe.Pages
                     Stars = l.ModifiersRating!.SFStars, PassRating = l.ModifiersRating.SFPassRating, AccRating = l.ModifiersRating.SFAccRating,
                     TechRating = l.ModifiersRating.SFTechRating, Worth = l.ModifiersRating.SFWorth, WorthP75 = l.ModifiersRating.SFWorth, NoteCount = l.NoteCount, TopPlayShare = l.TopPlayShare, TopPlayShareRelative = l.TopPlayShareRelative,
                     IsLinear = l.IsLinear, IsFitbeat = l.IsFitbeat, IsBombReset = l.IsBombReset, IsInline = l.IsInline, MapType = l.MapType, Inlines = l.Inlines, PeakEbpm = l.PeakEbpm * 1.5f,
+                    PredictedAcc = l.ModifiersRating.SFPredictedAcc, Duration = l.Duration / 1.5f, Njs = l.Njs, LinearPercent = l.LinearPercent, Count = l.Count,
                 }),
             };
         }
