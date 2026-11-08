@@ -6,10 +6,9 @@ namespace portaBLe.Pages
 {
     // Per-map acc curve for any predicted acc, computed with the same code CurvesRefresh uses (Curve.GetCurve with
     // RC.CurveSettings.Current). Nothing is read from or written to a database.
-    // The map-dependent corrections (slider tilt, low note nerf, acc curve power, very low star power, mid star top bonus,
-    // acc top compression) are applied by the page's script with the same formulas (Curve.GetCurve, CurveSettings.
-    // LowNoteMultiplier, PpFormula.AccCurve / CurvePowerAt / MidStarTopMultiplier; the acc top compression is a what-if, no
-    // longer in PpFormula). The curves sent have no note count, so no low note nerf.
+    // The map-dependent corrections (acc curve power, very low star power, mid star top bonus) are applied by the page's script
+    // with the same formulas (PpFormula.AccCurve / CurvePowerAt / MidStarTopMultiplier). PpFormula's short map top works on a
+    // score's final pp, so it isn't shown here.
     public class CurveExplorerModel : PageModel
     {
         public const double MinPredicted = 0.940;
@@ -69,11 +68,6 @@ namespace portaBLe.Pages
                 // Corrections applied on top of the per-map curve (off by default on the page, the fields start at these)
                 corrections = new
                 {
-                    sliderTilt = settings.SliderTilt,
-                    sliderTiltRange = settings.SliderTiltRange * 100,
-                    // Not in the formula any more (the 99%+ curve rows replace it): what-if only, at its last values
-                    accTopKnee = 99.0,
-                    accTopSlope = 0.8,
                     accCurvePower = formula.AccCurvePower,
                     lowStarCurvePower = formula.LowStarCurvePower,
                     lowStarCurveStart = formula.LowStarCurveStart,
@@ -89,14 +83,6 @@ namespace portaBLe.Pages
                     midStarTopEnd = formula.MidStarTopEnd,
                     midStarTopAccBelow = formula.MidStarTopAccBelow * 100,
                     midStarTopAccAbove = formula.MidStarTopAccAbove * 100,
-                    lowNoteStart = settings.LowNoteStart,
-                    lowNoteRefNotes = settings.LowNoteRefNotes,
-                    lowNoteRefMultiplier = settings.LowNoteRefMultiplier,
-                    lowNoteMinMultiplier = settings.LowNoteMinMultiplier,
-                    shortStart = settings.ShortStart,
-                    shortRefSpan = settings.ShortRefSpan,
-                    shortRefMultiplier = settings.ShortRefMultiplier,
-                    shortMinMultiplier = settings.ShortMinMultiplier,
                     starAccuracy = Math.Round(global::RatingAPI.Pp.PpCalculator.StarAccuracy * 100.0, 4),
                     accOffset = RC.AccRating.ACC_OFFSET * 100,
                 },

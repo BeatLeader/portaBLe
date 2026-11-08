@@ -27,6 +27,13 @@ namespace portaBLe
 
         public Dictionary<string, PlayerStyles.PlayerStyle> Styles { get; set; } = new();
 
+        // Outliers of the page's players, like LeaderboardsRefresh.Outliers with a lower threshold: with enough scores, the top
+        // scores above the first drop of over OutlierThreshold% to the next score
+        public const float OutlierThreshold = 4f;
+        private const int OutlierMinScores = 100;
+        private const int OutlierTopScores = 10;
+        public Dictionary<string, int> OutlierCounts { get; set; } = new();
+
         public RankingModel(IDynamicDbContextService dbService) : base(dbService)
         {
         }
@@ -84,7 +91,25 @@ namespace portaBLe
                 var players = await context.Players.Where(p => pageIds.Contains(p.Id)).ToDictionaryAsync(p => p.Id);
                 Players = pageIds.Select(id => players[id]).ToList();
             }
+
+            var playerIds = Players.Select(p => p.Id).ToList();
+            var scores = await context.Scores.Where(s => playerIds.Contains(s.PlayerId) && s.Pp > 0)
+                .Select(s => new { s.PlayerId, s.Pp }).ToListAsync();
+            OutlierCounts = scores.GroupBy(s => s.PlayerId)
+                .ToDictionary(g => g.Key, g => g.Count() < OutlierMinScores ? 0 : CountOutliers(g.Select(s => s.Pp)));
         }
+
+        private static int CountOutliers(IEnumerable<float> pp)
+        {
+            var top = pp.OrderByDescending(p => p).Take(OutlierTopScores).ToList();
+            for (int i = 0; i < top.Count - 1; i++)
+            {
+                if ((top[i] - top[i + 1]) / top[i + 1] * 100f > OutlierThreshold) return i + 1;
+            }
+            return 0;
+        }
+
+        public int GetOutlierCount(Player player) => OutlierCounts.GetValueOrDefault(player.Id);
 
         // Total and top pp always show; sorted by acc, pass or tech pp, that column shows too
         public bool ShowsPartColumn => SortBy is "accPP" or "passPP" or "techPP";

@@ -70,6 +70,7 @@ namespace portaBLe.Refresh
 
             var lbs = dbContext.Leaderboards.Include(lb => lb.ModifiersRating).ToList();
             Console.WriteLine($"Recalculating from RatingAPI for {lbs.Count} leaderboards");
+            global::RatingAPI.Controllers.AccAiCache.Load(Path.Combine(Directory.GetCurrentDirectory(), "wwwroot", "cache"), global::RatingAPI.Controllers.InferPublish.AccModelBytes());
             
             // The Leaderboard page's speed / tech / acc over time from the same results (RatingResult.Breakdown)
             var breakdowns = new System.Collections.Concurrent.ConcurrentBag<LeaderboardBreakdown>();
@@ -174,6 +175,7 @@ namespace portaBLe.Refresh
             });
 
             Console.WriteLine($"\nCompleted: {processedCount - errorCount} successful, {errorCount} errors");
+            global::RatingAPI.Controllers.AccAiCache.Save();
             // The importer and refresh steps can leave automatic change detection off; BulkSaveChanges then saves nothing
             dbContext.ChangeTracker.DetectChanges();
             dbContext.BulkSaveChanges();
@@ -324,11 +326,9 @@ namespace portaBLe.Refresh
                     double reweight = ReplayUtils.AccReweightOf(lb);
                     lb.AccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(lb.PredictedAcc, lb.PassRating, lb.TechRating, lb.HitDistance, lb.HardSwingRatio), reweight);
 
-                    // The speed modifiers' high pass correction: the nomod pass when AccRating.SpeedHighPassFromNomod is on
-                    float? speedHighPass = global::RatingAPI.Controllers.AccRating.SpeedHighPassFromNomod ? lb.PassRating : null;
-                    lb.ModifiersRating.SSAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.SSPredictedAcc, mod.SSPassRating, mod.SSTechRating, lb.HitDistance, lb.HardSwingRatio, speedHighPass), reweight);
-                    lb.ModifiersRating.FSAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.FSPredictedAcc, mod.FSPassRating, mod.FSTechRating, lb.HitDistance, lb.HardSwingRatio, speedHighPass), reweight);
-                    lb.ModifiersRating.SFAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.SFPredictedAcc, mod.SFPassRating, mod.SFTechRating, lb.HitDistance, lb.HardSwingRatio, speedHighPass), reweight);
+                    lb.ModifiersRating.SSAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.SSPredictedAcc, mod.SSPassRating, mod.SSTechRating, lb.HitDistance, lb.HardSwingRatio), reweight);
+                    lb.ModifiersRating.FSAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.FSPredictedAcc, mod.FSPassRating, mod.FSTechRating, lb.HitDistance, lb.HardSwingRatio), reweight);
+                    lb.ModifiersRating.SFAccRating = ReplayUtils.Reweighted(ReplayUtils.AccRating(mod.SFPredictedAcc, mod.SFPassRating, mod.SFTechRating, lb.HitDistance, lb.HardSwingRatio), reweight);
                     // The low note speed blend (pass and tech are stored blended by Overwrite)
                     var blend = global::RatingAPI.Controllers.CurveSettings.Current;
                     mod.SSAccRating = (float)blend.LowNoteSpeedBlend(lb.AccRating, mod.SSAccRating, lb.NoteCount);

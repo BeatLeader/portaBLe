@@ -319,7 +319,7 @@ namespace portaBLe.Refresh
                 await DbSchema.AddColumnIfMissing(dbContext, "Leaderboards", column, "REAL");
 
             var maps = await dbContext.Leaderboards.AsNoTracking().Where(l => l.Stars > 0)
-                .Select(l => new { l.Id, l.Stars, l.PredictedAcc, l.AccRating, l.PassRating, l.TechRating, l.Curve, l.ModeName, l.TopTilt, l.TopTiltAnchor }).ToListAsync();
+                .Select(l => new { l.Id, l.Stars, l.PredictedAcc, l.AccRating, l.PassRating, l.TechRating, l.Curve, l.ModeName, l.TopTilt, l.TopTiltAnchor, l.NoteCount, l.NoteSpan }).ToListAsync();
             var mapIndex = new Dictionary<string, int>(maps.Count);
             for (int i = 0; i < maps.Count; i++) mapIndex[maps[i].Id] = i;
             var rankOf = (await dbContext.Players.AsNoTracking().OrderByDescending(p => p.Pp).Select(p => p.Id).ToListAsync())
@@ -434,7 +434,7 @@ namespace portaBLe.Refresh
                 float? topPlay = nomodPp[i].Count > 0 ? nomodPp[i].Max() : null;
                 float? emulatedAcc = null, emulatedPp = null, specialistAcc = null, specialistPp = null;
                 float PpAt(float acc) => ReplayUtils.PpFromScore(acc, "", null, m.AccRating, m.PassRating, m.TechRating,
-                    m.Curve != null && m.Curve.Count >= 2 ? m.Curve : null, m.PredictedAcc, ReplayUtils.IsOneSaber(m.ModeName), m.TopTilt ?? 0, m.TopTiltAnchor ?? 0).Item1;
+                    m.Curve != null && m.Curve.Count >= 2 ? m.Curve : null, m.PredictedAcc, ReplayUtils.IsOneSaber(m.ModeName), m.TopTilt ?? 0, m.TopTiltAnchor ?? 0, ReplayUtils.ShortTop(m.NoteCount, m.NoteSpan)).Item1;
                 if (m.PredictedAcc > 0)
                 {
                     emulatedAcc = (float)Math.Min(m.PredictedAcc + TopOffset(m.Stars), 1.0);

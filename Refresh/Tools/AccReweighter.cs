@@ -1400,7 +1400,7 @@ namespace portaBLe.Refresh
                 var copy = new Leaderboard
                 {
                     Id = lb.Id, Name = lb.Name, Hash = lb.Hash, ModeName = lb.ModeName, DifficultyName = lb.DifficultyName,
-                    PredictedAcc = lb.PredictedAcc, Curve = lb.Curve, HitDistance = lb.HitDistance, HardSwingRatio = lb.HardSwingRatio,
+                    NoteCount = lb.NoteCount, NoteSpan = lb.NoteSpan, PredictedAcc = lb.PredictedAcc, Curve = lb.Curve, HitDistance = lb.HitDistance, HardSwingRatio = lb.HardSwingRatio,
                     PassRating = lb.PassRating, TechRating = lb.TechRating,
                     AccRating = (float)(baseAcc[i] * m),
                 };

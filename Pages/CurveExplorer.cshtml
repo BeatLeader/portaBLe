@@ -88,8 +88,8 @@
         </table>
         <p class="ce-hint">
             <b>&times; base</b>: this curve over the base curve. <b>vs rating point</b>: acc pp relative to a score at the
-            point the acc rating reads, the predicted acc + <span id="offsetText"></span>% (without the pass and hit distance
-            corrections), so 1x there and a bit under 1x at the predicted acc. It's what the curve's shape pays for going above
+            point the acc rating reads, the predicted acc + <span id="offsetText"></span>% (without the hit distance correction
+            and the hard swing multiplier), so 1x there and a bit under 1x at the predicted acc. It's what the curve's shape pays for going above
             the map's level, comparable between predicted accs.
         </p>
     </div>
@@ -100,20 +100,6 @@
     <span class="ce-hint">map-dependent, off by default; switch one on to try it on this curve</span>
     <button type="button" class="btn btn-sm btn-outline-secondary ms-auto" onclick="resetCorrections()">Reset values to the ones in use</button>
 </div>
-
-<details class="ce-corr" data-switch="useTilt">
-    <summary>
-        <span class="form-check form-switch d-inline-block mb-0"><input class="form-check-input" type="checkbox" id="useTilt" onchange="switched(this)" /></span>
-        <b>Slider tilt</b> <span class="ce-sum" id="sumTilt"></span>
-    </summary>
-    <div class="ce-corr-body">
-        <label>strength <input type="number" id="tiltStrength" step="0.01" oninput="draw()" /></label>
-        <label>slider share <input type="number" id="tiltShare" step="1" min="0" oninput="draw()" />%</label>
-        <label>range &plusmn; <input type="number" id="tiltRange" step="0.1" min="0" oninput="draw()" />%</label>
-        <div class="ce-hint">curve &times; e<sup>strength &times; share &times; (acc &minus; predicted, in %)</sup>, the distance capped at the
-            range (CurveSettings.SliderTilt / SliderTiltRange; share = sliders and curved sliders per swing)</div>
-    </div>
-</details>
 
 <details class="ce-corr" data-switch="usePower">
     <summary>
@@ -165,47 +151,6 @@
             weight eases (smoothstep) from 0 at "from" to 1 at "full", stays 1 to "to" and eases to 0 at "out at"; the acc ramp
             eases from 0 at the predicted acc &minus; below to 1 at the predicted acc + above, and stays 1 up to 100%
             (PpFormula.MidStarTopMultiplier). Not in the stars (read at 96% without it).</div>
-    </div>
-</details>
-
-<details class="ce-corr" data-switch="useNotes">
-    <summary>
-        <span class="form-check form-switch d-inline-block mb-0"><input class="form-check-input" type="checkbox" id="useNotes" onchange="switched(this)" /></span>
-        <b>Low note and length nerf</b> <span class="ce-sum" id="sumNotes"></span>
-    </summary>
-    <div class="ce-corr-body">
-        <div class="ce-corr-line">
-            <label>map notes <input type="number" id="noteCount" step="1" min="1" oninput="draw()" /></label>
-            <label>from <input type="number" id="noteStart" step="1" min="0" oninput="draw()" /> notes</label>
-            <label>&times; <input type="number" id="noteRefMult" step="0.01" oninput="draw()" /></label>
-            <label>at <input type="number" id="noteRefNotes" step="1" min="1" oninput="draw()" /> notes</label>
-            <label>at least &times; <input type="number" id="noteMinMult" step="0.01" oninput="draw()" /></label>
-        </div>
-        <div class="ce-corr-line">
-            <label>map length <input type="number" id="noteSpan" step="1" min="0" oninput="draw()" /> s</label>
-            <label>short from <input type="number" id="shortStart" step="1" min="0" oninput="draw()" /> s</label>
-            <label>&times; <input type="number" id="shortRefMult" step="0.01" oninput="draw()" /></label>
-            <label>at <input type="number" id="shortRefSpan" step="1" min="1" oninput="draw()" /> s</label>
-            <label>at least &times; <input type="number" id="shortMinMult" step="0.01" oninput="draw()" /></label>
-        </div>
-        <div class="ce-hint">The whole curve &times; the notes' factor 1 &minus; (1 &minus; &times;) &times; ln(from / notes) / ln(from / at)
-            &times; the length's factor (same form, in seconds of real time: song time / the speed modifier). Each is 1 at most
-            (CurveSettings.LowNoteMultiplier).</div>
-    </div>
-</details>
-
-<details class="ce-corr" data-switch="useTop">
-    <summary>
-        <span class="form-check form-switch d-inline-block mb-0"><input class="form-check-input" type="checkbox" id="useTop" onchange="switched(this)" /></span>
-        <b>Acc top compression</b> <span class="badge bg-secondary">what-if</span> <span class="ce-sum" id="sumTop"></span>
-    </summary>
-    <div class="ce-corr-body">
-        <label>above <input type="number" id="topKnee" step="0.05" min="0" max="100" oninput="draw()" />%</label>
-        <label>slope <input type="number" id="topSlope" step="0.05" min="0" oninput="draw()" /></label>
-        <label class="ce-check"><input type="checkbox" id="topRelative" onchange="draw()" /> relative to the predicted acc:</label>
-        <label>above predicted + <input type="number" id="topShare" step="0.05" min="0" max="1" oninput="draw()" /> &times; (100% &minus; predicted)</label>
-        <div class="ce-hint">curve(knee) + (curve &minus; curve(knee)) &times; slope above the knee, before the acc curve power. Removed from
-            PpFormula (the 99%+ curve rows' C does it now).</div>
     </div>
 </details>
 
@@ -291,18 +236,12 @@
             .sort((a, b) => a - b);
 
         const fields = {
-            tiltStrength: () => corr.sliderTilt, tiltShare: () => 30, tiltRange: () => corr.sliderTiltRange,
-            topKnee: () => corr.accTopKnee, topSlope: () => corr.accTopSlope, topShare: () => 0.4,
             powHigh: () => corr.accCurvePower, powLow: () => corr.lowStarCurvePower,
             powStart: () => corr.lowStarCurveStart, powEnd: () => corr.lowStarCurveEnd,
             powVeryLow: () => corr.veryLowStarCurvePower, powVeryStart: () => corr.veryLowStarCurveStart, powVeryEnd: () => corr.veryLowStarCurveEnd,
             midBonus: () => corr.midStarTopBonus, midStart: () => corr.midStarTopStart, midFull: () => corr.midStarTopFull,
             midFullEnd: () => corr.midStarTopFullEnd, midEnd: () => corr.midStarTopEnd,
             midBelow: () => corr.midStarTopAccBelow, midAbove: () => corr.midStarTopAccAbove,
-            noteCount: () => corr.lowNoteRefNotes, noteStart: () => corr.lowNoteStart, noteRefMult: () => corr.lowNoteRefMultiplier,
-            noteRefNotes: () => corr.lowNoteRefNotes, noteMinMult: () => corr.lowNoteMinMultiplier,
-            noteSpan: () => corr.shortRefSpan, shortStart: () => corr.shortStart, shortRefMult: () => corr.shortRefMultiplier,
-            shortRefSpan: () => corr.shortRefSpan, shortMinMult: () => corr.shortMinMultiplier,
         };
         function resetCorrections() {
             for (const [id, def] of Object.entries(fields)) document.getElementById(id).value = +def().toFixed(4);
@@ -360,52 +299,16 @@
         }
         function midStarOn() { return checked('useMidStar') && starsSet(); }
 
-        // CurveSettings.LowNoteFactor x ShortFactor (LowNoteMultiplier)
-        function noteFactor() {
-            const notes = num('noteCount'), start = num('noteStart'), at = num('noteRefNotes');
-            if (start <= 0 || notes <= 0 || notes >= start || at >= start) return 1;
-            const nerf = (1 - num('noteRefMult')) * Math.log(start / notes) / Math.log(start / at);
-            return Math.min(Math.max(1 - nerf, num('noteMinMult')), 1);
-        }
-        function shortFactor() {
-            const span = num('noteSpan'), start = num('shortStart'), at = num('shortRefSpan');
-            if (start <= 0 || span <= 0 || span >= start || at >= start) return 1;
-            const nerf = (1 - num('shortRefMult')) * Math.log(start / span) / Math.log(start / at);
-            return Math.min(Math.max(1 - nerf, num('shortMinMult')), 1);
-        }
-        function noteMultiplier() { return noteFactor() * shortFactor(); }
-
-        // The what-if acc top compression's knee (%): fixed, or the predicted acc + share x what's left to 100%
-        function topKnee(predicted) {
-            return checked('topRelative') ? predicted + num('topShare') * (100 - predicted) : num('topKnee');
-        }
-
-        // The map's curve with the corrections turned on: slider tilt and the low note nerf as in Curve.GetCurve (on its
-        // sampled points), then the acc curve power as in PpCalculator.GetPp (PpFormula.AccCurve, pivot at the star accuracy)
+        // The map's curve with the corrections turned on: the acc curve power as in PpCalculator.GetPp (PpFormula.AccCurve, pivot
+        // at the star accuracy)
         function corrected(cur, field = 'mapStars') {
             starsField = field;
             const source = checked('usePerMap') ? cur.points : data.basePoints;
             const p = cur.predicted;
-            // (the top compression's knee too, where the curve bends)
-            const knee = checked('useTop') ? [+topKnee(p).toFixed(4)] : [];
-            const xs = Array.from(new Set(grid.concat(source.map(q => q[0]), knee))).sort((a, b) => a - b);
+            const xs = Array.from(new Set(grid.concat(source.map(q => q[0])))).sort((a, b) => a - b);
             let pts = xs.map(x => [x, interp(source, x)]);
-            if (checked('useTilt') && p > 60 && p < 99.95) {
-                const tilt = num('tiltStrength') * num('tiltShare') / 100, range = Math.max(num('tiltRange'), 0);
-                if (tilt !== 0) pts = pts.map(([x, y]) => [x, y * Math.exp(tilt * Math.min(Math.max(x - p, -range), range))]);
-            }
-            if (checked('useNotes')) {
-                // CurveSettings.LowNoteMultiplier: the whole curve
-                const m = noteMultiplier();
-                pts = pts.map(([x, y]) => [x, y * m]);
-            }
-            // The acc curve power's pivot is the curve at the star accuracy without the top compression (PpCalculator.GetPp)
+            // The acc curve power's pivot is the curve at the star accuracy (PpCalculator.GetPp)
             const at96 = interp(pts, corr.starAccuracy);
-            if (checked('useTop')) {
-                // Acc top compression (what-if): the curve above the knee rises slope as fast, from its value at the knee
-                const at = topKnee(p), slope = num('topSlope'), atKnee = interp(pts, at);
-                if (slope !== 1) pts = pts.map(([x, y]) => [x, x > at && y > atKnee ? atKnee + (y - atKnee) * slope : y]);
-            }
             if (powerOn()) {
                 const pow = power();
                 if (pow !== 1 && at96 > 0) pts = pts.map(([x, y]) => [x, y > 0 ? at96 * Math.pow(y / at96, pow) : y]);
@@ -422,11 +325,7 @@
         // One-line effect of each correction, in its panel's header
         function summaries(cur) {
             const on = id => checked(id);
-            const tilt = num('tiltStrength') * num('tiltShare') / 100, r = Math.max(num('tiltRange'), 0);
             const set = (id, text) => document.getElementById(id).innerHTML = text;
-            set('sumTilt', cur.predicted < 99.95
-                ? `${fmt(tilt, 4)} per 1% at ${fmt(num('tiltShare'), 0)}% sliders: &times;${fmt(Math.exp(-tilt * r), 3)} at &minus;${fmt(r, 2)}%, &times;${fmt(Math.exp(tilt * r), 3)} at +${fmt(r, 2)}%`
-                : 'none at 99.95%+ predicted');
             const noStars = 'set the map stars (next to the chart) to apply it';
             set('sumPower', !starsSet() ? noStars : `power ${fmt(power(), 3)} at ${fmt(stars(), 1)} stars` + (on('usePower') ? '' : ' (off: 1)'));
             set('sumVeryLow', !starsSet() ? noStars : stars() >= num('powVeryEnd')
@@ -436,8 +335,6 @@
             set('sumMidStar', !starsSet() ? noStars : bump === 0
                 ? `no effect at ${fmt(stars(), 1)} stars (${fmt(num('midStart'), 2)} to ${fmt(num('midEnd'), 2)} only)`
                 : `&times;${fmt(1 + num('midBonus') * bump, 3)} on acc pp at ${fmt(stars(), 1)} stars, from ${fmt(cur.predicted - num('midBelow'), 2)}%, full from ${fmt(cur.predicted + num('midAbove'), 2)}%`);
-            set('sumNotes', `&times;${fmt(noteMultiplier(), 3)} (${fmt(num('noteCount'), 0)} notes &times;${fmt(noteFactor(), 3)}, ${fmt(num('noteSpan'), 0)} s &times;${fmt(shortFactor(), 3)})`);
-            set('sumTop', `&times;${fmt(num('topSlope'), 2)} above ${fmt(topKnee(cur.predicted), 2)}%`);
             document.querySelectorAll('.ce-corr').forEach(box => box.classList.toggle('ce-on', checked(box.dataset.switch)));
         }
 
@@ -561,7 +458,7 @@
             }
             document.getElementById('starsWarning').textContent = missing.length
                 ? `Set the stars of ${missing.join(' and ')}: the acc curve power and very low star power don't apply without them.` : '';
-            const anyCorrection = !checked('usePerMap') || ['useTilt', 'useTop', 'useNotes'].some(checked) || (starsSet() && starBased.length > 0);
+            const anyCorrection = !checked('usePerMap') || (starsSet() && starBased.length > 0);
 
             const mode = document.getElementById('yMode').value;
             if (autoZoom) { range = { from: Math.max(60, Math.floor(Math.min(p, cmp ? cmp.predicted : p)) - 3), to: 100 }; syncRangeInputs(); }

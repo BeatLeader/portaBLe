@@ -321,7 +321,7 @@ namespace portaBLe
             if (args.Length > 1 && args[0] == "rerate")
             {
                 // Experiments: ParityPredictor settings (name=value, see paritycheck), pp formula ones (Pp.TechWeight=0.13), curve
-                // ones (Curve.SliderTilt=0) and the
+                // ones (Curve.LowNoteStart=100) and the
                 // low star speed blend's (Speed.LowStarSpeedWidthAbove=0.6, RatingsController's static settings); SustainedJumps (Jumps.MaxGapSeconds=0.25)
                 foreach (var setting in args.Skip(2))
                 {
@@ -329,9 +329,11 @@ namespace portaBLe
                     if (ParitySetting(parts[0], parts[1])) continue;
                     double value = double.Parse(parts[1], System.Globalization.CultureInfo.InvariantCulture);
                     if (parts[0].StartsWith("Pp.")) (typeof(RatingAPI.Pp.PpFormula).GetProperty(parts[0][3..]) ?? throw new ArgumentException(parts[0])).SetValue(RatingAPI.Pp.PpFormula.Current, value);
-                    // Per-map curve settings (Curve.SliderTilt=0): the stored curves and the stars use them
+                    // Per-map curve settings (Curve.LowNoteStart=100): the stored curves and the stars use them
                     else if (parts[0].StartsWith("Curve.")) (typeof(RatingAPI.Controllers.CurveSettings).GetProperty(parts[0][6..]) ?? throw new ArgumentException(parts[0])).SetValue(RatingAPI.Controllers.CurveSettings.Current, value);
                     else if (parts[0].StartsWith("Speed.")) (typeof(RatingAPI.Controllers.RatingsController).GetProperty(parts[0][6..]) ?? throw new ArgumentException(parts[0])).SetValue(null, value);
+                    // The Acc AI's static settings (Ai.ShortFarmWeight=1)
+                    else if (parts[0].StartsWith("Ai.")) (typeof(RatingAPI.Controllers.InferPublish).GetProperty(parts[0][3..]) ?? throw new ArgumentException(parts[0])).SetValue(null, value);
                     else if (parts[0].StartsWith("Jumps.")) beatleader_analyzer.BeatmapScanner.Helper.SustainedJumps.Set(parts[0][6..], value);
                     else Analyzer.BeatmapScanner.Algorithm.ParityPredictor.Set(parts[0], value);
                 }
@@ -654,7 +656,7 @@ namespace portaBLe
             }
             // dotnet run -c Release -- reacc <wwwroot/file.db> [NAME=value ...]: the acc ratings and stars again from the stored
             // predicted acc (RatingsRefresh.Refresh, raw: acc reweighter multipliers cleared) then RefreshEverything, with those
-            // AccRating correction constants (e.g. HIGH_PASS_BUFF=0.003) and pp formula settings (Pp.TechWeight=0.13). For
+            // AccRating correction constants (e.g. HIT_DISTANCE_SLOPE=0.02) and pp formula settings (Pp.TechWeight=0.13). For
             // experiments on a copy.
             if (args.Length > 1 && args[0] == "reacc")
             {
@@ -667,6 +669,11 @@ namespace portaBLe
                         var pp = typeof(RatingAPI.Pp.PpFormula).GetProperty(parts[0][3..]) ?? throw new ArgumentException($"No PpFormula setting {parts[0]}");
                         pp.SetValue(RatingAPI.Pp.PpFormula.Current, value);
                     }
+                    // Per-map curve settings, as rerate's (Curve.LowNoteStart=100)
+                    else if (parts[0].StartsWith("Curve."))
+                    {
+                        (typeof(RatingAPI.Controllers.CurveSettings).GetProperty(parts[0][6..]) ?? throw new ArgumentException(parts[0])).SetValue(RatingAPI.Controllers.CurveSettings.Current, value);
+                    }
                     else
                     {
                         var property = typeof(RatingAPI.Controllers.AccRating).GetProperty(parts[0]) ?? throw new ArgumentException($"No AccRating setting {parts[0]}");
@@ -678,6 +685,8 @@ namespace portaBLe
                 var options = new DbContextOptionsBuilder<AppContext>().UseSqlite($"Data Source={Path.GetFullPath(args[1])};").Options;
                 using var reaccContext = new AppContext(options);
                 await RatingsRefresh.Refresh(reaccContext, false);
+                // Refresh keeps the stored curves: a curve setting needs them regenerated (as recurve)
+                if (args.Skip(2).Any(a => a.StartsWith("Curve."))) await CurvesRefresh.Regenerate(reaccContext);
                 await RefreshEverything(reaccContext);
                 return;
             }

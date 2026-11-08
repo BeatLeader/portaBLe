@@ -23,10 +23,10 @@ namespace portaBLe.Refresh
             Console.WriteLine($"Regenerating acc curves ({FormattableString.Invariant($"A and C by predicted acc: {string.Join(", ", CurveSettings.Current.Table.Select(r => $"{r.PredictedAcc * 100}%: a {r.A}, c {r.C}"))}")})");
             var lbs = await dbContext.Leaderboards.Include(lb => lb.ModifiersRating).ToListAsync();
             var generator = new global::RatingAPI.Controllers.Curve();
-            // Besides the predicted acc, the curve uses the slider share (CurveSettings.SliderTilt) and the note count
-            // and span (low note nerf, CurveSettings.LowNoteStart), read from the maps folder only when those are enabled
+            // The note count and span (PpFormula's short map top, the low note speed blend), read from the maps folder only when
+            // CurveSettings.LowNoteStart is on
             var settings = CurveSettings.Current;
-            var maps = settings.SliderTilt != 0 || settings.LowNoteStart > 0 ? await MapCounts(lbs) : new Dictionary<string, (double, int, double)>();
+            var maps = settings.LowNoteStart > 0 ? await MapCounts(lbs) : new Dictionary<string, (double, int, double)>();
 
             foreach (var lb in lbs)
             {
@@ -51,7 +51,7 @@ namespace portaBLe.Refresh
             Console.WriteLine($"Curves regenerated in {timer.Elapsed:mm\\:ss}");
         }
 
-        // Every leaderboard's slider share (CurveSettings.SliderTilt's input) to a CSV (id,sliders,notes), from the maps folder.
+        // Every leaderboard's slider share (sliders and curved sliders per swing) to a CSV (id,sliders,notes), from the maps folder.
         // Read only (portaBLe slidershare)
         public static async Task ExportSliderShares(AppContext dbContext, string path)
         {

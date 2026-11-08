@@ -40,6 +40,8 @@ namespace portaBLe.Refresh
                         lb.ModeName,
                         lb.TopTilt,
                         lb.TopTiltAnchor,
+                        lb.NoteCount,
+                        lb.NoteSpan,
                         lb.Curve,
                         lb.ModifiersRating,
                         Scores = lb.Scores.Select(s => new { s.Id, s.Accuracy, s.Modifiers }).ToList()
@@ -67,7 +69,8 @@ namespace portaBLe.Refresh
                                 leaderboard.PredictedAcc,
                                 ReplayUtils.IsOneSaber(leaderboard.ModeName),
                                 leaderboard.TopTilt ?? 0,
-                                leaderboard.TopTiltAnchor ?? 0);
+                                leaderboard.TopTiltAnchor ?? 0,
+                                ReplayUtils.ShortTop(leaderboard.NoteCount, leaderboard.NoteSpan));
 
                             if (float.IsNaN(pp))
                             {

@@ -18,9 +18,8 @@ namespace portaBLe.Refresh
 
         // Same as RatingAPI (AccRating.GetRating), so the constants only live in one place
         // hitDistance / hardSwingRatio: the map's Leaderboard.HitDistance / HardSwingRatio (the same with speed modifiers).
-        // highPassRating: a speed modifier's high pass correction's pass rating, the nomod one (null: passRating)
-        public static float AccRating(float? predictedAcc, float? passRating, float? techRating, float hitDistance = 0, float hardSwingRatio = 0, float? highPassRating = null) =>
-            (float)new global::RatingAPI.Controllers.AccRating().GetRating(predictedAcc, passRating, techRating, hitDistance, hardSwingRatio, highPassRating);
+        public static float AccRating(float? predictedAcc, float? passRating, float? techRating, float hitDistance = 0, float hardSwingRatio = 0) =>
+            (float)new global::RatingAPI.Controllers.AccRating().GetRating(predictedAcc, passRating, techRating, hitDistance, hardSwingRatio);
 
         // A OneSaber leaderboard (its scores' acc pp: PpFormula.OneSaberMultiplier)
         public static bool IsOneSaber(string? modeName) => string.Equals(modeName, "OneSaber", StringComparison.OrdinalIgnoreCase);
@@ -28,7 +27,10 @@ namespace portaBLe.Refresh
         // PpFromScore with a leaderboard's own ratings, curve (null: its stored one) and top tilt
         public static (float, float, float, float, float) PpFromScore(float accuracy, string modifiers, Leaderboard lb, IReadOnlyList<Vector2>? curve = null) =>
             PpFromScore(accuracy, modifiers, lb.ModifiersRating, lb.AccRating, lb.PassRating, lb.TechRating, curve ?? lb.Curve, lb.PredictedAcc,
-                IsOneSaber(lb.ModeName), lb.TopTilt ?? 0, lb.TopTiltAnchor ?? 0);
+                IsOneSaber(lb.ModeName), lb.TopTilt ?? 0, lb.TopTiltAnchor ?? 0, ShortTop(lb.NoteCount, lb.NoteSpan));
+
+        // How much of the short map top a leaderboard gets (PpFormula.ShortTopWeight)
+        public static float ShortTop(int noteCount, float noteSpan) => PpFormula.Current.ShortTopWeight(noteCount, noteSpan);
 
         // The acc reweighter's multiplier of a leaderboard (Leaderboard.AccReweight, 0 = none)
         public static double AccReweightOf(Leaderboard lb) => lb.AccReweight > 0 ? lb.AccReweight : 1;
@@ -79,7 +81,8 @@ namespace portaBLe.Refresh
             float predictedAcc = 0,                 // the leaderboard's predicted acc (PpFormula's acc relative pass / tech pp)
             bool oneSaber = false,                  // a OneSaber leaderboard (PpFormula.OneSaberMultiplier, IsOneSaber)
             float topTilt = 0,                      // the leaderboard's top tilt and its anchor (Leaderboard.TopTilt / TopTiltAnchor)
-            float topTiltAnchor = 0)
+            float topTiltAnchor = 0,
+            float shortTop = 0)                     // the short map top's weight (ShortTop)
         {
             MapRatings? speedRatings = null;
             // Only scores with modifiers can use the modifier ratings: the first speed modifier
@@ -90,7 +93,7 @@ namespace portaBLe.Refresh
                     if (speedRatings != null) break;
                 }
             }
-            return PpCalculator.ScorePp(accuracy, modifiers, new MapRatings(accRating, passRating, techRating, curve, predictedAcc, oneSaber, topTilt, topTiltAnchor), speedRatings, modifiersRating != null);
+            return PpCalculator.ScorePp(accuracy, modifiers, new MapRatings(accRating, passRating, techRating, curve, predictedAcc, oneSaber, topTilt, topTiltAnchor, shortTop), speedRatings is MapRatings speed ? speed with { ShortTop = shortTop } : null, modifiersRating != null);
         }
 
         public static int MaxScoreForNote(int count) {

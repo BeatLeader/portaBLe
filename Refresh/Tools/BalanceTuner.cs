@@ -548,6 +548,7 @@ namespace portaBLe.Refresh
                     HitDistance = lb.HitDistance,
                     HardSwingRatio = lb.HardSwingRatio,
                     TopTilt = lb.TopTilt, TopTiltAnchor = lb.TopTiltAnchor,
+                    NoteCount = lb.NoteCount, NoteSpan = lb.NoteSpan,
                     PassRating = pass,
                     TechRating = tech,
                     AccRating = acc,
@@ -555,11 +556,9 @@ namespace portaBLe.Refresh
                 var mod = lb.ModifiersRating;
                 if (mod != null)
                 {
-                    // Their high pass correction follows the nomod pass when AccRating.SpeedHighPassFromNomod is on
-                    (double, double)? speedHighPass = global::RatingAPI.Controllers.AccRating.SpeedHighPassFromNomod ? (lb.PassRating, pass) : null;
-                    var (ssPass, ssTech, ssAcc) = Transform(mod.SSPassRating, mod.SSTechRating, mod.SSAccRating, mod.SSPredictedAcc, lb.HitDistance, lb.HardSwingRatio, oneSaber, from, to, speedHighPass);
-                    var (fsPass, fsTech, fsAcc) = Transform(mod.FSPassRating, mod.FSTechRating, mod.FSAccRating, mod.FSPredictedAcc, lb.HitDistance, lb.HardSwingRatio, oneSaber, from, to, speedHighPass);
-                    var (sfPass, sfTech, sfAcc) = Transform(mod.SFPassRating, mod.SFTechRating, mod.SFAccRating, mod.SFPredictedAcc, lb.HitDistance, lb.HardSwingRatio, oneSaber, from, to, speedHighPass);
+                    var (ssPass, ssTech, ssAcc) = Transform(mod.SSPassRating, mod.SSTechRating, mod.SSAccRating, mod.SSPredictedAcc, lb.HitDistance, lb.HardSwingRatio, oneSaber, from, to);
+                    var (fsPass, fsTech, fsAcc) = Transform(mod.FSPassRating, mod.FSTechRating, mod.FSAccRating, mod.FSPredictedAcc, lb.HitDistance, lb.HardSwingRatio, oneSaber, from, to);
+                    var (sfPass, sfTech, sfAcc) = Transform(mod.SFPassRating, mod.SFTechRating, mod.SFAccRating, mod.SFPredictedAcc, lb.HitDistance, lb.HardSwingRatio, oneSaber, from, to);
                     copy.ModifiersRating = new ModifiersRating
                     {
                         Id = mod.Id,
@@ -589,9 +588,8 @@ namespace portaBLe.Refresh
             };
         }
 
-        // nomodPass: a speed modifier's map's nomod pass rating before and after (its high pass correction's), null: nomod
         private static (float Pass, float Tech, float Acc) Transform(float pass, float tech, float accRating, float predictedAcc, float hitDistance, float hardSwingRatio, bool oneSaber,
-            RatingConstants from, RatingConstants to, (double Old, double New)? nomodPass = null)
+            RatingConstants from, RatingConstants to)
         {
             double newPass = pass * (to.PassCalibration / from.PassCalibration);
             if (oneSaber)
@@ -611,12 +609,11 @@ namespace portaBLe.Refresh
             double newAcc = accRating;
             if (predictedAcc > 0)
             {
-                // Same as AccRating.GetRating, with its corrections (the high pass one follows the new pass)
-                double oldEffective = global::RatingAPI.Controllers.AccRating.EffectiveAcc(predictedAcc, pass, hitDistance, nomodPass?.Old);
-                double newEffective = global::RatingAPI.Controllers.AccRating.EffectiveAcc(predictedAcc, newPass, hitDistance, nomodPass?.New);
-                double oldBase = from.AccScale / global::RatingAPI.Controllers.AccRating.Curve(predictedAcc, oldEffective + from.AccOffset)
+                // Same as AccRating.GetRating, with its corrections (the hard swing one follows the new pass)
+                double effective = global::RatingAPI.Controllers.AccRating.EffectiveAcc(predictedAcc, hitDistance);
+                double oldBase = from.AccScale / global::RatingAPI.Controllers.AccRating.Curve(predictedAcc, effective + from.AccOffset)
                     * global::RatingAPI.Controllers.AccRating.HardSwingMultiplier(pass, hardSwingRatio);
-                double newBase = to.AccScale / global::RatingAPI.Controllers.AccRating.Curve(predictedAcc, newEffective + to.AccOffset)
+                double newBase = to.AccScale / global::RatingAPI.Controllers.AccRating.Curve(predictedAcc, effective + to.AccOffset)
                     * global::RatingAPI.Controllers.AccRating.HardSwingMultiplier(newPass, hardSwingRatio);
                 if (oldBase > 0 && double.IsFinite(newBase)) newAcc = accRating * newBase / oldBase;
             }
@@ -649,11 +646,11 @@ namespace portaBLe.Refresh
             Parallel.For(0, data.Maps.Length, m =>
             {
                 var lb = data.Maps[m].Leaderboard;
-                prepared[m * speedCount] = global::RatingAPI.Pp.PpCalculator.Prepare(new global::RatingAPI.Pp.MapRatings(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve, lb.PredictedAcc, IsOneSaber(lb), lb.TopTilt ?? 0, lb.TopTiltAnchor ?? 0));
+                prepared[m * speedCount] = global::RatingAPI.Pp.PpCalculator.Prepare(new global::RatingAPI.Pp.MapRatings(lb.AccRating, lb.PassRating, lb.TechRating, lb.Curve, lb.PredictedAcc, IsOneSaber(lb), lb.TopTilt ?? 0, lb.TopTiltAnchor ?? 0, ReplayUtils.ShortTop(lb.NoteCount, lb.NoteSpan)));
                 if (lb.ModifiersRating == null) return;
                 for (int k = 1; k < speedCount; k++)
                 {
-                    prepared[m * speedCount + k] = global::RatingAPI.Pp.PpCalculator.Prepare(ReplayUtils.SpeedRatings(lb.ModifiersRating, WorthSpeeds[k], lb.Curve, IsOneSaber(lb))!.Value);
+                    prepared[m * speedCount + k] = global::RatingAPI.Pp.PpCalculator.Prepare(ReplayUtils.SpeedRatings(lb.ModifiersRating, WorthSpeeds[k], lb.Curve, IsOneSaber(lb))!.Value with { ShortTop = ReplayUtils.ShortTop(lb.NoteCount, lb.NoteSpan) }, true);
                 }
             });
 
