@@ -77,6 +77,9 @@ namespace portaBLe.Refresh
         public static double SlopeCorrectionStep { get; set; } = 0.005;
         public static double SlopeCorrectionMax { get; set; } = 0.1;
         public static int SlopeCorrectionSteps { get; set; } = 5;
+        // The width (stars) of the smooth reference its terms are measured against (SlopeTerms). 0: each star range's mean, whose
+        // reset at every whole star bunched the stars around x.5 (multipliers -4% per star inside a range, +2.8% at each whole star)
+        public static double SlopeCorrectionBandwidth { get; set; } = 0.8999;
         // The slope search again at the real stars. Off: it restores the stored slopes but moves maps by their kind rather than
         // their gap (worth spread up, pass heavy low tech maps buffed to the cap)
         public static bool RealStarsSlopeCorrection { get; set; } = false;
@@ -716,8 +719,9 @@ namespace portaBLe.Refresh
             return relative;
         }
 
-        // The slope correction's terms: for the pass share, tech share and predicted acc, -(the map's - its star range's
-        // mean) / the within-range sd / Prior, over the maps with a worth
+        // The slope correction's terms: for the pass share, tech share and predicted acc, -(the map's - its reference) / the sd
+        // around it / Prior, over the maps with a worth. The reference: a local linear fit over stars (SlopeCorrectionBandwidth),
+        // or its star range's mean with 0.
         private static double[][] SlopeTerms(Context c)
         {
             int mapCount = c.Loaded.Maps.Length;
@@ -726,6 +730,17 @@ namespace portaBLe.Refresh
             var u = new double[features.Length][];
             for (int f = 0; f < features.Length; f++)
             {
+                if (SlopeCorrectionBandwidth > 0)
+                {
+                    var smoothDev = SmoothDeviations(c, features[f]);
+                    double total = 0;
+                    int with = 0;
+                    for (int i = 0; i < mapCount; i++) if (c.HasWorth[i] > 0) { total += smoothDev[i] * smoothDev[i]; with++; }
+                    double smoothSd = with > 0 && total > 0 ? Math.Sqrt(total / with) : 1;
+                    u[f] = new double[mapCount];
+                    for (int i = 0; i < mapCount; i++) if (c.HasWorth[i] > 0) u[f][i] = -smoothDev[i] / smoothSd / c.Prior[i];
+                    continue;
+                }
                 var sums = new Dictionary<int, (double Sum, int Count)>();
                 for (int i = 0; i < mapCount; i++)
                 {
@@ -749,6 +764,30 @@ namespace portaBLe.Refresh
                 for (int i = 0; i < mapCount; i++) if (c.HasWorth[i] > 0) u[f][i] = -dev[i] / sd / c.Prior[i];
             }
             return u;
+        }
+
+        // Each map's feature minus a local linear fit of it over the unreweighted stars of the maps with a worth (0 without a worth)
+        private static double[] SmoothDeviations(Context c, double[] feature)
+        {
+            int mapCount = c.Loaded.Maps.Length;
+            var stars = c.Unweighted.Maps.Select(m => (double)m.Stars).ToArray();
+            var used = Enumerable.Range(0, mapCount).Where(i => c.HasWorth[i] > 0).ToArray();
+            double h = SlopeCorrectionBandwidth;
+            var dev = new double[mapCount];
+            Parallel.ForEach(used, i =>
+            {
+                double sw = 0, sx = 0, sy = 0, sxx = 0, sxy = 0;
+                foreach (var j in used)
+                {
+                    double d = stars[j] - stars[i];
+                    if (Math.Abs(d) > 4 * h) continue;
+                    double w = Math.Exp(-0.5 * d * d / (h * h));
+                    sw += w; sx += w * d; sy += w * feature[j]; sxx += w * d * d; sxy += w * d * feature[j];
+                }
+                double det = sw * sxx - sx * sx;
+                dev[i] = feature[i] - (det > 1e-9 * sw * sw ? (sy * sxx - sx * sxy) / det : sy / sw);
+            });
+            return dev;
         }
 
         // The Jacobian of the three slopes on the slope correction's terms at logM (null: the start, its balance at), at the
