@@ -28,9 +28,11 @@ namespace portaBLe.Services
             public float MinWeight;                 // 0..1, weighted page only
             public int MinDay = int.MinValue;       // TopScoresCache.DayNumber, int.MinValue = unfiltered
             public int MaxPlayerRank;               // 0 = unfiltered
+            public int MaxMapRank;                  // the score's rank on its leaderboard (by pp, every player), 0 = unfiltered
             public int MinRankedPlayCount;
             public string PlayerId = "";
             public bool[] Speeds = { true, true, true, true };   // none, SS, FS, SFS
+            public bool[] Categories = { true, true };            // Standard (every mode but OneSaber), OneSaber
             public string[] Tags = Array.Empty<string>();   // MapTags.All keys: any of the map types and all of the traits; none = unfiltered
             public string[] ExcludedTags = Array.Empty<string>();   // MapTags.All keys the map must have none of
         }
@@ -40,6 +42,7 @@ namespace portaBLe.Services
             public int[] RankedPlayCount = Array.Empty<int>();   // per cache player
             public float[] Ratings = Array.Empty<float>();        // [(map * 4 + speed) * 3 + k]: acc, pass, tech
             public int[] TagBits = Array.Empty<int>();            // per cache map: bit t = has MapTags.All[t]
+            public int[] Category = Array.Empty<int>();           // per cache map: 0 Standard, 1 OneSaber
         }
 
         // Keyed by the cache snapshot: a new database version gets a new snapshot, so these are read again
@@ -63,7 +66,7 @@ namespace portaBLe.Services
             if (connection.State != ConnectionState.Open) await connection.OpenAsync();
             static float Flt(DbDataReader r, int i) => r.IsDBNull(i) ? 0f : (float)r.GetDouble(i);
 
-            var extras = new Extras { RankedPlayCount = new int[d.Players.Length], Ratings = new float[d.Maps.Length * 4 * 3], TagBits = new int[d.Maps.Length] };
+            var extras = new Extras { RankedPlayCount = new int[d.Players.Length], Ratings = new float[d.Maps.Length * 4 * 3], TagBits = new int[d.Maps.Length], Category = new int[d.Maps.Length] };
 
             var playerIndex = new Dictionary<string, int>(d.Players.Length);
             for (int p = 0; p < d.Players.Length; p++) playerIndex[d.Players[p].Id] = p;
@@ -84,7 +87,7 @@ namespace portaBLe.Services
                     "SELECT l.Id, l.AccRating, l.PassRating, l.TechRating, " +
                     "m.SSAccRating, m.SSPassRating, m.SSTechRating, m.FSAccRating, m.FSPassRating, m.FSTechRating, " +
                     "m.SFAccRating, m.SFPassRating, m.SFTechRating, " +
-                    "l.MapType, l.IsLinear, l.IsFitbeat, l.IsBombReset, l.IsInline " +
+                    "l.MapType, l.IsLinear, l.IsFitbeat, l.IsBombReset, l.IsInline, l.ModeName " +
                     "FROM Leaderboards l LEFT JOIN ModifiersRating m ON m.Id = l.ModifiersRatingId";
                 using var r = await command.ExecuteReaderAsync();
                 while (await r.ReadAsync())
@@ -105,6 +108,7 @@ namespace portaBLe.Services
                         IsLinear = Flag(r, 14), IsFitbeat = Flag(r, 15), IsBombReset = Flag(r, 16), IsInline = Flag(r, 17),
                     };
                     foreach (var tag in Pages.MapTags.Of(lb)) extras.TagBits[m] |= 1 << Array.IndexOf(Pages.MapTags.All, tag);
+                    extras.Category[m] = Refresh.ReplayUtils.IsOneSaber(r.IsDBNull(18) ? null : r.GetString(18)) ? 1 : 0;
                 }
             }
             return extras;
@@ -138,7 +142,8 @@ namespace portaBLe.Services
             var selected = new List<int>();
             for (int i = 0; i < d.Count; i++)
             {
-                if (!playerOk[d.Player[i]] || !f.Speeds[d.Speed(i)]) continue;
+                if (!playerOk[d.Player[i]] || !f.Speeds[d.Speed(i)] || !f.Categories[extras.Category[d.Map[i]]]) continue;
+                if (f.MaxMapRank > 0 && d.MapRank[i] > f.MaxMapRank) continue;
                 int tags = extras.TagBits[d.Map[i]];
                 if ((typeBits != 0 && (tags & typeBits) == 0) || (tags & traitBits) != traitBits || (tags & excludedBits) != 0) continue;
                 if (f.MinDay != int.MinValue && d.Day[i] < f.MinDay) continue;
@@ -174,7 +179,39 @@ namespace portaBLe.Services
                 count = n,
                 dots = Dots(xs, ys, n),
                 bins = Bins(xs, ys, n),
+                starBands = StarBands(xs[0], ys, n),
             };
+        }
+
+        // Per 1 star band (floor of the stars): its score count, and the mean and max of every y over all filtered scores
+        private static Dictionary<string, object> StarBands(float[] stars, float[][] ys, int n)
+        {
+            int bands = 0;
+            for (int k = 0; k < n; k++) bands = Math.Max(bands, (int)Math.Max(0, stars[k]) + 1);
+            var counts = new int[bands];
+            var sums = new double[YFields.Length, bands];
+            var peaks = new float[YFields.Length, bands];
+            for (int k = 0; k < n; k++)
+            {
+                int b = (int)Math.Max(0, stars[k]);
+                if (counts[b]++ == 0) for (int y = 0; y < YFields.Length; y++) peaks[y, b] = ys[y][k];
+                for (int y = 0; y < YFields.Length; y++)
+                {
+                    sums[y, b] += ys[y][k];
+                    if (ys[y][k] > peaks[y, b]) peaks[y, b] = ys[y][k];
+                }
+            }
+            var result = new Dictionary<string, object> { ["count"] = counts };
+            for (int y = 0; y < YFields.Length; y++)
+            {
+                int digits = y == 1 ? 6 : 2;
+                result[YFields[y]] = new
+                {
+                    avg = Enumerable.Range(0, bands).Select(b => counts[b] > 0 ? MathF.Round((float)(sums[y, b] / counts[b]), digits) : 0).ToArray(),
+                    peak = Enumerable.Range(0, bands).Select(b => MathF.Round(peaks[y, b], digits)).ToArray(),
+                };
+            }
+            return result;
         }
 
         // JSON can't hold NaN / infinity

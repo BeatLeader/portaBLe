@@ -18,6 +18,10 @@ namespace portaBLe.Pages
         [BindProperty(SupportsGet = true)]
         public int MaxPlayerRank { get; set; } = 1000;
 
+        // Only the top X scores of each leaderboard (their rank by pp among every player's), 0 = unfiltered
+        [BindProperty(SupportsGet = true)]
+        public int MaxMapRank { get; set; } = 0;
+
         [BindProperty(SupportsGet = true)]
         public int MinRankedPlayCount { get; set; } = 100;
 
@@ -33,6 +37,12 @@ namespace portaBLe.Pages
         public bool ModFS { get; set; } = false;
         [BindProperty(SupportsGet = true)]
         public bool ModSFS { get; set; } = false;
+
+        // Map categories to include. Both ticked = unfiltered.
+        [BindProperty(SupportsGet = true)]
+        public bool CatStandard { get; set; } = true;
+        [BindProperty(SupportsGet = true)]
+        public bool CatOneSaber { get; set; } = true;
 
         // Tag filter: comma separated MapTags.All keys (acc, tech, midspeed, speed, extreme, linear, fitbeat, bombreset, inline),
         // excluded ones with a leading "-": maps of any of the included types that have all the included traits and none of
@@ -61,7 +71,7 @@ namespace portaBLe.Pages
             await InitializeDatabaseSelectionAsync(db);
         }
 
-        public async Task<IActionResult> OnGetDataAsync(int minYear = 0, int minMonth = 0, int minDay = 0, int maxPlayerRank = 1000, int minRankedPlayCount = 100, string playerId = "", bool modNone = true, bool modSS = false, bool modFS = false, bool modSFS = false, string tags = "", string db = null)
+        public async Task<IActionResult> OnGetDataAsync(int minYear = 0, int minMonth = 0, int minDay = 0, int maxPlayerRank = 1000, int maxMapRank = 0, int minRankedPlayCount = 100, string playerId = "", bool modNone = true, bool modSS = false, bool modFS = false, bool modSFS = false, bool catStandard = true, bool catOneSaber = true, string tags = "", string db = null)
         {
             await InitializeDatabaseSelectionAsync(db);
             var result = await TopScoresCache.TryGetAsync(() => GetDbContext());
@@ -72,9 +82,11 @@ namespace portaBLe.Pages
                 Weighted = false,
                 MinDay = ScoresGraphDates.DayOf(minYear, minMonth, minDay),
                 MaxPlayerRank = maxPlayerRank,
+                MaxMapRank = maxMapRank,
                 MinRankedPlayCount = minRankedPlayCount,
                 PlayerId = playerId ?? "",
                 Speeds = new[] { modNone, modSS, modFS, modSFS },
+                Categories = new[] { catStandard, catOneSaber },
                 Tags = MapTags.ParseKeys(tags).Include,
                 ExcludedTags = MapTags.ParseKeys(tags).Exclude,
             };

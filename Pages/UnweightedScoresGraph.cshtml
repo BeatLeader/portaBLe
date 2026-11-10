@@ -34,6 +34,13 @@
                         </div>
                         <div class="col-md-3">
                             <div class="form-group">
+                                <label for="maxMapRank">Top X plays per leaderboard</label>
+                                <input id="maxMapRank" type="number" class="form-control" min="0" autocomplete="off" value="@Model.MaxMapRank" placeholder="0 = unfiltered" />
+                                <small class="form-text text-muted">Leaderboard rank by pp, among every player; 0 = unfiltered</small>
+                            </div>
+                        </div>
+                        <div class="col-md-3">
+                            <div class="form-group">
                                 <label for="minRankedPlayCount">Min Ranked Play Count</label>
                                 <input id="minRankedPlayCount" type="number" class="form-control" autocomplete="off" value="@Model.MinRankedPlayCount" />
                             </div>
@@ -110,6 +117,23 @@
                                     <div class="form-check form-check-inline">
                                         <input id="modSFS" type="checkbox" class="form-check-input" checked="@Model.ModSFS" />
                                         <label class="form-check-label" for="modSFS">SFS</label>
+                                    </div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                    <div class="row">
+                        <div class="col-md-12">
+                            <div class="form-group">
+                                <label>Categories to include</label>
+                                <div>
+                                    <div class="form-check form-check-inline">
+                                        <input id="catStandard" type="checkbox" class="form-check-input" checked="@Model.CatStandard" />
+                                        <label class="form-check-label" for="catStandard">Standard</label>
+                                    </div>
+                                    <div class="form-check form-check-inline">
+                                        <input id="catOneSaber" type="checkbox" class="form-check-input" checked="@Model.CatOneSaber" />
+                                        <label class="form-check-label" for="catOneSaber">OneSaber</label>
                                     </div>
                                 </div>
                             </div>
@@ -206,6 +230,23 @@
                 </div>
                 <div class="card-body">
                     <div id="diffPlot" style="width:100%;height:300px;"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <div id="bandsCard" class="row mt-3" style="display:none;">
+        <div class="col-md-12">
+            <div class="card">
+                <div class="card-header">
+                    <h5 id="bandsTitle" class="mb-0">Per star band</h5>
+                    <small class="text-muted">Average and peak over every filtered score (not only the dots), 1 star bands by the score's stars</small>
+                </div>
+                <div class="card-body">
+                    <table class="table table-sm table-striped mb-0">
+                        <thead id="bandsHead"></thead>
+                        <tbody id="bandsBody"></tbody>
+                    </table>
                 </div>
             </div>
         </div>
@@ -361,9 +402,46 @@
             });
         }
 
+        // Average and peak of the y axis per 1 star band, with the comparison's next to them (and their difference: % for
+        // pp, acc points for acc)
+        function renderStarBands(d, cmp, yField, mainName) {
+            const card = document.getElementById('bandsCard');
+            const main = d && d.count && d.starBands ? d.starBands : null;
+            if (!main) {
+                card.style.display = 'none';
+                return;
+            }
+            card.style.display = '';
+            const other = cmp && cmp.starBands ? cmp.starBands : null;
+            const isAcc = yField === 'acc';
+            const fmt = v => isAcc ? (v * 100).toFixed(2) + '%' : v.toFixed(1);
+            const diff = (a, b) => isAcc ? `${((b - a) * 100) >= 0 ? '+' : ''}${((b - a) * 100).toFixed(2)}` : a > 0 ? `${b / a >= 1 ? '+' : ''}${((b / a - 1) * 100).toFixed(1)}%` : '';
+            document.getElementById('bandsTitle').textContent = `Per star band: ${getAxisLabel(yField)}`;
+
+            const head = ['Stars', other ? `Scores: ${mainName}` : 'Scores', other ? `Average: ${mainName}` : 'Average', other ? `Peak: ${mainName}` : 'Peak'];
+            if (other) head.push(`Scores: ${cmp.name}`, `Average: ${cmp.name}`, `Peak: ${cmp.name}`, 'Average diff', 'Peak diff');
+            document.getElementById('bandsHead').innerHTML = '<tr>' + head.map((h, i) => `<th class="${i ? 'text-end' : ''}"></th>`).join('') + '</tr>';
+            document.querySelectorAll('#bandsHead th').forEach((th, i) => th.textContent = head[i]);
+
+            const rows = [];
+            const bands = Math.max(main.count.length, other ? other.count.length : 0);
+            for (let b = 0; b < bands; b++) {
+                const c = main.count[b] || 0, oc = other ? other.count[b] || 0 : 0;
+                if (!c && !oc) continue;
+                const cells = [`${b}-${b + 1}`, c.toLocaleString(), c ? fmt(main[yField].avg[b]) : '', c ? fmt(main[yField].peak[b]) : ''];
+                if (other) {
+                    cells.push(oc.toLocaleString(), oc ? fmt(other[yField].avg[b]) : '', oc ? fmt(other[yField].peak[b]) : '',
+                        c && oc ? diff(main[yField].avg[b], other[yField].avg[b]) : '', c && oc ? diff(main[yField].peak[b], other[yField].peak[b]) : '');
+                }
+                rows.push('<tr>' + cells.map((v, i) => `<td class="${i ? 'text-end' : ''}">${v}</td>`).join('') + '</tr>');
+            }
+            document.getElementById('bandsBody').innerHTML = rows.join('');
+        }
+
         function renderPlot(d, xField, yField, percent) {
             const cmp = compareData && compareData.count ? compareData : null;
             document.getElementById('compareMagicRow').style.display = 'none';
+            renderStarBands(d, cmp, yField, d && (d.name || DB_NAMES[MAIN_DB] || MAIN_DB));
             if (!d || !d.count) {
                 document.getElementById('diffCard').style.display = 'none';
                 Plotly.react('myPlot', [], {
@@ -491,12 +569,15 @@
                 minMonth: parseInt(document.getElementById('minMonth').value) || 0,
                 minDay: parseInt(document.getElementById('minDay').value) || 0,
                 maxPlayerRank: parseInt(document.getElementById('maxPlayerRank').value) || 0,
+                maxMapRank: Math.max(0, parseInt(document.getElementById('maxMapRank').value) || 0),
                 minRankedPlayCount: parseInt(document.getElementById('minRankedPlayCount').value) || 0,
                 playerId: (document.getElementById('playerId').value || '').trim(),
                 modNone: document.getElementById('modNone').checked,
                 modSS: document.getElementById('modSS').checked,
                 modFS: document.getElementById('modFS').checked,
                 modSFS: document.getElementById('modSFS').checked,
+                catStandard: document.getElementById('catStandard').checked,
+                catOneSaber: document.getElementById('catOneSaber').checked,
                 tags: tagsOf('main'),
             };
             if (WEIGHTED) v.minWeightPercent = parseFloat(document.getElementById('minWeightPercent').value) || 0;
@@ -607,7 +688,7 @@
         // Load straight away when the URL has filters
         function shouldAutoLoad() {
             const urlParams = new URLSearchParams(window.location.search);
-            const filterParams = ['minWeightPercent', 'minYear', 'minMonth', 'minDay', 'maxPlayerRank', 'minRankedPlayCount', 'playerId', 'modNone', 'modSS', 'modFS', 'modSFS', 'tags', 'compareTags', 'compareDb'];
+            const filterParams = ['minWeightPercent', 'minYear', 'minMonth', 'minDay', 'maxPlayerRank', 'maxMapRank', 'minRankedPlayCount', 'playerId', 'modNone', 'modSS', 'modFS', 'modSFS', 'catStandard', 'catOneSaber', 'tags', 'compareTags', 'compareDb'];
             return filterParams.some(param => urlParams.has(param) && urlParams.get(param) !== '' && urlParams.get(param) !== '0' && urlParams.get(param) !== 'true');
         }
 
