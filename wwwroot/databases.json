@@ -7,19 +7,9 @@
       "Description": "Current production"
     },
     {
-      "Name": "Prod Autoreweighted",
-      "FileName": "db-20261104211323-3944.db",
-      "Description": "Current production (autoreweighted)"
-    },
-    {
-      "Name": "Dev Acc",
-      "FileName": "db-20261109002953-6383.db",
-      "Description": "Dev Acc"
-    },
-    {
-      "Name": "Dev Acc Autoreweighted",
-      "FileName": "db-20261109003033-3939.db",
-      "Description": "Dev Acc (autoreweighted)"
+      "Name": "Planner (model predictions)",
+      "FileName": "db-20261124020423-6960.db",
+      "Description": "MODEL PREDICTIONS, not real plays: AccAI planner v5b (outcome_v5b_setup ckpt 100k) expected scores of prod's top-5000 players it knows (4,297) on every ranked map (3,967), no modifiers, skill as of 2025-11-26, no calibration; prod ratings, current pp formula"
     }
   ]
 }
